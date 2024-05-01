@@ -69,11 +69,11 @@ train_data = train_data.map(tokenize, remove_columns="text")
 collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
 config = MistralConfig(
     vocab_size=tokenizer.vocab_size,
-    hidden_size=512,
-    intermediate_size=2048,
-    num_hidden_layers=6,
-    num_attention_heads=8,
-    num_key_value_heads=2,
+    hidden_size=128,
+    intermediate_size=512,
+    num_hidden_layers=3,
+    num_attention_heads=4,
+    num_key_value_heads=4,
     # TODO
     # pad_token_id=,
     # bos_token_id=,
@@ -81,13 +81,15 @@ config = MistralConfig(
 )
 model = MistralForCausalLM(config)
 
+# TODO: figure out how to get epochs with iterable dataset (max_steps just runs without epoch breaks)
 training_args = TrainingArguments(
     output_dir="profam-examples",
-    evaluation_strategy="epoch",
+    evaluation_strategy="no",
+    report_to="none",
     learning_rate=2e-5,
     weight_decay=0.01,
     push_to_hub=False,
-    max_steps=2,  # needed because iterabledataset has no len
+    max_steps=200,  # seemingly needed because iterabledataset has no len
 )
 
 trainer = Trainer(
