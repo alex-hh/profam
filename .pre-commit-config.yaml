@@ -1,0 +1,40 @@
+repos:
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+        exclude: '^data'
+
+  - repo: https://github.com/psf/black
+    rev: 22.10.0
+    hooks:
+      - id: black
+        exclude: '^data'
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: check-yaml
+        exclude: '^data'
+      - id: end-of-file-fixer
+        exclude: '^data'
+      - id: trailing-whitespace
+        exclude: '^data'
+        # exclude: '^data|^scripts/gvp'
+
+
+  # - repo: https://github.com/PyCQA/flake8
+  #   rev: 4.0.1
+  #   hooks:
+  #     - id: flake8
+  #       name: "Linter"
+  #       args:
+  #         - --config=setup.cfg
+  #       additional_dependencies:
+  #         - pep8-naming
+  #         - flake8-builtins
+  #         - flake8-comprehensions
+  #         - flake8-bugbear
+  #         - flake8-pytest-style
+  #         - flake8-cognitive-complexity
+  #       exclude: '^evoif/gvp|^evoif/lm-design'
