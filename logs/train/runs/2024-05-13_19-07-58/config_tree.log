@@ -1,0 +1,102 @@
+CONFIG
+├── data
+│   └── _target_: src.data.mnist_datamodule.MNISTDataModule                                                                                                                                 
+│       data_dir: /Users/davidmiller/Projects/profam/lightning-hydra-template/data/                                                                                                         
+│       batch_size: 128                                                                                                                                                                     
+│       train_val_test_split:                                                                                                                                                               
+│       - 55000                                                                                                                                                                             
+│       - 5000                                                                                                                                                                              
+│       - 10000                                                                                                                                                                             
+│       num_workers: 0                                                                                                                                                                      
+│       pin_memory: false                                                                                                                                                                   
+│                                                                                                                                                                                           
+├── model
+│   └── _target_: src.models.mnist_module.MNISTLitModule                                                                                                                                    
+│       optimizer:                                                                                                                                                                          
+│         _target_: torch.optim.Adam                                                                                                                                                        
+│         _partial_: true                                                                                                                                                                   
+│         lr: 0.001                                                                                                                                                                         
+│         weight_decay: 0.0                                                                                                                                                                 
+│       scheduler:                                                                                                                                                                          
+│         _target_: torch.optim.lr_scheduler.ReduceLROnPlateau                                                                                                                              
+│         _partial_: true                                                                                                                                                                   
+│         mode: min                                                                                                                                                                         
+│         factor: 0.1                                                                                                                                                                       
+│         patience: 10                                                                                                                                                                      
+│       net:                                                                                                                                                                                
+│         _target_: src.models.components.simple_dense_net.SimpleDenseNet                                                                                                                   
+│         input_size: 784                                                                                                                                                                   
+│         lin1_size: 64                                                                                                                                                                     
+│         lin2_size: 128                                                                                                                                                                    
+│         lin3_size: 64                                                                                                                                                                     
+│         output_size: 10                                                                                                                                                                   
+│       compile: false                                                                                                                                                                      
+│                                                                                                                                                                                           
+├── callbacks
+│   └── model_checkpoint:                                                                                                                                                                   
+│         _target_: lightning.pytorch.callbacks.ModelCheckpoint                                                                                                                             
+│         dirpath: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_19-07-58/checkpoints                                                              
+│         filename: epoch_{epoch:03d}                                                                                                                                                       
+│         monitor: val/acc                                                                                                                                                                  
+│         verbose: false                                                                                                                                                                    
+│         save_last: true                                                                                                                                                                   
+│         save_top_k: 1                                                                                                                                                                     
+│         mode: max                                                                                                                                                                         
+│         auto_insert_metric_name: false                                                                                                                                                    
+│         save_weights_only: false                                                                                                                                                          
+│         every_n_train_steps: null                                                                                                                                                         
+│         train_time_interval: null                                                                                                                                                         
+│         every_n_epochs: null                                                                                                                                                              
+│         save_on_train_epoch_end: null                                                                                                                                                     
+│       early_stopping:                                                                                                                                                                     
+│         _target_: lightning.pytorch.callbacks.EarlyStopping                                                                                                                               
+│         monitor: val/acc                                                                                                                                                                  
+│         min_delta: 0.0                                                                                                                                                                    
+│         patience: 100                                                                                                                                                                     
+│         verbose: false                                                                                                                                                                    
+│         mode: max                                                                                                                                                                         
+│         strict: true                                                                                                                                                                      
+│         check_finite: true                                                                                                                                                                
+│         stopping_threshold: null                                                                                                                                                          
+│         divergence_threshold: null                                                                                                                                                        
+│         check_on_train_epoch_end: null                                                                                                                                                    
+│       model_summary:                                                                                                                                                                      
+│         _target_: lightning.pytorch.callbacks.RichModelSummary                                                                                                                            
+│         max_depth: -1                                                                                                                                                                     
+│       rich_progress_bar:                                                                                                                                                                  
+│         _target_: lightning.pytorch.callbacks.RichProgressBar                                                                                                                             
+│                                                                                                                                                                                           
+├── trainer
+│   └── _target_: lightning.pytorch.trainer.Trainer                                                                                                                                         
+│       default_root_dir: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_19-07-58                                                                   
+│       min_epochs: 1                                                                                                                                                                       
+│       max_epochs: 10                                                                                                                                                                      
+│       accelerator: cpu                                                                                                                                                                    
+│       devices: 1                                                                                                                                                                          
+│       check_val_every_n_epoch: 1                                                                                                                                                          
+│       deterministic: false                                                                                                                                                                
+│                                                                                                                                                                                           
+├── paths
+│   └── root_dir: /Users/davidmiller/Projects/profam/lightning-hydra-template                                                                                                               
+│       data_dir: /Users/davidmiller/Projects/profam/lightning-hydra-template/data/                                                                                                         
+│       log_dir: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/                                                                                                          
+│       output_dir: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_19-07-58                                                                         
+│       work_dir: /Users/davidmiller/Projects/profam/lightning-hydra-template                                                                                                               
+│                                                                                                                                                                                           
+├── extras
+│   └── ignore_warnings: false                                                                                                                                                              
+│       enforce_tags: true                                                                                                                                                                  
+│       print_config: true                                                                                                                                                                  
+│                                                                                                                                                                                           
+├── task_name
+│   └── train                                                                                                                                                                               
+├── tags
+│   └── ['dev']                                                                                                                                                                             
+├── train
+│   └── True                                                                                                                                                                                
+├── test
+│   └── True                                                                                                                                                                                
+├── ckpt_path
+│   └── None                                                                                                                                                                                
+└── seed
+    └── None                                                                                                                                                                                

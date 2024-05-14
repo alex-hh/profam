@@ -1,0 +1,19 @@
+[2024-05-13 22:00:43,168][src.utils.utils][INFO] - [rank: 0] Enforcing tags! <cfg.extras.enforce_tags=True>
+[2024-05-13 22:00:43,170][src.utils.utils][INFO] - [rank: 0] Printing config tree with Rich! <cfg.extras.print_config=True>
+[2024-05-13 22:00:43,193][__main__][INFO] - [rank: 0] Instantiating datamodule <src.data.mnist_datamodule.MNISTDataModule>
+[2024-05-13 22:00:43,528][__main__][INFO] - [rank: 0] Instantiating model <src.models.mnist_module.MNISTLitModule>
+[2024-05-13 22:00:43,533][__main__][INFO] - [rank: 0] Instantiating callbacks...
+[2024-05-13 22:00:43,533][src.utils.instantiators][INFO] - [rank: 0] Instantiating callback <lightning.pytorch.callbacks.ModelCheckpoint>
+[2024-05-13 22:00:43,534][src.utils.instantiators][INFO] - [rank: 0] Instantiating callback <lightning.pytorch.callbacks.EarlyStopping>
+[2024-05-13 22:00:43,535][src.utils.instantiators][INFO] - [rank: 0] Instantiating callback <lightning.pytorch.callbacks.RichModelSummary>
+[2024-05-13 22:00:43,535][src.utils.instantiators][INFO] - [rank: 0] Instantiating callback <lightning.pytorch.callbacks.RichProgressBar>
+[2024-05-13 22:00:43,535][__main__][INFO] - [rank: 0] Instantiating loggers...
+[2024-05-13 22:00:43,535][src.utils.instantiators][INFO] - [rank: 0] Instantiating logger <lightning.pytorch.loggers.wandb.WandbLogger>
+[2024-05-13 22:00:43,560][__main__][INFO] - [rank: 0] Instantiating trainer <lightning.pytorch.trainer.Trainer>
+[2024-05-13 22:00:43,608][__main__][INFO] - [rank: 0] Logging hyperparameters!
+[2024-05-13 22:00:47,208][__main__][INFO] - [rank: 0] Starting training!
+[2024-05-13 22:02:15,578][__main__][INFO] - [rank: 0] Starting testing!
+[2024-05-13 22:02:16,714][__main__][INFO] - [rank: 0] Best ckpt path: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_22-00-43/checkpoints/epoch_009.ckpt
+[2024-05-13 22:02:16,715][src.utils.utils][INFO] - [rank: 0] Output dir: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_22-00-43
+[2024-05-13 22:02:16,715][src.utils.utils][INFO] - [rank: 0] Closing wandb!
+[2024-05-13 22:02:23,434][src.utils.utils][INFO] - [rank: 0] Metric name is None! Skipping metric value retrieval...

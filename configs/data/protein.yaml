@@ -1,0 +1,12 @@
+_target_: src.data.protein_datamodule.ProteinDataModule
+data_dir: ${paths.data_dir}
+data_files:
+  - ${data_dir}/example_data/interpro/protein-matching-IPR000117.fasta
+  - ${data_dir}/example_data/interpro/protein-matching-IPR000105.fasta
+tokenizer_name: facebook/esm2_t12_35M_UR50D
+max_length: 5000  # Maximum sequence length for subsampling
+batch_size: 128   # Needs to be divisible by the number of devices (e.g., if in a distributed setup)
+train_val_test_split: [55000, 5000, 10000]  # Adjust if you are splitting data
+num_workers: 4    # Adjust based on your system's capabilities
+pin_memory: True  # Set to True if using GPUs to speed up data loading
+streaming: True   # Enable streaming from datasets

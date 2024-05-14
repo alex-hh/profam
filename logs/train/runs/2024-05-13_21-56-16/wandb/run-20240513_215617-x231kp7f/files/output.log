@@ -1,0 +1,78 @@
+[[36m2024-05-13 21:56:20,465[39m][[34m__main__[39m][[32mINFO[39m] - [rank: 0] Starting training!
+┏━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃[1m    [22m┃[1m Name         [22m┃[1m Type               [22m┃[1m Params [22m┃
+┡━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ 0  │ net          │ SimpleDenseNet     │ 68.0 K │
+│ 1  │ net.model    │ Sequential         │ 68.0 K │
+│ 2  │ net.model.0  │ Linear             │ 50.2 K │
+│ 3  │ net.model.1  │ BatchNorm1d        │    128 │
+│ 4  │ net.model.2  │ ReLU               │      0 │
+│ 5  │ net.model.3  │ Linear             │  8.3 K │
+│ 6  │ net.model.4  │ BatchNorm1d        │    256 │
+│ 7  │ net.model.5  │ ReLU               │      0 │
+│ 8  │ net.model.6  │ Linear             │  8.3 K │
+│ 9  │ net.model.7  │ BatchNorm1d        │    128 │
+│ 10 │ net.model.8  │ ReLU               │      0 │
+│ 11 │ net.model.9  │ Linear             │    650 │
+│ 12 │ criterion    │ CrossEntropyLoss   │      0 │
+│ 13 │ train_acc    │ MulticlassAccuracy │      0 │
+│ 14 │ val_acc      │ MulticlassAccuracy │      0 │
+│ 15 │ test_acc     │ MulticlassAccuracy │      0 │
+│ 16 │ train_loss   │ MeanMetric         │      0 │
+│ 17 │ val_loss     │ MeanMetric         │      0 │
+│ 18 │ test_loss    │ MeanMetric         │      0 │
+│ 19 │ val_acc_best │ MaxMetric          │      0 │
+└────┴──────────────┴────────────────────┴────────┘
+[1mTrainable params[22m: 68.0 K
+[1mNon-trainable params[22m: 0
+[1mTotal params[22m: 68.0 K
+[1mTotal estimated model params size (MB)[22m: 0
+/Users/davidmiller/miniconda3/envs/myenv/lib/python3.9/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:436: Consider setting `persistent_workers=True` in
+'val_dataloader' to speed up the dataloader worker initialization.
+/Users/davidmiller/miniconda3/envs/myenv/lib/python3.9/site-packages/lightning/pytorch/trainer/connectors/data_connector.py:436: Consider setting `persistent_workers=True` in
+'train_dataloader' to speed up the dataloader worker initialization.
+
+[37mEpoch 0/9 [39m [38m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[39m [37m430/430[39m [38m0:00:02 • 0:00:00[39m [38m196.94it/s[39m [37mv_num: kp7f
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 9/9  [38m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[39m [37m430/430[39m [38m0:00:11 • 0:00:00[39m [38m224.63it/s[39m [37mv_num: kp7f val/loss: 0.088 val/acc: 0.976 val/acc_best: 0.976 train/loss: 0.022 train/acc: 0.993
+[?25h[[36m2024-05-13 21:58:44,636[39m][[34m__main__[39m][[32mINFO[39m] - [rank: 0] Starting testing!
+[?25l
+`Trainer.fit` stopped: `max_epochs=10` reached.
+Restoring states from the checkpoint path at /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_21-56-16/checkpoints/epoch_009.ckpt
+Loaded model weights from the checkpoint at /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_21-56-16/checkpoints/epoch_009.ckpt
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃[1m        Test metric        [22m┃[1m       DataLoader 0        [22m┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│[36m         test/acc          [39m│[35m    0.9787999987602234     [39m│
+│[36m         test/loss         [39m│[35m    0.07740886509418488    [39m│
+└───────────────────────────┴───────────────────────────┘
+[37mTesting[39m [38m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[39m [37m79/79[39m [38m0:00:00 • 0:00:00[39m [38m371.30it/s
+[?25h[[36m2024-05-13 21:58:47,129[39m][[34m__main__[39m][[32mINFO[39m] - [rank: 0] Best ckpt path: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_21-56-16/checkpoints/epoch_009.ckpt
+[[36m2024-05-13 21:58:47,130[39m][[34msrc.utils.utils[39m][[32mINFO[39m] - [rank: 0] Output dir: /Users/davidmiller/Projects/profam/lightning-hydra-template/logs/train/runs/2024-05-13_21-56-16
+[[36m2024-05-13 21:58:47,131[39m][[34msrc.utils.utils[39m][[32mINFO[39m] - [rank: 0] Closing wandb!

@@ -1,0 +1,51 @@
+{
+    "os": "macOS-14.4.1-arm64-arm-64bit",
+    "python": "3.9.19",
+    "heartbeatAt": "2024-05-13T21:00:46.080303",
+    "startedAt": "2024-05-13T21:00:44.705239",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "trainer.accelerator=mps"
+    ],
+    "state": "running",
+    "program": "/Users/davidmiller/Projects/profam/lightning-hydra-template/src/train.py",
+    "codePathLocal": "src/train.py",
+    "codePath": "src/train.py",
+    "git": {
+        "remote": "https://github.com/ashleve/lightning-hydra-template.git",
+        "commit": "bddbc24b82ab6ccfa6243e815a49dc5bfe8d4144"
+    },
+    "email": "dmmiller597@gmail.com",
+    "root": "/Users/davidmiller/Projects/profam/lightning-hydra-template",
+    "host": "davids-MacBook-Pro.local",
+    "username": "davidmiller",
+    "executable": "/Users/davidmiller/miniconda3/envs/myenv/bin/python",
+    "cpu_count": 16,
+    "cpu_count_logical": 16,
+    "cpu_freq": {
+        "current": 4056,
+        "min": 1020,
+        "max": 4056
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 4056,
+            "min": 1020,
+            "max": 4056
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 460.4317207336426,
+            "used": 9.540882110595703
+        }
+    },
+    "gpuapple": {
+        "type": "Apple M3 Max",
+        "vendor": "sppci_vendor_Apple"
+    },
+    "memory": {
+        "total": 64.0
+    }
+}
