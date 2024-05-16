@@ -1,2 +1,0 @@
-[2024-05-14 00:00:49,023][src.utils.utils][INFO] - [rank: 0] Enforcing tags! <cfg.extras.enforce_tags=True>
-[2024-05-14 00:00:49,025][src.utils.utils][INFO] - [rank: 0] Printing config tree with Rich! <cfg.extras.print_config=True>

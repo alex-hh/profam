@@ -1,7 +1,0 @@
-_target_: src.models.mistral_for_causal_lm_module.ProteinModel
-
-# Optimizer configuration
-optimizer:
-  _target_: torch.optim.Adam
-  _partial_: true
-  lr: 0.00002
