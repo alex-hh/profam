@@ -76,6 +76,33 @@ You can override any parameter from command line like this
 python src/train.py trainer.max_epochs=20 data.batch_size=64
 ```
 
+## Transition from `train_example.py` to Lightning Hydra Template
+
+### Original `train_example.py` Script
+
+The original script used the Hugging Face `Trainer` API to train a model on protein sequences. The key steps were:
+1. Load and preprocess the interpro protein family datafiles.
+2. Tokenize the protein sequences.
+3. Define the model configuration.
+4. Train the Mistral model using the `Trainer` class.
+
+### New Setup with Lightning Hydra Template
+
+The new setup uses PyTorch Lightning and Hydra for more modular and scalable training. Here are the key components:
+
+1. **Data Module**: Handles data loading and preprocessing.
+   - Defined in `src/data/protein_datamodule.py`.
+   - Configuration in `configs/data/interpro.yaml`.
+
+2. **Model Module**: Defines the model and training steps.
+   - Defined in `src/models/mistral_lit_module.py`.
+   - Configuration in `configs/model/mistral.yaml`.
+
+3. **Training Script**: Orchestrates the training process.
+   - Defined in `src/train.py`.
+   - Main configuration in `configs/train.yaml`.
+
+
 ## Project Directory Structure
 ```
 ├── .github                   <- Github Actions workflows
@@ -115,12 +142,10 @@ python src/train.py trainer.max_epochs=20 data.batch_size=64
 │
 ├── tests                  <- Tests of any kind
 │
-├── .env.example              <- Example of file for storing private environment variables
 ├── .gitignore                <- List of files ignored by git
 ├── .pre-commit-config.yaml   <- Configuration of pre-commit hooks for code formatting
 ├── .project-root             <- File for inferring the position of project root directory
 ├── environment.yaml          <- File for installing conda environment
-├── Makefile                  <- Makefile with commands like `make train` or `make test`
 ├── pyproject.toml            <- Configuration options for testing and linting
 ├── requirements.txt          <- File for installing python dependencies
 ├── setup.py                  <- File for installing project as a package
