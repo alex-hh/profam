@@ -4,11 +4,11 @@
 # order of defaults determines the order in which configs override each other
 defaults:
   - _self_
-  - data: protein
-  - model: protein
+  - data: interpro
+  - model: mistral
   - callbacks: default
   - logger: wandb
-  - trainer: default
+  - trainer: mps
   - paths: default
   - extras: default
   - hydra: default
@@ -46,4 +46,4 @@ test: True
 ckpt_path: null
 
 # seed for random number generators in pytorch, numpy and python.random
-seed: null
+seed: 1234
