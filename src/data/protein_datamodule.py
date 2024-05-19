@@ -8,12 +8,12 @@ import itertools
 import random
 
 class ProteinDataModule(LightningDataModule):
-    def __init__(self, data_files: list, batch_size: int = 8, max_length: int = 512):
+    def __init__(self, data_files: list, tokenizer: str, batch_size: int = 8, max_length: int = 512):
         super().__init__()
         self.data_files = data_files
         self.batch_size = batch_size
         self.max_length = max_length
-        self.tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -41,7 +41,10 @@ class ProteinDataModule(LightningDataModule):
         return example
 
     def tokenize(self, example: Dict[str, Any]) -> Dict[str, Any]:
-        return self.tokenizer(example["text"], truncation=True, padding="max_length", max_length=self.max_length)
+        return self.tokenizer.batch_encode_plus(example["text"],
+                                  add_special_tokens=True,
+                                  padding="longest",
+                                  return_tensors='pt')
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(self.dataset, batch_size=self.batch_size, collate_fn=self.collator)
