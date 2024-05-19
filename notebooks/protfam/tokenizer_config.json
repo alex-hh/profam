@@ -1,0 +1,220 @@
+{
+  "added_tokens_decoder": {
+    "0": {
+      "content": "A",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "1": {
+      "content": "R",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "2": {
+      "content": "N",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "3": {
+      "content": "D",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "4": {
+      "content": "C",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "5": {
+      "content": "Q",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "6": {
+      "content": "E",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "7": {
+      "content": "G",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "8": {
+      "content": "H",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "9": {
+      "content": "I",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "10": {
+      "content": "L",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "11": {
+      "content": "K",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "12": {
+      "content": "M",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "13": {
+      "content": "F",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "14": {
+      "content": "P",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "15": {
+      "content": "S",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "16": {
+      "content": "T",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "17": {
+      "content": "W",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "18": {
+      "content": "Y",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "19": {
+      "content": "V",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "20": {
+      "content": "[PAD]",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "21": {
+      "content": "[start-of-document]",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "22": {
+      "content": "[end-of-document]",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "23": {
+      "content": "[sequence-start]",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "24": {
+      "content": "[sequence-end]",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    },
+    "25": {
+      "content": "[UNK]",
+      "lstrip": false,
+      "normalized": false,
+      "rstrip": false,
+      "single_word": false,
+      "special": true
+    }
+  },
+  "clean_up_tokenization_spaces": true,
+  "cls_token": "[start-of-document]",
+  "mask_token": null,
+  "model_max_length": 1000000000000000019884624838656,
+  "pad_token": "[PAD]",
+  "sep_token": "[end-of-document]",
+  "tokenizer_class": "PreTrainedTokenizerFast",
+  "unk_token": "[UNK]"
+}

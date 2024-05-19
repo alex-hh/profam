@@ -1,0 +1,6 @@
+{
+  "cls_token": "[start-of-document]",
+  "pad_token": "[PAD]",
+  "sep_token": "[end-of-document]",
+  "unk_token": "[UNK]"
+}
