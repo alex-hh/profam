@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 from datasets import load_dataset
-from transformers import AutoTokenizer, DataCollatorForLanguageModeling
+from transformers import PreTrainedTokenizerFast, DataCollatorForLanguageModeling
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 import bisect
@@ -13,7 +13,14 @@ class ProteinDataModule(LightningDataModule):
         self.data_files = data_files
         self.batch_size = batch_size
         self.max_length = max_length
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        self.tokenizer = PreTrainedTokenizerFast(
+                    tokenizer_file=tokenizer,
+                    unk_token="[UNK]",
+                    pad_token="[PAD]",
+                    cls_token="[start-of-document]",
+                    sep_token="[end-of-document]",
+                    mask_token=None # Add mask token if needed
+                )
         self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -41,6 +48,11 @@ class ProteinDataModule(LightningDataModule):
         return example
 
     def tokenize(self, example: Dict[str, Any]) -> Dict[str, Any]:
+        '''
+        input [List] exmaple: ["ARNDC [start-of-document] QEGHIL KMFPST WYV [end-of-document] [PAD] [UNK]", "KMFPST"]
+        output [Dist]: {"input_ids": tensor([[]]), "attention_mask": tensor([[]])}
+        '''
+
         return self.tokenizer.batch_encode_plus(example["text"],
                                   add_special_tokens=True,
                                   padding="longest",

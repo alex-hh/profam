@@ -4,4 +4,4 @@ data_files:
   - data/example_data/interpro/protein-matching-IPR000105.fasta
 batch_size: 8
 max_length: 512
-tokenizer: acetyl/protfam # WL: I create a new tokenizer for the ProtFam dataset (include 20 aa and special tokens: [start-of-document], [end-of-document],[sequence-start], [sequence-end], [PAD], [UNK])
+tokenizer: src/data/component/protfam_tokenizer.json
