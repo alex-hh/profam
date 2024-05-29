@@ -10,7 +10,7 @@ wandb:
   project: "profam"
   log_model: False # upload lightning ckpts
   prefix: "" # a string to put at the beginning of metric keys
-  entity: "dmmiller597" # set to name of your wandb team
+  entity: "ProFam" # set to name of your wandb team
   group: ""
   tags: []
   job_type: ""
