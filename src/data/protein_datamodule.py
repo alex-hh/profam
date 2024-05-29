@@ -18,24 +18,28 @@ class ProteinDataModule(LightningDataModule):
                     unk_token="[UNK]",
                     pad_token="[PAD]",
                     cls_token="[start-of-document]",
-                    sep_token="[end-of-document]",
-                    mask_token=None # Add mask token if needed
+                    sep_token="[SEP]",
+                    mask_token="[MASK]"
                 )
-        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
+        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=True, mlm_probability=0.5)
+
+    
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.dataset = load_dataset("text", data_files=self.data_files, split="train", streaming=True)
-        self.dataset = self.dataset.map(self.remove_labels)
+        print(f"Dataset path: {self.data_files}")  # Add this line to display the dataset path
+        self.dataset = load_dataset("text", data_files=self.data_files, split="train", streaming=True, sample_by='document')
+        # self.dataset = self.dataset.map(self.remove_labels)
         self.dataset = self.dataset.map(self.subsample)
+        # self.dataset = self.dataset.map(self.mask_sequences)
         self.dataset = self.dataset.map(self.tokenize, remove_columns=["text"])
 
-    def remove_labels(self, example: Dict[str, Any]) -> Dict[str, Any]:
-        example["text"] = "\n".join(
-            [line for line in example["text"].split("\n") if not line.startswith(">")]
-        )
-        return example
+    # def remove_labels(self, example: Dict[str, Any]) -> Dict[str, Any]:
+    #     example["text"] = "\n".join(
+    #         [line for line in example["text"].split("\n") if not line.startswith(">")]
+    #     )
+    #     return example
 
-    def subsample(self, example: Dict[str, Any], max_length=5000, sequence_separator="\n") -> Dict[str, Any]:
+    def subsample(self, example: Dict[str, Any], max_length=5000, sequence_end="[SEP]") -> Dict[str, Any]:
         sequences = [
             line for line in example["text"].split("\n") if not line.startswith(">")
         ]
@@ -44,19 +48,22 @@ class ProteinDataModule(LightningDataModule):
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
         insertion_point = bisect.bisect_left(cumulative_lengths, max_length)
-        example["text"] = sequence_separator.join(sequences[:insertion_point])
+        example["text"] = sequence_end.join(sequences[:insertion_point]) + sequence_end
+
         return example
 
     def tokenize(self, example: Dict[str, Any]) -> Dict[str, Any]:
-        '''
-        input [List] exmaple: ["ARNDC [start-of-document] QEGHIL KMFPST WYV [end-of-document] [PAD] [UNK]", "KMFPST"]
-        output [Dist]: {"input_ids": tensor([[]]), "attention_mask": tensor([[]])}
-        '''
-
-        return self.tokenizer.batch_encode_plus(example["text"],
-                                  add_special_tokens=True,
-                                  padding="longest",
-                                  return_tensors='pt')
-
+        return self.tokenizer.batch_encode_plus(
+            [example["text"]],  # Ensure this is a list
+            add_special_tokens=True,
+            padding="longest",
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors="pt"
+        )
     def train_dataloader(self) -> DataLoader:
+        for batch in self.dataset:
+            print(f"Batch shape: {batch['input_ids'].shape}")
         return DataLoader(self.dataset, batch_size=self.batch_size, collate_fn=self.collator)
+        # return DataLoader(self.dataset, batch_size=self.batch_size)
+
