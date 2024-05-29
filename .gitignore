@@ -4,6 +4,7 @@ logs/
 .idea/
 *.DS_Store
 *.egg-info/
+build/
 
 
 
