@@ -30,7 +30,7 @@ class ProteinDataModule(LightningDataModule):
         self.dataset = load_dataset("text", data_files=self.data_files, split="train",
                                     streaming=True, sample_by='document')
         # self.dataset = self.dataset.map(self.remove_labels)
-        self.dataset = self.dataset.map(self.preprocess_fasta())
+        self.dataset = self.dataset.map(self.preprocess_fasta)
         self.dataset = self.dataset.map(self.tokenize, remove_columns=["text"])
 
 
