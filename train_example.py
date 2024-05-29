@@ -34,18 +34,8 @@ tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
 tokenizer.model_max_length = 1e8
 
 
-def remove_labels(example):
-    # n.b. it would probably be better to do this on the file level, or at file loading level, or on the fly
-    example["text"] = "\n".join(
-        [line for line in example["text"].split("\n") if not line.startswith(">")]
-    )
-    return example
-
-
 def subsample(example, max_length=5000, sequence_separator="\n"):
-    sequences = [
-        line for line in example["text"].split("\n") if not line.startswith(">")
-    ]
+    sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
     random.shuffle(sequences)
     cumulative_lengths = list(
         itertools.accumulate([len(s) + 1 for s in sequences])
