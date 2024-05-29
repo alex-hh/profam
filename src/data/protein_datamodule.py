@@ -13,12 +13,13 @@ class ProteinDataModule(LightningDataModule):
         self.data_files = data_files
         self.batch_size = batch_size
         self.max_tokens = max_tokens
+        self.sep_token = "[SEP]"
         self.tokenizer = PreTrainedTokenizerFast(
                     tokenizer_file=tokenizer,
                     unk_token="[UNK]",
                     pad_token="[PAD]",
                     cls_token="[start-of-document]",
-                    sep_token="[SEP]",
+                    sep_token=self.sep_token,
                     mask_token="[MASK]"
                 )
         self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=True, mlm_probability=0.5)
@@ -30,18 +31,18 @@ class ProteinDataModule(LightningDataModule):
         self.dataset = load_dataset("text", data_files=self.data_files, split="train",
                                     streaming=True, sample_by='document')
         # self.dataset = self.dataset.map(self.remove_labels)
-        self.dataset = self.dataset.map(self.preprocess_fasta)
+        self.dataset = self.dataset.map(self.preprocess_fasta, batched=True)
         self.dataset = self.dataset.map(self.tokenize, remove_columns=["text"])
 
 
-    def preprocess_fasta(self, example: Dict[str, Any], sequence_separator="[SEP]") -> Dict[str, Any]:  # TODO this method should not have any parameters: sequence separator should be a class attribute consistent with tokenizer
+    def preprocess_fasta(self, example: Dict[str, Any]) -> Dict[str, Any]:  # TODO this method should not have any parameters: sequence separator should be a class attribute consistent with tokenizer
         sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
         random.shuffle(sequences)
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
         insertion_point = bisect.bisect_left(cumulative_lengths, self.max_tokens - 2) # -2 for doc start and end tokens
-        example["text"] = sequence_separator.join(sequences[:insertion_point])
+        example["text"] = self.sep_token.join(sequences[:insertion_point])
         return example
 
     def tokenize(self, example: Dict[str, Any]) -> Dict[str, Any]:
