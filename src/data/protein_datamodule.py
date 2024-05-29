@@ -34,7 +34,7 @@ class ProteinDataModule(LightningDataModule):
         self.dataset = self.dataset.map(self.tokenize, remove_columns=["text"])
 
 
-    def preprocess_fasta(self, example: Dict[str, Any], sequence_separator="\n") -> Dict[str, Any]:  # TODO this method should not have any parameters: sequence separator should be a class attribute consistent with tokenizer
+    def preprocess_fasta(self, example: Dict[str, Any], sequence_separator="[SEP]") -> Dict[str, Any]:  # TODO this method should not have any parameters: sequence separator should be a class attribute consistent with tokenizer
         sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
         random.shuffle(sequences)
         cumulative_lengths = list(
@@ -50,7 +50,7 @@ class ProteinDataModule(LightningDataModule):
             add_special_tokens=True,
             padding="longest",
             truncation=True,
-            max_length=self.max_length,
+            max_length=self.max_tokens,
             return_tensors="pt"
         )
     def train_dataloader(self) -> DataLoader:
