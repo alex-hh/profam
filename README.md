@@ -25,28 +25,11 @@ git clone https://github.com/alex-hh/profam.git
 cd profam
 
 # [OPTIONAL] create conda environment
-conda create -n myenv python=3.9
-conda activate myenv
-
-# install pytorch according to instructions
-# https://pytorch.org/get-started/
+conda create -n profam python=3.9
+conda activate profam
 
 # install requirements
 pip install -r requirements.txt
-```
-
-#### Conda
-
-```bash
-# clone project
-git clone https://github.com/alex-hh/profam.git
-cd profam
-
-# create conda environment and install dependencies
-conda env create -f environment.yaml -n myenv
-
-# activate conda environment
-conda activate myenv
 ```
 
 ## How to run
