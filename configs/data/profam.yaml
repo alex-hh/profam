@@ -5,4 +5,4 @@ data_files:
   - data/example_data/interpro/protein-matching-IPR000106.fasta
 batch_size: 8
 max_tokens: 512
-tokenizer: src/data/component/protfam_tokenizer.json
+tokenizer: src/data/components/profam_tokenizer.json
