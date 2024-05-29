@@ -1,7 +1,0 @@
-{
-  "cls_token": "[start-of-document]",
-  "mask_token": "[MASK]",
-  "pad_token": "[PAD]",
-  "sep_token": "[end-of-document]",
-  "unk_token": "[UNK]"
-}
