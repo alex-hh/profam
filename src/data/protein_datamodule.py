@@ -36,7 +36,6 @@ class ProteinDataModule(LightningDataModule):
 
     def preprocess_fasta(self, example: Dict[str, Any], sequence_separator="\n") -> Dict[str, Any]:  # TODO this method should not have any parameters: sequence separator should be a class attribute consistent with tokenizer
         sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
-        example['text'] = sequences
         random.shuffle(sequences)
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
