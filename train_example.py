@@ -34,13 +34,13 @@ tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
 tokenizer.model_max_length = 1e8
 
 
-def subsample(example, max_length=5000, sequence_separator="\n"):
+def subsample(example, max_tokens=5000, sequence_separator="\n"):
     sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
     random.shuffle(sequences)
     cumulative_lengths = list(
         itertools.accumulate([len(s) + 1 for s in sequences])
     )  # +1 for separator
-    insertion_point = bisect.bisect_left(cumulative_lengths, max_length)
+    insertion_point = bisect.bisect_left(cumulative_lengths, max_tokens)
     example["text"] = sequence_separator.join(sequences[:insertion_point])
     return example
 

@@ -8,11 +8,11 @@ import itertools
 import random
 
 class ProteinDataModule(LightningDataModule):
-    def __init__(self, data_files: list, tokenizer: str, batch_size: int = 8, max_length: int = 512):
+    def __init__(self, data_files: list, tokenizer: str, batch_size: int = 8, max_tokens: int = 5000):
         super().__init__()
         self.data_files = data_files
         self.batch_size = batch_size
-        self.max_length = max_length
+        self.max_tokens = max_tokens
         self.tokenizer = PreTrainedTokenizerFast(
                     tokenizer_file=tokenizer,
                     unk_token="[UNK]",
@@ -24,26 +24,24 @@ class ProteinDataModule(LightningDataModule):
         self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.dataset = load_dataset("text", data_files=self.data_files, split="train", streaming=True)
-        self.dataset = self.dataset.map(self.remove_labels)
+        self.dataset = load_dataset("text",
+                                    data_files=self.data_files,
+                                    split="train",
+                                    streaming=True,
+                                    sample_by='document')
+        self.dataset = self.dataset.map(self.preprocess_fasta)
         self.dataset = self.dataset.map(self.subsample)
         self.dataset = self.dataset.map(self.tokenize, remove_columns=["text"])
 
-    def remove_labels(self, example: Dict[str, Any]) -> Dict[str, Any]:
-        example["text"] = "\n".join(
-            [line for line in example["text"].split("\n") if not line.startswith(">")]
-        )
-        return example
 
-    def subsample(self, example: Dict[str, Any], max_length=5000, sequence_separator="\n") -> Dict[str, Any]:
-        sequences = [
-            line for line in example["text"].split("\n") if not line.startswith(">")
-        ]
+    def preprocess_fasta(self, example: Dict[str, Any], sequence_separator="\n") -> Dict[str, Any]:  # TODO this method should not have any parameters: sequence separator should be a class attribute consistent with tokenizer
+        sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
+        example['text'] = sequences
         random.shuffle(sequences)
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
-        insertion_point = bisect.bisect_left(cumulative_lengths, max_length)
+        insertion_point = bisect.bisect_left(cumulative_lengths, self.max_tokens - 2) # -2 for doc start and end tokens
         example["text"] = sequence_separator.join(sequences[:insertion_point])
         return example
 
