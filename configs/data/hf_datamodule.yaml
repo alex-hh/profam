@@ -1,0 +1,5 @@
+_target_: src.data.hf_protein_datamodule.ProteinDataModule
+data_path_pattern: data/example_data/interpro/protein-matching-*.fasta
+batch_size: 8
+max_tokens: 5000
+tokenizer_path: src/data/components/profam_tokenizer.json
