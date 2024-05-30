@@ -26,9 +26,9 @@ class ProteinDocumentDataset(Dataset):
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
         insertion_point = bisect.bisect_left(cumulative_lengths, self.max_tokens - 2) # -2 for doc start and end tokens
-        concatenated_seqs = self.sep_token.join(sequences[:insertion_point])
+        concatenated_seqs =  self.sep_token.join(sequences[:insertion_point])
         return self.tokenizer(concatenated_seqs, truncation=True, max_length=self.max_tokens,
-                              return_tensors="pt", padding="max_length")  # TODO padding to max length in batch (done in the collator)
+                              return_tensors="pt", padding="max_length", add_special_tokens=True)  # TODO padding to max length in batch (done in the collator)
 
 
     def __getitem__(self, idx):
@@ -46,13 +46,15 @@ class ProteinDataModuleNoHug(LightningDataModule):
         self.max_tokens = max_tokens
         self.sep_token = "[SEP]"
         self.tokenizer = PreTrainedTokenizerFast(
-                    tokenizer_file=tokenizer_path,
-                    unk_token="[UNK]",
-                    pad_token="[PAD]",
-                    cls_token="[start-of-document]",
-                    sep_token=self.sep_token,
-                    mask_token="[MASK]"
-                )
+            tokenizer_file=tokenizer_path,
+            unk_token="[UNK]",
+            pad_token="[PAD]",
+            bos_token="[start-of-document]",
+            eos_token="[end-of-document]",
+            sep_token=self.sep_token,
+            mask_token="[MASK]",
+            add_special_tokens=True
+        )
         self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False) # TODO add mlm
 
 

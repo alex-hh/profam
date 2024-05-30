@@ -32,7 +32,8 @@ fast_tokenizer = PreTrainedTokenizerFast(
     tokenizer_file="src/data/components/profam_tokenizer.json",
     unk_token="[UNK]",
     pad_token="[PAD]",
-    cls_token="[start-of-document]",
+    bos_token="[start-of-document]",
+    eos_token="[end-of-document]",
     sep_token="[SEP]",
     mask_token="[MASK]"
 )

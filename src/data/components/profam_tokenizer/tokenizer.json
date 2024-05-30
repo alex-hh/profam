@@ -251,9 +251,6 @@
     }
   ],
   "normalizer": null,
-  "pre_tokenizer": {
-    "type": "Whitespace"
-  },
   "post_processor": null,
   "decoder": null,
   "model": {

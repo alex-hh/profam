@@ -1,13 +1,13 @@
 _target_: src.models.mistral_lit_module.MistralLitModule
 config:
   _target_: transformers.MistralConfig
-  vocab_size: 32000
+  vocab_size: 26
   hidden_size: 128
   intermediate_size: 512
   num_hidden_layers: 3
   num_attention_heads: 4
   num_key_value_heads: 4
-  pad_token_id: 0
-  bos_token_id: 1
-  eos_token_id: 2
+  pad_token_id: 20
+  bos_token_id: 21
+  eos_token_id: 22
 compile: False

@@ -26,6 +26,18 @@ class MistralLitModule(LightningModule):
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
+    def validation_step(self, batch: Dict[str, torch.Tensor],  batch_idx: int) -> torch.Tensor:
+        outputs = self(batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"])
+        loss = outputs.loss
+        self.log("val_loss", loss)
+        return loss
+
+    def test_step(self, batch: Dict[str, torch.Tensor],  batch_idx: int) -> torch.Tensor:
+        outputs = self(batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"])
+        loss = outputs.loss
+        self.log("test_loss", loss)
+        return loss
+
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer = torch.optim.Adam(self.parameters(), lr=2e-5, weight_decay=0.01)
         return {"optimizer": optimizer}
