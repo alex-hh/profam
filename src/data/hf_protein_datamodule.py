@@ -56,3 +56,13 @@ class ProteinDataModule(LightningDataModule):
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(self.dataset, batch_size=self.batch_size, collate_fn=self.collator)
+
+    def val_dataloader(self) -> DataLoader:
+        p_gym_loader = DataLoader(self.p_gym_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
+        cath_loader = DataLoader(self.cath_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
+        return [p_gym_loader, cath_loader]
+
+    def test_dataloader(self) -> DataLoader:
+        p_gym_loader = DataLoader(self.p_gym_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
+        cath_loader = DataLoader(self.cath_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
+        return [p_gym_loader, cath_loader]
