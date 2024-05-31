@@ -37,6 +37,7 @@ def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerF
 
     dataset = load_dataset("text", data_files=data_path_pattern, split=split, streaming=True, sample_by='document')
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
+
     return dataset
 
 class ProteinDataModule(LightningDataModule):
@@ -79,16 +80,16 @@ class ProteinDataModule(LightningDataModule):
                                                  self.tokenizer, self.max_tokens)
 
     def train_dataloader(self) -> list[DataLoader]:
-        return self.train_dataset
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator)
 
     def val_dataloader(self) -> DataLoader:
-        return DataLoader(self.val_dataset)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     p_gym_loader = DataLoader(self.p_gym_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     cath_loader = DataLoader(self.cath_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     return [p_gym_loader, cath_loader]
     #
     def test_dataloader(self) -> DataLoader:
-        return DataLoader(self.test_dataset)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     p_gym_loader = DataLoader(self.p_gym_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     cath_loader = DataLoader(self.cath_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     return [p_gym_loader, cath_loader]
