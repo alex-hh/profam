@@ -12,10 +12,28 @@ from typing import Any, Dict, Optional
 from datasets import load_dataset, Dataset, concatenate_datasets
 from transformers import PreTrainedTokenizerFast, DataCollatorForLanguageModeling
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader
+from lightning.pytorch.utilities import CombinedLoader
+from torch.utils.data import DataLoader, IterableDataset
 import bisect
 
 import random
+
+
+class CombinedIterableDataset(IterableDataset):
+    def __init__(self, datasets, num_epochs=2):
+        self.datasets = datasets
+        self.num_datasets = len(datasets)
+        self.num_epochs = num_epochs
+
+    def __iter__(self):
+        dataset_iterators = [iter(dataset) for dataset in self.datasets]
+        for _ in range(self.num_epochs):
+            for i in range(self.num_datasets):
+                try:
+                    yield next(dataset_iterators[i])
+                except StopIteration:
+                    dataset_iterators[i] = iter(self.datasets[i])
+                    yield next(dataset_iterators[i])
 
 def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerFast,
                          max_tokens: int = 5000, split='train') -> Dataset:
@@ -32,7 +50,7 @@ def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerF
         return tokenizer(concatenated_seqs, truncation=True, max_length=max_tokens,
                          return_tensors="pt", padding="max_length", add_special_tokens=True)
 
-    dataset = load_dataset("text", data_files=data_path_pattern, split=split, streaming=False, sample_by='document')
+    dataset = load_dataset("text", data_files=data_path_pattern, split=split, streaming=True, sample_by='document')
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
     return dataset
 
@@ -58,27 +76,27 @@ class ProteinDataModule(LightningDataModule):
         self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)  # TODO add mlm
 
     def setup(self, stage: Optional[str] = None) -> None:
-        datasets = []
+        self.train_datasets = []
         for data_path_pattern in self.data_path_patterns.values():
             dataset = load_protein_dataset(data_path_pattern, self.tokenizer, self.max_tokens, split='train')
-            datasets.append(dataset)
-        self.train_dataset = concatenate_datasets(datasets)
+            self.train_datasets.append(dataset)
         self.val_dataset = load_protein_dataset(self.data_path_patterns['ec'],
-                                                self.tokenizer, self.max_tokens, split='validation')
+                                                self.tokenizer, self.max_tokens)
         self.test_dataset = load_protein_dataset(self.data_path_patterns['interpro'],
-                                                 self.tokenizer, self.max_tokens, split='test')
+                                                 self.tokenizer, self.max_tokens)
 
-    def train_dataloader(self) -> DataLoader:
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator, shuffle=True)
+    def train_dataloader(self) -> list[DataLoader]:
+        combined_dataset = CombinedIterableDataset(self.train_datasets, )
+        return DataLoader(combined_dataset, batch_size=self.batch_size, collate_fn=self.collator)
 
     def val_dataloader(self) -> DataLoader:
-        return DataLoader(self.datasets['ec'])
+        return DataLoader(self.val_dataset)
     #     p_gym_loader = DataLoader(self.p_gym_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     cath_loader = DataLoader(self.cath_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     return [p_gym_loader, cath_loader]
     #
     def test_dataloader(self) -> DataLoader:
-        return DataLoader(self.datasets['interpro'])
+        return DataLoader(self.test_dataset)
     #     p_gym_loader = DataLoader(self.p_gym_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     cath_loader = DataLoader(self.cath_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
     #     return [p_gym_loader, cath_loader]

@@ -26,7 +26,7 @@ class ProteinDocumentDataset(Dataset):
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
         insertion_point = bisect.bisect_left(cumulative_lengths, self.max_tokens - 2) # -2 for doc start and end tokens
-        concatenated_seqs =  self.sep_token.join(sequences[:insertion_point])
+        concatenated_seqs = self.sep_token.join(sequences[:insertion_point])
         return self.tokenizer(concatenated_seqs, truncation=True, max_length=self.max_tokens,
                               return_tensors="pt", padding="max_length", add_special_tokens=True)  # TODO padding to max length in batch (done in the collator)
 
