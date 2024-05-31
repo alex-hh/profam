@@ -9,31 +9,14 @@ import itertools
 import random
 
 from typing import Any, Dict, Optional
-from datasets import load_dataset, Dataset, concatenate_datasets
+from datasets import load_dataset, Dataset, interleave_datasets
 from transformers import PreTrainedTokenizerFast, DataCollatorForLanguageModeling
 from lightning import LightningDataModule
-from lightning.pytorch.utilities import CombinedLoader
 from torch.utils.data import DataLoader, IterableDataset
+from torch import squeeze
 import bisect
 
 import random
-
-
-class CombinedIterableDataset(IterableDataset):
-    def __init__(self, datasets, num_epochs=2):
-        self.datasets = datasets
-        self.num_datasets = len(datasets)
-        self.num_epochs = num_epochs
-
-    def __iter__(self):
-        dataset_iterators = [iter(dataset) for dataset in self.datasets]
-        for _ in range(self.num_epochs):
-            for i in range(self.num_datasets):
-                try:
-                    yield next(dataset_iterators[i])
-                except StopIteration:
-                    dataset_iterators[i] = iter(self.datasets[i])
-                    yield next(dataset_iterators[i])
 
 def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerFast,
                          max_tokens: int = 5000, split='train') -> Dataset:
@@ -47,19 +30,22 @@ def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerF
         insertion_point = bisect.bisect_left(cumulative_lengths, max_tokens - 2)  # -2 for doc start and end tokens
         concatenated_seqs = (tokenizer.bos_token + tokenizer.sep_token.join(sequences[:insertion_point])
                              + tokenizer.eos_token)
-        return tokenizer(concatenated_seqs, truncation=True, max_length=max_tokens,
-                         return_tensors="pt", padding="max_length", add_special_tokens=True)
+        tokenized = tokenizer(concatenated_seqs, truncation=True, max_length=max_tokens,
+                           return_tensors="pt", padding="max_length", add_special_tokens=False)
+        tokenized.data = {k:v.squeeze() for k,v in tokenized.data.items()}
+        return tokenized
 
     dataset = load_dataset("text", data_files=data_path_pattern, split=split, streaming=True, sample_by='document')
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
     return dataset
 
 class ProteinDataModule(LightningDataModule):
-    def __init__(self, data_path_patterns: Dict[str, str],
+    def __init__(self, data_path_patterns: Dict[str, str], data_weights: Dict[str, float],
                  tokenizer_path: str, batch_size: int = 8,
                  max_tokens: int = 5000, num_batches_per_epoch: int = 6):
         super().__init__()
         self.data_path_patterns = data_path_patterns
+        self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.num_batches_per_epoch = num_batches_per_epoch
@@ -76,18 +62,24 @@ class ProteinDataModule(LightningDataModule):
         self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)  # TODO add mlm
 
     def setup(self, stage: Optional[str] = None) -> None:
-        self.train_datasets = []
-        for data_path_pattern in self.data_path_patterns.values():
+        train_datasets = []
+        train_data_weights = []
+        for data_key, data_path_pattern in self.data_path_patterns.items():
             dataset = load_protein_dataset(data_path_pattern, self.tokenizer, self.max_tokens, split='train')
-            self.train_datasets.append(dataset)
+            train_datasets.append(dataset)
+            train_data_weights.append(self.data_weights[data_key])
+        self.train_dataset = interleave_datasets(train_datasets,
+                                                 probabilities=train_data_weights,
+                                                 stopping_strategy='all_exhausted',
+                                                 split='train',
+                                                 seed=42)
         self.val_dataset = load_protein_dataset(self.data_path_patterns['ec'],
                                                 self.tokenizer, self.max_tokens)
         self.test_dataset = load_protein_dataset(self.data_path_patterns['interpro'],
                                                  self.tokenizer, self.max_tokens)
 
     def train_dataloader(self) -> list[DataLoader]:
-        combined_dataset = CombinedIterableDataset(self.train_datasets, )
-        return DataLoader(combined_dataset, batch_size=self.batch_size, collate_fn=self.collator)
+        return self.train_dataset
 
     def val_dataloader(self) -> DataLoader:
         return DataLoader(self.val_dataset)

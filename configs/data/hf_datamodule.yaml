@@ -3,6 +3,10 @@ data_path_patterns:
   interpro: data/example_data/interpro/protein-matching-*.fasta
   openfold: data/example_data/openfold/uniclust30_filtered/*/a3m/uniclust30.a3m
   ec: data/example_data/expasy_ec/*.fasta
+data_weights:
+  interpro: 0.5
+  openfold: 0.3
+  ec: 0.2
 batch_size: 2
 num_batches_per_epoch: 6
 max_tokens: 5000
