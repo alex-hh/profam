@@ -1,22 +1,13 @@
-import glob
-from typing import Any, Dict, Optional
-from datasets import load_dataset
-from transformers import PreTrainedTokenizerFast, DataCollatorForLanguageModeling
-from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset
 import bisect
 import itertools
 import random
-
 from typing import Any, Dict, Optional
-from datasets import load_dataset, Dataset, interleave_datasets
-from transformers import PreTrainedTokenizerFast, DataCollatorForLanguageModeling
-from lightning import LightningDataModule
-from torch.utils.data import DataLoader, IterableDataset
-from torch import squeeze
-import bisect
 
-import random
+from datasets import load_dataset, Dataset, interleave_datasets
+from lightning import LightningDataModule
+from torch.utils.data import DataLoader
+from transformers import PreTrainedTokenizerFast, DataCollatorForLanguageModeling
+
 
 def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerFast,
                          max_tokens: int = 5000, split='train') -> Dataset:
@@ -31,14 +22,15 @@ def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerF
         concatenated_seqs = (tokenizer.bos_token + tokenizer.sep_token.join(sequences[:insertion_point])
                              + tokenizer.eos_token)
         tokenized = tokenizer(concatenated_seqs, truncation=True, max_length=max_tokens,
-                           return_tensors="pt", padding="max_length", add_special_tokens=False)
-        tokenized.data = {k:v.squeeze() for k,v in tokenized.data.items()}
+                              return_tensors="pt", padding="max_length", add_special_tokens=False)
+        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         return tokenized
 
     dataset = load_dataset("text", data_files=data_path_pattern, split=split, streaming=True, sample_by='document')
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
 
     return dataset
+
 
 class ProteinDataModule(LightningDataModule):
     def __init__(self, data_path_patterns: Dict[str, str], data_weights: Dict[str, float],
@@ -84,13 +76,6 @@ class ProteinDataModule(LightningDataModule):
 
     def val_dataloader(self) -> DataLoader:
         return DataLoader(self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
-    #     p_gym_loader = DataLoader(self.p_gym_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
-    #     cath_loader = DataLoader(self.cath_val_dataset, batch_size=self.batch_size, collate_fn=self.collator)
-    #     return [p_gym_loader, cath_loader]
-    #
+
     def test_dataloader(self) -> DataLoader:
         return DataLoader(self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
-    #     p_gym_loader = DataLoader(self.p_gym_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
-    #     cath_loader = DataLoader(self.cath_test_dataset, batch_size=self.batch_size, collate_fn=self.collator)
-    #     return [p_gym_loader, cath_loader]
-
