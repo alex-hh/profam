@@ -1,0 +1,9 @@
+.ipynb_checkpoints
+wandb
+__pycache__/
+
+# python packaging
+*.egg
+*.egg-info
+
+.DS_store
