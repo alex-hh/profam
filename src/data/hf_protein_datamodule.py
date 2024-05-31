@@ -12,7 +12,6 @@ from transformers import PreTrainedTokenizerFast, DataCollatorForLanguageModelin
 def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerFast,
                          max_tokens: int = 5000, split='train') -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        print(example['text'].split('\n')[0])
         sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
         random.shuffle(sequences)
         cumulative_lengths = list(
