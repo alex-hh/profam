@@ -8,6 +8,5 @@ data_weights:
   openfold: 0.3
   ec: 0.2
 batch_size: 2
-num_batches_per_epoch: 6
 max_tokens: 5000
 tokenizer_path: src/data/components/profam_tokenizer.json

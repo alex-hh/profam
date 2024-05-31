@@ -35,13 +35,12 @@ def load_protein_dataset(data_path_pattern: str, tokenizer: PreTrainedTokenizerF
 class ProteinDataModule(LightningDataModule):
     def __init__(self, data_path_patterns: Dict[str, str], data_weights: Dict[str, float],
                  tokenizer_path: str, batch_size: int = 8,
-                 max_tokens: int = 5000, num_batches_per_epoch: int = 6):
+                 max_tokens: int = 5000):
         super().__init__()
         self.data_path_patterns = data_path_patterns
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
-        self.num_batches_per_epoch = num_batches_per_epoch
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
