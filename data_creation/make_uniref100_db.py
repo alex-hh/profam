@@ -67,10 +67,10 @@ def get_sequence(db_file, uniref_id):
 
 if __name__ == '__main__':
     # Create the database
-    db_file = '/SAN/orengolab/cath_plm/data/uniref100/uniref100_sequences.db'
+    db_file = '/SAN/orengolab/cath_plm/ProFam/data/uniref100/uniref100_sequences.db'
     create_database(db_file)
     # Insert sequences into the database
-    fasta_file = '/SAN/orengolab/cath_plm/data/uniref100/uniref100.fasta'
+    fasta_file = '/SAN/orengolab/cath_plm/ProFam/data/uniref100/uniref100.fasta'
     insert_sequences(db_file, fasta_file)
 
     # Example usage
