@@ -32,10 +32,18 @@ def parse_expasy_file(file_path, output_dir):
 
     subclass_pattern = r"ID   ([\d.]+).*?//.*?"
     subclass_matches = re.findall(subclass_pattern, content, re.DOTALL)
-
-    for subclass_match in subclass_matches:
+    print(f"Found {len(subclass_matches)} subclasses")
+    skip = True
+    last_complete = '4_2_1_19'
+    for ix, subclass_match in enumerate(subclass_matches):
         subclass_id = subclass_match.replace(".", "_")
+        if subclass_id == last_complete:
+            skip = False
+        if skip:
+            continue
         output_file = os.path.join(output_dir, f"{subclass_id}.fasta")
+        if (ix + 1) % 100 == 0:
+            print(f"Completed {ix + 1} subclasses")
         if os.path.exists(output_file):
             continue
         subclass_content = re.search(rf"ID   {re.escape(subclass_match)}.*?//", content, re.DOTALL).group()

@@ -1,5 +1,0 @@
-_target_: src.data.pyt_protein_datamodule.ProteinDataModuleNoHug
-data_path_pattern: data/example_data/interpro/protein-matching-*.fasta
-batch_size: 8
-max_tokens: 5000
-tokenizer_path: src/data/components/profam_tokenizer.json

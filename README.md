@@ -25,8 +25,8 @@ git clone https://github.com/alex-hh/profam.git
 cd profam
 
 # [OPTIONAL] create conda environment
-conda create -n profam python=3.9
-conda activate profam
+conda create -n venvPF python=3.9
+conda activate venvPF
 
 # install requirements
 pip install -r requirements.txt

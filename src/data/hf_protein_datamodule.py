@@ -69,6 +69,7 @@ class ProteinDataModule(LightningDataModule):
         self.test_dataset = load_protein_dataset(self.data_path_patterns['interpro'],
                                                  self.tokenizer, self.max_tokens)
 
+
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator)
 
