@@ -37,6 +37,7 @@ def insert_sequences(db_file, fasta_file):
     with open(fasta_file, 'r') as file:
         current_id = None
         current_sequence = ''
+        line_counter = 0
         for line in file:
             if line.startswith('>'):
                 if current_id is not None:
@@ -45,6 +46,9 @@ def insert_sequences(db_file, fasta_file):
                 current_sequence = ''
             else:
                 current_sequence += line.strip()
+            line_counter += 1
+            if line_counter % 100000 == 0:
+                print(f"Processed {line_counter} lines")
         if current_id is not None:
             cursor.execute('INSERT OR REPLACE INTO sequences VALUES (?, ?)', (current_id, current_sequence))
 
