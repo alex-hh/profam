@@ -1,4 +1,5 @@
 import sqlite3
+import time
 
 """
 Sample of uniref100.fasta:
@@ -52,9 +53,11 @@ def insert_sequences(db_file, fasta_file):
 
 
 def get_sequence(db_file, uniref_id):
+    start_time = time.time()
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-
+    db_load_time = time.time() - start_time
+    print(f"DB load time: {db_load_time:.2f} seconds")
     cursor.execute('SELECT sequence FROM sequences WHERE uniref_id = ?', (uniref_id,))
     result = cursor.fetchone()
 
@@ -64,6 +67,23 @@ def get_sequence(db_file, uniref_id):
         return result[0]
     else:
         return None
+
+def test_retrieval_speed(db_file):
+    uniref_ids = ['Q6GZX4', 'Q6GZX3', 'A0A1G9Q4Q5', 'A0A915H853', 'A0A1N7ASK9',
+                  'A0A5N3UL60', 'UPI00085FBCE5',
+                  'UPI00085C2E44', 'UPI00085C060D', 'UPI00085BD2BC',
+                  ]
+    start_time = time.time()
+    for uniref_id in uniref_ids:
+        sequence = get_sequence(db_file, uniref_id)
+        if sequence:
+            print(f"Sequence for {uniref_id}:")
+            print(sequence)
+        else:
+            print(f"Sequence not found for {uniref_id}")
+    end_time = time.time()
+    print(f"Time taken: {end_time - start_time:.2f} seconds for {len(uniref_ids)} sequences")
+
 
 if __name__ == '__main__':
     # Create the database
@@ -81,3 +101,5 @@ if __name__ == '__main__':
         print(sequence)
     else:
         print(f"Sequence not found for {uniref_id}")
+
+    test_retrieval_speed(db_file)
