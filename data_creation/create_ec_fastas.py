@@ -34,7 +34,7 @@ def parse_expasy_file(file_path, output_dir):
     subclass_matches = re.findall(subclass_pattern, content, re.DOTALL)
     print(f"Found {len(subclass_matches)} subclasses")
     skip = True
-    last_complete = '4_2_1_19'
+    last_complete = '6_5_1_1'
     for ix, subclass_match in enumerate(subclass_matches):
         subclass_id = subclass_match.replace(".", "_")
         if subclass_id == last_complete:
