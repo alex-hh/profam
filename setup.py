@@ -12,8 +12,15 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     install_requires=[
-        "torch", "pandas", "transformers", "tokenizers", "datasets",
-        "accelerate", "pre-commit", "lightning", "hydra-core"
+        "torch",
+        "pandas",
+        "transformers",
+        "tokenizers",
+        "datasets",
+        "accelerate",
+        "pre-commit",
+        "lightning",
+        "hydra-core",
     ],
     packages=find_packages(),
     entry_points={

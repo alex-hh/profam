@@ -5,9 +5,8 @@ See https://colab.research.google.com/github/huggingface/notebooks/blob/main/tra
 import bisect
 import itertools
 import random
-import pandas as pd
-from configs.config_mixral import train_example as config
 
+import pandas as pd
 import torch
 from datasets import Dataset, load_dataset
 from transformers import (
@@ -19,6 +18,8 @@ from transformers import (
     TrainingArguments,
 )
 
+from configs.config_mixral import train_example as config
+
 
 class FastaDataset(Dataset):
     def __init__(self, filepaths):
@@ -29,14 +30,15 @@ class FastaDataset(Dataset):
 
     def __getitem__(self, idx):
         filepath = self.filepaths[idx]
-        with open(filepath, 'r', encoding='utf-8') as file:
+        with open(filepath, "r", encoding="utf-8") as file:
             text = file.read()
         preprocessed_text = self.preprocess_text(text)
-        return {'text': preprocessed_text}
-
+        return {"text": preprocessed_text}
 
     def preprocess_text(self, text):
-        sequences = text.split(">")[1:]  # Split the text by '>' and remove the first empty element
+        sequences = text.split(">")[
+            1:
+        ]  # Split the text by '>' and remove the first empty element
         processed_sequences = []
         for seq in sequences:
             lines = seq.strip().split("\n")
@@ -46,9 +48,12 @@ class FastaDataset(Dataset):
             processed_sequences.append(sequence)
         return "\n".join(processed_sequences)
 
+
 def preprocess_text(sample, max_tokens=5000):
     text = sample["text"]
-    sequences = text.split(">")[1:]  # Split the text by '>' and remove the first empty element
+    sequences = text.split(">")[
+        1:
+    ]  # Split the text by '>' and remove the first empty element
     processed_sequences = []
 
     for seq in sequences:
@@ -67,8 +72,9 @@ def preprocess_text(sample, max_tokens=5000):
             break
         sampled_sequences.append(seq)
         token_count += len(seq) + 1
-    sample['text'] = "\n".join(sampled_sequences)
+    sample["text"] = "\n".join(sampled_sequences)
     return sample
+
 
 # def load_data(filepaths):
 #   # Use newline character as the special sequence separator
@@ -81,11 +87,11 @@ def preprocess_text(sample, max_tokens=5000):
 def load_model(config, tokenizer):
     mistral_config = MistralConfig(
         vocab_size=tokenizer.vocab_size,
-        hidden_size=config['hidden_size'],
-        intermediate_size=config['intermediate_size'],
-        num_hidden_layers=config['num_hidden_layers'],
-        num_attention_heads=config['num_attention_heads'],
-        num_key_value_heads=config['num_key_value_heads'],
+        hidden_size=config["hidden_size"],
+        intermediate_size=config["intermediate_size"],
+        num_hidden_layers=config["num_hidden_layers"],
+        num_attention_heads=config["num_attention_heads"],
+        num_key_value_heads=config["num_key_value_heads"],
         # TODO
         # pad_token_id=,
         # bos_token_id=,
@@ -93,6 +99,7 @@ def load_model(config, tokenizer):
     )
     model = MistralForCausalLM(mistral_config)
     return model
+
 
 def tokenize(example):
     return tokenizer(example["text"])
@@ -107,15 +114,18 @@ if __name__ == "__main__":
     ]
     tokenizer = AutoTokenizer.from_pretrained("facebook/esm2_t12_35M_UR50D")
     tokenizer.model_max_length = 1e8
+
     def tokenize(sample):
         return tokenizer(sample["text"])
 
-    model = load_model(config['model'], tokenizer)
+    model = load_model(config["model"], tokenizer)
     # dataset = FastaDataset(filepaths)
     # dataset = dataset.map(lambda x: tokenizer(x['text']), remove_columns="text")
     paths_pattern = "data/example_data/openfold/*/a3m/uniclust30.a3m"
-    dataset = load_dataset("text", data_files=filepaths, sample_by="document", streaming=True)
-    dataset = dataset['train']
+    dataset = load_dataset(
+        "text", data_files=filepaths, sample_by="document", streaming=True
+    )
+    dataset = dataset["train"]
     processed_dataset = dataset.map(preprocess_text)
     tokenized_dataset = processed_dataset.map(tokenize, remove_columns="text")
     training_args = TrainingArguments(
