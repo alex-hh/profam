@@ -35,7 +35,9 @@ tokenizer.model_max_length = 1e8
 
 
 def subsample(example, max_tokens=5000, sequence_separator="\n"):
-    sequences = [''.join(one_seq.split('\n')[1:]) for one_seq in example['text'].split('>')[1:]]
+    sequences = [
+        "".join(one_seq.split("\n")[1:]) for one_seq in example["text"].split(">")[1:]
+    ]
     random.shuffle(sequences)
     cumulative_lengths = list(
         itertools.accumulate([len(s) + 1 for s in sequences])
