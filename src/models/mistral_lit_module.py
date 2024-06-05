@@ -11,18 +11,13 @@ class MistralLitModule(LightningModule):
         self.save_hyperparameters(logger=False)
         self.model = MistralForCausalLM(config)
         self.criterion = torch.nn.CrossEntropyLoss()
-        self.train_loss = MeanMetric()
-        self.val_loss = MeanMetric()
-        self.test_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
-
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
-        self.train_loss(loss)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
