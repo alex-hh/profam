@@ -6,8 +6,8 @@ import pandas as pd
 from datasets import Dataset
 from transformers import PreTrainedTokenizerFast
 
-from profam.data import fasta
-from profam.data import utils as data_utils
+from src.data import fasta
+from src.data import utils as data_utils
 
 GYM_DATA_DIR = os.environ.get("GYM_DATA_DIR", "data/ProteinGym")
 
