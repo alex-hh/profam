@@ -8,6 +8,8 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
+from src.data.proteingym import load_gym_dataset
+
 
 def load_protein_dataset(
     data_path_pattern: str,
@@ -63,12 +65,16 @@ class ProteinDataModule(LightningDataModule):
         tokenizer_path: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
+        evaluate_gym: bool = False,
+        max_gym_sequences: Optional[int] = None,
     ):
         super().__init__()
         self.data_path_patterns = data_path_patterns
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
+        self.evaluate_gym = evaluate_gym
+        self.max_gym_sequences = max_gym_sequences
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
@@ -82,6 +88,13 @@ class ProteinDataModule(LightningDataModule):
         self.collator = DataCollatorForLanguageModeling(
             self.tokenizer, mlm=False
         )  # TODO add mlm
+        if self.evaluate_gym:
+            # TODO: fix to avoid hardcoding
+            self.gym_dataset = load_gym_dataset(
+                dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
+                tokenizer=self.tokenizer,
+                max_mutated_sequences=self.max_gym_sequences,
+            )
 
     def setup(self, stage: Optional[str] = None) -> None:
         train_datasets = []
@@ -105,18 +118,47 @@ class ProteinDataModule(LightningDataModule):
         self.test_dataset = load_protein_dataset(
             self.data_path_patterns["interpro"], self.tokenizer, self.max_tokens
         )
+        if self.evaluate_gym:
+            # TODO: add configuration to avoid hardcoding
+            self.gym_dataset = load_gym_dataset(
+                dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
+                tokenizer=self.tokenizer,
+                max_mutated_sequences=self.max_gym_sequences,
+            )
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
             self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator
         )
 
-    def val_dataloader(self) -> DataLoader:
-        return DataLoader(
-            self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator
-        )
+    def val_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            )
+        ]
+        if self.evaluate_gym:
+            loaders.append(
+                [
+                    DataLoader(
+                        self.gym_dataset, batch_size=1  # gym needs batch size 1
+                    )  # n.b. in this case we do standard collation
+                ]
+            )
+        return loaders
 
-    def test_dataloader(self) -> DataLoader:
-        return DataLoader(
-            self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator
-        )
+    def test_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            )
+        ]
+        if self.evaluate_gym:
+            loaders.append(
+                [
+                    DataLoader(
+                        self.gym_dataset, batch_size=1  # gym needs batch size 1
+                    )  # n.b. in this case we do standard collation
+                ]
+            )
+        return loaders
