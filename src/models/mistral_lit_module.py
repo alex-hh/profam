@@ -1,5 +1,6 @@
 from typing import Any, Dict, Tuple
-
+from scipy.stats import spearmanr
+import numpy as np
 import torch
 from lightning import LightningModule
 from torchmetrics import MeanMetric
@@ -12,7 +13,6 @@ class MistralLitModule(LightningModule):
         self.save_hyperparameters(logger=False)
         self.model = MistralForCausalLM(config)
         self.criterion = torch.nn.CrossEntropyLoss()
-        self.train_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
@@ -23,7 +23,7 @@ class MistralLitModule(LightningModule):
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
         self.log(
-            "train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True
+            "train/loss", loss, on_step=False, on_epoch=True, prog_bar=True
         )
         return loss
 
@@ -74,13 +74,12 @@ class MistralLitModule(LightningModule):
             shift_labels = shift_labels.view(-1)
             # Ensure tensors are on the same device
             shift_labels = shift_labels.to(shift_logits.device)
-            loss_fct = CrossEntropyLoss(reduction="none")
+            loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
             nll = -loss_fct(shift_logits, shift_labels).sum(-1)
             all_nlls.append(nll.item())
 
         nlls = np.array(all_nlls)
         spearman_corr, _ = spearmanr(nlls, batch["DMS_scores"][0].cpu().numpy())
-        print("spearman", spearman_corr)
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
@@ -105,7 +104,7 @@ class MistralLitModule(LightningModule):
             batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
         )
         loss = outputs.loss
-        self.log("test_loss", loss, on_epoch=True, prog_bar=False)
+        self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         return loss
 
     def configure_optimizers(self) -> Dict[str, Any]:
