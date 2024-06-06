@@ -1,8 +1,9 @@
 from typing import Any, Dict, Tuple
-from scipy.stats import spearmanr
+
 import numpy as np
 import torch
 from lightning import LightningModule
+from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 
@@ -22,9 +23,7 @@ class MistralLitModule(LightningModule):
     ) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
-        self.log(
-            "train/loss", loss, on_step=False, on_epoch=True, prog_bar=True
-        )
+        self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step_proteingym(

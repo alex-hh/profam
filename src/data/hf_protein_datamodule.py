@@ -1,7 +1,7 @@
 import bisect
 import itertools
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from datasets import Dataset, interleave_datasets, load_dataset
 from lightning import LightningDataModule
@@ -67,6 +67,7 @@ class ProteinDataModule(LightningDataModule):
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
         max_gym_sequences: Optional[int] = None,
+        gym_dms_ids: Optional[List[str]] = None,
     ):
         super().__init__()
         self.data_path_patterns = data_path_patterns
@@ -75,6 +76,7 @@ class ProteinDataModule(LightningDataModule):
         self.max_tokens = max_tokens
         self.evaluate_gym = evaluate_gym
         self.max_gym_sequences = max_gym_sequences
+        self.gym_dms_ids = gym_dms_ids
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
@@ -90,8 +92,9 @@ class ProteinDataModule(LightningDataModule):
         )  # TODO add mlm
         if self.evaluate_gym:
             # TODO: fix to avoid hardcoding
+            assert self.gym_dms_ids is not None
             self.gym_dataset = load_gym_dataset(
-                dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
+                dms_ids=self.gym_dms_ids,
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
             )
