@@ -1,0 +1,158 @@
+import bisect
+import itertools
+import random
+from typing import Any, Dict, Optional
+
+from datasets import Dataset, interleave_datasets, load_dataset
+from lightning import LightningDataModule
+from torch.utils.data import DataLoader
+from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+
+from src.data.proteingym import load_gym_dataset
+
+
+def load_protein_dataset(
+    data_path_pattern: str,
+    tokenizer: PreTrainedTokenizerFast,
+    max_tokens: int = 5000,
+    split="train",
+) -> Dataset:
+    def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        sequences = [
+            "".join(one_seq.split("\n")[1:])
+            for one_seq in example["text"].split(">")[1:]
+        ]
+        random.shuffle(sequences)
+        cumulative_lengths = list(
+            itertools.accumulate([len(s) + 1 for s in sequences])
+        )  # +1 for separator
+        insertion_point = bisect.bisect_left(
+            cumulative_lengths, max_tokens - 2
+        )  # -2 for doc start and end tokens
+        # TODO: handle via the tokenizer
+        concatenated_seqs = (
+            tokenizer.bos_token
+            + tokenizer.sep_token.join(sequences[:insertion_point])
+            + tokenizer.eos_token
+        )
+        tokenized = tokenizer(
+            concatenated_seqs,
+            truncation=True,
+            max_length=max_tokens,
+            return_tensors="pt",
+            padding="max_length",
+            add_special_tokens=False,
+        )
+        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        return tokenized
+
+    dataset = load_dataset(
+        "text",
+        data_files=data_path_pattern,
+        split=split,
+        streaming=True,
+        sample_by="document",
+    )
+    dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
+
+    return dataset
+
+
+class ProteinDataModule(LightningDataModule):
+    def __init__(
+        self,
+        data_path_patterns: Dict[str, str],
+        data_weights: Dict[str, float],
+        tokenizer_path: str,
+        batch_size: int = 8,
+        evaluate_gym: bool = False,
+        max_tokens: int = 5000,
+        max_gym_sequences: Optional[int] = None,
+    ):
+        super().__init__()
+        self.data_path_patterns = data_path_patterns
+        self.data_weights = data_weights
+        self.batch_size = batch_size
+        self.max_tokens = max_tokens
+        self.evaluate_gym = evaluate_gym
+        self.tokenizer = PreTrainedTokenizerFast(
+            tokenizer_file=tokenizer_path,
+            unk_token="[UNK]",
+            pad_token="[PAD]",
+            bos_token="[start-of-document]",
+            eos_token="[end-of-document]",
+            sep_token="[SEP]",
+            mask_token="[MASK]",
+            add_special_tokens=True,
+        )
+        self.collator = DataCollatorForLanguageModeling(
+            self.tokenizer, mlm=False
+        )  # TODO add mlm
+        self.max_gym_sequences = max_gym_sequences
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        train_datasets = []
+        train_data_weights = []
+        for data_key, data_path_pattern in self.data_path_patterns.items():
+            dataset = load_protein_dataset(
+                data_path_pattern, self.tokenizer, self.max_tokens, split="train"
+            )
+            train_datasets.append(dataset)
+            train_data_weights.append(self.data_weights[data_key])
+        self.train_dataset = interleave_datasets(
+            train_datasets,
+            probabilities=train_data_weights,
+            stopping_strategy="all_exhausted",
+            split="train",
+            seed=42,
+        )
+        self.val_dataset = load_protein_dataset(
+            self.data_path_patterns["ec"], self.tokenizer, self.max_tokens
+        )
+        self.test_dataset = load_protein_dataset(
+            self.data_path_patterns["interpro"], self.tokenizer, self.max_tokens
+        )
+        if self.evaluate_gym:
+            # TODO: fix to avoid hardcoding
+            self.gym_dataset = load_gym_dataset(
+                dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
+                tokenizer=self.tokenizer,
+                max_mutated_sequences=self.max_gym_sequences,
+            )
+
+    def train_dataloader(self) -> list[DataLoader]:
+        return DataLoader(
+            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator
+        )
+
+    def val_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            )
+        ]
+        if self.evaluate_gym:
+            loaders.append(
+                [
+                    DataLoader(
+                        self.gym_dataset, batch_size=1  # gym needs batch size 1
+                    )  # n.b. in this case we do standard collation
+                ]
+            )
+        return loaders
+
+    def test_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            )
+        ]
+        if self.evaluate_gym:
+            loaders.append(
+                [
+                    DataLoader(
+                        self.gym_dataset, batch_size=self.batch_size
+                    )  # n.b. in this case we do standard collation
+                ]
+            )
+        return loaders
