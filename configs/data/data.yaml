@@ -11,6 +11,6 @@ data_weights:
   gene3dS50: 0.2
   cathFunfam: 0.1
   ted: 0.3
-batch_size: 2
-max_tokens: 5000
+batch_size: 16
+max_tokens: 10000
 tokenizer_path: src/data/components/profam_tokenizer.json
