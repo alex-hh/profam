@@ -4,6 +4,7 @@ import torch
 from lightning import LightningModule
 from transformers import MistralForCausalLM, MistralConfig
 from torchmetrics import MeanMetric
+import wandb
 
 class MistralLitModule(LightningModule):
     def __init__(self, config: MistralConfig, compile: bool = False) -> None:
@@ -21,13 +22,15 @@ class MistralLitModule(LightningModule):
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
+        self.train_loss(loss)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
+        wandb.log({"train/batch_loss": loss})  # self.log doesn't work for logging at each batch
         return loss
 
     def validation_step(self, batch: Dict[str, torch.Tensor],  batch_idx: int) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"])
         loss = outputs.loss
-        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def test_step(self, batch: Dict[str, torch.Tensor],  batch_idx: int) -> torch.Tensor:

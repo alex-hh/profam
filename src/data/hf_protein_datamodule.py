@@ -1,5 +1,6 @@
 import bisect
 import itertools
+import glob
 import random
 from typing import Any, Dict, Optional
 
@@ -7,6 +8,7 @@ from datasets import Dataset, interleave_datasets, load_dataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+import wandb
 
 
 def load_protein_dataset(
@@ -25,13 +27,15 @@ def load_protein_dataset(
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
         insertion_point = bisect.bisect_left(
-            cumulative_lengths, max_tokens - 2
+            cumulative_lengths, max_tokens - 2 #  TODO insertion point gives seq lens > max_tokens+~500
         )  # -2 for doc start and end tokens
+        wandb.log({'insertion_point': insertion_point})
         concatenated_seqs = (
             tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
             + tokenizer.eos_token
         )
+        wandb.log({"len_concat_seqs": len(concatenated_seqs)})
         tokenized = tokenizer(
             concatenated_seqs,
             truncation=True,
@@ -49,6 +53,7 @@ def load_protein_dataset(
         split=split,
         streaming=True,
         sample_by="document",
+        keep_in_memory=False,
     )
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
 
@@ -83,10 +88,12 @@ class ProteinDataModule(LightningDataModule):
             self.tokenizer, mlm=False
         )  # TODO add mlm
 
+
     def setup(self, stage: Optional[str] = None) -> None:
         train_datasets = []
         train_data_weights = []
         for data_key, data_path_pattern in self.data_path_patterns.items():
+            print(f"{len(glob.glob(data_path_pattern))} files found for {data_key}")
             dataset = load_protein_dataset(
                 data_path_pattern, self.tokenizer, self.max_tokens, split="train"
             )

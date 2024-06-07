@@ -1,16 +1,18 @@
 _target_: src.data.hf_protein_datamodule.ProteinDataModule
 data_path_patterns:
-  openfold: ../data/openfold/uniclust30_filtered/*/a3m/uniclust30.a3m
   ec: ../data/ec/ec_fastas/*.fasta
+  openfold: ../data/openfold/uniclust30_filtered/*/a3m/uniclust30.a3m
   gene3dS50: ../data/cath/gene3d/all_sfams_4.3/*/*_s50_rep_seq.fasta
   cathFunfam: ../data/cath/funfams-4.3/*/full_alignments/*.faa
   ted: ../data/ted/ted_s50_by_sfam/*S50_rep_seq.fasta
+  interpro: data/example_data/interpro/protein-matching-*.fasta # TODO add a proper dataset for interpro
 data_weights:
-  openfold: 0.25
   ec: 0.15
+  openfold: 0.25
   gene3dS50: 0.2
   cathFunfam: 0.1
   ted: 0.3
-batch_size: 16
-max_tokens: 10000
+  interpro: 0.0
+batch_size: 22
+max_tokens: 8000
 tokenizer_path: src/data/components/profam_tokenizer.json
