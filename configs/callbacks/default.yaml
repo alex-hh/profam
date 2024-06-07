@@ -7,7 +7,7 @@ defaults:
 model_checkpoint:
   dirpath: ${paths.output_dir}/checkpoints
   filename: "epoch_{epoch:03d}"
-  monitor: "val_loss"
+  monitor: "val_loss/dataloader_idx_0"
   mode: "min"
   save_last: True
   auto_insert_metric_name: False

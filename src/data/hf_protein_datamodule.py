@@ -31,13 +31,14 @@ def load_protein_dataset(
         insertion_point = bisect.bisect_left(
             cumulative_lengths, max_tokens - 2 #  TODO insertion point gives seq lens > max_tokens+~500
         )  # -2 for doc start and end tokens
-        wandb.log({'insertion_point': insertion_point})
         concatenated_seqs = (
             tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
             + tokenizer.eos_token
         )
-        wandb.log({"len_concat_seqs": len(concatenated_seqs)})
+        if wandb.run is not None:
+            wandb.log({'insertion_point': insertion_point})
+            wandb.log({"len_concat_seqs": len(concatenated_seqs)})
         tokenized = tokenizer(
             concatenated_seqs,
             truncation=True,
