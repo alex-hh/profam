@@ -77,14 +77,14 @@ def load_protein_dataset(
 class ProteinDataModule(LightningDataModule):
     def __init__(
         self,
-        dataset_configs: Dict[str, ProteinDatasetConfig],
+        dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer_path: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
     ):
         super().__init__()
-        self.dataset_configs = dataset_configs
+        self.dataset_configs = dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
@@ -105,7 +105,7 @@ class ProteinDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
         train_datasets = []
         train_data_weights = []
-        for data_key, dataset_config in self.data_path_patterns.items():
+        for data_key, dataset_config in self.dataset_cfgs.items():
             dataset = load_protein_dataset(
                 dataset_config, self.tokenizer, self.max_tokens, split="train"
             )
