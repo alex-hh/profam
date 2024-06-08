@@ -1,24 +1,43 @@
 import bisect
 import itertools
 import random
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from datasets import Dataset, interleave_datasets, load_dataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
+from src.data.fasta import _read_fasta_lines
+
+
+# TOOD: in future we might actually want standalone dataset class for
+# more flexible customisation (e.g. mapping uniprot ids via db)
+@dataclass
+class ProteinDatasetConfig:
+    data_path_pattern: str
+    name: str
+    keep_gaps: bool = False
+    keep_insertions: bool = False
+    to_upper: bool = False
+
 
 def load_protein_dataset(
-    data_path_pattern: str,
+    cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
     max_tokens: int = 5000,
     split="train",
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
-            "".join(one_seq.split("\n")[1:])
-            for one_seq in example["text"].split(">")[1:]
+            seq
+            for _, seq in _read_fasta_lines(
+                example["text"],
+                keep_gaps=cfg.keep_gaps,
+                keep_insertions=cfg.keep_insertions,
+                to_upper=cfg.to_upper,
+            )
         ]
         random.shuffle(sequences)
         cumulative_lengths = list(
@@ -45,7 +64,7 @@ def load_protein_dataset(
 
     dataset = load_dataset(
         "text",
-        data_files=data_path_pattern,
+        data_files=cfg.data_path_pattern,
         split=split,
         streaming=True,
         sample_by="document",
@@ -58,14 +77,14 @@ def load_protein_dataset(
 class ProteinDataModule(LightningDataModule):
     def __init__(
         self,
-        data_path_patterns: Dict[str, str],
+        dataset_configs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer_path: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
     ):
         super().__init__()
-        self.data_path_patterns = data_path_patterns
+        self.dataset_configs = dataset_configs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
@@ -86,9 +105,9 @@ class ProteinDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
         train_datasets = []
         train_data_weights = []
-        for data_key, data_path_pattern in self.data_path_patterns.items():
+        for data_key, dataset_config in self.data_path_patterns.items():
             dataset = load_protein_dataset(
-                data_path_pattern, self.tokenizer, self.max_tokens, split="train"
+                dataset_config, self.tokenizer, self.max_tokens, split="train"
             )
             train_datasets.append(dataset)
             train_data_weights.append(self.data_weights[data_key])

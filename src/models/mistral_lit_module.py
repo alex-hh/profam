@@ -2,8 +2,9 @@ from typing import Any, Dict, Tuple
 
 import torch
 from lightning import LightningModule
-from transformers import MistralForCausalLM, MistralConfig
 from torchmetrics import MeanMetric
+from transformers import MistralConfig, MistralForCausalLM
+
 
 class MistralLitModule(LightningModule):
     def __init__(self, config: MistralConfig, compile: bool = False) -> None:
@@ -18,20 +19,30 @@ class MistralLitModule(LightningModule):
     def forward(self, input_ids, attention_mask=None, labels=None):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
-        self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log(
+            "train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True
+        )
         return loss
 
-    def validation_step(self, batch: Dict[str, torch.Tensor],  batch_idx: int) -> torch.Tensor:
-        outputs = self(batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"])
+    def validation_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
+        outputs = self(
+            batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
+        )
         loss = outputs.loss
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         return loss
 
-    def test_step(self, batch: Dict[str, torch.Tensor],  batch_idx: int) -> torch.Tensor:
-        outputs = self(batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"])
+    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        outputs = self(
+            batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
+        )
         loss = outputs.loss
         self.log("test_loss", loss, on_epoch=True, prog_bar=False)
         return loss
