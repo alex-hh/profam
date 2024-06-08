@@ -33,7 +33,7 @@ def load_protein_dataset(
         sequences = [
             seq
             for _, seq in _read_fasta_lines(
-                example["text"],
+                example["text"].split("\n"),
                 keep_gaps=cfg.keep_gaps,
                 keep_insertions=cfg.keep_insertions,
                 to_upper=cfg.to_upper,
@@ -84,7 +84,7 @@ class ProteinDataModule(LightningDataModule):
         max_tokens: int = 5000,
     ):
         super().__init__()
-        self.dataset_configs = dataset_cfgs
+        self.dataset_cfgs = dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
@@ -119,10 +119,10 @@ class ProteinDataModule(LightningDataModule):
             seed=42,
         )
         self.val_dataset = load_protein_dataset(
-            self.data_path_patterns["ec"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs["ec"], self.tokenizer, self.max_tokens
         )
         self.test_dataset = load_protein_dataset(
-            self.data_path_patterns["interpro"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
         )
 
     def train_dataloader(self) -> list[DataLoader]:
