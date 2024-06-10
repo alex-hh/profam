@@ -27,8 +27,8 @@ class MistralLitModule(LightningModule):
         loss = outputs.loss
         self.train_loss(loss)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        if wandb.run is not None:
-            wandb.log({"train/batch_loss": loss})  # self.log doesn't work for logging at each batch
+        self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        self.log("train/n_seqs", (batch["input_ids"] == 23).sum().item(), on_step=True, on_epoch=False)
         return loss
 
     def validation_step_proteingym(

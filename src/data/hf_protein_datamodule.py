@@ -36,9 +36,9 @@ def load_protein_dataset(
             + tokenizer.sep_token.join(sequences[:insertion_point])
             + tokenizer.eos_token
         )
-        if wandb.run is not None:
-            wandb.log({'insertion_point': insertion_point})
-            wandb.log({"len_concat_seqs": len(concatenated_seqs)})
+        # if wandb.run is not None:
+        #     wandb.log({'insertion_point': insertion_point})
+        #     wandb.log({"len_concat_seqs": len(concatenated_seqs)})
         tokenized = tokenizer(
             concatenated_seqs,
             truncation=True,
