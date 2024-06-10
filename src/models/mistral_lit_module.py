@@ -5,6 +5,7 @@ import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
+import wandb
 from transformers import MistralConfig, MistralForCausalLM
 
 
@@ -14,16 +15,20 @@ class MistralLitModule(LightningModule):
         self.save_hyperparameters(logger=False)
         self.model = MistralForCausalLM(config)
         self.criterion = torch.nn.CrossEntropyLoss()
+        self.train_loss = MeanMetric()
+        self.val_loss = MeanMetric()
+        self.test_loss = MeanMetric()
 
     def forward(self, input_ids, attention_mask=None, labels=None):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
-    def training_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
-        self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.train_loss(loss)
+        self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        self.log("train/n_seqs", (batch["input_ids"] == 23).sum().item(), on_step=True, on_epoch=False)
         return loss
 
     def validation_step_proteingym(
@@ -53,28 +58,33 @@ class MistralLitModule(LightningModule):
             and batch["completion_ids"].ndim == 3
             and batch["DMS_scores"].ndim == 2
         )  # b, L; b, n, L
+        completion_start_ix = batch["input_ids"].shape[1] + 1 # skip the SEP token
         for completion_ix in range(batch["completion_ids"].shape[1]):
             input_ids = torch.cat(
                 [
                     batch["input_ids"],
-                    batch["completion_ids"][:, completion_ix],
+                    batch["completion_ids"][:, completion_ix]  # completion_ids have sep token at ix 0
                 ],
                 dim=1,
             )
+            assert input_ids[..., completion_start_ix] < 20  # assert that it is a residue token
+            assert input_ids[..., completion_start_ix -1] == 23  #  SEP token
+            assert input_ids[..., completion_start_ix -2] < 20  #  last msa residue token
             outputs = self.model(input_ids)
             logits = outputs.logits
             # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
+
             # Shift so that tokens < n predict n
-            # TODO: slice out the completion
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = input_ids[..., 1:].contiguous()
+            shift_logits = logits[..., completion_start_ix-1:-1, :].contiguous()
+            shift_labels = input_ids[..., completion_start_ix:].contiguous()
+            assert shift_labels[..., -1] == 23  # SEP token
             # Flatten the tokens
             shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
             shift_labels = shift_labels.view(-1)
             # Ensure tensors are on the same device
             shift_labels = shift_labels.to(shift_logits.device)
             loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-            nll = -loss_fct(shift_logits, shift_labels).sum(-1)
+            nll = -loss_fct(shift_logits, shift_labels).mean(-1)  # mean is invariant to seq len
             all_nlls.append(nll.item())
 
         nlls = np.array(all_nlls)
@@ -89,7 +99,8 @@ class MistralLitModule(LightningModule):
     ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
-            return self.validation_step_proteingym(batch)
+            outputs = self.validation_step_proteingym(batch)
+            return outputs
         else:
             outputs = self(
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
@@ -98,10 +109,15 @@ class MistralLitModule(LightningModule):
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         return loss
 
-    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
-        outputs = self(
-            batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
-        )
+    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0) -> torch.Tensor:
+        # we check whether we are in proteingym loader by looking at keys in batch
+        if "DMS_scores" in batch:
+            outputs = self.validation_step_proteingym(batch)
+            return outputs
+        else:
+            outputs = self(
+                batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
+            )
         loss = outputs.loss
         self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         return loss
