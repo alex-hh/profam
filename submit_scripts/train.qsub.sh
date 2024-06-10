@@ -21,5 +21,5 @@ echo "####################  QSUB SCRIPT END  ####################"
 conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
-python ${ROOT_DIR}/src/train.py data=data
+python ${ROOT_DIR}/src/train.py data=data trainer=gpu
 date

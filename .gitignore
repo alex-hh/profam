@@ -6,3 +6,4 @@ logs/
 *.egg-info/
 build/
 venvPF/
+wandb
