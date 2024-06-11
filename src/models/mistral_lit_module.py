@@ -33,12 +33,13 @@ class MistralLitModule(LightningModule):
         self.log(
             "train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True
         )
-        self.log(
-            "train/n_seqs",
-            (batch["input_ids"] == 23).mean(axis=0).item(),
-            on_step=True,
-            on_epoch=False
-        )
+        with torch.no_grad():
+            self.log(
+                "train/n_seqs",
+                (batch["input_ids"] == 23).mean(axis=0).item(),
+                on_step=True,
+                on_epoch=False
+            )
         return loss
 
     def validation_step_proteingym(
