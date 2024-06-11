@@ -45,6 +45,11 @@ SCRATCH_DIR=/scratch0/$USER/$JOB_ID
 #rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/openfold $SCRATCH_DIR/data/
 #echo "Copied OpenFold to $SCRATCH_DIR/data/"
 #date
+mkdir -p $SCRATCH_DIR/data
+rsync -av /SAN/orengolab/cath_plm/ProFam/profam $SCRATCH_DIR/
+cd $SCRATCH_DIR/profam
+echo "Copied ProFam to $SCRATCH_DIR/profam/"
+
 echo "Copying directories to $SCRATCH_DIR/data/"
 date
 rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ec $SCRATCH_DIR/data/ &
