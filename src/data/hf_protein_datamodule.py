@@ -101,6 +101,7 @@ class ProteinDataModule(LightningDataModule):
         self.evaluate_gym = evaluate_gym
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
+        self.tokenizer_path = tokenizer_path
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
@@ -113,7 +114,7 @@ class ProteinDataModule(LightningDataModule):
         )
         self.collator = DataCollatorForLanguageModeling(
             self.tokenizer, mlm=False
-        )  # TODO add mlm
+        )
 
         if self.evaluate_gym:
             # TODO: fix to avoid hardcoding
@@ -158,8 +159,7 @@ class ProteinDataModule(LightningDataModule):
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator,
-            num_workers=self.num_workers,
+            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator
         )
 
 
@@ -167,7 +167,7 @@ class ProteinDataModule(LightningDataModule):
         loaders = [
             DataLoader(
                 self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator,
-                num_workers=self.num_workers, shuffle=False,
+                shuffle=False
             )
         ]
         if self.evaluate_gym:
@@ -186,7 +186,7 @@ class ProteinDataModule(LightningDataModule):
         loaders = [
             DataLoader(
                 self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator,
-                num_workers=self.num_workers, shuffle=False,
+                shuffle=False,
             )
         ]
         if self.evaluate_gym:

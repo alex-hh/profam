@@ -36,7 +36,7 @@ class MistralLitModule(LightningModule):
         with torch.no_grad():
             self.log(
                 "train/n_seqs",
-                (batch["input_ids"] == 23).mean(axis=0).item(),
+                (batch["input_ids"] == 23).float().sum(axis=1).mean().item(), #  TODO: remove hardcoded SEP token
                 on_step=True,
                 on_epoch=False
             )
