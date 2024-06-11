@@ -1,15 +1,13 @@
 #!/bin/bash
-
 # Train ProFam on Clifford
 # Clifford has 503GB of RAM
 # 4 x A100 80GB, 112 CPUs we request 32 for batch dataloader multiprocessing
-
 #$ -l tmem=256G
 #$ -l h_vmem=256G
 #$ -l tscratch=1000G
 #$ -l hostname=clifford*
 #$ -l gpu=true
-#$ -l -pe gpu 4
+#$ -l gpu=4
 #$ -pe smp 32
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
