@@ -1,8 +1,9 @@
 import bisect
 import itertools
+import os
 import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from datasets import Dataset, interleave_datasets, load_dataset
 from lightning import LightningDataModule
@@ -49,6 +50,7 @@ def load_protein_dataset(
         concatenated_seqs = (
             tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
+            + tokenizer.sep_token
             + tokenizer.eos_token
         )
         tokenized = tokenizer(
@@ -88,6 +90,7 @@ class ProteinDataModule(LightningDataModule):
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
+        self.num_workers = min(os.cpu_count() or 1, 4)
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
@@ -127,15 +130,18 @@ class ProteinDataModule(LightningDataModule):
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+            num_workers=self.num_workers,
         )
 
     def val_dataloader(self) -> DataLoader:
         return DataLoader(
-            self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+            num_workers=self.num_workers, shuffle=False,
         )
 
     def test_dataloader(self) -> DataLoader:
         return DataLoader(
-            self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+            num_workers=self.num_workers, shuffle=False,
         )
