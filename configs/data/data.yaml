@@ -7,6 +7,7 @@ defaults:
   - dataset@dataset_cfgs.gene3dS50: gene3dS50
   - dataset@dataset_cfgs.cathFunfam: cathFunfam
   - dataset@dataset_cfgs.ted: ted
+  - dataset/example@dataset_cfgs.interpro: interpro
   - _self_
 data_weights:
   openfold_aligned: 0.125
@@ -15,6 +16,7 @@ data_weights:
   gene3dS50: 0.2
   cathFunfam: 0.1
   ted: 0.3
-batch_size: 16
-max_tokens: 10000
+  interpro: 0.0
+batch_size: 22
+max_tokens: 8000
 tokenizer_path: src/data/components/profam_tokenizer.json
