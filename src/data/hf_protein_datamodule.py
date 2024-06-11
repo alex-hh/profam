@@ -1,7 +1,9 @@
 import bisect
-import itertools
 import glob
+import itertools
+import os
 import random
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from datasets import Dataset, interleave_datasets, load_dataset
@@ -12,17 +14,35 @@ import wandb
 
 from src.data.proteingym import load_gym_dataset
 
+from src.data.fasta import _read_fasta_lines
+
+
+# TOOD: in future we might actually want standalone dataset class for
+# more flexible customisation (e.g. mapping uniprot ids via db)
+@dataclass
+class ProteinDatasetConfig:
+    data_path_pattern: str
+    name: str
+    keep_gaps: bool = False
+    keep_insertions: bool = False
+    to_upper: bool = False
+
 
 def load_protein_dataset(
-    data_path_pattern: str,
+    cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
     max_tokens: int = 5000,
     split="train",
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
-            "".join(one_seq.split("\n")[1:])
-            for one_seq in example["text"].split(">")[1:]
+            seq
+            for _, seq in _read_fasta_lines(
+                example["text"].split("\n"),
+                keep_gaps=cfg.keep_gaps,
+                keep_insertions=cfg.keep_insertions,
+                to_upper=cfg.to_upper,
+            )
         ]
         random.shuffle(sequences)
         cumulative_lengths = list(
@@ -34,11 +54,9 @@ def load_protein_dataset(
         concatenated_seqs = (
             tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
+            + tokenizer.sep_token
             + tokenizer.eos_token
         )
-        # if wandb.run is not None:
-        #     wandb.log({'insertion_point': insertion_point})
-        #     wandb.log({"len_concat_seqs": len(concatenated_seqs)})
         tokenized = tokenizer(
             concatenated_seqs,
             truncation=True,
@@ -52,11 +70,10 @@ def load_protein_dataset(
 
     dataset = load_dataset(
         "text",
-        data_files=data_path_pattern,
+        data_files=cfg.data_path_pattern,
         split=split,
         streaming=True,
         sample_by="document",
-        keep_in_memory=False,
     )
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
 
@@ -66,7 +83,7 @@ def load_protein_dataset(
 class ProteinDataModule(LightningDataModule):
     def __init__(
         self,
-        data_path_patterns: Dict[str, str],
+        dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer_path: str,
         batch_size: int = 8,
@@ -76,13 +93,15 @@ class ProteinDataModule(LightningDataModule):
         gym_dms_ids: Optional[List[str]] = None,
     ):
         super().__init__()
-        self.data_path_patterns = data_path_patterns
+        self.dataset_cfgs = dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
+        self.num_workers = min(os.cpu_count() or 1, 4)
         self.evaluate_gym = evaluate_gym
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
+        self.tokenizer_path = tokenizer_path
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
@@ -95,7 +114,8 @@ class ProteinDataModule(LightningDataModule):
         )
         self.collator = DataCollatorForLanguageModeling(
             self.tokenizer, mlm=False
-        )  # TODO add mlm
+        )
+
         if self.evaluate_gym:
             # TODO: fix to avoid hardcoding
             assert self.gym_dms_ids is not None
@@ -109,10 +129,10 @@ class ProteinDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
         train_datasets = []
         train_data_weights = []
-        for data_key, data_path_pattern in self.data_path_patterns.items():
-            print(f"{len(glob.glob(data_path_pattern))} files found for {data_key}")
+        for data_key, dataset_config in self.dataset_cfgs.items():
+            print(f"{len(glob.glob(dataset_config.data_path_pattern))} files found for {data_key}")
             dataset = load_protein_dataset(
-                data_path_pattern, self.tokenizer, self.max_tokens, split="train"
+                dataset_config, self.tokenizer, self.max_tokens, split="train"
             )
             train_datasets.append(dataset)
             train_data_weights.append(self.data_weights[data_key])
@@ -124,10 +144,10 @@ class ProteinDataModule(LightningDataModule):
             seed=42,
         )
         self.val_dataset = load_protein_dataset(
-            self.data_path_patterns["ec"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs["ec"], self.tokenizer, self.max_tokens
         )
         self.test_dataset = load_protein_dataset(
-            self.data_path_patterns["interpro"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
         )
         if self.evaluate_gym:
             # TODO: add configuration to avoid hardcoding
@@ -142,33 +162,39 @@ class ProteinDataModule(LightningDataModule):
             self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator
         )
 
+
     def val_dataloader(self) -> list[DataLoader]:
         loaders = [
             DataLoader(
-                self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator
+                self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+                shuffle=False
             )
         ]
         if self.evaluate_gym:
             loaders.append(
                 [
                     DataLoader(
-                        self.gym_dataset, batch_size=1  # gym needs batch size 1
+                        self.gym_dataset, batch_size=1,  # gym needs batch size 1
+                        shuffle=False
                     )  # n.b. in this case we do standard collation
                 ]
             )
         return loaders
 
+
     def test_dataloader(self) -> list[DataLoader]:
         loaders = [
             DataLoader(
-                self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator
+                self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+                shuffle=False,
             )
         ]
         if self.evaluate_gym:
             loaders.append(
                 [
                     DataLoader(
-                        self.gym_dataset, batch_size=1  # gym needs batch size 1
+                    self.gym_dataset, batch_size=1,  # gym needs batch size 1
+                    shuffle=False,
                     )  # n.b. in this case we do standard collation
                 ]
             )
