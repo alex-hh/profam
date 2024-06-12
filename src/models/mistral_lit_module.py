@@ -1,5 +1,6 @@
-from typing import Any, Dict, Tuple
 import json
+from typing import Any, Dict, Tuple
+
 import numpy as np
 import torch
 from lightning import LightningModule
@@ -10,6 +11,7 @@ from transformers import MistralConfig, MistralForCausalLM
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
+
 
 class MistralLitModule(LightningModule):
     def __init__(self, config: MistralConfig, compile: bool = False) -> None:
@@ -84,7 +86,9 @@ class MistralLitModule(LightningModule):
                 ],
                 dim=1,
             )
-            assert input_ids[..., completion_start_ix -1] == vocab["[SEP]"]  #  SEP token
+            assert (
+                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
+            )  #  SEP token
             outputs = self.model(input_ids)
             logits = outputs.logits
             # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
