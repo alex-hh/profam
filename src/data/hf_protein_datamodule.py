@@ -13,6 +13,7 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
+from src.data.classification import load_classifier_dataset
 
 
 # TOOD: in future we might actually want standalone dataset class for
@@ -157,7 +158,8 @@ class ProteinDataModule(LightningDataModule):
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
             )
-        self.ec_class_dataset = load_classifier_dataset()
+        if self.evaluate_ec_class:
+            self.ec_class_dataset = load_classifier_dataset()
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
@@ -181,6 +183,13 @@ class ProteinDataModule(LightningDataModule):
                         shuffle=False
                     )  # n.b. in this case we do standard collation
                 ]
+            )
+        if self.evaluate_ec_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_class_dataset, batch_size=1, collate_fn=self.collator,
+                    shuffle=False,
+                )
             )
         return loaders
 

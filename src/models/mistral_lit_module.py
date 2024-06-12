@@ -105,6 +105,28 @@ class MistralLitModule(LightningModule):
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
         )
 
+    def validation_step_classification(
+        self, batch: Dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        assert (
+            batch["input_ids"].shape[0] == 1
+        )
+
+        assert (
+            batch["input_ids"].ndim == 2
+            and batch["completion_ids"].ndim == 3
+            and batch["DMS_scores"].ndim == 2
+        )
+        completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
+        for completion_ix in range(batch["completion_ids"].shape[1]):
+            input_ids = torch.cat(
+                [
+                    batch["input_ids"],
+                    batch["completion_ids"][:, completion_ix]  # completion_ids have sep token at ix 0
+                ],
+                dim=1,
+            )
+
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
