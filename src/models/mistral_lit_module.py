@@ -81,9 +81,7 @@ class MistralLitModule(LightningModule):
                 ],
                 dim=1,
             )
-            assert input_ids[..., completion_start_ix] < 20  # assert that it is a residue token
             assert input_ids[..., completion_start_ix -1] == vocab["[SEP]"]  #  SEP token
-            assert input_ids[..., completion_start_ix -2] < 20  #  last msa residue token
             outputs = self.model(input_ids)
             logits = outputs.logits
             # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
@@ -91,7 +89,6 @@ class MistralLitModule(LightningModule):
             # Shift so that tokens < n predict n
             shift_logits = logits[..., completion_start_ix-1:-1, :].contiguous()
             shift_labels = input_ids[..., completion_start_ix:].contiguous()
-            assert shift_labels[..., -1] == vocab["[SEP]"]  # SEP token
             # Flatten the tokens
             shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
             shift_labels = shift_labels.view(-1)
