@@ -39,8 +39,6 @@ print(
         "[start-of-document] ARNDC QEGHIL KMFPST WYV [end-of-document] [PAD] rnd [SEP]\n[SEP]"
     ).tokens
 )
-bos_token_id = tokenizer.token_to_id("[start-of-document]")
-eos_token_id = tokenizer.token_to_id("[end-of-document]")
 
 # adding post-processor:
 # https://huggingface.co/learn/nlp-course/chapter6/8?fw=pt
@@ -58,7 +56,6 @@ fast_tokenizer = PreTrainedTokenizerFast(
     unk_token="[UNK]",
     pad_token="[PAD]",
     bos_token="[start-of-document]",
-    eos_token="[end-of-document]",
     sep_token="[SEP]",
     mask_token="[MASK]",
     # Add them here to ensure they are skipped when decoding with skip_special_tokens is set to True
@@ -67,9 +64,11 @@ fast_tokenizer = PreTrainedTokenizerFast(
 
 # Test the tokenizer
 example_sequence_1 = (
-    "[start-of-document] ARNDC [SEP] QEGHIL [SEP] KMFPST [SEP] WYV [end-of-document]"
+    "[start-of-document] ARNDC [SEP] QEGHIL [SEP] KMFPST [SEP] WYV [SEP]"
 )
-example_sequence_2 = "[start-of-document]ARNDC[SEP]QEGHIL[SEP]KMFPST[SEP]WYV[end-of-document]"  # also fine
+example_sequence_2 = (
+    "[start-of-document]ARNDC[SEP]QEGHIL[SEP]KMFPST[SEP]WYV[SEP]"  # also fine
+)
 print("Example sequence 1 encoding", tokenizer.encode(example_sequence_1).tokens)
 
 print("Example sequence 2 encoding", tokenizer.encode(example_sequence_2).tokens)
@@ -95,10 +94,10 @@ assert ids[1][1] == fast_tokenizer.convert_tokens_to_ids(
     "A"
 ), "The second token of the second sequence should be the 'A' token."
 assert (
-    ids[0][-1] == fast_tokenizer.eos_token_id
+    ids[0][-1] == fast_tokenizer.sep_token_id
 ), "The last token of the first sequence should be the EOS token."
-assert (ids[0] == fast_tokenizer.sep_token_id).sum() == 3, "Expected 3 sep tokens"
-assert (ids[1] == fast_tokenizer.sep_token_id).sum() == 3, "Expected 3 sep tokens"
+assert (ids[0] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 3 sep tokens"
+assert (ids[1] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 3 sep tokens"
 
 
 # print("Tokens:", tokens)
