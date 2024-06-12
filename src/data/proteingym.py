@@ -10,8 +10,9 @@ from src.data import fasta
 from src.data import utils as data_utils
 
 GYM_DATA_DIR = os.environ.get(
-    "GYM_DATA_DIR", "data/example_data/ProteinGym"
+    "GYM_DATA_DIR", "data/tiny_data/ProteinGym"
 )  # TODO update this
+print(f"Loading ProteinGym data from {GYM_DATA_DIR}")
 
 
 def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
