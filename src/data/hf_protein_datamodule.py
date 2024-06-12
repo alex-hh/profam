@@ -90,13 +90,14 @@ class ProteinDataModule(LightningDataModule):
         evaluate_gym: bool = False,
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
+        num_workers: Optional[int] = None,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
-        self.num_workers = min(os.cpu_count() or 1, 4)
+        self.num_workers = num_workers or os.cpu_count() or 1
         self.evaluate_gym = evaluate_gym
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
@@ -123,6 +124,9 @@ class ProteinDataModule(LightningDataModule):
             )
 
     def setup(self, stage: Optional[str] = None) -> None:
+        if self.num_workers > 1:
+            os.environ["TOKENIZERS_PARALLELISM"] = "true"
+            print(f"Using {self.num_workers} workers for data loading")
         train_datasets = []
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
@@ -157,7 +161,8 @@ class ProteinDataModule(LightningDataModule):
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator
+            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+            num_workers=self.num_workers
         )
 
     def val_dataloader(self) -> list[DataLoader]:
@@ -167,6 +172,7 @@ class ProteinDataModule(LightningDataModule):
                 batch_size=self.batch_size,
                 collate_fn=self.collator,
                 shuffle=False,
+                num_workers=self.num_workers,
             )
         ]
         if self.evaluate_gym:
@@ -188,6 +194,7 @@ class ProteinDataModule(LightningDataModule):
                 batch_size=self.batch_size,
                 collate_fn=self.collator,
                 shuffle=False,
+                num_workers=self.num_workers
             )
         ]
         if self.evaluate_gym:
