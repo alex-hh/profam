@@ -161,8 +161,10 @@ class ProteinDataModule(LightningDataModule):
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator,
-            num_workers=self.num_workers
+            self.train_dataset,
+            batch_size=self.batch_size,
+            collate_fn=self.collator,
+            num_workers=self.num_workers,
         )
 
     def val_dataloader(self) -> list[DataLoader]:
@@ -194,7 +196,7 @@ class ProteinDataModule(LightningDataModule):
                 batch_size=self.batch_size,
                 collate_fn=self.collator,
                 shuffle=False,
-                num_workers=self.num_workers
+                num_workers=self.num_workers,
             )
         ]
         if self.evaluate_gym:
