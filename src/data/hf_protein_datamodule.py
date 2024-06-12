@@ -168,6 +168,7 @@ class ProteinDataModule(LightningDataModule):
         loaders = [
             DataLoader(
                 self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+                shuffle=False,
                 num_workers=self.num_workers
             )
         ]
@@ -186,6 +187,7 @@ class ProteinDataModule(LightningDataModule):
         loaders = [
             DataLoader(
                 self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+                shuffle=False,
                 num_workers=self.num_workers
             )
         ]
