@@ -1,5 +1,5 @@
 from typing import Any, Dict, Tuple
-
+import json
 import numpy as np
 import torch
 from lightning import LightningModule
@@ -9,6 +9,9 @@ from transformers import MistralConfig, MistralForCausalLM
 
 import wandb
 
+# Initialize the tokenizer
+with open("scripts/vocab.json", "r") as jf:
+    vocab = json.load(jf)
 
 class MistralLitModule(LightningModule):
     def __init__(self, config: MistralConfig, compile: bool = False) -> None:
@@ -40,13 +43,10 @@ class MistralLitModule(LightningModule):
         with torch.no_grad():
             self.log(
                 "train/n_seqs",
-                (batch["input_ids"] == 23)
-                .float()
-                .sum(axis=1)
-                .mean()
-                .item(),  #  TODO: remove hardcoded SEP token
+                (batch["input_ids"] == vocab["[SEP]"])
+                .float().sum(axis=1).mean().item(),
                 on_step=True,
-                on_epoch=False,
+                on_epoch=False
             )
         return loss
 
@@ -82,19 +82,11 @@ class MistralLitModule(LightningModule):
             input_ids = torch.cat(
                 [
                     batch["input_ids"],
-                    batch["completion_ids"][
-                        :, completion_ix
-                    ],  # completion_ids have sep token at ix 0
+                    batch["completion_ids"][:, completion_ix]  # completion_ids have sep token at ix 0
                 ],
                 dim=1,
             )
-            assert (
-                input_ids[..., completion_start_ix] < 20
-            )  # assert that it is a residue token
-            assert input_ids[..., completion_start_ix - 1] == 23  #  SEP token
-            assert (
-                input_ids[..., completion_start_ix - 2] < 20
-            )  #  last msa residue token
+            assert input_ids[..., completion_start_ix -1] == vocab["[SEP]"]  # SEP token
             outputs = self.model(input_ids)
             logits = outputs.logits
             # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
@@ -102,16 +94,13 @@ class MistralLitModule(LightningModule):
             # Shift so that tokens < n predict n
             shift_logits = logits[..., completion_start_ix - 1 : -1, :].contiguous()
             shift_labels = input_ids[..., completion_start_ix:].contiguous()
-            assert shift_labels[..., -1] == 23  # SEP token
             # Flatten the tokens
             shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
             shift_labels = shift_labels.view(-1)
             # Ensure tensors are on the same device
             shift_labels = shift_labels.to(shift_logits.device)
             loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-            nll = -loss_fct(shift_logits, shift_labels).mean(
-                -1
-            )  # mean is invariant to seq len
+            nll = -loss_fct(shift_logits, shift_labels).mean(-1)  # mean is invariant to seq len
             all_nlls.append(nll.item())
 
         nlls = np.array(all_nlls)
