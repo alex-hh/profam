@@ -11,7 +11,6 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-import wandb
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 

@@ -7,8 +7,6 @@ from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 
-import wandb
-
 
 class MistralLitModule(LightningModule):
     def __init__(self, config: MistralConfig, compile: bool = False) -> None:
