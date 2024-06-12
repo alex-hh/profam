@@ -8,6 +8,8 @@ from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 
+import wandb
+
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
@@ -35,14 +37,16 @@ class MistralLitModule(LightningModule):
             "train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True
         )
         self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        # https://huggingface.co/docs/transformers/perplexity
+        # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
+        self.log(
+            "train/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+        )
         with torch.no_grad():
             self.log(
                 "train/n_seqs",
                 (batch["input_ids"] == vocab["[SEP]"])
-                .float()
-                .sum(axis=1)
-                .mean()
-                .item(),  #  TODO: remove hardcoded SEP token
+                .float().sum(axis=1).mean().item(),
                 on_step=True,
                 on_epoch=False,
             )
@@ -80,15 +84,11 @@ class MistralLitModule(LightningModule):
             input_ids = torch.cat(
                 [
                     batch["input_ids"],
-                    batch["completion_ids"][
-                        :, completion_ix
-                    ],  # completion_ids have sep token at ix 0
+                    batch["completion_ids"][:, completion_ix]  # completion_ids have sep token at ix 0
                 ],
                 dim=1,
             )
-            assert (
-                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
-            )  #  SEP token
+            assert input_ids[..., completion_start_ix -1] == vocab["[SEP]"]  # SEP token
             outputs = self.model(input_ids)
             logits = outputs.logits
             # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
@@ -102,9 +102,7 @@ class MistralLitModule(LightningModule):
             # Ensure tensors are on the same device
             shift_labels = shift_labels.to(shift_logits.device)
             loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-            nll = -loss_fct(shift_logits, shift_labels).mean(
-                -1
-            )  # mean is invariant to seq len
+            nll = -loss_fct(shift_logits, shift_labels).mean(-1)  # mean is invariant to seq len
             all_nlls.append(nll.item())
 
         nlls = np.array(all_nlls)
@@ -126,12 +124,16 @@ class MistralLitModule(LightningModule):
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
             )
         loss = outputs.loss
-        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+        # n.b. this might be biased for batch size > 1
+        self.log(
+            "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+        )
         return loss
 
     def test_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
-    ) -> torch.Tensor:
+        self, batch: Dict[str, torch.Tensor], batch_idx: int,
+        dataloader_idx: int = 0) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -141,7 +143,12 @@ class MistralLitModule(LightningModule):
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
             )
         loss = outputs.loss
-        self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+        # n.b. this might be biased for batch size > 1
+        self.log(
+            "test/ppl", torch.exp(loss), on_step=False,
+            on_epoch=True, prog_bar=False
+        )
         return loss
 
     def configure_optimizers(self) -> Dict[str, Any]:
