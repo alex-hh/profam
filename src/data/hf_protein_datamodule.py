@@ -54,7 +54,6 @@ def load_protein_dataset(
             tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
             + tokenizer.sep_token
-            + tokenizer.eos_token
         )
         tokenized = tokenizer(
             concatenated_seqs,
@@ -107,7 +106,6 @@ class ProteinDataModule(LightningDataModule):
             unk_token="[UNK]",
             pad_token="[PAD]",
             bos_token="[start-of-document]",
-            eos_token="[end-of-document]",
             sep_token="[SEP]",
             mask_token="[MASK]",
             add_special_tokens=True,
