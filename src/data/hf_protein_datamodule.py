@@ -89,13 +89,14 @@ class ProteinDataModule(LightningDataModule):
         evaluate_gym: bool = False,
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
+        num_workers: Optional[int] = None,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
-        self.num_workers = os.cpu_count() or 1
+        self.num_workers = num_workers or os.cpu_count() or 1
         self.evaluate_gym = evaluate_gym
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
