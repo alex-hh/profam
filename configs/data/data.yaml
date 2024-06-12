@@ -17,7 +17,7 @@ data_weights:
   cathFunfam: 0.1
   ted: 0.3
   interpro: 0.0
-batch_size: 22
+batch_size: 200
 max_tokens: 8000
 tokenizer_path: src/data/components/profam_tokenizer.json
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
