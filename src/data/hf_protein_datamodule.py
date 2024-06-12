@@ -54,7 +54,6 @@ def load_protein_dataset(
         concatenated_seqs = (
             tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
-            + tokenizer.sep_token
             + tokenizer.eos_token
         )
         tokenized = tokenizer(
