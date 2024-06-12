@@ -84,7 +84,7 @@ class MistralLitModule(LightningModule):
             input_ids = torch.cat(
                 [
                     batch["input_ids"],
-                    batch["completion_ids"][:, completion_ix]  # completion_ids have sep token at ix 0
+                    batch["completion_ids"][:, completion_ix]
                 ],
                 dim=1,
             )
@@ -102,14 +102,15 @@ class MistralLitModule(LightningModule):
             # Ensure tensors are on the same device
             shift_labels = shift_labels.to(shift_logits.device)
             loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-            nll = -loss_fct(shift_logits, shift_labels).mean(-1)  # mean is invariant to seq len
+            nll = -loss_fct(shift_logits, shift_labels).mean(-1)
             all_nlls.append(nll.item())
 
         nlls = np.array(all_nlls)
         spearman_corr, _ = spearmanr(nlls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
+            "gym/spearman", spearman_corr,
+            on_step=False, on_epoch=True, prog_bar=False
         )
 
     def validation_step(
@@ -127,7 +128,8 @@ class MistralLitModule(LightningModule):
         self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         # n.b. this might be biased for batch size > 1
         self.log(
-            "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+            "val/ppl", torch.exp(loss),
+            on_step=False, on_epoch=True, prog_bar=False
         )
         return loss
 

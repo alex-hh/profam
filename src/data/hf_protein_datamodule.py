@@ -130,7 +130,8 @@ class ProteinDataModule(LightningDataModule):
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
             print(
-                f"{len(glob.glob(dataset_config.data_path_pattern))} files found for {data_key}"
+                f"{len(glob.glob(dataset_config.data_path_pattern))} "
+                f"files found for {data_key}"
             )
             dataset = load_protein_dataset(
                 dataset_config, self.tokenizer, self.max_tokens, split="train"
