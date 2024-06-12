@@ -26,8 +26,10 @@ def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
 
 
 def tokenize_mutants(sample, tokenizer: PreTrainedTokenizerFast):
-    sample["mutated_sequences"] = [tokenizer.sep_token + seq + tokenizer.sep_token\
-                                   for seq in sample["mutated_sequences"]]
+    sample["mutated_sequences"] = [
+        tokenizer.sep_token + seq + tokenizer.sep_token
+        for seq in sample["mutated_sequences"]
+    ]
     tokenized = tokenizer(
         sample["mutated_sequences"],
         return_tensors="pt",
