@@ -87,7 +87,7 @@ def build_gym_df(
         seed=seed,
         gym_data_dir=gym_data_dir,
         max_tokens=max_tokens,
-        keep_gaps=keep_gaps
+        keep_gaps=keep_gaps,
     )
     df = df.apply(
         load_dms_scores_for_row,
