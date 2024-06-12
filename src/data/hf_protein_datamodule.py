@@ -11,7 +11,6 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-import wandb
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 
@@ -130,7 +129,8 @@ class ProteinDataModule(LightningDataModule):
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
             print(
-                f"{len(glob.glob(dataset_config.data_path_pattern))} files found for {data_key}"
+                f"{len(glob.glob(dataset_config.data_path_pattern))} "
+                f"files found for {data_key}"
             )
             dataset = load_protein_dataset(
                 dataset_config, self.tokenizer, self.max_tokens, split="train"
@@ -160,8 +160,10 @@ class ProteinDataModule(LightningDataModule):
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
-            self.train_dataset, batch_size=self.batch_size, collate_fn=self.collator,
-            num_workers=self.num_workers
+            self.train_dataset,
+            batch_size=self.batch_size,
+            collate_fn=self.collator,
+            num_workers=self.num_workers,
         )
 
     def val_dataloader(self) -> list[DataLoader]:
@@ -193,7 +195,7 @@ class ProteinDataModule(LightningDataModule):
                 batch_size=self.batch_size,
                 collate_fn=self.collator,
                 shuffle=False,
-                num_workers=self.num_workers
+                num_workers=self.num_workers,
             )
         ]
         if self.evaluate_gym:

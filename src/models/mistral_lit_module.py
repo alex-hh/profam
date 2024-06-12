@@ -1,5 +1,6 @@
-from typing import Any, Dict, Tuple
 import json
+from typing import Any, Dict, Tuple
+
 import numpy as np
 import torch
 from lightning import LightningModule
@@ -7,11 +8,10 @@ from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 
-import wandb
-
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
+
 
 class MistralLitModule(LightningModule):
     def __init__(self, config: MistralConfig, compile: bool = False) -> None:
@@ -44,9 +44,12 @@ class MistralLitModule(LightningModule):
             self.log(
                 "train/n_seqs",
                 (batch["input_ids"] == vocab["[SEP]"])
-                .float().sum(axis=1).mean().item(),
+                .float()
+                .sum(axis=1)
+                .mean()
+                .item(),
                 on_step=True,
-                on_epoch=False
+                on_epoch=False,
             )
         return loss
 
@@ -80,13 +83,12 @@ class MistralLitModule(LightningModule):
         completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
         for completion_ix in range(batch["completion_ids"].shape[1]):
             input_ids = torch.cat(
-                [
-                    batch["input_ids"],
-                    batch["completion_ids"][:, completion_ix]  # completion_ids have sep token at ix 0
-                ],
+                [batch["input_ids"], batch["completion_ids"][:, completion_ix]],
                 dim=1,
             )
-            assert input_ids[..., completion_start_ix -1] == vocab["[SEP]"]  # SEP token
+            assert (
+                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
+            )  # SEP token
             outputs = self.model(input_ids)
             logits = outputs.logits
             # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
@@ -100,7 +102,7 @@ class MistralLitModule(LightningModule):
             # Ensure tensors are on the same device
             shift_labels = shift_labels.to(shift_logits.device)
             loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-            nll = -loss_fct(shift_logits, shift_labels).mean(-1)  # mean is invariant to seq len
+            nll = -loss_fct(shift_logits, shift_labels).mean(-1)
             all_nlls.append(nll.item())
 
         nlls = np.array(all_nlls)
