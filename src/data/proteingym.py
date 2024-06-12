@@ -9,15 +9,16 @@ from transformers import PreTrainedTokenizerFast
 from src.data import fasta
 from src.data import utils as data_utils
 
-GYM_DATA_DIR = os.environ.get("GYM_DATA_DIR", "data/example_data/ProteinGym")  # TODO update this
+GYM_DATA_DIR = os.environ.get(
+    "GYM_DATA_DIR", "data/example_data/ProteinGym"
+)  # TODO update this
 
 
 def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
     # TODO: fix tokenization. copying hf loader for now
-    concatenated_seqs = (
-        tokenizer.bos_token
-        + tokenizer.sep_token.join(sample["MSA"])  # No EOS token here because the mutated seq will be added
-    )
+    concatenated_seqs = tokenizer.bos_token + tokenizer.sep_token.join(
+        sample["MSA"]
+    )  # No EOS token here because the mutated seq will be added
     tokenized = tokenizer(
         concatenated_seqs, return_tensors="pt", add_special_tokens=False
     )

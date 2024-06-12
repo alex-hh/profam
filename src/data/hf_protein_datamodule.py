@@ -11,6 +11,7 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
+import wandb
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 
@@ -121,7 +122,6 @@ class ProteinDataModule(LightningDataModule):
                 max_mutated_sequences=self.max_gym_sequences,
             )
 
-
     def setup(self, stage: Optional[str] = None) -> None:
         if self.num_workers > 1:
             os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -129,7 +129,9 @@ class ProteinDataModule(LightningDataModule):
         train_datasets = []
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
-            print(f"{len(glob.glob(dataset_config.data_path_pattern))} files found for {data_key}")
+            print(
+                f"{len(glob.glob(dataset_config.data_path_pattern))} files found for {data_key}"
+            )
             dataset = load_protein_dataset(
                 dataset_config, self.tokenizer, self.max_tokens, split="train"
             )
@@ -165,17 +167,20 @@ class ProteinDataModule(LightningDataModule):
     def val_dataloader(self) -> list[DataLoader]:
         loaders = [
             DataLoader(
-                self.val_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+                self.val_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.collator,
                 shuffle=False,
-                num_workers=self.num_workers
+                num_workers=self.num_workers,
             )
         ]
         if self.evaluate_gym:
             loaders.append(
                 [
                     DataLoader(
-                        self.gym_dataset, batch_size=1,  # gym needs batch size 1
-                        shuffle=False
+                        self.gym_dataset,
+                        batch_size=1,  # gym needs batch size 1
+                        shuffle=False,
                     )  # n.b. in this case we do standard collation
                 ]
             )
@@ -184,7 +189,9 @@ class ProteinDataModule(LightningDataModule):
     def test_dataloader(self) -> list[DataLoader]:
         loaders = [
             DataLoader(
-                self.test_dataset, batch_size=self.batch_size, collate_fn=self.collator,
+                self.test_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.collator,
                 shuffle=False,
                 num_workers=self.num_workers
             )
@@ -193,8 +200,9 @@ class ProteinDataModule(LightningDataModule):
             loaders.append(
                 [
                     DataLoader(
-                    self.gym_dataset, batch_size=1,  # gym needs batch size 1
-                    shuffle=False,
+                        self.gym_dataset,
+                        batch_size=1,  # gym needs batch size 1
+                        shuffle=False,
                     )  # n.b. in this case we do standard collation
                 ]
             )
