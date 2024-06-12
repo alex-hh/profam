@@ -1,0 +1,6 @@
+_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+name: ec
+data_path_pattern: ../data/ec/ec_fastas/*.fasta
+keep_gaps: false
+to_upper: false
+keep_insertions: false

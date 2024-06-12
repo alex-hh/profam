@@ -22,18 +22,24 @@ class MistralLitModule(LightningModule):
     def forward(self, input_ids, attention_mask=None, labels=None):
         return self.model(input_ids, attention_mask=attention_mask, labels=labels)
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+    def training_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
-        self.train_loss(loss)
-        self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        self.log(
+            "train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True
+        )
+        self.log(
+            "train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True
+        )
         with torch.no_grad():
             self.log(
                 "train/n_seqs",
-                (batch["input_ids"] == 23).float().sum(axis=1).mean().item(),
+                (batch["input_ids"] == 23).float().sum(axis=1).mean().item(), #  TODO: remove hardcoded SEP token
                 on_step=True,
-                on_epoch=False)
+                on_epoch=False
+            )
         return loss
 
     def validation_step_proteingym(
