@@ -112,27 +112,77 @@ class MistralLitModule(LightningModule):
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
         )
 
-    def validation_step_classification(
-        self, batch: Dict[str, torch.Tensor]
+    def validation_step_predict(
+        self, batch: Dict[str, torch.Tensor], task: str = "proteingym"
     ) -> torch.Tensor:
+        """Assumes that batch contains the following:
+
+        input_ids: the prompt (i.e., MSA for ProteinGym or family sequences for classification)
+        completion_ids: the completions (i.e., mutated sequences for ProteinGym or test sequences for classification)
+        labels: the labels (i.e., DMS scores for ProteinGym or binary labels for classification)
+
+        task: the task to perform ("proteingym" or "classification")
+        """
         assert (
             batch["input_ids"].shape[0] == 1
-        )
-
+        ), "Only batch size 1 is supported for validation"
+        all_nlls = []
         assert (
             batch["input_ids"].ndim == 2
             and batch["completion_ids"].ndim == 3
-            and batch["DMS_scores"].ndim == 2
-        )
+            and batch["labels"].ndim == 2
+        )  # b, L; b, n, L; b, n
         completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
         for completion_ix in range(batch["completion_ids"].shape[1]):
             input_ids = torch.cat(
-                [
-                    batch["input_ids"],
-                    batch["completion_ids"][:, completion_ix]  # completion_ids have sep token at ix 0
-                ],
+                [batch["input_ids"], batch["completion_ids"][:, completion_ix]],
                 dim=1,
             )
+            assert (
+                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
+            )  # SEP token
+            outputs = self.model(input_ids)
+            logits = outputs.logits
+
+            shift_logits = logits[..., completion_start_ix - 1: -1, :].contiguous()
+            shift_labels = input_ids[..., completion_start_ix:].contiguous()
+            shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
+            shift_labels = shift_labels.view(-1)
+            shift_labels = shift_labels.to(shift_logits.device)
+            loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+            nll = -loss_fct(shift_logits, shift_labels).mean(-1)
+            all_nlls.append(nll.item())
+
+        nlls = np.array(all_nlls)
+        if task == "proteingym":
+            metric_value, _ = spearmanr(nlls, batch["labels"][0].cpu().numpy())
+            self.log(
+                "val/proteingym_spearman",
+                metric_value,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+            )
+        elif task == "classification":
+            labels = batch["labels"][0].cpu().numpy()
+            auroc = roc_auc_score(labels, -nlls)
+            auprc = average_precision_score(labels, -nlls)
+            self.log(
+                "val/classification_auroc",
+                auroc,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+            )
+            self.log(
+                "val/classification_auprc",
+                auprc,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+            )
+        else:
+            raise ValueError(f"Invalid task: {task}")
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
