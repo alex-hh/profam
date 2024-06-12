@@ -8,8 +8,6 @@ from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 
-import wandb
-
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
@@ -46,7 +44,10 @@ class MistralLitModule(LightningModule):
             self.log(
                 "train/n_seqs",
                 (batch["input_ids"] == vocab["[SEP]"])
-                .float().sum(axis=1).mean().item(),
+                .float()
+                .sum(axis=1)
+                .mean()
+                .item(),
                 on_step=True,
                 on_epoch=False,
             )
@@ -82,13 +83,12 @@ class MistralLitModule(LightningModule):
         completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
         for completion_ix in range(batch["completion_ids"].shape[1]):
             input_ids = torch.cat(
-                [
-                    batch["input_ids"],
-                    batch["completion_ids"][:, completion_ix]
-                ],
+                [batch["input_ids"], batch["completion_ids"][:, completion_ix]],
                 dim=1,
             )
-            assert input_ids[..., completion_start_ix -1] == vocab["[SEP]"]  # SEP token
+            assert (
+                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
+            )  # SEP token
             outputs = self.model(input_ids)
             logits = outputs.logits
             # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
@@ -109,8 +109,7 @@ class MistralLitModule(LightningModule):
         spearman_corr, _ = spearmanr(nlls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
-            "gym/spearman", spearman_corr,
-            on_step=False, on_epoch=True, prog_bar=False
+            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
         )
 
     def validation_step(
@@ -128,14 +127,13 @@ class MistralLitModule(LightningModule):
         self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         # n.b. this might be biased for batch size > 1
         self.log(
-            "val/ppl", torch.exp(loss),
-            on_step=False, on_epoch=True, prog_bar=False
+            "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
         )
         return loss
 
     def test_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int,
-        dataloader_idx: int = 0) -> torch.Tensor:
+        self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
+    ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -148,8 +146,7 @@ class MistralLitModule(LightningModule):
         self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         # n.b. this might be biased for batch size > 1
         self.log(
-            "test/ppl", torch.exp(loss), on_step=False,
-            on_epoch=True, prog_bar=False
+            "test/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
         )
         return loss
 
