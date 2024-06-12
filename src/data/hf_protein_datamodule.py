@@ -157,6 +157,7 @@ class ProteinDataModule(LightningDataModule):
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
             )
+        self.ec_class_dataset = load_classifier_dataset()
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
