@@ -16,3 +16,4 @@ tokenizer_path: src/data/components/profam_tokenizer.json
 evaluate_gym: true
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 max_gym_sequences: null
+num_workers: null # None means use all available CPU cores

@@ -1,8 +1,0 @@
-{
-  "bos_token": "[start-of-document]",
-  "eos_token": "[end-of-document]",
-  "mask_token": "[MASK]",
-  "pad_token": "[PAD]",
-  "sep_token": "[SEP]",
-  "unk_token": "[UNK]"
-}

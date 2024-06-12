@@ -4,187 +4,7 @@
   "padding": null,
   "added_tokens": [
     {
-      "id": 0,
-      "content": "A",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 1,
-      "content": "R",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 2,
-      "content": "N",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 3,
-      "content": "D",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 4,
-      "content": "C",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 5,
-      "content": "Q",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 6,
-      "content": "E",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 7,
-      "content": "G",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 8,
-      "content": "H",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 9,
-      "content": "I",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 10,
-      "content": "L",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 11,
-      "content": "K",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 12,
-      "content": "M",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 13,
-      "content": "F",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 14,
-      "content": "P",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 15,
-      "content": "S",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 16,
-      "content": "T",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 17,
-      "content": "W",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 18,
-      "content": "Y",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 19,
-      "content": "V",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    },
-    {
-      "id": 20,
+      "id": 25,
       "content": "[PAD]",
       "single_word": false,
       "lstrip": false,
@@ -193,7 +13,7 @@
       "special": true
     },
     {
-      "id": 21,
+      "id": 26,
       "content": "[start-of-document]",
       "single_word": false,
       "lstrip": false,
@@ -202,7 +22,7 @@
       "special": true
     },
     {
-      "id": 22,
+      "id": 27,
       "content": "[end-of-document]",
       "single_word": false,
       "lstrip": false,
@@ -211,7 +31,7 @@
       "special": true
     },
     {
-      "id": 23,
+      "id": 28,
       "content": "[SEP]",
       "single_word": false,
       "lstrip": false,
@@ -220,7 +40,7 @@
       "special": true
     },
     {
-      "id": 24,
+      "id": 29,
       "content": "[UNK]",
       "single_word": false,
       "lstrip": false,
@@ -229,8 +49,98 @@
       "special": true
     },
     {
-      "id": 25,
+      "id": 30,
       "content": "[MASK]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 31,
+      "content": "[SP1]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 32,
+      "content": "[SP2]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 33,
+      "content": "[SP3]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 34,
+      "content": "[SP4]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 35,
+      "content": "[SP5]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 36,
+      "content": "[SP6]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 37,
+      "content": "[SP7]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 38,
+      "content": "[SP8]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 39,
+      "content": "[SP9]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 40,
+      "content": "[SP10]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -239,6 +149,9 @@
     }
   ],
   "normalizer": null,
+  "pre_tokenizer": {
+    "type": "WhitespaceSplit"
+  },
   "post_processor": null,
   "decoder": null,
   "model": {
@@ -249,7 +162,6 @@
     "end_of_word_suffix": null,
     "fuse_unk": false,
     "byte_fallback": false,
-    "ignore_merges": false,
     "vocab": {
       "A": 0,
       "R": 1,
@@ -271,12 +183,27 @@
       "W": 17,
       "Y": 18,
       "V": 19,
-      "[PAD]": 20,
-      "[start-of-document]": 21,
-      "[end-of-document]": 22,
-      "[SEP]": 23,
-      "[UNK]": 24,
-      "[MASK]": 25
+      "X": 20,
+      "B": 21,
+      "Z": 22,
+      "J": 23,
+      "-": 24,
+      "[PAD]": 25,
+      "[start-of-document]": 26,
+      "[end-of-document]": 27,
+      "[SEP]": 28,
+      "[UNK]": 29,
+      "[MASK]": 30,
+      "[SP1]": 31,
+      "[SP2]": 32,
+      "[SP3]": 33,
+      "[SP4]": 34,
+      "[SP5]": 35,
+      "[SP6]": 36,
+      "[SP7]": 37,
+      "[SP8]": 38,
+      "[SP9]": 39,
+      "[SP10]": 40
     },
     "merges": []
   }
