@@ -28,7 +28,12 @@ class MistralLitModule(LightningModule):
         self.train_loss(loss)
         self.log("train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
-        self.log("train/n_seqs", (batch["input_ids"] == 23).sum().item(), on_step=True, on_epoch=False)
+        with torch.no_grad():
+            self.log(
+                "train/n_seqs",
+                (batch["input_ids"] == 23).float().sum(axis=1).mean().item(),
+                on_step=True,
+                on_epoch=False)
         return loss
 
     def validation_step_proteingym(
