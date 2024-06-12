@@ -49,12 +49,13 @@ def load_protein_dataset(
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
         insertion_point = bisect.bisect_left(
-            cumulative_lengths, max_tokens - 2 #  TODO insertion point gives seq lens > max_tokens+~500
+            cumulative_lengths,
+            max_tokens - 2,  #  TODO insertion point gives seq lens > max_tokens+~500
         )  # -2 for doc start and end tokens
         concatenated_seqs = (
             tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
-            + tokenizer.eos_token
+            + tokenizer.sep_token
         )
         tokenized = tokenizer(
             concatenated_seqs,
@@ -106,14 +107,11 @@ class ProteinDataModule(LightningDataModule):
             unk_token="[UNK]",
             pad_token="[PAD]",
             bos_token="[start-of-document]",
-            eos_token="[end-of-document]",
             sep_token="[SEP]",
             mask_token="[MASK]",
             add_special_tokens=True,
         )
-        self.collator = DataCollatorForLanguageModeling(
-            self.tokenizer, mlm=False
-        )
+        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
 
         if self.evaluate_gym:
             # TODO: fix to avoid hardcoding
