@@ -30,6 +30,7 @@ jobs:
           data.batch_size=2 \
           data.num_workers=1 \
           data.max_tokens=100 \
+          data.gym_data_dir="data/tiny_data/ProteinGym" \
           logger=null_logger \
           'model.config.hidden_size=4' \
           'model.config.intermediate_size=4' \
