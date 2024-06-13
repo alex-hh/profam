@@ -13,6 +13,32 @@ with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
 
 
+def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0):
+    """Compute the negative log likelihood of the target sequence given the model outputs.
+
+    Args:
+        model_outputs: The model outputs from the forward pass.
+        input_ids: The input sequence.
+
+    Returns:
+        The negative log likelihood of the target sequence.
+    """
+    logits = model_outputs.logits
+    # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
+
+    # Shift so that tokens < n predict n
+    shift_logits = logits[..., start_ix:-1, :].contiguous()
+    shift_labels = input_ids[..., start_ix + 1 :].contiguous()
+    # Flatten the tokens
+    shift_logits = shift_logits.view(-1, shift_logits.shape[-1])
+    shift_labels = shift_labels.view(-1)
+    # Ensure tensors are on the same device
+    shift_labels = shift_labels.to(shift_logits.device)
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+    log_likelihood = -loss_fct(shift_logits, shift_labels)
+    return log_likelihood
+
+
 class MistralLitModule(LightningModule):
     def __init__(self, config: MistralConfig, compile: bool = False) -> None:
         super().__init__()
@@ -74,12 +100,13 @@ class MistralLitModule(LightningModule):
             batch["input_ids"].shape[0] == 1
         ), "Only batch size 1 is supported for proteingym evaluation"
         # N.B. batch size being one means attention_mask isn't needed
-        all_nlls = []
+        all_lls = []
         assert (
             batch["input_ids"].ndim == 2
             and batch["completion_ids"].ndim == 3
             and batch["DMS_scores"].ndim == 2
         )  # b, L; b, n, L
+        # TODO: maybe remove the +1: it's confusing
         completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
         for completion_ix in range(batch["completion_ids"].shape[1]):
             input_ids = torch.cat(
@@ -90,23 +117,14 @@ class MistralLitModule(LightningModule):
                 input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
             )  # SEP token
             outputs = self.model(input_ids)
-            logits = outputs.logits
-            # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
+            # TODO: maybe relabel start_ix - a bit confusing
+            log_likelihood = log_likelihood_from_outputs(
+                outputs, input_ids, start_ix=completion_start_ix - 1
+            )
+            all_lls.append(log_likelihood.mean(-1).item())
 
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., completion_start_ix - 1 : -1, :].contiguous()
-            shift_labels = input_ids[..., completion_start_ix:].contiguous()
-            # Flatten the tokens
-            shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            # Ensure tensors are on the same device
-            shift_labels = shift_labels.to(shift_logits.device)
-            loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-            nll = -loss_fct(shift_logits, shift_labels).mean(-1)
-            all_nlls.append(nll.item())
-
-        nlls = np.array(all_nlls)
-        spearman_corr, _ = spearmanr(nlls, batch["DMS_scores"][0].cpu().numpy())
+        lls = np.array(all_lls)
+        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
