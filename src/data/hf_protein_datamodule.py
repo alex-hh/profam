@@ -126,12 +126,9 @@ class ProteinDataModule(LightningDataModule):
             )
 
     def setup(self, stage: Optional[str] = None) -> None:
-        if self.num_workers > 1:
+        if self.num_workers > 0:
             os.environ["TOKENIZERS_PARALLELISM"] = "true"
             print(f"Using {self.num_workers} workers for data loading")
-        else:
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-            print("Using single worker for data loading")
 
         train_datasets = []
         train_data_weights = []
