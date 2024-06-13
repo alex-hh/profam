@@ -13,7 +13,7 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
-from src.data.classification import load_classifier_dataset
+from src.data.family_classification import load_classifier_dataset
 
 
 # TOOD: in future we might actually want standalone dataset class for
