@@ -9,10 +9,6 @@ from transformers import PreTrainedTokenizerFast
 from src.data import fasta
 from src.data import utils as data_utils
 
-GYM_DATA_DIR = os.environ.get(
-    "GYM_DATA_DIR", "data/example_data/ProteinGym"
-)  # TODO update this
-
 
 def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
     # TODO: fix tokenization. copying hf loader for now
@@ -48,10 +44,10 @@ def tokenize(sample, tokenizer: PreTrainedTokenizerFast, **kwargs):
 
 
 def load_msa_for_row(
-    row, seed, max_tokens, keep_wt=False, drop_wt=True, keep_gaps=False
+    row, seed, max_tokens, gym_data_dir, keep_wt=False, drop_wt=True, keep_gaps=False
 ):
     labels, seqs = fasta.read_fasta(
-        os.path.join(GYM_DATA_DIR, "DMS_msa_files", row["MSA_filename"]),
+        os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
         keep_insertions=True,
         to_upper=True,
         keep_gaps=keep_gaps,
@@ -63,9 +59,9 @@ def load_msa_for_row(
     return row
 
 
-def load_dms_scores_for_row(row, seed, max_mutated_sequences):
+def load_dms_scores_for_row(row, seed, max_mutated_sequences, gym_data_dir):
     dms_df = pd.read_csv(
-        os.path.join(GYM_DATA_DIR, "DMS_ProteinGym_substitutions", row["DMS_filename"])
+        os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", row["DMS_filename"])
     )
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
@@ -76,22 +72,29 @@ def load_dms_scores_for_row(row, seed, max_mutated_sequences):
 
 def build_gym_df(
     dms_ids,
+    gym_data_dir: str,
     seed: Optional[int] = None,
     max_mutated_sequences: Optional[int] = None,
     max_tokens: int = 5000,
     keep_gaps: bool = False,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
-    df = pd.read_csv(os.path.join(GYM_DATA_DIR, "DMS_substitutions.csv"))
+    df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     df = df.apply(
-        load_msa_for_row, axis=1, seed=seed, max_tokens=max_tokens, keep_gaps=keep_gaps
+        load_msa_for_row,
+        axis=1,
+        seed=seed,
+        gym_data_dir=gym_data_dir,
+        max_tokens=max_tokens,
+        keep_gaps=keep_gaps,
     )
     df = df.apply(
         load_dms_scores_for_row,
         axis=1,
         seed=seed,
         max_mutated_sequences=max_mutated_sequences,
+        gym_data_dir=gym_data_dir,
     )
     return df[["DMS_id", "MSA", "DMS_scores", "mutated_sequences"]]
 
@@ -102,9 +105,11 @@ def load_gym_dataset(
     seed: Optional[int] = None,
     max_mutated_sequences: Optional[int] = None,
     max_tokens: int = 5000,
+    gym_data_dir: str = "data/example_data/ProteinGym",
 ):
     df = build_gym_df(
         dms_ids,
+        gym_data_dir=gym_data_dir,
         seed=seed,
         max_mutated_sequences=max_mutated_sequences,
         max_tokens=max_tokens,
