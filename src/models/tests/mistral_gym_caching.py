@@ -47,6 +47,7 @@ model.eval()
 
 # first run un-cached forward pass for comparison
 input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
+print("Prompt shape", batch["input_ids"].shape)
 completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
 assert input_ids[..., completion_start_ix - 1] == tokenizer.sep_token_id  # SEP token
 past_key_values = None
@@ -58,19 +59,15 @@ with torch.no_grad():
     )
 
 # next run forward pass, caching the kv states
-input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
+# input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
 past_key_values = None
 with torch.no_grad():
-    outputs = model(input_ids, past_key_values=past_key_values, use_cache=True)
+    outputs = model(batch["input_ids"], past_key_values=past_key_values, use_cache=True)
     past_key_values = outputs.past_key_values
 
-print(past_key_values)
-
-# TODO: may need to explicitly pass position_ids.
-# TODO: test with a pretrained model
 # Is this also neceessary at train time?
 
-# Two formats are allowed:
+# Note on past_key_values: Two formats are allowed:
 
 # a Cache instance;
 # Tuple of tuple(torch.FloatTensor) of length config.n_layers, with each tuple having 2
@@ -102,14 +99,15 @@ print(past_key_values)
 # if position_ids is None:
 #     position_ids = cache_position.unsqueeze(0)
 
+# THIS IS JUST WHAT HAPPENS UNDER THE HOOD IN FORWARD TO COMPUTE POSITION IDS
 past_key_values = DynamicCache.from_legacy_cache(past_key_values)
 past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
 # inputs_embeds = self.embed_tokens(input_ids)
 cache_position = torch.arange(
     past_seen_tokens, past_seen_tokens + batch["completion_ids"][:, 0].shape[1], device=input_ids.device
 )
-print("Completion ids", batch["completion_ids"][:, 0])
-print("Cache positions (position ids)", cache_position.unsqueeze(0), "past seen tokens", past_seen_tokens)
+# print("Completion ids", batch["completion_ids"][:, 0])
+print("Cache positions (position ids)", cache_position.unsqueeze(0))
 with torch.no_grad():
     outputs = model(
         batch["completion_ids"][:, 0], past_key_values=past_key_values, use_cache=True
@@ -126,5 +124,5 @@ with torch.no_grad():
         outputs, input_ids, start_ix=completion_start_ix - 1
     )
 
-print(log_likelihood_v1, log_likelihood_v2, log_likelihood_v3)
+assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
 print((logits_v1[:,completion_start_ix-1] - logits_v2[:,0]).abs().max())
