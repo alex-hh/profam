@@ -5,6 +5,7 @@ https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
 import torch
 from torch.utils.data import DataLoader
 from transformers import MistralConfig, PreTrainedTokenizerFast
+from transformers.cache_utils import DynamicCache
 
 from src.data.proteingym import load_gym_dataset
 from src.models.mistral_lit_module import MistralLitModule, log_likelihood_from_outputs
@@ -62,6 +63,10 @@ with torch.no_grad():
     past_key_values = outputs.past_key_values
 
 print(past_key_values)
+
+# TODO: may need to explicitly pass position_ids.
+# Is this also neceessary at train time?
+
 # Two formats are allowed:
 
 # a Cache instance;
@@ -77,6 +82,29 @@ print(past_key_values)
 # due to accumulation of errors
 
 # bug if use_cache = False
+
+# position ids
+# if use_cache and not isinstance(past_key_values, Cache):
+#     past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+#     return_legacy_cache = True
+
+# if cache_position is None:
+#     past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+#     cache_position = torch.arange(
+#         past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+#     )
+
+# if position_ids is None:
+#     position_ids = cache_position.unsqueeze(0)
+
+past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+# inputs_embeds = self.embed_tokens(input_ids)
+cache_position = torch.arange(
+    past_seen_tokens, past_seen_tokens + batch["completion_ids"][:, 0].shape[1], device=input_ids.device
+)
+print("Completion ids", batch["completion_ids"][:, 0])
+print("Cache positions (position ids)", cache_position.unsqueeze(0), "past seen tokens", past_seen_tokens)
 with torch.no_grad():
     outputs = model(
         batch["completion_ids"][:, 0], past_key_values=past_key_values, use_cache=True
