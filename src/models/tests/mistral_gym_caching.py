@@ -10,6 +10,7 @@ from transformers.cache_utils import DynamicCache
 from src.data.proteingym import load_gym_dataset
 from src.models.mistral_lit_module import MistralLitModule, log_likelihood_from_outputs
 
+
 tokenizer = PreTrainedTokenizerFast(
     tokenizer_file="src/data/components/profam_tokenizer.json",
     unk_token="[UNK]",
@@ -51,6 +52,7 @@ assert input_ids[..., completion_start_ix - 1] == tokenizer.sep_token_id  # SEP 
 past_key_values = None
 with torch.no_grad():
     outputs = model(input_ids, use_cache=False)
+    logits_v1 = outputs.logits
     log_likelihood_v1 = log_likelihood_from_outputs(
         outputs, input_ids, start_ix=completion_start_ix - 1
     )
@@ -65,12 +67,15 @@ with torch.no_grad():
 print(past_key_values)
 
 # TODO: may need to explicitly pass position_ids.
+# TODO: test with a pretrained model
 # Is this also neceessary at train time?
 
 # Two formats are allowed:
 
 # a Cache instance;
-# Tuple of tuple(torch.FloatTensor) of length config.n_layers, with each tuple having 2 tensors of shape (batch_size, num_heads, sequence_length, embed_size_per_head)). This is also known as the legacy cache format.
+# Tuple of tuple(torch.FloatTensor) of length config.n_layers, with each tuple having 2
+# tensors of shape (batch_size, num_heads, sequence_length, embed_size_per_head)). This
+# is also known as the legacy cache format.
 # The model will output the same cache format that is fed as input. If no past_key_values are passed, the legacy cache format will be returned.
 # run forward pass for completion using cached kv states
 
@@ -109,6 +114,7 @@ with torch.no_grad():
     outputs = model(
         batch["completion_ids"][:, 0], past_key_values=past_key_values, use_cache=True
     )
+    logits_v2 = outputs.logits
     log_likelihood_v2 = log_likelihood_from_outputs(
         outputs, batch["completion_ids"][:, 0]
     )
@@ -121,3 +127,4 @@ with torch.no_grad():
     )
 
 print(log_likelihood_v1, log_likelihood_v2, log_likelihood_v3)
+print((logits_v1[:,completion_start_ix-1] - logits_v2[:,0]).abs().max())
