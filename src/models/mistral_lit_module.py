@@ -44,6 +44,7 @@ class MistralLitModule(LightningModule):
     def __init__(
         self,
         config: MistralConfig,
+        scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         compile: bool = False,
     ) -> None:
@@ -56,6 +57,7 @@ class MistralLitModule(LightningModule):
         self.test_loss = MeanMetric()
         # TODO: add a max tokens in batch kwarg for scoring purposes.
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
+        self.scoring_max_tokens = scoring_max_tokens
 
     def forward(
         self,
@@ -101,31 +103,30 @@ class MistralLitModule(LightningModule):
         return loss
 
     def _score_mutants_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
+        # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
-        if batch_size > 1:
-            raise NotImplementedError(
-                "Mutant batch size > 1 not yet supported for mutant scoring"
-            )
         all_lls = []
         outputs = self.model(input_ids, use_cache=True)
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
 
-        for completion_ix in range(completion_ids.shape[1]):
-            input_ids = completion_ids[:, completion_ix]  # b, L
+        L = completion_ids.shape[-1]
+        for batch_start in range(0, completion_ids.shape[1], batch_size):
+            input_ids = completion_ids[:, batch_start:batch_start+batch_size].reshape(-1, L)  # b_mut, L
             outputs = self.model(
                 input_ids, past_key_values=past_key_values, use_cache=True
             )
             log_likelihood = log_likelihood_from_outputs(outputs, input_ids, start_ix=0)
-            all_lls.append(log_likelihood.mean(-1).item())
+            all_lls.append(log_likelihood.mean(-1))  # b_mut
 
-        lls = np.array(all_lls)
+        lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
     def _score_mutants_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+        # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
                 "Mutant batch size > 1 not yet supported for mutant scoring"
@@ -179,11 +180,12 @@ class MistralLitModule(LightningModule):
         might just work. currently model/sampling loop probably passes just the next token.
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
+        L = batch["completion_ids"].shape[-1]
         lls = self.score_mutants(
             batch["input_ids"],
             batch["completion_ids"],
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=1,
+            batch_size=self.scoring_max_tokens // L if self.use_kv_cache_for_scoring else 1,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
