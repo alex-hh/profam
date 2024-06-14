@@ -49,8 +49,21 @@ class MistralLitModule(LightningModule):
         self.val_loss = MeanMetric()
         self.test_loss = MeanMetric()
 
-    def forward(self, input_ids, attention_mask=None, labels=None):
-        return self.model(input_ids, attention_mask=attention_mask, labels=labels)
+    def forward(
+        self,
+        input_ids,
+        attention_mask=None,
+        labels=None,
+        past_key_values=None,
+        use_cache=False,
+    ):
+        return self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+        )
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
