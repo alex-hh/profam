@@ -100,8 +100,8 @@ with torch.no_grad():
 #     position_ids = cache_position.unsqueeze(0)
 
 # THIS IS JUST WHAT HAPPENS UNDER THE HOOD IN FORWARD TO COMPUTE POSITION IDS
-past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+cache = DynamicCache.from_legacy_cache(past_key_values)
+past_seen_tokens = cache.get_seq_length()
 # inputs_embeds = self.embed_tokens(input_ids)
 cache_position = torch.arange(
     past_seen_tokens, past_seen_tokens + batch["completion_ids"][:, 0].shape[1], device=input_ids.device
@@ -118,11 +118,24 @@ with torch.no_grad():
     )
 
 
+# check that if we re-run, cache hasn't been updated (not even possible: its a tuple of tensors)
+with torch.no_grad():
+    outputs = model(
+        batch["completion_ids"][:, 0], past_key_values=past_key_values, use_cache=True
+    )
+    logits_v3 = outputs.logits
+    log_likelihood_v3 = log_likelihood_from_outputs(
+        outputs, batch["completion_ids"][:, 0]
+    )
+
+
 with torch.no_grad():
     outputs = model(input_ids)
-    log_likelihood_v3 = log_likelihood_from_outputs(
+    log_likelihood_v4 = log_likelihood_from_outputs(
         outputs, input_ids, start_ix=completion_start_ix - 1
     )
 
 assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
+assert torch.isclose(log_likelihood_v3, log_likelihood_v2).all()
+
 print((logits_v1[:,completion_start_ix-1] - logits_v2[:,0]).abs().max())
