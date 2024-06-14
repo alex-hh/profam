@@ -7,13 +7,31 @@ from lightning import LightningModule
 from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
+from transformers.cache_utils import DynamicCache
 
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
 
 
-def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0):
+class UpdatedDynamicCache(DynamicCache):
+    """A DynamicCache that allows for batched key-value caching.
+    Manually implements latest version of DynamicCache from transformers.
+    (once this is released we can remove this class)
+    """
+
+    def batch_repeat_interleave(self, repeats: int):
+        """Repeat the cache `repeats` times in the batch dimension. Used in contrastive search."""
+        for layer_idx in range(len(self)):
+            self.key_cache[layer_idx] = self.key_cache[layer_idx].repeat_interleave(
+                repeats, dim=0
+            )
+            self.value_cache[layer_idx] = self.value_cache[layer_idx].repeat_interleave(
+                repeats, dim=0
+            )
+
+
+def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=False):
     """Compute the negative log likelihood of the target sequence given the model outputs.
 
     Args:
@@ -27,16 +45,21 @@ def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0):
     # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
 
     # Shift so that tokens < n predict n
-    shift_logits = logits[..., start_ix:-1, :].contiguous()
-    shift_labels = input_ids[..., start_ix + 1 :].contiguous()
-    # Flatten the tokens
-    shift_logits = shift_logits.view(-1, shift_logits.shape[-1])
-    shift_labels = shift_labels.view(-1)
-
+    shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
+    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
     # Ensure tensors are on the same device
     shift_labels = shift_labels.to(shift_logits.device)
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-    log_likelihood = -loss_fct(shift_logits, shift_labels)
+    # TODO: handle possible padding?
+
+    if flatten:
+        # Flatten the tokens
+        shift_logits = shift_logits.view(-1, shift_logits.shape[-1])
+        shift_labels = shift_labels.view(-1)
+        log_likelihood = -loss_fct(shift_logits, shift_labels)
+    else:
+        log_likelihood = -loss_fct(shift_logits.permute(0, 2, 1), shift_labels)
+
     return log_likelihood
 
 
@@ -112,12 +135,20 @@ class MistralLitModule(LightningModule):
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
-
         L = completion_ids.shape[-1]
         for batch_start in range(0, completion_ids.shape[1], batch_size):
-            input_ids = completion_ids[:, batch_start:batch_start+batch_size].reshape(-1, L)  # b_mut, L
+            # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
+            input_ids = completion_ids[
+                :, batch_start : batch_start + batch_size
+            ].reshape(
+                -1, L
+            )  # b_mut, L
+            actual_batch_size = input_ids.shape[0]
+            cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
             outputs = self.model(
-                input_ids, past_key_values=past_key_values, use_cache=True
+                input_ids,
+                past_key_values=cache.batch_repeat_interleave(actual_batch_size),
+                use_cache=True,
             )
             log_likelihood = log_likelihood_from_outputs(outputs, input_ids, start_ix=0)
             all_lls.append(log_likelihood.mean(-1))  # b_mut
@@ -145,7 +176,7 @@ class MistralLitModule(LightningModule):
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, input_ids, start_ix=completion_start_pos - 1
-            )
+            )  # 1, L
             all_lls.append(log_likelihood.mean(-1).item())
         lls = np.array(all_lls)
         return lls
@@ -185,7 +216,9 @@ class MistralLitModule(LightningModule):
             batch["input_ids"],
             batch["completion_ids"],
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=self.scoring_max_tokens // L if self.use_kv_cache_for_scoring else 1,
+            batch_size=self.scoring_max_tokens // L
+            if self.use_kv_cache_for_scoring
+            else 1,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name

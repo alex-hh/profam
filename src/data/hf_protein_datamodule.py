@@ -97,7 +97,9 @@ class ProteinDataModule(LightningDataModule):
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
-        self.num_workers = num_workers or os.cpu_count() or 1
+        if num_workers is None:
+            num_workers = os.cpu_count() or 1
+        self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.gym_data_dir = gym_data_dir
         self.max_gym_sequences = max_gym_sequences
