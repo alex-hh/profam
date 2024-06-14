@@ -32,6 +32,7 @@ def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0):
     # Flatten the tokens
     shift_logits = shift_logits.view(-1, shift_logits.shape[-1])
     shift_labels = shift_labels.view(-1)
+
     # Ensure tensors are on the same device
     shift_labels = shift_labels.to(shift_logits.device)
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
@@ -40,7 +41,12 @@ def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0):
 
 
 class MistralLitModule(LightningModule):
-    def __init__(self, config: MistralConfig, compile: bool = False) -> None:
+    def __init__(
+        self,
+        config: MistralConfig,
+        use_kv_cache_for_scoring: bool = True,
+        compile: bool = False,
+    ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
         self.model = MistralForCausalLM(config)
@@ -48,6 +54,8 @@ class MistralLitModule(LightningModule):
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
         self.test_loss = MeanMetric()
+        # TODO: add a max tokens in batch kwarg for scoring purposes.
+        self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
 
     def forward(
         self,
@@ -92,6 +100,73 @@ class MistralLitModule(LightningModule):
             )
         return loss
 
+    def _score_mutants_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
+        # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
+        # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
+        # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
+        if batch_size > 1:
+            raise NotImplementedError(
+                "Mutant batch size > 1 not yet supported for mutant scoring"
+            )
+        all_lls = []
+        outputs = self.model(input_ids, use_cache=True)
+        past_key_values = (
+            outputs.past_key_values
+        )  # just a tuple of tensors - doesn't get extended
+
+        for completion_ix in range(completion_ids.shape[1]):
+            input_ids = completion_ids[:, completion_ix]  # b, L
+            outputs = self.model(
+                input_ids, past_key_values=past_key_values, use_cache=True
+            )
+            log_likelihood = log_likelihood_from_outputs(outputs, input_ids, start_ix=0)
+            all_lls.append(log_likelihood.mean(-1).item())
+
+        lls = np.array(all_lls)
+        return lls
+
+    def _score_mutants_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+        if batch_size > 1:
+            raise NotImplementedError(
+                "Mutant batch size > 1 not yet supported for mutant scoring"
+            )
+        all_lls = []
+        completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
+        for completion_ix in range(completion_ids.shape[1]):
+            input_ids = torch.cat(
+                [input_ids, completion_ids[:, completion_ix]],
+                dim=1,
+            )
+            assert (
+                input_ids[..., completion_start_pos - 1] == vocab["[SEP]"]
+            )  # SEP token
+            outputs = self.model(input_ids)
+            # TODO: maybe relabel start_ix - a bit confusing
+            log_likelihood = log_likelihood_from_outputs(
+                outputs, input_ids, start_ix=completion_start_pos - 1
+            )
+            all_lls.append(log_likelihood.mean(-1).item())
+        lls = np.array(all_lls)
+        return lls
+
+    # TODO: make this part of a mixin so that it can be reused across models
+    # c.f. GenerationsMixin
+    def score_mutants(
+        self, input_ids, completion_ids, use_cache: bool = True, batch_size: int = 1
+    ):
+        assert (
+            input_ids.shape[0] == 1
+        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+        assert (input_ids.ndim == 2, completion_ids.ndim == 3)  # b, L; b, n, L
+        if use_cache:
+            return self._score_mutants_kv_cache(
+                input_ids, completion_ids, batch_size=batch_size
+            )
+        else:
+            return self._score_mutants_no_cache(
+                input_ids, completion_ids, batch_size=batch_size
+            )
+
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
     ) -> torch.Tensor:
@@ -103,40 +178,13 @@ class MistralLitModule(LightningModule):
         on caching: it seems like, if we modify what is passed to attention forward, existing cache
         might just work. currently model/sampling loop probably passes just the next token.
         """
-        # https://huggingface.co/docs/transformers/v4.41.3/en/llm_tutorial_optimization#2-flash-attention
-        # v1: no cache
-        # we concatenate completion ids to input ids in the same way we would at generation time
-        # its important that a start of sequence token is present in the completion ids
-        # https://github.com/huggingface/transformers/blob/c39aaea97224cac70b0125f58a47ed74d637c4ac/src/transformers/generation/utils.py#L2630
-        # TODO: handle completion batch size > 1
-        assert (
-            batch["input_ids"].shape[0] == 1
-        ), "Only batch size 1 is supported for proteingym evaluation"
-        # N.B. batch size being one means attention_mask isn't needed
-        all_lls = []
-        assert (
-            batch["input_ids"].ndim == 2
-            and batch["completion_ids"].ndim == 3
-            and batch["DMS_scores"].ndim == 2
-        )  # b, L; b, n, L
-        # TODO: maybe remove the +1: it's confusing
-        completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
-        for completion_ix in range(batch["completion_ids"].shape[1]):
-            input_ids = torch.cat(
-                [batch["input_ids"], batch["completion_ids"][:, completion_ix]],
-                dim=1,
-            )
-            assert (
-                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
-            )  # SEP token
-            outputs = self.model(input_ids)
-            # TODO: maybe relabel start_ix - a bit confusing
-            log_likelihood = log_likelihood_from_outputs(
-                outputs, input_ids, start_ix=completion_start_ix - 1
-            )
-            all_lls.append(log_likelihood.mean(-1).item())
-
-        lls = np.array(all_lls)
+        assert batch["DMS_scores"].ndim == 2  # b, n
+        lls = self.score_mutants(
+            batch["input_ids"],
+            batch["completion_ids"],
+            use_cache=self.use_kv_cache_for_scoring,
+            batch_size=1,
+        )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(

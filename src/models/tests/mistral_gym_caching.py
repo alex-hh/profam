@@ -10,7 +10,6 @@ from transformers.cache_utils import DynamicCache
 from src.data.proteingym import load_gym_dataset
 from src.models.mistral_lit_module import MistralLitModule, log_likelihood_from_outputs
 
-
 tokenizer = PreTrainedTokenizerFast(
     tokenizer_file="src/data/components/profam_tokenizer.json",
     unk_token="[UNK]",
@@ -104,7 +103,9 @@ cache = DynamicCache.from_legacy_cache(past_key_values)
 past_seen_tokens = cache.get_seq_length()
 # inputs_embeds = self.embed_tokens(input_ids)
 cache_position = torch.arange(
-    past_seen_tokens, past_seen_tokens + batch["completion_ids"][:, 0].shape[1], device=input_ids.device
+    past_seen_tokens,
+    past_seen_tokens + batch["completion_ids"][:, 0].shape[1],
+    device=input_ids.device,
 )
 # print("Completion ids", batch["completion_ids"][:, 0])
 print("Cache positions (position ids)", cache_position.unsqueeze(0))
@@ -138,4 +139,4 @@ with torch.no_grad():
 assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
 assert torch.isclose(log_likelihood_v3, log_likelihood_v2).all()
 
-print((logits_v1[:,completion_start_ix-1] - logits_v2[:,0]).abs().max())
+print((logits_v1[:, completion_start_ix - 1] - logits_v2[:, 0]).abs().max())
