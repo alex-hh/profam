@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
-from torchmetrics.classification import BinaryAUROC
+from torchmetrics.classification import BinaryAUROC, BinaryPrecisionRecallCurve
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 
@@ -114,7 +114,7 @@ class MistralLitModule(LightningModule):
         )
 
     def validation_step_family_classify(
-        self, batch: Dict[str, torch.Tensor], task: str = "proteingym"
+        self, batch: Dict[str, torch.Tensor], task: str = "classification"
     ) -> torch.Tensor:
         """
         TODO handle the padding compute a different metric for the classification task
@@ -126,9 +126,10 @@ class MistralLitModule(LightningModule):
         assert (
             batch["input_ids"].ndim == 2
             and batch["completion_ids"].ndim == 3
-            and batch["labels"].ndim == 2
+            and batch["family_labels"].ndim == 2
         )  # b, L; b, n, L; b, n
         completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
+        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
         for completion_ix in range(batch["completion_ids"].shape[1]):
             input_ids = torch.cat(
                 [batch["input_ids"], batch["completion_ids"][:, completion_ix]],
@@ -145,12 +146,12 @@ class MistralLitModule(LightningModule):
             shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
             shift_labels = shift_labels.view(-1)
             shift_labels = shift_labels.to(shift_logits.device)
-            loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
             nll = -loss_fct(shift_logits, shift_labels).mean(-1)
             all_nlls.append(nll.item())
 
-        nlls = np.array(all_nlls)
+
         if task == "proteingym":
+            nlls = np.array(all_nlls)
             metric_value, _ = spearmanr(nlls, batch["labels"][0].cpu().numpy())
             self.log(
                 "val/proteingym_spearman",
@@ -160,10 +161,15 @@ class MistralLitModule(LightningModule):
                 prog_bar=False,
             )
         elif task == "classification":
-            # labels = batch["labels"][0].cpu().numpy()
+            nlls = torch.tensor(all_nlls).to(batch["family_labels"].device)
             auroc_metric = BinaryAUROC()
-            auroc = auroc_metric(torch.tensor(nlls), torch.tensor(labels))
-            auprc = None
+            auroc = auroc_metric(nlls, torch.tensor(batch["family_labels"].view(-1)))
+            pr_curve = BinaryPrecisionRecallCurve()
+            precision, recall, thresholds = pr_curve(nlls, batch["family_labels"].view(-1))
+            precision = precision[:-1]
+            recall = recall[:-1]
+            # Compute the area under the curve using the trapezoidal rule
+            auprc = -torch.trapz(precision, recall).item()
             self.log(
                 "val/classification_auroc",
                 auroc,
@@ -188,7 +194,7 @@ class MistralLitModule(LightningModule):
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs
-        elif "labels" in batch:
+        elif "family_labels" in batch:
             outputs = self.validation_step_family_classify(batch)
             return outputs
         else:

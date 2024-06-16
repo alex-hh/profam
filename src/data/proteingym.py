@@ -114,6 +114,7 @@ def load_gym_dataset(
         max_mutated_sequences=max_mutated_sequences,
         max_tokens=max_tokens,
     )
+    df["dataset_type"] = "gym"
     dataset = Dataset.from_pandas(df, preserve_index=False)
     dataset = dataset.map(
         functools.partial(tokenize, tokenizer=tokenizer, max_tokens=max_tokens),
@@ -122,6 +123,6 @@ def load_gym_dataset(
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     dataset.set_format(
-        type="torch", columns=["input_ids", "completion_ids", "DMS_scores"]
+        type="torch", columns=["input_ids", "completion_ids", "DMS_scores", "dataset_type"]
     )
     return dataset

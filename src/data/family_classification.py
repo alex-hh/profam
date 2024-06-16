@@ -48,13 +48,13 @@ def load_classifier_dataset(
 
         # Combine target and decoy sequences
         completion_seqs = target_seqs + decoy_seqs
-        labels = [1] * len(target_seqs) + [0] * len(decoy_seqs)
+        family_labels = [1] * len(target_seqs) + [0] * len(decoy_seqs)
 
         # Create a dictionary for the current target family
         family_dict = {
             "MSA": msa_seqs,
             "completion_seqs": completion_seqs,
-            "labels": labels,
+            "family_labels": family_labels
         }
         dataset_list.append(family_dict)
 
@@ -74,7 +74,7 @@ def load_classifier_dataset(
 
     # Set the format of the dataset
     dataset.set_format(
-        type="torch", columns=["input_ids", "completion_ids", "labels"]
+        type="torch", columns=["input_ids", "completion_ids", "family_labels"]
     )
 
     return dataset
