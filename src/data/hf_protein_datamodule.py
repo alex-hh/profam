@@ -91,6 +91,7 @@ class ProteinDataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
+        evaluate_ec_class: bool = True,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -99,6 +100,7 @@ class ProteinDataModule(LightningDataModule):
         self.max_tokens = max_tokens
         self.num_workers = num_workers or os.cpu_count() or 1
         self.evaluate_gym = evaluate_gym
+        self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer_path = tokenizer_path
@@ -159,7 +161,7 @@ class ProteinDataModule(LightningDataModule):
                 max_mutated_sequences=self.max_gym_sequences,
             )
         if self.evaluate_ec_class:
-            self.ec_class_dataset = load_classifier_dataset()
+            self.ec_class_dataset = load_classifier_dataset("data/example_data/expasy_ec/*.fasta", self.tokenizer)
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(

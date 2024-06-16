@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
+from torchmetrics.classification import BinaryAUROC
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 
@@ -112,16 +113,11 @@ class MistralLitModule(LightningModule):
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
         )
 
-    def validation_step_predict(
+    def validation_step_family_classify(
         self, batch: Dict[str, torch.Tensor], task: str = "proteingym"
     ) -> torch.Tensor:
-        """Assumes that batch contains the following:
-
-        input_ids: the prompt (i.e., MSA for ProteinGym or family sequences for classification)
-        completion_ids: the completions (i.e., mutated sequences for ProteinGym or test sequences for classification)
-        labels: the labels (i.e., DMS scores for ProteinGym or binary labels for classification)
-
-        task: the task to perform ("proteingym" or "classification")
+        """
+        TODO handle the padding compute a different metric for the classification task
         """
         assert (
             batch["input_ids"].shape[0] == 1
@@ -164,9 +160,10 @@ class MistralLitModule(LightningModule):
                 prog_bar=False,
             )
         elif task == "classification":
-            labels = batch["labels"][0].cpu().numpy()
-            auroc = roc_auc_score(labels, -nlls)
-            auprc = average_precision_score(labels, -nlls)
+            # labels = batch["labels"][0].cpu().numpy()
+            auroc_metric = BinaryAUROC()
+            auroc = auroc_metric(torch.tensor(nlls), torch.tensor(labels))
+            auprc = None
             self.log(
                 "val/classification_auroc",
                 auroc,
@@ -190,6 +187,9 @@ class MistralLitModule(LightningModule):
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
+            return outputs
+        elif "labels" in batch:
+            outputs = self.validation_step_family_classify(batch)
             return outputs
         else:
             outputs = self(
