@@ -88,6 +88,7 @@ class ProteinDataModule(LightningDataModule):
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
+        gym_data_dir: Optional[str] = None,
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
@@ -100,6 +101,7 @@ class ProteinDataModule(LightningDataModule):
         self.max_tokens = max_tokens
         self.num_workers = num_workers or os.cpu_count() or 1
         self.evaluate_gym = evaluate_gym
+        self.gym_data_dir = gym_data_dir
         self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
@@ -118,16 +120,19 @@ class ProteinDataModule(LightningDataModule):
         if self.evaluate_gym:
             # TODO: fix to avoid hardcoding
             assert self.gym_dms_ids is not None
+            assert self.gym_data_dir is not None
             self.gym_dataset = load_gym_dataset(
                 dms_ids=self.gym_dms_ids,
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
+                gym_data_dir=self.gym_data_dir,
             )
 
     def setup(self, stage: Optional[str] = None) -> None:
-        if self.num_workers > 1:
+        if self.num_workers > 0:
             os.environ["TOKENIZERS_PARALLELISM"] = "true"
             print(f"Using {self.num_workers} workers for data loading")
+
         train_datasets = []
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
@@ -159,6 +164,7 @@ class ProteinDataModule(LightningDataModule):
                 dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
+                gym_data_dir=self.gym_data_dir,
             )
         if self.evaluate_ec_class:
             self.ec_class_dataset = load_classifier_dataset("data/example_data/expasy_ec/*.fasta", self.tokenizer)
