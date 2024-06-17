@@ -35,7 +35,8 @@ gym_dataset = load_gym_dataset(
     tokenizer=tokenizer,
     max_mutated_sequences=5,
 )
-gym_loader = DataLoader(gym_dataset, batch_size=1, num_workers=0, shuffle=False)
+batch_size = 1
+gym_loader = DataLoader(gym_dataset, batch_size=batch_size, num_workers=0, shuffle=False)
 batch = next(iter(gym_loader))
 print(
     batch["completion_ids"].shape, batch["input_ids"].shape, batch["DMS_scores"].shape
@@ -48,7 +49,7 @@ model.eval()
 input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
 print("Prompt shape", batch["input_ids"].shape)
 completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
-assert input_ids[..., completion_start_ix - 1] == tokenizer.sep_token_id  # SEP token
+assert input_ids[..., completion_start_ix - 1] == tokenizer.sep_token_id
 past_key_values = None
 with torch.no_grad():
     outputs = model(input_ids, use_cache=False)
@@ -64,6 +65,12 @@ with torch.no_grad():
     outputs = model(batch["input_ids"], past_key_values=past_key_values, use_cache=True)
     past_key_values = outputs.past_key_values
 
+assert len(past_key_values) == config.num_hidden_layers
+assert len(past_key_values[0]) == 2  # tuple (k, v)
+assert past_key_values[0][0].shape == (batch_size,
+                                       config.num_key_value_heads,
+                                       batch["input_ids"].shape[-1],
+                                       config.hidden_size // config.num_attention_heads)
 # Is this also neceessary at train time?
 
 # Note on past_key_values: Two formats are allowed:
