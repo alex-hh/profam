@@ -226,4 +226,11 @@ class ProteinDataModule(LightningDataModule):
                     )  # n.b. in this case we do standard collation
                 ]
             )
+        if self.evaluate_ec_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_class_dataset, batch_size=1, collate_fn=self.collator,
+                    shuffle=False,
+                )
+            )
         return loaders

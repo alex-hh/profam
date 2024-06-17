@@ -216,6 +216,9 @@ class MistralLitModule(LightningModule):
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs
+        elif "family_labels" in batch:
+            outputs = self.validation_step_family_classify(batch)
+            return outputs
         else:
             outputs = self(
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
