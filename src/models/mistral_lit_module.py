@@ -7,14 +7,70 @@ from lightning import LightningModule
 from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
+from transformers.cache_utils import DynamicCache
 
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
 
 
+class UpdatedDynamicCache(DynamicCache):
+    """A DynamicCache that allows for batched key-value caching.
+    Manually implements latest version of DynamicCache from transformers.
+    (once this is released we can remove this class)
+    """
+
+    def batch_repeat_interleave(self, repeats: int):
+        """Repeat the cache `repeats` times in the batch dimension. Used in contrastive search."""
+        for layer_idx in range(len(self)):
+            self.key_cache[layer_idx] = self.key_cache[layer_idx].repeat_interleave(
+                repeats, dim=0
+            )
+            self.value_cache[layer_idx] = self.value_cache[layer_idx].repeat_interleave(
+                repeats, dim=0
+            )
+
+
+def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=False):
+    """Compute the negative log likelihood of the target sequence given the model outputs.
+
+    Args:
+        model_outputs: The model outputs from the forward pass.
+        input_ids: The input sequence.
+
+    Returns:
+        The negative log likelihood of the target sequence.
+    """
+    logits = model_outputs.logits
+    # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
+
+    # Shift so that tokens < n predict n
+    shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
+    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
+    # Ensure tensors are on the same device
+    shift_labels = shift_labels.to(shift_logits.device)
+    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
+    # TODO: handle possible padding?
+
+    if flatten:
+        # Flatten the tokens
+        shift_logits = shift_logits.view(-1, shift_logits.shape[-1])
+        shift_labels = shift_labels.view(-1)
+        log_likelihood = -loss_fct(shift_logits, shift_labels)
+    else:
+        log_likelihood = -loss_fct(shift_logits.permute(0, 2, 1), shift_labels)
+
+    return log_likelihood
+
+
 class MistralLitModule(LightningModule):
-    def __init__(self, config: MistralConfig, compile: bool = False) -> None:
+    def __init__(
+        self,
+        config: MistralConfig,
+        scoring_max_tokens: int = 8000,
+        use_kv_cache_for_scoring: bool = True,
+        compile: bool = False,
+    ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
         self.model = MistralForCausalLM(config)
@@ -22,9 +78,25 @@ class MistralLitModule(LightningModule):
         self.train_loss = MeanMetric()
         self.val_loss = MeanMetric()
         self.test_loss = MeanMetric()
+        # TODO: add a max tokens in batch kwarg for scoring purposes.
+        self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
+        self.scoring_max_tokens = scoring_max_tokens
 
-    def forward(self, input_ids, attention_mask=None, labels=None):
-        return self.model(input_ids, attention_mask=attention_mask, labels=labels)
+    def forward(
+        self,
+        input_ids,
+        attention_mask=None,
+        labels=None,
+        past_key_values=None,
+        use_cache=False,
+    ):
+        return self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+        )
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -53,6 +125,80 @@ class MistralLitModule(LightningModule):
             )
         return loss
 
+    def _score_mutants_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
+        # input_ids is b, L; completion_ids is b, n, L
+        # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
+        # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
+        # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
+        all_lls = []
+        outputs = self.model(input_ids, use_cache=True)
+        past_key_values = (
+            outputs.past_key_values
+        )  # just a tuple of tensors - doesn't get extended
+        L = completion_ids.shape[-1]
+        for batch_start in range(0, completion_ids.shape[1], batch_size):
+            # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
+            input_ids = completion_ids[
+                :, batch_start : batch_start + batch_size
+            ].reshape(
+                -1, L
+            )  # b_mut, L
+            actual_batch_size = input_ids.shape[0]
+            cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            outputs = self.model(
+                input_ids,
+                past_key_values=cache.batch_repeat_interleave(actual_batch_size),
+                use_cache=True,
+            )
+            log_likelihood = log_likelihood_from_outputs(outputs, input_ids, start_ix=0)
+            all_lls.append(log_likelihood.mean(-1))  # b_mut
+
+        lls = torch.cat(all_lls).cpu().numpy()
+        return lls
+
+    def _score_mutants_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+        # input_ids is b, L; completion_ids is b, n, L
+        if batch_size > 1:
+            raise NotImplementedError(
+                "Mutant batch size > 1 not yet supported for mutant scoring"
+            )
+        all_lls = []
+        completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
+        for completion_ix in range(completion_ids.shape[1]):
+            input_ids = torch.cat(
+                [input_ids, completion_ids[:, completion_ix]],
+                dim=1,
+            )
+            assert (
+                input_ids[..., completion_start_pos - 1] == vocab["[SEP]"]
+            )  # SEP token
+            outputs = self.model(input_ids)
+            # TODO: maybe relabel start_ix - a bit confusing
+            log_likelihood = log_likelihood_from_outputs(
+                outputs, input_ids, start_ix=completion_start_pos - 1
+            )  # 1, L
+            all_lls.append(log_likelihood.mean(-1).item())
+        lls = np.array(all_lls)
+        return lls
+
+    # TODO: make this part of a mixin so that it can be reused across models
+    # c.f. GenerationsMixin
+    def score_mutants(
+        self, input_ids, completion_ids, use_cache: bool = True, batch_size: int = 1
+    ):
+        assert (
+            input_ids.shape[0] == 1
+        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+        assert (input_ids.ndim == 2, completion_ids.ndim == 3)  # b, L; b, n, L
+        if use_cache:
+            return self._score_mutants_kv_cache(
+                input_ids, completion_ids, batch_size=batch_size
+            )
+        else:
+            return self._score_mutants_no_cache(
+                input_ids, completion_ids, batch_size=batch_size
+            )
+
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
     ) -> torch.Tensor:
@@ -64,49 +210,17 @@ class MistralLitModule(LightningModule):
         on caching: it seems like, if we modify what is passed to attention forward, existing cache
         might just work. currently model/sampling loop probably passes just the next token.
         """
-        # https://huggingface.co/docs/transformers/v4.41.3/en/llm_tutorial_optimization#2-flash-attention
-        # v1: no cache
-        # we concatenate completion ids to input ids in the same way we would at generation time
-        # its important that a start of sequence token is present in the completion ids
-        # https://github.com/huggingface/transformers/blob/c39aaea97224cac70b0125f58a47ed74d637c4ac/src/transformers/generation/utils.py#L2630
-        # TODO: handle completion batch size > 1
-        assert (
-            batch["input_ids"].shape[0] == 1
-        ), "Only batch size 1 is supported for proteingym evaluation"
-        # N.B. batch size being one means attention_mask isn't needed
-        all_nlls = []
-        assert (
-            batch["input_ids"].ndim == 2
-            and batch["completion_ids"].ndim == 3
-            and batch["DMS_scores"].ndim == 2
-        )  # b, L; b, n, L
-        completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
-        for completion_ix in range(batch["completion_ids"].shape[1]):
-            input_ids = torch.cat(
-                [batch["input_ids"], batch["completion_ids"][:, completion_ix]],
-                dim=1,
-            )
-            assert (
-                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
-            )  # SEP token
-            outputs = self.model(input_ids)
-            logits = outputs.logits
-            # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
-
-            # Shift so that tokens < n predict n
-            shift_logits = logits[..., completion_start_ix - 1 : -1, :].contiguous()
-            shift_labels = input_ids[..., completion_start_ix:].contiguous()
-            # Flatten the tokens
-            shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            # Ensure tensors are on the same device
-            shift_labels = shift_labels.to(shift_logits.device)
-            loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-            nll = -loss_fct(shift_logits, shift_labels).mean(-1)
-            all_nlls.append(nll.item())
-
-        nlls = np.array(all_nlls)
-        spearman_corr, _ = spearmanr(nlls, batch["DMS_scores"][0].cpu().numpy())
+        assert batch["DMS_scores"].ndim == 2  # b, n
+        L = batch["completion_ids"].shape[-1]
+        lls = self.score_mutants(
+            batch["input_ids"],
+            batch["completion_ids"],
+            use_cache=self.use_kv_cache_for_scoring,
+            batch_size=self.scoring_max_tokens // L
+            if self.use_kv_cache_for_scoring
+            else 1,
+        )
+        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False

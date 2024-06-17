@@ -34,6 +34,13 @@ pip install -r requirements.txt
 
 ## How to run
 
+
+Run on example data
+
+```bash
+python src/train.py logger=null_logger
+```
+
 Train model with default configuration
 
 ```bash
