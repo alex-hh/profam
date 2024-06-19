@@ -2,7 +2,8 @@
 #$ -l tmem=32G
 #$ -l h_vmem=32G
 #$ -l tscratch=600G
-#$ -l hostname=clifford*
+# -l hostname=clifford* TRY SPECIFYING GPU TYPE INSTEAD
+#$ -l gpu_type=(a100_80)
 #$ -l gpu=true
 #$ -l gpu=2
 #$ -pe smp 4
