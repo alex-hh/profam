@@ -15,4 +15,3 @@ val_check_interval: 300  # check val after this many steps
 deterministic: False
 
 log_every_n_steps: 10
-
