@@ -1,4 +1,5 @@
 #!/bin/bash
+#$ -P cath
 #$ -l tmem=32G
 #$ -l h_vmem=32G
 #$ -l tscratch=600G
