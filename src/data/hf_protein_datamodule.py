@@ -152,7 +152,7 @@ class ProteinDataModule(LightningDataModule):
             seed=42,
         )
         self.val_dataset = load_protein_dataset(
-            self.dataset_cfgs["ec"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
         )
         self.test_dataset = load_protein_dataset(
             self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
