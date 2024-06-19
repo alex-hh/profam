@@ -4,12 +4,11 @@
 #$ -l tscratch=600G
 #$ -l hostname=clifford*
 #$ -l gpu=true
-#$ -l gpu=4
+#$ -l gpu=2
 #$ -pe smp 4
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N cliffTrain
-#$ -t 1
+#$ -N 2gpuTrain
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -48,5 +47,5 @@ source ${SCRATCH_DIR}/venv/bin/activate
 pip install -r ${SCRATCH_DIR}/profam/requirements.txt
 echo " ${date} Requirements installed"
 echo "Using python from $(which python)"
-python ${ROOT_DIR}/src/train.py data=data trainer=clifford
+python ${ROOT_DIR}/src/train.py data=data trainer=gpu trainer.devices=2 trainer.max_epochs=100
 date
