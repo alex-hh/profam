@@ -1,16 +1,14 @@
 #!/bin/bash
 #$ -P cath
-#$ -l tmem=32G
-#$ -l h_vmem=32G
+#$ -l tmem=16G
 #$ -l tscratch=600G
-# -l hostname=clifford* TRY SPECIFYING GPU TYPE INSTEAD
-#$ -l gpu_type=(a100_80)
+#$ -l hostname=clifford* 
 #$ -l gpu=true
-#$ -l gpu=2
-#$ -pe smp 4
+#$ -pe gpu 2
+#$ -l m_core=8
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N 2gpuTrain
+#$ -N plm2
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -31,11 +29,11 @@ cd ${SCRATCH_DIR}/profam
 echo "Copied ProFam to ${SCRATCH_DIR}/profam/"
 
 echo "${date} Copying directories to ${SCRATCH_DIR}/data/"
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ec ${SCRATCH_DIR}/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ted ${SCRATCH_DIR}/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ProteinGym ${SCRATCH_DIR}/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/cath ${SCRATCH_DIR}/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/openfold ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/ec ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/ted ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/ProteinGym ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/cath ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/openfold ${SCRATCH_DIR}/data/ &
 wait
 echo "${date} Copied directories to ${SCRATCH_DIR}/data/"
 ls ${SCRATCH_DIR}/data/
