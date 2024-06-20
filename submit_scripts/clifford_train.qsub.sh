@@ -2,7 +2,7 @@
 #$ -P cath
 #$ -l tmem=16G
 #$ -l tscratch=600G
-#$ -l hostname=clifford* 
+#$ -l hostname=clifford*
 #$ -l gpu=true
 #$ -pe gpu 2
 #$ -l m_core=8
