@@ -1,12 +1,11 @@
 import json
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import numpy as np
 import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
-from sklearn.metrics import precision_recall_curve, auc, roc_auc_score
-from torchmetrics.classification import BinaryAUROC, BinaryPrecisionRecallCurve
+from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 from transformers.cache_utils import DynamicCache
@@ -162,7 +161,7 @@ class MistralLitModule(LightningModule):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
-                "Mutant batch size > 1 not yet supported for mutant scoring"
+                "Target batch size > 1 not yet supported for target scoring"
             )
         all_lls = []
         completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
@@ -190,7 +189,7 @@ class MistralLitModule(LightningModule):
     ):
         assert (
             input_ids.shape[0] == 1
-        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+        ), "Only batch size 1 is supported for target scoring; batch dim must be present"
         assert (input_ids.ndim == 2, completion_ids.ndim == 3)  # b, L; b, n, L
         if use_cache:
             return self._score_seqs_kv_cache(
@@ -216,10 +215,10 @@ class MistralLitModule(LightningModule):
         elif "family_labels" in batch:
             target = "family_labels"
         assert (
-            batch[target].ndim == 2 and
-            batch["input_ids"].ndim == 2 and
-            batch["input_ids"].shape[0] == 1 and
-            batch["completion_ids"].ndim == 3
+            batch[target].ndim == 2
+            and batch["input_ids"].ndim == 2
+            and batch["input_ids"].shape[0] == 1
+            and batch["completion_ids"].ndim == 3
         )
         L = batch["completion_ids"].shape[-1]
         lls = self.score_seqs(
@@ -253,7 +252,6 @@ class MistralLitModule(LightningModule):
         )
         return torch.tensor(metric, device=self.device)
 
-
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
@@ -285,7 +283,11 @@ class MistralLitModule(LightningModule):
             self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
             # n.b. this might be biased for batch size > 1
             self.log(
-                "test/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+                "test/ppl",
+                torch.exp(loss),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
             )
             return loss
 

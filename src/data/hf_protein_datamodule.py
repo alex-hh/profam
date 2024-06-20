@@ -11,9 +11,9 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
+from src.data.family_classification import load_classifier_dataset
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
-from src.data.family_classification import load_classifier_dataset
 
 
 # TOOD: in future we might actually want standalone dataset class for
@@ -169,7 +169,9 @@ class ProteinDataModule(LightningDataModule):
                 gym_data_dir=self.gym_data_dir,
             )
         if self.evaluate_ec_class:
-            self.ec_class_dataset = load_classifier_dataset("data/example_data/expasy_ec/*.fasta", self.tokenizer)
+            self.ec_class_dataset = load_classifier_dataset(
+                "data/example_data/expasy_ec/*.fasta", self.tokenizer
+            )
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
@@ -202,7 +204,9 @@ class ProteinDataModule(LightningDataModule):
         if self.evaluate_ec_class:
             loaders.append(
                 DataLoader(
-                    self.ec_class_dataset, batch_size=1, collate_fn=self.collator,
+                    self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
                     shuffle=False,
                 )
             )
@@ -231,7 +235,9 @@ class ProteinDataModule(LightningDataModule):
         if self.evaluate_ec_class:
             loaders.append(
                 DataLoader(
-                    self.ec_class_dataset, batch_size=1, collate_fn=self.collator,
+                    self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
                     shuffle=False,
                 )
             )

@@ -13,6 +13,7 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
+from src.data.proteingym import tokenize_completions, tokenize_msa
 
 
 def load_classifier_dataset(
@@ -33,7 +34,9 @@ def load_classifier_dataset(
         target_family_seqs = seqs.copy()
         n_targ_seqs = min(len(target_family_seqs) // 2, max_seqs_to_predict)
         target_seqs = random.sample(target_family_seqs, n_targ_seqs)
-        remaining_seqs = list(set(target_family_seqs) - set(target_seqs))  #  todo not efficient for large files
+        remaining_seqs = list(
+            set(target_family_seqs) - set(target_seqs)
+        )  #  todo not efficient for large files
         # Sample sequences for the MSA (input_ids)
         msa_seqs = data_utils.sample_to_max_tokens(
             remaining_seqs, seed=seed, max_tokens=max_tokens_input
@@ -54,7 +57,7 @@ def load_classifier_dataset(
         family_dict = {
             "MSA": msa_seqs,
             "completion_seqs": completion_seqs,
-            "family_labels": family_labels
+            "family_labels": family_labels,
         }
         dataset_list.append(family_dict)
 
@@ -78,46 +81,3 @@ def load_classifier_dataset(
     )
 
     return dataset
-
-def tokenize_msa(example, tokenizer: PreTrainedTokenizerFast, max_tokens=10000): # share duplicated functions with protein gym
-    concatenated_seqs = tokenizer.bos_token + tokenizer.sep_token.join(example["MSA"])
-    tokenized = tokenizer(
-        concatenated_seqs, return_tensors="pt", add_special_tokens=False
-    )
-    example["input_ids"] = tokenized.input_ids[0]
-    return example
-
-def tokenize_completions(example, tokenizer: PreTrainedTokenizerFast):
-    example["completion_seqs"] = [
-        tokenizer.sep_token + seq + tokenizer.sep_token
-        for seq in example["completion_seqs"]
-    ]
-    max_length = max(len(seq) for seq in example["completion_seqs"])
-    tokenized = tokenizer(
-        example["completion_seqs"],
-        return_tensors="pt",
-        padding="max_length",  # todo handle the padding in the validation step
-        truncation=True,
-        max_length=max_length,
-        add_special_tokens=True,
-    )
-    example["completion_ids"] = tokenized.input_ids
-    return example
-
-if __name__ == "__main__":
-    tokenizer = PreTrainedTokenizerFast(
-        tokenizer_file="src/data/components/profam_tokenizer.json",
-        unk_token="[UNK]",
-        pad_token="[PAD]",
-        bos_token="[start-of-document]",
-        sep_token="[SEP]",
-        mask_token="[MASK]",
-        add_special_tokens=True,
-    )
-    datadir = "data/example_data/expasy_ec/"
-    tokenized_dataset = load_classifier_dataset(
-        fasta_file_pattern=f"{datadir}*.fasta",
-        tokenizer=tokenizer,
-    )
-    batch = next(iter(tokenized_dataset))
-    bp=1
