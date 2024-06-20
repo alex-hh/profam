@@ -57,7 +57,7 @@ def load_classifier_dataset(
         family_dict = {
             "MSA": msa_seqs,
             "completion_seqs": completion_seqs,
-            "family_labels": family_labels,
+            "family_labels": family_labels
         }
         dataset_list.append(family_dict)
 

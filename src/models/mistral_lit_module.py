@@ -7,6 +7,7 @@ from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torchmetrics import MeanMetric
+from torchmetrics.classification import BinaryAUROC, BinaryPrecisionRecallCurve
 from transformers import MistralConfig, MistralForCausalLM
 from transformers.cache_utils import DynamicCache
 
@@ -232,14 +233,14 @@ class MistralLitModule(LightningModule):
         target_vals = batch[target][0].cpu().numpy()
         if target == "DMS_scores":
             metric, _ = spearmanr(lls, target_vals)
-            metric_name = "proteingym_spearman"
+            metric_name = "spearman_proteinGym"
         elif target == "family_labels":
             precision, recall, thresholds = precision_recall_curve(target_vals, lls)
             metric = auc(recall, precision)
-            metric_name = "family_classification_auprc"
+            metric_name = "auprc_fam_classification"
             au_roc = roc_auc_score(target_vals, lls)
             self.log(
-                "val/classification_auroc",
+                "auroc_fam_classification",
                 au_roc,
                 on_step=False,
                 on_epoch=True,
@@ -256,18 +257,18 @@ class MistralLitModule(LightningModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
         if "DMS_scores" in batch or "family_labels" in batch:
-            self.validation_step_likelihood_scoring(batch)
+            return self.validation_step_likelihood_scoring(batch)
         else:
             outputs = self(
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
             )
-        loss = outputs.loss
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
-        # n.b. this might be biased for batch size > 1
-        self.log(
-            "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
-        )
-        return loss
+            loss = outputs.loss
+            self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+            # n.b. this might be biased for batch size > 1
+            self.log(
+                "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+            )
+            return loss
 
     def test_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
