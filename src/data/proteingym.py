@@ -123,6 +123,7 @@ def load_gym_dataset(
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     dataset.set_format(
-        type="torch", columns=["input_ids", "completion_ids", "DMS_scores", "dataset_type"]
+        type="torch",
+        columns=["input_ids", "completion_ids", "DMS_scores", "dataset_type"],
     )
     return dataset
