@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
+from sklearn.metrics import precision_recall_curve, auc, roc_auc_score
 from torchmetrics.classification import BinaryAUROC, BinaryPrecisionRecallCurve
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
@@ -126,7 +127,7 @@ class MistralLitModule(LightningModule):
             )
         return loss
 
-    def _score_mutants_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
@@ -157,7 +158,7 @@ class MistralLitModule(LightningModule):
         lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
-    def _score_mutants_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
@@ -184,7 +185,7 @@ class MistralLitModule(LightningModule):
 
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
-    def score_mutants(
+    def score_seqs(
         self, input_ids, completion_ids, use_cache: bool = True, batch_size: int = 1
     ):
         assert (
@@ -192,28 +193,36 @@ class MistralLitModule(LightningModule):
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
         assert (input_ids.ndim == 2, completion_ids.ndim == 3)  # b, L; b, n, L
         if use_cache:
-            return self._score_mutants_kv_cache(
+            return self._score_seqs_kv_cache(
                 input_ids, completion_ids, batch_size=batch_size
             )
         else:
-            return self._score_mutants_no_cache(
+            return self._score_seqs_no_cache(
                 input_ids, completion_ids, batch_size=batch_size
             )
 
-    def validation_step_proteingym(
-        self, batch: Dict[str, torch.Tensor]
+    def validation_step_likelihood_scoring(
+        self, batch: Dict[str, torch.Tensor], task: str = "classification"
     ) -> torch.Tensor:
-        """Assumes that batch contains the following:
-
-        input_ids: the prompt (i.e. MSA)
-        completion_ids: the completions (i.e. mutated sequences)
-
-        on caching: it seems like, if we modify what is passed to attention forward, existing cache
-        might just work. currently model/sampling loop probably passes just the next token.
         """
-        assert batch["DMS_scores"].ndim == 2  # b, n
+        Val step for proteinGym and family classification tasks.
+
+        Assumes that batch contains the following:
+        input_ids: the prompt (i.e. MSA)
+        completion_ids: the completions (i.e. mutated seqs / seqs to be classified)
+        """
+        if "DMS_scores" in batch:
+            target = "DMS_scores"
+        elif "family_labels" in batch:
+            target = "family_labels"
+        assert (
+            batch[target].ndim == 2 and
+            batch["input_ids"].ndim == 2 and
+            batch["input_ids"].shape[0] == 1 and
+            batch["completion_ids"].ndim == 3
+        )
         L = batch["completion_ids"].shape[-1]
-        lls = self.score_mutants(
+        lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             use_cache=self.use_kv_cache_for_scoring,
@@ -221,96 +230,35 @@ class MistralLitModule(LightningModule):
             if self.use_kv_cache_for_scoring
             else 1,
         )
-        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
-        # TODO: log the specific landscape name
-        self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
-        )
-
-    def validation_step_family_classify(
-        self, batch: Dict[str, torch.Tensor], task: str = "classification"
-    ) -> torch.Tensor:
-        """
-        TODO handle the padding compute a different metric for the classification task
-        """
-        assert (
-            batch["input_ids"].shape[0] == 1
-        ), "Only batch size 1 is supported for validation"
-        all_nlls = []
-        assert (
-            batch["input_ids"].ndim == 2
-            and batch["completion_ids"].ndim == 3
-            and batch["family_labels"].ndim == 2
-        )  # b, L; b, n, L; b, n
-        completion_start_ix = batch["input_ids"].shape[1] + 1  # skip the SEP token
-        loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-        for completion_ix in range(batch["completion_ids"].shape[1]):
-            input_ids = torch.cat(
-                [batch["input_ids"], batch["completion_ids"][:, completion_ix]],
-                dim=1,
-            )
-            assert (
-                input_ids[..., completion_start_ix - 1] == vocab["[SEP]"]
-            )  # SEP token
-            outputs = self.model(input_ids)
-            logits = outputs.logits
-
-            shift_logits = logits[..., completion_start_ix - 1: -1, :].contiguous()
-            shift_labels = input_ids[..., completion_start_ix:].contiguous()
-            shift_logits = shift_logits.view(-1, self.model.config.vocab_size)
-            shift_labels = shift_labels.view(-1)
-            shift_labels = shift_labels.to(shift_logits.device)
-            nll = -loss_fct(shift_logits, shift_labels).mean(-1)
-            all_nlls.append(nll.item())
-
-
-        if task == "proteingym":
-            nlls = np.array(all_nlls)
-            metric_value, _ = spearmanr(nlls, batch["labels"][0].cpu().numpy())
-            self.log(
-                "val/proteingym_spearman",
-                metric_value,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-            )
-        elif task == "classification":
-            nlls = torch.tensor(all_nlls).to(batch["family_labels"].device)
-            auroc_metric = BinaryAUROC()
-            auroc = auroc_metric(nlls, torch.tensor(batch["family_labels"].view(-1)))
-            pr_curve = BinaryPrecisionRecallCurve()
-            precision, recall, thresholds = pr_curve(nlls, batch["family_labels"].view(-1))
-            precision = precision[:-1]
-            recall = recall[:-1]
-            # Compute the area under the curve using the trapezoidal rule
-            auprc = -torch.trapz(precision, recall).item()
+        target_vals = batch[target][0].cpu().numpy()
+        if target == "DMS_scores":
+            metric, _ = spearmanr(lls, target_vals)
+            metric_name = "proteingym_spearman"
+        elif target == "family_labels":
+            precision, recall, thresholds = precision_recall_curve(target_vals, lls)
+            metric = auc(recall, precision)
+            metric_name = "family_classification_auprc"
+            au_roc = roc_auc_score(target_vals, lls)
             self.log(
                 "val/classification_auroc",
-                auroc,
+                au_roc,
                 on_step=False,
                 on_epoch=True,
-                prog_bar=False,
             )
-            self.log(
-                "val/classification_auprc",
-                auprc,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-            )
-        else:
-            raise ValueError(f"Invalid task: {task}")
+        self.log(
+            metric_name,
+            metric,
+            on_step=False,
+            on_epoch=True,
+        )
+        return torch.tensor(metric, device=self.device)
+
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        # we check whether we are in proteingym loader by looking at keys in batch
-        if "DMS_scores" in batch:
-            outputs = self.validation_step_proteingym(batch)
-            return outputs
-        elif "family_labels" in batch:
-            outputs = self.validation_step_family_classify(batch)
-            return outputs
+        if "DMS_scores" in batch or "family_labels" in batch:
+            self.validation_step_likelihood_scoring(batch)
         else:
             outputs = self(
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
@@ -326,24 +274,20 @@ class MistralLitModule(LightningModule):
     def test_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        # we check whether we are in proteingym loader by looking at keys in batch
-        if "DMS_scores" in batch:
-            outputs = self.validation_step_proteingym(batch)
-            return outputs
-        elif "family_labels" in batch:
-            outputs = self.validation_step_family_classify(batch)
-            return outputs
+        if "DMS_scores" in batch or "family_labels" in batch:
+            metric = self.validation_step_likelihood_scoring(batch)
+            return metric
         else:
             outputs = self(
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
             )
-        loss = outputs.loss
-        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
-        # n.b. this might be biased for batch size > 1
-        self.log(
-            "test/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
-        )
-        return loss
+            loss = outputs.loss
+            self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+            # n.b. this might be biased for batch size > 1
+            self.log(
+                "test/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+            )
+            return loss
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer = torch.optim.Adam(self.parameters(), lr=2e-5, weight_decay=0.01)

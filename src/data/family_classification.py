@@ -1,5 +1,3 @@
-import glob
-import random
 """
 For a given type of family
 we create a dataset with a target family
@@ -8,11 +6,14 @@ and non-decoys (members of the target family)
 """
 import glob
 import random
+
+import pandas as pd
 from datasets import Dataset
 from transformers import PreTrainedTokenizerFast
+
 from src.data import fasta
 from src.data import utils as data_utils
-import pandas as pd
+
 
 def load_classifier_dataset(
     fasta_file_pattern,
@@ -46,7 +47,6 @@ def load_classifier_dataset(
             # Sample sequences for the decoys
             decoy_seqs.extend(random.sample(seqs, num_decoys_per_target))
 
-        # Combine target and decoy sequences
         completion_seqs = target_seqs + decoy_seqs
         family_labels = [1] * len(target_seqs) + [0] * len(decoy_seqs)
 
