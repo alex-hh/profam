@@ -166,7 +166,8 @@ class ProteinDataModule(LightningDataModule):
                     split="train",
                     data_dir=self.data_dir,
                 )
-                # TODO: probably instantiate as map-style dataset then convert to iterable and shard
+                # unclear how to get a sharded dataset for use with num workers?
+                # https://huggingface.co/docs/datasets/about_mapstyle_vs_iterable
                 # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                 # https://github.com/huggingface/datasets/pull/5735
                 train_datasets.append(dataset)

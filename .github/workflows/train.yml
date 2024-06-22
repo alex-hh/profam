@@ -29,6 +29,7 @@ jobs:
           trainer=cpu \
           trainer.max_epochs=2 \
           data=example_data \
+          data.data_dir=data \
           data.batch_size=2 \
           data.num_workers=1 \
           data.max_tokens=100 \
