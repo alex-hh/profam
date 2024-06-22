@@ -10,6 +10,7 @@ config:
   pad_token_id: 25
   bos_token_id: 26
   eos_token_id: 27
+  sliding_window: 4096
 compile: False
 scoring_max_tokens: 8000  # number of tokens to use per batch when scoring mutants
 use_kv_cache_for_scoring: True  # use key-value cache for scoring

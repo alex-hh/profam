@@ -6,7 +6,7 @@ defaults:
   - _self_
 data_weights:
   gym: 1.0
-batch_size: 1
+batch_size: 16
 max_tokens: 8192
 data_dir: ../data
 tokenizer_path: src/data/components/profam_tokenizer.json
