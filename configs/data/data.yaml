@@ -16,7 +16,6 @@ data_weights:
   gene3dS50: 0.2
   cathFunfam: 0.1
   ted: 0.3
-  interpro: 0.0
 batch_size: 22
 max_tokens: 8000
 data_dir: ../data
