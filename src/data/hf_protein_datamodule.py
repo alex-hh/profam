@@ -168,8 +168,7 @@ class ProteinDataModule(LightningDataModule):
                 )
                 # TODO: probably instantiate as map-style dataset then convert to iterable and shard
                 # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
-                # https://github.com/huggingface/datasets/pull/5735 
-                dataset.shard(self.num_shards, index=0)
+                # https://github.com/huggingface/datasets/pull/5735
                 train_datasets.append(dataset)
                 train_data_weights.append(self.data_weights[data_key])
         self.train_dataset = interleave_datasets(
