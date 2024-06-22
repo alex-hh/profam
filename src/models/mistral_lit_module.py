@@ -245,7 +245,7 @@ class MistralLitModule(LightningModule):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
-        assert (input_ids.ndim == 2, completion_ids.ndim == 3)  # b, L; b, n, L
+        assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
         if use_cache:
             return self._score_mutants_kv_cache(
                 input_ids, completion_ids, batch_size=batch_size

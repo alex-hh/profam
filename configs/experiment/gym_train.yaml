@@ -19,15 +19,20 @@ seed: 12345
 trainer:
   min_epochs: 10
   max_epochs: 10000
-  gradient_clip_val: 0.5
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 32
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
 
 model:
+  scheduler_name: "constant_with_warmup"  # inverse_sqrt, cosine, ...
   config:
     hidden_size: 512
-    num_hidden_layers: 5
+    num_hidden_layers: 8
+    intermediate_size: 1024
 
 data:
-  batch_size: 48
+  batch_size: 1
   num_workers: 4
   max_tokens: 8192
 

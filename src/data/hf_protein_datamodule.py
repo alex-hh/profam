@@ -82,7 +82,7 @@ def load_protein_dataset(
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
 
-    print(f"Loading {cfg.name} dataset from {len(data_files)}")
+    print(f"Loading {cfg.name} dataset from {len(data_files)} files")
     dataset = load_dataset(
         "text",
         data_files=data_files,
@@ -110,6 +110,7 @@ class ProteinDataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
+        num_shards: Optional[int] = 8,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -118,8 +119,9 @@ class ProteinDataModule(LightningDataModule):
         self.max_tokens = max_tokens
         self.data_dir = data_dir
         self.val_dataset_name = val_dataset_name
+        self.num_shards = num_shards
         if num_workers is None:
-            num_workers = os.cpu_count() or 1
+            num_workers = min(os.cpu_count(), self.num_shards) or 1
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
@@ -164,6 +166,10 @@ class ProteinDataModule(LightningDataModule):
                     split="train",
                     data_dir=self.data_dir,
                 )
+                # TODO: probably instantiate as map-style dataset then convert to iterable and shard
+                # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
+                # https://github.com/huggingface/datasets/pull/5735 
+                dataset.shard(self.num_shards, index=0)
                 train_datasets.append(dataset)
                 train_data_weights.append(self.data_weights[data_key])
         self.train_dataset = interleave_datasets(
