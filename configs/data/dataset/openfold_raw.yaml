@@ -1,6 +1,6 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: openfold_raw
-data_path_pattern: ../data/openfold/uniclust30_filtered/*/a3m/uniclust30.a3m
+data_path_pattern: openfold/uniclust30_filtered/*/a3m/uniclust30.a3m
 keep_gaps: false
 to_upper: true
 keep_insertions: true

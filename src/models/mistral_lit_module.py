@@ -148,9 +148,7 @@ class MistralLitModule(LightningModule):
         loss = outputs.loss
         logits = outputs.logits
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
-        self.log(
-            "train/loss", self.train_loss, on_step=True, on_epoch=True, prog_bar=True
-        )
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False
         )

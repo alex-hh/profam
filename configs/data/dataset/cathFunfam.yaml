@@ -1,6 +1,6 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: cathFunfam
-data_path_pattern: ../data/cath/funfams-4.3/*/full_alignments/*.faa
+data_path_pattern: cath/funfams-4.3/*/full_alignments/*.faa
 # n.b. these are alignments so we could keep_gaps
 keep_gaps: false
 to_upper: false

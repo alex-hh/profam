@@ -7,6 +7,7 @@ data_weights:
   gym: 1.0
 batch_size: 22
 max_tokens: 8000
+data_dir: ../data
 tokenizer_path: src/data/components/profam_tokenizer.json
 gym_dms_ids: [
   'BLAT_ECOLX_Jacquier_2013',
@@ -20,4 +21,4 @@ gym_dms_ids: [
 ]
 evaluate_gym: True
 num_workers: null # None means use all available CPU cores
-gym_data_dir: ../data/ProteinGym
+gym_data_dir: ${.data_dir}/ProteinGym

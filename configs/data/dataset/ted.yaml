@@ -1,6 +1,6 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: ted
-data_path_pattern: ../data/ted/ted_s50_by_sfam/*S50_rep_seq.fasta
+data_path_pattern: ted/ted_s50_by_sfam/*S50_rep_seq.fasta
 keep_gaps: false
 to_upper: false
 keep_insertions: false

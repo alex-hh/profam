@@ -19,6 +19,7 @@ data_weights:
   interpro: 0.0
 batch_size: 22
 max_tokens: 8000
+data_dir: ../data
 tokenizer_path: src/data/components/profam_tokenizer.json
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 evaluate_gym: True

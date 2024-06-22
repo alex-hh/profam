@@ -31,6 +31,7 @@ def load_protein_dataset(
     tokenizer: PreTrainedTokenizerFast,
     max_tokens: int = 5000,
     split="train",
+    data_dir="../data",
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
@@ -68,7 +69,7 @@ def load_protein_dataset(
 
     dataset = load_dataset(
         "text",
-        data_files=cfg.data_path_pattern,
+        data_files=os.path.join(data_dir, cfg.data_path_pattern),
         split=split,
         streaming=True,
         sample_by="document",
@@ -84,6 +85,7 @@ class ProteinDataModule(LightningDataModule):
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer_path: str,
+        data_dir: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -97,11 +99,12 @@ class ProteinDataModule(LightningDataModule):
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
+        self.data_dir = data_dir
         if num_workers is None:
             num_workers = os.cpu_count() or 1
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
-        self.gym_data_dir = gym_data_dir
+        self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer_path = tokenizer_path
@@ -140,7 +143,11 @@ class ProteinDataModule(LightningDataModule):
                 f"files found for {data_key}"
             )
             dataset = load_protein_dataset(
-                dataset_config, self.tokenizer, self.max_tokens, split="train"
+                dataset_config,
+                self.tokenizer,
+                self.max_tokens,
+                split="train",
+                data_dir=self.data_dir,
             )
             train_datasets.append(dataset)
             train_data_weights.append(self.data_weights[data_key])
