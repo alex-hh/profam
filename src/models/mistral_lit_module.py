@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -8,10 +8,22 @@ from scipy.stats import spearmanr
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 from transformers.cache_utils import DynamicCache
+from transformers.optimization import get_scheduler
 
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
+
+
+def calc_grad_norm(params):
+    grad_norm = torch.norm(
+        torch.stack(
+            [torch.norm(p.grad.detach(), 2) for p in params if p.grad is not None]
+        ),
+        2,
+    )
+
+    return grad_norm
 
 
 class UpdatedDynamicCache(DynamicCache):
@@ -92,17 +104,23 @@ class MistralLitModule(LightningModule):
     def __init__(
         self,
         config: MistralConfig,
+        lr: float = 1e-4,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
+        weight_decay: float = 0.01,
+        scheduler_name: Optional[str] = None,
+        num_warmup_steps: int = 1000,
+        num_training_steps: Optional[int] = None,
         compile: bool = False,
     ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
         self.model = MistralForCausalLM(config)
-        self.criterion = torch.nn.CrossEntropyLoss()
-        self.train_loss = MeanMetric()
-        self.val_loss = MeanMetric()
-        self.test_loss = MeanMetric()
+        self.lr = lr
+        self.weight_decay = weight_decay
+        self.scheduler_name = scheduler_name
+        self.num_warmup_steps = num_warmup_steps
+        self.num_training_steps = num_training_steps
         # TODO: add a max tokens in batch kwarg for scoring purposes.
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.scoring_max_tokens = scoring_max_tokens
@@ -153,6 +171,17 @@ class MistralLitModule(LightningModule):
                 on_epoch=False,
             )
         return loss
+
+    def on_before_optimizer_step(self, optimizer):
+        # https://github.com/Lightning-AI/pytorch-lightning/issues/1462
+        self.log(
+            "grad_norm",
+            calc_grad_norm(self.model.parameters()),
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+        )
+        self.log("lr", optimizer.param_groups[0]["lr"])
 
     def _score_mutants_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
         # input_ids is b, L; completion_ids is b, n, L
@@ -300,5 +329,16 @@ class MistralLitModule(LightningModule):
         return loss
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        optimizer = torch.optim.Adam(self.parameters(), lr=2e-5, weight_decay=0.01)
-        return {"optimizer": optimizer}
+        optimizer = torch.optim.Adam(
+            self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+        )
+        optim_dict = {"optimizer": optimizer}
+        if self.scheduler_name is not None:
+            scheduler = get_scheduler(
+                self.scheduler_name,
+                optimizer,
+                num_warmup_steps=self.num_warmup_steps,
+                num_training_steps=self.num_training_steps,
+            )
+            optim_dict["lr_scheduler"] = scheduler
+        return optim_dict
