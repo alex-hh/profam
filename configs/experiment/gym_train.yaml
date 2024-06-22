@@ -26,6 +26,7 @@ trainer:
 
 model:
   scheduler_name: "constant_with_warmup"  # inverse_sqrt, cosine, ...
+  warmup_steps: 200
   config:
     hidden_size: 512
     num_hidden_layers: 8
