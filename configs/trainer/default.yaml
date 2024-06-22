@@ -7,15 +7,11 @@ max_epochs: 5
 accelerator: cpu
 devices: 1
 
-# mixed precision for extra speed-up
-# precision: 16
-
-# perform a validation loop every N training epochs
-#check_val_every_n_epoch: 1
-val_check_interval: 30
+check_val_every_n_epoch: 1
+val_check_interval: 300  # check val after this many steps
 
 # set True to ensure deterministic results
 # makes training slower but gives more reproducibility than just setting seeds
 deterministic: False
 
-log_every_n_steps: 5
+log_every_n_steps: 10

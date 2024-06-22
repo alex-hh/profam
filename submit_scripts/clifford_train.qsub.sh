@@ -1,18 +1,14 @@
 #!/bin/bash
-# Train ProFam on Clifford
-# Clifford has 503GB of RAM
-# 4 x A100 80GB, 112 CPUs we request 32 for batch dataloader multiprocessing
-#$ -l tmem=256G
-#$ -l h_vmem=256G
-#$ -l tscratch=1000G
+#$ -P cath
+#$ -l tmem=16G
+#$ -l tscratch=600G
 #$ -l hostname=clifford*
 #$ -l gpu=true
-#$ -l gpu=4
-#$ -pe smp 32
+#$ -pe gpu 2
+#$ -l m_core=8
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N cliffTrain
-#$ -t 1
+#$ -N plm2
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -27,40 +23,29 @@ echo "####################  QSUB SCRIPT END  ####################"
 
 # copy the datasets to the scratch space
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID
-#date
-#rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ec $SCRATCH_DIR/data/
-#echo "Copied EC to $SCRATCH_DIR/data/"
-#date
-#rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ted $SCRATCH_DIR/data/
-#echo "Copied TED to $SCRATCH_DIR/data/"
-#date
-#rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ProteinGym $SCRATCH_DIR/data/
-#echo "Copied ProteinGym to $SCRATCH_DIR/data/"
-#date
-#rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/cath $SCRATCH_DIR/data/
-#echo "Copied CATH to $SCRATCH_DIR/data/"
-#date
-#rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/openfold $SCRATCH_DIR/data/
-#echo "Copied OpenFold to $SCRATCH_DIR/data/"
-#date
-mkdir -p $SCRATCH_DIR/data
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam $SCRATCH_DIR/
-cd $SCRATCH_DIR/profam
-echo "Copied ProFam to $SCRATCH_DIR/profam/"
+mkdir -p ${SCRATCH_DIR}/data
+rsync -av /SAN/orengolab/cath_plm/ProFam/profam ${SCRATCH_DIR}/
+cd ${SCRATCH_DIR}/profam
+echo "Copied ProFam to ${SCRATCH_DIR}/profam/"
 
-echo "Copying directories to $SCRATCH_DIR/data/"
-date
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ec $SCRATCH_DIR/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ted $SCRATCH_DIR/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/ProteinGym $SCRATCH_DIR/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/cath $SCRATCH_DIR/data/ &
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam/data/openfold $SCRATCH_DIR/data/ &
+echo "${date} Copying directories to ${SCRATCH_DIR}/data/"
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/ec ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/ted ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/ProteinGym ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/cath ${SCRATCH_DIR}/data/ &
+rsync -av /SAN/orengolab/cath_plm/ProFam/data/openfold ${SCRATCH_DIR}/data/ &
 wait
-echo "Copied directories to $SCRATCH_DIR/data/"
-date
-ls $SCRATCH_DIR/data/
-conda activate venvPF
-ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
+echo "${date} Copied directories to ${SCRATCH_DIR}/data/"
+ls ${SCRATCH_DIR}/data/
+source /share/apps/source_files/python/python-3.11.9.source
+ROOT_DIR=${SCRATCH_DIR}/profam
 cd $ROOT_DIR
-python ${ROOT_DIR}/src/train.py data=data trainer=clifford
+echo "${date} Installing requirements"
+python3 -m venv ${SCRATCH_DIR}/venv
+# Activate the virtual environment
+source ${SCRATCH_DIR}/venv/bin/activate
+pip install -r ${SCRATCH_DIR}/profam/requirements.txt
+echo " ${date} Requirements installed"
+echo "Using python from $(which python)"
+python ${ROOT_DIR}/src/train.py data=data trainer=gpu trainer.devices=2 trainer.max_epochs=100
 date
