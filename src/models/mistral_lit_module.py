@@ -31,6 +31,31 @@ class UpdatedDynamicCache(DynamicCache):
             )
 
 
+def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-100):
+    """Compute the accuracy of the target sequence given the model outputs.
+
+    Args:
+        model_outputs: The model outputs from the forward pass.
+        input_ids: The input sequence.
+        ignore_index: Token index to ignore when computing accuracy.
+            (this will get added automatically by the data collator as padding)
+
+    Returns:
+        The accuracy of the target sequence.
+    """
+    logits = model_outputs.logits
+    # Shift so that tokens < n predict n
+    shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
+    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
+    # Ensure tensors are on the same device
+    shift_labels = shift_labels.to(shift_logits.device)
+    non_padding_mask = shift_labels != ignore_index
+    # TODO: we might also want to ignore gaps...
+    accuracy = (shift_logits.argmax(-1) == shift_labels).float()
+    accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
+    return accuracy
+
+
 def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=False):
     """Compute the negative log likelihood of the target sequence given the model outputs.
 
@@ -103,10 +128,14 @@ class MistralLitModule(LightningModule):
     ) -> torch.Tensor:
         outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
         loss = outputs.loss
+        logits = outputs.logits
+        accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
         self.log(
-            "train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True
+            "train/loss", self.train_loss, on_step=True, on_epoch=True, prog_bar=True
         )
-        self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        self.log(
+            "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False
+        )
         # https://huggingface.co/docs/transformers/perplexity
         # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
         self.log(
@@ -238,7 +267,9 @@ class MistralLitModule(LightningModule):
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
             )
         loss = outputs.loss
+        accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
         self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+        self.log("val/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False)
         # n.b. this might be biased for batch size > 1
         self.log(
             "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
@@ -257,10 +288,14 @@ class MistralLitModule(LightningModule):
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
             )
         loss = outputs.loss
+        accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
         self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         # n.b. this might be biased for batch size > 1
         self.log(
             "test/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+        )
+        self.log(
+            "test/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False
         )
         return loss
 
