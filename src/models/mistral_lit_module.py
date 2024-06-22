@@ -157,6 +157,7 @@ class MistralLitModule(LightningModule):
         self.log(
             "train/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
         )
+        print(batch["input_ids"].shape)
         with torch.no_grad():
             self.log(
                 "train/n_seqs",

@@ -19,9 +19,10 @@ from src.data.proteingym import load_gym_dataset
 # more flexible customisation (e.g. mapping uniprot ids via db)
 @dataclass
 class ProteinDatasetConfig:
-    data_path_pattern: str
     name: str
     keep_gaps: bool = False
+    data_path_pattern: Optional[str] = None
+    data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
 
@@ -67,9 +68,17 @@ def load_protein_dataset(
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         return tokenized
 
+    if cfg.data_path_pattern is not None:
+        data_files = os.path.join(data_dir, cfg.data_path_pattern)
+    else:
+        assert cfg.data_path_file is not None
+        with open(os.path.join(data_dir, cfg.data_path_file), "r") as f:
+            data_files = f.read().splitlines()
+
+    print(f"Loading {cfg.name} dataset from {data_files}")
     dataset = load_dataset(
         "text",
-        data_files=os.path.join(data_dir, cfg.data_path_pattern),
+        data_files=data_files,
         split=split,
         streaming=True,
         sample_by="document",
@@ -86,6 +95,7 @@ class ProteinDataModule(LightningDataModule):
         data_weights: Dict[str, float],
         tokenizer_path: str,
         data_dir: str,
+        val_dataset_name: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -100,6 +110,7 @@ class ProteinDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.data_dir = data_dir
+        self.val_dataset_name = val_dataset_name
         if num_workers is None:
             num_workers = os.cpu_count() or 1
         self.num_workers = num_workers
@@ -159,15 +170,15 @@ class ProteinDataModule(LightningDataModule):
             seed=42,
         )
         self.val_dataset = load_protein_dataset(
-            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs[self.val_dataset_name], self.tokenizer, self.max_tokens
         )
         self.test_dataset = load_protein_dataset(
-            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs[self.val_dataset_name], self.tokenizer, self.max_tokens
         )
         if self.evaluate_gym:
-            # TODO: add configuration to avoid hardcoding
+            assert self.gym_dms_ids is not None
             self.gym_dataset = load_gym_dataset(
-                dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
+                dms_ids=self.gym_dms_ids,
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
                 gym_data_dir=self.gym_data_dir,
@@ -201,6 +212,7 @@ class ProteinDataModule(LightningDataModule):
                     )  # n.b. in this case we do standard collation
                 ]
             )
+        print("Val loaders", loaders)
         return loaders
 
     def test_dataloader(self) -> list[DataLoader]:

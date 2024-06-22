@@ -2,11 +2,12 @@ _target_: src.data.hf_protein_datamodule.ProteinDataModule
 # https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
 defaults:
   - dataset@dataset_cfgs.gym: gym_msas_aligned
+  - dataset@dataset_cfgs.gym_val: gym_val_msas_aligned
   - _self_
 data_weights:
   gym: 1.0
-batch_size: 22
-max_tokens: 8000
+batch_size: 1
+max_tokens: 8192
 data_dir: ../data
 tokenizer_path: src/data/components/profam_tokenizer.json
 gym_dms_ids: [
@@ -20,5 +21,6 @@ gym_dms_ids: [
   'P53_HUMAN_Giacomelli_2018_WT_Nutlin'
 ]
 evaluate_gym: True
+val_dataset_name: gym_val
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ${.data_dir}/ProteinGym
