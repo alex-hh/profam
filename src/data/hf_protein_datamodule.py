@@ -50,7 +50,7 @@ def load_protein_dataset(
         )  # +1 for separator
         insertion_point = bisect.bisect_left(
             cumulative_lengths,
-            max_tokens - 2,  #  TODO insertion point gives seq lens > max_tokens+~500
+            max_tokens - 2,
         )  # -2 for doc start and end tokens
         concatenated_seqs = (
             tokenizer.bos_token
@@ -59,11 +59,16 @@ def load_protein_dataset(
         )
         tokenized = tokenizer(
             concatenated_seqs,
-            truncation=True,
+            truncation=False,  # shouldn't be necessary - bisection should handle.
             max_length=max_tokens,
             return_tensors="pt",
+            # padding="longest",
             padding="max_length",
             add_special_tokens=False,
+        )
+        assert tokenized.input_ids.shape[1] <= max_tokens, (
+            tokenized.input_ids.shape[1],
+            max_tokens,
         )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         return tokenized
