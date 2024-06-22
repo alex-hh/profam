@@ -1,0 +1,6 @@
+_target_: src.data.hf_protein_datamodule.ProteinDataModule
+name: gym_msas
+data_path_pattern: ../data/ProteinGym/DMS_msa_files/*.a2m
+keep_gaps: true
+to_upper: true
+keep_insertions: true
