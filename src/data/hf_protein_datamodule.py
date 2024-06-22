@@ -73,9 +73,11 @@ def load_protein_dataset(
     else:
         assert cfg.data_path_file is not None
         with open(os.path.join(data_dir, cfg.data_path_file), "r") as f:
-            data_files = f.read().splitlines()
+            data_files = [
+                os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
+            ]
 
-    print(f"Loading {cfg.name} dataset from {data_files}")
+    print(f"Loading {cfg.name} dataset from {len(data_files)}")
     dataset = load_dataset(
         "text",
         data_files=data_files,
@@ -149,19 +151,16 @@ class ProteinDataModule(LightningDataModule):
         train_datasets = []
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
-            print(
-                f"{len(glob.glob(dataset_config.data_path_pattern))} "
-                f"files found for {data_key}"
-            )
-            dataset = load_protein_dataset(
-                dataset_config,
-                self.tokenizer,
-                self.max_tokens,
-                split="train",
-                data_dir=self.data_dir,
-            )
-            train_datasets.append(dataset)
-            train_data_weights.append(self.data_weights[data_key])
+            if data_key != self.val_dataset_name:
+                dataset = load_protein_dataset(
+                    dataset_config,
+                    self.tokenizer,
+                    self.max_tokens,
+                    split="train",
+                    data_dir=self.data_dir,
+                )
+                train_datasets.append(dataset)
+                train_data_weights.append(self.data_weights[data_key])
         self.train_dataset = interleave_datasets(
             train_datasets,
             probabilities=train_data_weights,
@@ -170,10 +169,16 @@ class ProteinDataModule(LightningDataModule):
             seed=42,
         )
         self.val_dataset = load_protein_dataset(
-            self.dataset_cfgs[self.val_dataset_name], self.tokenizer, self.max_tokens
+            self.dataset_cfgs[self.val_dataset_name],
+            self.tokenizer,
+            self.max_tokens,
+            data_dir=self.data_dir,
         )
         self.test_dataset = load_protein_dataset(
-            self.dataset_cfgs[self.val_dataset_name], self.tokenizer, self.max_tokens
+            self.dataset_cfgs[self.val_dataset_name],
+            self.tokenizer,
+            self.max_tokens,
+            data_dir=self.data_dir,
         )
         if self.evaluate_gym:
             assert self.gym_dms_ids is not None
