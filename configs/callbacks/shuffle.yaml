@@ -1,1 +1,2 @@
-_target_: src.callbacks.ShuffleCallback
+shuffle:
+  _target_: src.callbacks.ShuffleCallback
