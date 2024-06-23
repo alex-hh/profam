@@ -89,6 +89,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
+        scoring_max_tokens: int = 32000,
         compile: bool = False,
     ) -> None:
         super().__init__()
@@ -99,6 +100,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
         self.scheduler_name = scheduler_name
         self.num_warmup_steps = num_warmup_steps
         self.num_training_steps = num_training_steps
+        self.scoring_max_tokens = scoring_max_tokens
 
     def forward(
         self,
@@ -194,10 +196,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
         lls = self.score_mutants(
             batch["input_ids"],
             batch["completion_ids"],
-            use_cache=self.use_kv_cache_for_scoring,
             batch_size=self.scoring_max_tokens // L
-            if self.use_kv_cache_for_scoring
-            else 1,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
