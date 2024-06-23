@@ -168,6 +168,10 @@ class ProteinDataModule(LightningDataModule):
             split="train",
             seed=42,
         )
+        # will shuffle the shards order and use a shuffle buffer when you start iterating
+        # n.b. set_epoch is required in order for shuffling to be correctly randomised
+        # - this is handled by ShuffleCallback
+        self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
         self.val_dataset = load_protein_dataset(
             self.dataset_cfgs[self.val_dataset_name],
             self.tokenizer,
