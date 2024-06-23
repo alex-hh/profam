@@ -266,5 +266,8 @@ class GPT2SingleFamilyLitModule(LightningModule):
                 num_warmup_steps=self.num_warmup_steps,
                 num_training_steps=self.num_training_steps,
             )
-            optim_dict["lr_scheduler"] = scheduler
+            optim_dict["lr_scheduler"] = {
+                "scheduler": scheduler,
+                "interval": "step",
+            }
         return optim_dict
