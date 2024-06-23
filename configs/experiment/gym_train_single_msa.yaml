@@ -22,11 +22,11 @@ trainer:
   check_val_every_n_epoch: 1
 
 model:
-  scheduler_name: "constant_with_warmup"  # inverse_sqrt, cosine, ...
-  num_warmup_steps: 200
+  scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
+  num_warmup_steps: 1000
 
 data:
-  batch_size: 512
+  batch_size: 256
   num_workers: 12
 
 logger:

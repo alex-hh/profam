@@ -121,7 +121,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
+        outputs = self(batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"])
         loss = outputs.loss
         logits = outputs.logits
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)

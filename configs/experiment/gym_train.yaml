@@ -25,7 +25,7 @@ trainer:
   check_val_every_n_epoch: 1
 
 model:
-  scheduler_name: "constant_with_warmup"  # inverse_sqrt, cosine, ...
+  scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
   num_warmup_steps: 200
   config:
     hidden_size: 512
