@@ -6,7 +6,7 @@
 defaults:
   - override /data: gym_train
   - override /model: mistral
-  - override /callbacks: default
+  - override /callbacks: default_with_shuffle
   - override /trainer: gpu
 
 # all parameters below will be merged with parameters from default configurations set above
