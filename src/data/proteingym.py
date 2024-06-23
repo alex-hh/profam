@@ -34,7 +34,7 @@ def tokenize_completions(example, tokenizer: PreTrainedTokenizerFast):
         padding="max_length",  # todo handle the padding in the validation step
         truncation=True,
         max_length=max_length,
-        add_special_tokens=True,
+        add_special_tokens=False,
     )
     example["completion_ids"] = tokenized.input_ids
     return example

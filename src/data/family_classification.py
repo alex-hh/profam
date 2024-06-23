@@ -34,9 +34,7 @@ def load_classifier_dataset(
         target_family_seqs = seqs.copy()
         n_targ_seqs = min(len(target_family_seqs) // 2, max_seqs_to_predict)
         target_seqs = random.sample(target_family_seqs, n_targ_seqs)
-        remaining_seqs = list(
-            set(target_family_seqs) - set(target_seqs)
-        )
+        remaining_seqs = list(set(target_family_seqs) - set(target_seqs))
         # Sample sequences for the MSA (input_ids)
         msa_seqs = data_utils.sample_to_max_tokens(
             remaining_seqs, seed=seed, max_tokens=max_tokens_input
