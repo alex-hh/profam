@@ -193,6 +193,7 @@ class ProteinDataModule(LightningDataModule):
         )
         if self.evaluate_gym:
             assert self.gym_dms_ids is not None
+            print("Loading gym dataset", self.gym_dms_ids)
             self.gym_dataset = load_gym_dataset(
                 dms_ids=self.gym_dms_ids,
                 tokenizer=self.tokenizer,
@@ -206,6 +207,7 @@ class ProteinDataModule(LightningDataModule):
             batch_size=self.batch_size,
             collate_fn=self.collator,
             num_workers=self.num_workers,
+            shuffle=True,
         )
 
     def val_dataloader(self) -> list[DataLoader]:

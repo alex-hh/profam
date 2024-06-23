@@ -1,0 +1,9 @@
+_target_: src.models.gpt.GPT2SingleFamilyLitModule
+scheduler_name: "constant_with_warmup"
+num_warmup_steps: 200
+config:
+  _target_: transformers.GPT2Config
+  hidden_size: 256
+  num_hidden_layers: 3
+  intermediate_size: 512
+  num_attention_heads: 4

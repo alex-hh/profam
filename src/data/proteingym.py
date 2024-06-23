@@ -1,10 +1,12 @@
 import functools
 import os
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 from datasets import Dataset
-from transformers import PreTrainedTokenizerFast
+from lightning import LightningDataModule
+from torch.utils.data import DataLoader
+from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
@@ -125,3 +127,130 @@ def load_gym_dataset(
         type="torch", columns=["input_ids", "completion_ids", "DMS_scores"]
     )
     return dataset
+
+
+def load_gym_msa_dataset(
+    dms_id,
+    tokenizer,
+    gym_data_dir: str = "data/example_data/ProteinGym",
+    keep_gaps: bool = True,
+):
+    df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
+    row = df[df["DMS_id"] == dms_id].iloc[0]
+    labels, seqs = fasta.read_fasta(
+        os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
+        keep_insertions=True,
+        to_upper=True,
+        keep_gaps=keep_gaps,
+    )
+    dataset = Dataset.from_dict({"sequence": seqs})
+
+    def tokenize_sequence(example):
+        return tokenizer(example["sequence"], return_tensors="pt")
+
+    dataset = dataset.map(
+        tokenize_sequence,
+        batched=True,
+        remove_columns=["sequence"],
+    )
+    return dataset
+
+
+class GymMSADataModule(LightningDataModule):
+    """For training on a single protein gym MSA."""
+
+    def __init__(
+        self,
+        tokenizer_path: str,
+        gym_dms_id: str,
+        gym_data_dir: str,
+        batch_size: int,
+        max_gym_sequences: Optional[int] = None,
+    ):
+        super().__init__()
+        self.gym_data_dir = gym_data_dir
+        self.batch_size = batch_size
+        self.max_gym_sequences = max_gym_sequences
+        self.gym_dms_id = gym_dms_id
+        self.num_workers = 0
+        self.tokenizer = PreTrainedTokenizerFast(
+            tokenizer_file=tokenizer_path,
+            unk_token="[UNK]",
+            pad_token="[PAD]",
+            bos_token="[start-of-document]",
+            sep_token="[SEP]",
+            mask_token="[MASK]",
+            add_special_tokens=True,
+        )
+        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
+        # TODO: fix to avoid hardcoding
+        assert self.gym_dms_id is not None
+        assert self.gym_data_dir is not None
+        self.gym_dataset = load_gym_dataset(
+            dms_ids=[gym_dms_id],
+            tokenizer=self.tokenizer,
+            max_mutated_sequences=self.max_gym_sequences,
+            gym_data_dir=self.gym_data_dir,
+        )
+        self.msa_dataset = load_gym_msa_dataset(
+            dms_id=gym_dms_id,
+            tokenizer=self.tokenizer,
+            gym_data_dir=self.gym_data_dir,
+        )
+        ddict = self.msa_dataset.train_test_split(test_size=0.01, seed=42)
+        self.train_dataset = ddict["train"]
+        self.val_dataset = ddict["test"]
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        pass
+
+    def train_dataloader(self) -> list[DataLoader]:
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            collate_fn=self.collator,
+            num_workers=self.num_workers,
+            shuffle=True,
+        )
+
+    def val_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.collator,
+                shuffle=False,
+                num_workers=self.num_workers,
+            )
+        ]
+        loaders.append(
+            [
+                DataLoader(
+                    self.gym_dataset,
+                    batch_size=1,  # gym needs batch size 1
+                    shuffle=False,
+                )  # n.b. in this case we do standard collation
+            ]
+        )
+        return loaders
+
+    def test_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.collator,
+                shuffle=False,
+                num_workers=self.num_workers,
+            )
+        ]
+        loaders.append(
+            [
+                DataLoader(
+                    self.gym_dataset,
+                    batch_size=1,  # gym needs batch size 1
+                    shuffle=False,
+                )  # n.b. in this case we do standard collation
+            ]
+        )
+        return loaders
