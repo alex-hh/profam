@@ -1,0 +1,10 @@
+_target_: src.models.gpt.GPT2LitModule
+scheduler_name: "inverse_sqrt"
+num_warmup_steps: 1000
+config:
+  _target_: transformers.GPT2Config
+  vocab_size: 41
+  n_embd: 768
+  n_head: 12
+  n_layer: 12
+  n_positions: 2048

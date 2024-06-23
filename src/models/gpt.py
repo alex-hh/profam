@@ -1,11 +1,12 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from transformers import GPT2Config, GPT2LMHeadModel
+from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
 with open("scripts/vocab.json", "r") as jf:
@@ -21,6 +22,23 @@ def calc_grad_norm(params):
     )
 
     return grad_norm
+
+
+class UpdatedDynamicCache(DynamicCache):
+    """A DynamicCache that allows for batched key-value caching.
+    Manually implements latest version of DynamicCache from transformers.
+    (once this is released we can remove this class)
+    """
+
+    def batch_repeat_interleave(self, repeats: int):
+        """Repeat the cache `repeats` times in the batch dimension. Used in contrastive search."""
+        for layer_idx in range(len(self)):
+            self.key_cache[layer_idx] = self.key_cache[layer_idx].repeat_interleave(
+                repeats, dim=0
+            )
+            self.value_cache[layer_idx] = self.value_cache[layer_idx].repeat_interleave(
+                repeats, dim=0
+            )
 
 
 def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-100):
@@ -284,7 +302,7 @@ class GPT2LitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 64000,
+        scoring_max_tokens: int = 8000,
         compile: bool = False,
     ) -> None:
         super().__init__()
