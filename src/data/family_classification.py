@@ -24,7 +24,7 @@ def load_classifier_dataset(
     num_decoys_per_target=5,
     seed=42,
 ):
-    paths = glob.glob(fasta_file_pattern)
+    paths = sorted(glob.glob(fasta_file_pattern))
     random.seed(seed)
     dataset_list = []
 
@@ -36,7 +36,7 @@ def load_classifier_dataset(
         target_seqs = random.sample(target_family_seqs, n_targ_seqs)
         remaining_seqs = list(
             set(target_family_seqs) - set(target_seqs)
-        )  #  todo not efficient for large files
+        )
         # Sample sequences for the MSA (input_ids)
         msa_seqs = data_utils.sample_to_max_tokens(
             remaining_seqs, seed=seed, max_tokens=max_tokens_input
