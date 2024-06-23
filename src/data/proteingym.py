@@ -166,13 +166,14 @@ class GymMSADataModule(LightningDataModule):
         gym_data_dir: str,
         batch_size: int,
         max_gym_sequences: Optional[int] = None,
+        num_workers: int = 0,
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
         self.batch_size = batch_size
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_id = gym_dms_id
-        self.num_workers = 0
+        self.num_workers = num_workers
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",

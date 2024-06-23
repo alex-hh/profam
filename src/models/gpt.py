@@ -89,7 +89,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 32000,
+        scoring_max_tokens: int = 64000,
         compile: bool = False,
     ) -> None:
         super().__init__()
@@ -127,7 +127,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
-            "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False
+            "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
         )
         # https://huggingface.co/docs/transformers/perplexity
         # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
@@ -156,7 +156,13 @@ class GPT2SingleFamilyLitModule(LightningModule):
             on_epoch=True,
             prog_bar=True,
         )
-        self.log("lr", optimizer.param_groups[0]["lr"])
+        self.log(
+            "lr",
+            optimizer.param_groups[0]["lr"],
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+        )
 
     def score_mutants(self, input_ids, completion_ids, batch_size: int = 1):
         assert (
@@ -196,12 +202,12 @@ class GPT2SingleFamilyLitModule(LightningModule):
         lls = self.score_mutants(
             batch["input_ids"],
             batch["completion_ids"],
-            batch_size=self.scoring_max_tokens // L
+            batch_size=self.scoring_max_tokens // L,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
+            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=True
         )
 
     def validation_step(
@@ -217,8 +223,8 @@ class GPT2SingleFamilyLitModule(LightningModule):
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
-        self.log("val/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False)
+        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True)
         # n.b. this might be biased for batch size > 1
         self.log(
             "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False

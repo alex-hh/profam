@@ -17,20 +17,17 @@ trainer:
   min_epochs: 10
   max_epochs: 10000
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 32
+  accumulate_grad_batches: 1
   val_check_interval: 1.0
   check_val_every_n_epoch: 1
 
 model:
   scheduler_name: "constant_with_warmup"  # inverse_sqrt, cosine, ...
   num_warmup_steps: 200
-  config:
-    hidden_size: 512
-    num_hidden_layers: 8
-    intermediate_size: 1024
 
 data:
-  batch_size: 64
+  batch_size: 512
+  num_workers: 12
 
 logger:
   wandb:
