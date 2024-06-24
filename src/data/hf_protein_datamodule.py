@@ -24,7 +24,7 @@ class ProteinDatasetConfig:
     keep_gaps: bool = False
     keep_insertions: bool = False
     to_upper: bool = False
-
+    is_parquet: bool = False
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
@@ -59,20 +59,31 @@ def load_protein_dataset(
             concatenated_seqs,
             truncation=True,
             max_length=max_tokens,
-            return_tensors="pt",
             padding="max_length",
+            return_tensors="pt",
             add_special_tokens=False,
         )
-        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
-        return tokenized
 
-    dataset = load_dataset(
-        "text",
-        data_files=cfg.data_path_pattern,
-        split=split,
-        streaming=True,
-        sample_by="document",
-    )
+        return {
+            "input_ids": tokenized["input_ids"].squeeze(),
+            "attention_mask": tokenized["attention_mask"].squeeze(),
+        }
+    if cfg.is_parquet:
+        dataset = load_dataset(
+            path="parquet",
+            data_files=cfg.data_path_pattern,
+            split=split,
+            streaming=True,
+            ignore_verifications=True,
+        )
+    else:
+        dataset = load_dataset(
+            path="text",
+            data_files=cfg.data_path_pattern,
+            split=split,
+            streaming=True,
+            sample_by="document",
+        )
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
 
     return dataset
