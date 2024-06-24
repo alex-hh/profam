@@ -35,12 +35,13 @@ class UpdatedDynamicCache(DynamicCache):
             )
 
 
-def accuracy_from_outputs(model_outputs,
-                          input_ids,
-                          start_ix=0,
-                          ignore_index=-100,
-                          dataset_names=None,
-                          ):
+def accuracy_from_outputs(
+    model_outputs,
+    input_ids,
+    start_ix=0,
+    ignore_index=-100,
+    dataset_names=None,
+):
     """Compute the accuracy of the target sequence given the model outputs.
     Args:
         model_outputs: The model outputs from the forward pass.
@@ -64,16 +65,11 @@ def accuracy_from_outputs(model_outputs,
         for ds_name in set(dataset_names):
             in_dataset_mask = np.array(dataset_names) == ds_name
             ds_accuracies[ds_name] = (
-                (
-                    accuracy[in_dataset_mask] *
-                    non_padding_mask[in_dataset_mask]
-                ).sum() /
-                non_padding_mask[in_dataset_mask].sum()
-            )
+                accuracy[in_dataset_mask] * non_padding_mask[in_dataset_mask]
+            ).sum() / non_padding_mask[in_dataset_mask].sum()
         return ds_accuracies
     accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
     return accuracy
-
 
 
 def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=False):
@@ -159,7 +155,11 @@ class MistralLitModule(LightningModule):
             # https://huggingface.co/docs/transformers/perplexity
             # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
             self.log(
-                "train/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+                "train/ppl",
+                torch.exp(loss),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
             )
             self.log(
                 "train/n_seqs",
@@ -179,21 +179,29 @@ class MistralLitModule(LightningModule):
                     dataset_names=batch["ds_name"].text,
                 )
                 self.log_dict(
-                    {f"train/{k}_acc": v.item() for k, v in per_dataset_accuracies.items()},
+                    {
+                        f"train/{k}_acc": v.item()
+                        for k, v in per_dataset_accuracies.items()
+                    },
                     on_step=True,
-                    on_epoch=False
+                    on_epoch=False,
                 )
 
             if "doc_hash" in batch:
                 for i, (dataset, doc_hash) in enumerate(
                     zip(batch["ds_name"].text, batch["doc_hash"].text)
                 ):
-                    self.doc_hash_counts[dataset] = self.doc_hash_counts.get(dataset, {})
+                    self.doc_hash_counts[dataset] = self.doc_hash_counts.get(
+                        dataset, {}
+                    )
                     self.doc_hash_counts[dataset][doc_hash] = (
                         self.doc_hash_counts[dataset].get(doc_hash, 0) + 1
                     )
                 self.log_dict(
-                    {f"{k}_max_sampled_doc": max(v.values()) for k, v in self.doc_hash_counts.items()},
+                    {
+                        f"{k}_max_sampled_doc": max(v.values())
+                        for k, v in self.doc_hash_counts.items()
+                    },
                     on_step=True,
                     on_epoch=False,
                 )

@@ -1,7 +1,7 @@
 import bisect
 import glob
-import itertools
 import hashlib
+import itertools
 import os
 import random
 from dataclasses import dataclass
@@ -27,16 +27,21 @@ class ProteinDatasetConfig:
     keep_gaps: bool = False
     keep_insertions: bool = False
     to_upper: bool = False
+    # https://huggingface.co/docs/datasets-server/en/parquet
     is_parquet: bool = False
+
 
 class StringObject:
     """
     Custom class to allow for
     non-tensor elements in batch
     """
+
     text: List[str]
+
     def to(self, device):
         return self
+
 
 class CustomDataCollator:
     """
@@ -44,29 +49,31 @@ class CustomDataCollator:
     allows us to include elements which are not
     tensors with seq_len dimension, eg. dataset names
     """
+
     def __init__(self, tokenizer, mlm=False):
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
 
     def __call__(self, examples):
-        has_ds_name = 'ds_name' in examples[0]
-        has_doc_hash = 'doc_hash' in examples[0]
+        has_ds_name = "ds_name" in examples[0]
+        has_doc_hash = "doc_hash" in examples[0]
         if has_ds_name or has_doc_hash:
             if has_ds_name:
-                ds_names = [example.pop('ds_name') for example in examples]
+                ds_names = [example.pop("ds_name") for example in examples]
             if has_doc_hash:
-                doc_hashes = [example.pop('doc_hash') for example in examples]
+                doc_hashes = [example.pop("doc_hash") for example in examples]
             batch = self.base_collator(examples)
             if has_ds_name:
                 ds_names_obj = StringObject()
                 ds_names_obj.text = ds_names
-                batch['ds_name'] = ds_names_obj
+                batch["ds_name"] = ds_names_obj
             if has_doc_hash:
                 doc_hash_obj = StringObject()
                 doc_hash_obj.text = doc_hashes
-                batch['doc_hash'] = doc_hash_obj
+                batch["doc_hash"] = doc_hash_obj
         else:
             batch = self.base_collator(examples)
         return batch
+
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
@@ -107,13 +114,12 @@ def load_protein_dataset(
             add_special_tokens=False,
         )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
-        tokenized.data['ds_name'] = cfg.name
+        tokenized.data["ds_name"] = cfg.name
         if include_doc_hashes:
             tokenized.data["doc_hash"] = hashlib.md5(
                 example["text"][:512].encode()
             ).hexdigest()
         return tokenized
-
 
     if cfg.is_parquet:
         dataset = load_dataset(
@@ -131,9 +137,7 @@ def load_protein_dataset(
             streaming=True,
             sample_by="document",
         )
-    dataset = dataset.map(preprocess_fasta,
-                          batched=False,
-                          remove_columns=['text'])
+    dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
 
     return dataset
 
