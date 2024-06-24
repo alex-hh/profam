@@ -35,6 +35,47 @@ class UpdatedDynamicCache(DynamicCache):
             )
 
 
+def accuracy_from_outputs(model_outputs,
+                          input_ids,
+                          start_ix=0,
+                          ignore_index=-100,
+                          dataset_names=None,
+                          ):
+    """Compute the accuracy of the target sequence given the model outputs.
+    Args:
+        model_outputs: The model outputs from the forward pass.
+        input_ids: The input sequence.
+        ignore_index: Token index to ignore when computing accuracy.
+            (this will get added automatically by the data collator as padding)
+    Returns:
+        The accuracy of the target sequence.
+    """
+    logits = model_outputs.logits
+    # Shift so that tokens < n predict n
+    shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
+    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
+    # Ensure tensors are on the same device
+    shift_labels = shift_labels.to(shift_logits.device)
+    non_padding_mask = shift_labels != ignore_index
+    # TODO: we might also want to ignore gaps...
+    accuracy = (shift_logits.argmax(-1) == shift_labels).float()
+    if dataset_names is not None:
+        ds_accuracies = {}
+        for ds_name in set(dataset_names):
+            in_dataset_mask = np.array(dataset_names) == ds_name
+            ds_accuracies[ds_name] = (
+                (
+                    accuracy[in_dataset_mask] *
+                    non_padding_mask[in_dataset_mask]
+                ).sum() /
+                non_padding_mask[in_dataset_mask].sum()
+            )
+        return ds_accuracies
+    accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
+    return accuracy
+
+
+
 def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=False):
     """Compute the negative log likelihood of the target sequence given the model outputs.
 
@@ -86,6 +127,7 @@ class MistralLitModule(LightningModule):
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.scoring_max_tokens = scoring_max_tokens
         self.dataset_sample_counts = {}
+        self.doc_hash_counts = {}
 
     def forward(
         self,
@@ -130,6 +172,31 @@ class MistralLitModule(LightningModule):
                 on_epoch=False,
             )
             self.log_ds_sample_counts(batch)
+            if "ds_name" in batch:
+                per_dataset_accuracies = accuracy_from_outputs(
+                    outputs,
+                    batch["input_ids"],
+                    dataset_names=batch["ds_name"].text,
+                )
+                self.log_dict(
+                    {f"train/{k}_acc": v.item() for k, v in per_dataset_accuracies.items()},
+                    on_step=True,
+                    on_epoch=False
+                )
+
+            if "doc_hash" in batch:
+                for i, (dataset, doc_hash) in enumerate(
+                    zip(batch["ds_name"].text, batch["doc_hash"].text)
+                ):
+                    self.doc_hash_counts[dataset] = self.doc_hash_counts.get(dataset, {})
+                    self.doc_hash_counts[dataset][doc_hash] = (
+                        self.doc_hash_counts[dataset].get(doc_hash, 0) + 1
+                    )
+                self.log_dict(
+                    {f"{k}_max_sampled_doc": max(v.values()) for k, v in self.doc_hash_counts.items()},
+                    on_step=True,
+                    on_epoch=False,
+                )
         return loss
 
     def _score_seqs_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
@@ -302,7 +369,7 @@ class MistralLitModule(LightningModule):
         return {"optimizer": optimizer}
 
     def log_ds_sample_counts(self, batch):
-        sd_name = batch["ds_name"].names
+        sd_name = batch["ds_name"].text
         for ds in sd_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
         for k, v in self.dataset_sample_counts.items():

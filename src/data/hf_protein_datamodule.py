@@ -1,6 +1,7 @@
 import bisect
 import glob
 import itertools
+import hashlib
 import os
 import random
 from dataclasses import dataclass
@@ -29,7 +30,11 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
 
 class StringObject:
-    names: List[str]
+    """
+    Custom class to allow for
+    non-tensor elements in batch
+    """
+    text: List[str]
     def to(self, device):
         return self
 
@@ -37,18 +42,28 @@ class CustomDataCollator:
     """
     Wraps DataCollatorForLanguageModeling
     allows us to include elements which are not
-    seq_len tensors, eg. dataset names
+    tensors with seq_len dimension, eg. dataset names
     """
     def __init__(self, tokenizer, mlm=False):
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
 
     def __call__(self, examples):
-        if 'ds_name' in examples[0]:
-            ds_names = [example.pop('ds_name') for example in examples]
+        has_ds_name = 'ds_name' in examples[0]
+        has_doc_hash = 'doc_hash' in examples[0]
+        if has_ds_name or has_doc_hash:
+            if has_ds_name:
+                ds_names = [example.pop('ds_name') for example in examples]
+            if has_doc_hash:
+                doc_hashes = [example.pop('doc_hash') for example in examples]
             batch = self.base_collator(examples)
-            dataset_names = StringObject()
-            dataset_names.names = ds_names
-            batch['ds_name'] = dataset_names
+            if has_ds_name:
+                ds_names_obj = StringObject()
+                ds_names_obj.text = ds_names
+                batch['ds_name'] = ds_names_obj
+            if has_doc_hash:
+                doc_hash_obj = StringObject()
+                doc_hash_obj.text = doc_hashes
+                batch['doc_hash'] = doc_hash_obj
         else:
             batch = self.base_collator(examples)
         return batch
@@ -58,6 +73,7 @@ def load_protein_dataset(
     tokenizer: PreTrainedTokenizerFast,
     max_tokens: int = 5000,
     split="train",
+    include_doc_hashes=False,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
@@ -92,6 +108,10 @@ def load_protein_dataset(
         )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         tokenized.data['ds_name'] = cfg.name
+        if include_doc_hashes:
+            tokenized.data["doc_hash"] = hashlib.md5(
+                example["text"][:512].encode()
+            ).hexdigest()
         return tokenized
 
 
@@ -132,6 +152,7 @@ class ProteinDataModule(LightningDataModule):
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
+        count_doc_hashes: bool = True,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -157,6 +178,7 @@ class ProteinDataModule(LightningDataModule):
             add_special_tokens=True,
         )
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        self.count_doc_hashes = count_doc_hashes
 
         if self.evaluate_gym:
             # TODO: fix to avoid hardcoding
@@ -184,10 +206,12 @@ class ProteinDataModule(LightningDataModule):
             dataset = load_protein_dataset(
                 dataset_config,
                 self.tokenizer,
-                self.max_tokens
+                self.max_tokens,
+                include_doc_hashes=self.count_doc_hashes,
             )
             train_datasets.append(dataset)
             train_data_weights.append(self.data_weights[data_key])
+
         self.train_dataset = interleave_datasets(
             train_datasets,
             probabilities=train_data_weights,
