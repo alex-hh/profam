@@ -377,8 +377,12 @@ class MistralLitModule(LightningModule):
         sd_name = batch["ds_name"].text
         for ds in sd_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
-        for k, v in self.dataset_sample_counts.items():
-            self.log(f"train/{k}_times_sampled", v, on_step=True, on_epoch=False)
 
-    def log_per_dataset_accuracy(self, batch, outputs):
-        pass
+        self.log_dict(
+            {
+                f"train/{k}_times_sampled": v
+                for k, v in self.dataset_sample_counts.items()
+            },
+            on_step=True,
+            on_epoch=False,
+        )
