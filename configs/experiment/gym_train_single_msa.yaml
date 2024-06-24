@@ -17,7 +17,7 @@ trainer:
   min_epochs: 10
   max_epochs: 10000
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 16
+  accumulate_grad_batches: 36
   val_check_interval: 1.0
   check_val_every_n_epoch: 1
 
@@ -26,7 +26,7 @@ model:
   num_warmup_steps: 600
 
 data:
-  batch_size: 32
+  batch_size: 48
   num_workers: 12
 
 logger:
