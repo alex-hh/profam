@@ -7,7 +7,6 @@ import random
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-import torch
 from datasets import Dataset, interleave_datasets, load_dataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
