@@ -4,6 +4,10 @@ import sqlite3
 import argparse
 import math
 
+"""
+Keeping this script in case we need it in the future
+but this DB was never created and probably not necessary
+"""
 
 def get_sequence_from_profam_db(uniprot_id, cursor):
     cursor.execute('SELECT sequence FROM sequences WHERE sequence_id = ?', (uniprot_id,))

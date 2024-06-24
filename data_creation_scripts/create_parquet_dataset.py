@@ -10,9 +10,9 @@ import math
 def process_document(file_path):
     try:
         with open(file_path, 'r') as f:
-            content = f.read()
+            text = f.read()
         # Add any preprocessing steps here
-        return {'content': content, 'file_name': os.path.basename(file_path)}
+        return {'text': text}
     except Exception as e:
         print(f"Error processing {file_path}: {str(e)}")
         return None
