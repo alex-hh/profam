@@ -146,7 +146,20 @@ def load_gym_msa_dataset(
     dataset = Dataset.from_dict({"sequence": seqs})
 
     def tokenize_sequence(example):
-        return tokenizer(example["sequence"], return_tensors="pt")
+        # prepend sep token to ensure data lines up with completion ids
+        if isinstance(example["sequence"], str):
+            return tokenizer(
+                tokenizer.sep_token + example["sequence"] + tokenizer.sep_token,
+                return_tensors="pt",
+            )
+        else:
+            return tokenizer(
+                [
+                    tokenizer.sep_token + s + tokenizer.sep_token
+                    for s in example["sequence"]
+                ],
+                return_tensors="pt",
+            )
 
     dataset = dataset.map(
         tokenize_sequence,
@@ -167,6 +180,7 @@ class GymMSADataModule(LightningDataModule):
         batch_size: int,
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
+        keep_gaps: bool = True,
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
@@ -174,6 +188,7 @@ class GymMSADataModule(LightningDataModule):
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_id = gym_dms_id
         self.num_workers = num_workers
+        self.keep_gaps = keep_gaps
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
@@ -197,6 +212,7 @@ class GymMSADataModule(LightningDataModule):
             dms_id=gym_dms_id,
             tokenizer=self.tokenizer,
             gym_data_dir=self.gym_data_dir,
+            keep_gaps=self.keep_gaps,
         )
         ddict = self.msa_dataset.train_test_split(test_size=0.01, seed=42)
         self.train_dataset = ddict["train"]

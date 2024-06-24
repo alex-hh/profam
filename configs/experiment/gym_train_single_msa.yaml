@@ -5,7 +5,7 @@
 
 defaults:
   - override /data: gym_single_msa
-  - override /model: gpt_single_family
+  - override /model: gpt2_small_single_family
   - override /callbacks: default
   - override /trainer: default
 
@@ -17,16 +17,16 @@ trainer:
   min_epochs: 10
   max_epochs: 10000
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 16
   val_check_interval: 1.0
   check_val_every_n_epoch: 1
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
-  num_warmup_steps: 1000
+  num_warmup_steps: 600
 
 data:
-  batch_size: 256
+  batch_size: 32
   num_workers: 12
 
 logger:

@@ -1,7 +1,7 @@
 import json
+import time
 from typing import Any, Dict, Optional
 
-import time
 import numpy as np
 import torch
 from lightning import LightningModule
@@ -10,93 +10,15 @@ from transformers import GPT2Config, GPT2LMHeadModel
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
+from src.models.utils import (
+    UpdatedDynamicCache,
+    accuracy_from_outputs,
+    calc_grad_norm,
+    log_likelihood_from_outputs,
+)
+
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
-
-
-def calc_grad_norm(params):
-    grad_norm = torch.norm(
-        torch.stack(
-            [torch.norm(p.grad.detach(), 2) for p in params if p.grad is not None]
-        ),
-        2,
-    )
-
-    return grad_norm
-
-
-class UpdatedDynamicCache(DynamicCache):
-    """A DynamicCache that allows for batched key-value caching.
-    Manually implements latest version of DynamicCache from transformers.
-    (once this is released we can remove this class)
-    """
-
-    def batch_repeat_interleave(self, repeats: int):
-        """Repeat the cache `repeats` times in the batch dimension. Used in contrastive search."""
-        for layer_idx in range(len(self)):
-            self.key_cache[layer_idx] = self.key_cache[layer_idx].repeat_interleave(
-                repeats, dim=0
-            )
-            self.value_cache[layer_idx] = self.value_cache[layer_idx].repeat_interleave(
-                repeats, dim=0
-            )
-
-
-def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-100):
-    """Compute the accuracy of the target sequence given the model outputs.
-
-    Args:
-        model_outputs: The model outputs from the forward pass.
-        input_ids: The input sequence.
-        ignore_index: Token index to ignore when computing accuracy.
-            (this will get added automatically by the data collator as padding)
-
-    Returns:
-        The accuracy of the target sequence.
-    """
-    logits = model_outputs.logits
-    # Shift so that tokens < n predict n
-    shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
-    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
-    # Ensure tensors are on the same device
-    shift_labels = shift_labels.to(shift_logits.device)
-    non_padding_mask = shift_labels != ignore_index
-    # TODO: we might also want to ignore gaps...
-    accuracy = (shift_logits.argmax(-1) == shift_labels).float()
-    accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
-    return accuracy
-
-
-def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=False):
-    """Compute the negative log likelihood of the target sequence given the model outputs.
-
-    Args:
-        model_outputs: The model outputs from the forward pass.
-        input_ids: The input sequence.
-
-    Returns:
-        The negative log likelihood of the target sequence.
-    """
-    logits = model_outputs.logits
-    # https://github.com/huggingface/transformers/blob/4a6024921fa142f28e8d0034ae28693713b3bfd0/src/transformers/models/mistral/modeling_mistral.py#L1210
-
-    # Shift so that tokens < n predict n
-    shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
-    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
-    # Ensure tensors are on the same device
-    shift_labels = shift_labels.to(shift_logits.device)
-    loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-    # TODO: handle possible padding?
-
-    if flatten:
-        # Flatten the tokens
-        shift_logits = shift_logits.view(-1, shift_logits.shape[-1])
-        shift_labels = shift_labels.view(-1)
-        log_likelihood = -loss_fct(shift_logits, shift_labels)
-    else:
-        log_likelihood = -loss_fct(shift_logits.permute(0, 2, 1), shift_labels)
-
-    return log_likelihood
 
 
 class GPT2SingleFamilyLitModule(LightningModule):
@@ -140,7 +62,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
     def on_train_batch_start(self, batch, batch_idx: int):
         self._t0 = time.time()
 
-    def on_train_batch_end(self, batch, batch_idx: int):
+    def on_train_batch_end(self, outputs, batch, batch_idx: int):
         self._t1 = time.time()
         self.log(
             "train/batch_time",
@@ -343,6 +265,19 @@ class GPT2LitModule(LightningModule):
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
+        )
+
+    def on_train_batch_start(self, batch, batch_idx: int):
+        self._t0 = time.time()
+
+    def on_train_batch_end(self, outputs, batch, batch_idx: int):
+        self._t1 = time.time()
+        self.log(
+            "train/batch_time",
+            self._t1 - self._t0,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
         )
 
     def training_step(
