@@ -82,9 +82,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
         logits = outputs.logits
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log(
-            "train/accuracy", accuracy, on_step=True, on_epoch=True, prog_bar=True
-        )
+        self.log("train/accuracy", accuracy, on_step=True, on_epoch=True, prog_bar=True)
         # https://huggingface.co/docs/transformers/perplexity
         # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
         self.log(
@@ -125,6 +123,7 @@ class GPT2SingleFamilyLitModule(LightningModule):
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
         assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
+        print(completion_ids.shape)
         L = completion_ids.shape[-1]
         all_lls = []
         for batch_start in range(0, completion_ids.shape[1], batch_size):
