@@ -21,7 +21,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        export GYM_DATA_DIR=data/tiny_data/ProteinGym
 
     - name: Train model
       run: |

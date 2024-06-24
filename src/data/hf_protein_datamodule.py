@@ -11,11 +11,12 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
+from src.data.family_classification import load_classifier_dataset
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 
 
-# TOOD: in future we might actually want standalone dataset class for
+# TODO: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
 @dataclass
 class ProteinDatasetConfig:
@@ -102,6 +103,7 @@ class ProteinDataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
+        evaluate_ec_class: bool = True,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -113,6 +115,7 @@ class ProteinDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.gym_data_dir = gym_data_dir
+        self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer_path = tokenizer_path
@@ -163,7 +166,7 @@ class ProteinDataModule(LightningDataModule):
             seed=42,
         )
         self.val_dataset = load_protein_dataset(
-            self.dataset_cfgs["ec"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
         )
         self.test_dataset = load_protein_dataset(
             self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
@@ -175,6 +178,10 @@ class ProteinDataModule(LightningDataModule):
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
                 gym_data_dir=self.gym_data_dir,
+            )
+        if self.evaluate_ec_class:
+            self.ec_class_dataset = load_classifier_dataset(
+                "data/example_data/expasy_ec/*.fasta", self.tokenizer
             )
 
     def train_dataloader(self) -> list[DataLoader]:
@@ -202,8 +209,17 @@ class ProteinDataModule(LightningDataModule):
                         self.gym_dataset,
                         batch_size=1,  # gym needs batch size 1
                         shuffle=False,
-                    )  # n.b. in this case we do standard collation
+                    ),  # n.b. in this case we do standard collation
                 ]
+            )
+        if self.evaluate_ec_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
             )
         return loaders
 
@@ -226,5 +242,14 @@ class ProteinDataModule(LightningDataModule):
                         shuffle=False,
                     )  # n.b. in this case we do standard collation
                 ]
+            )
+        if self.evaluate_ec_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
             )
         return loaders
