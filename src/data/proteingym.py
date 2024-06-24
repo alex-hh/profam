@@ -10,6 +10,7 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 
 from src.data import fasta
 from src.data import utils as data_utils
+from src.data.utils import ProteinDatasetConfig, load_protein_dataset
 
 
 def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
@@ -24,9 +25,18 @@ def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
     return sample
 
 
-def tokenize_mutants(sample, tokenizer: PreTrainedTokenizerFast):
+def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
+    if name == "bos":
+        return tokenizer.bos_token
+    elif name == "sep":
+        return tokenizer.sep_token
+    else:
+        pass
+
+
+def tokenize_mutants(sample, tokenizer: PreTrainedTokenizerFast, bos_token="sep"):
     sample["mutated_sequences"] = [
-        tokenizer.sep_token + seq + tokenizer.sep_token
+        get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
         for seq in sample["mutated_sequences"]
     ]
     tokenized = tokenizer(
@@ -39,9 +49,11 @@ def tokenize_mutants(sample, tokenizer: PreTrainedTokenizerFast):
     return sample
 
 
-def tokenize(sample, tokenizer: PreTrainedTokenizerFast, **kwargs):
+def tokenize(
+    sample, tokenizer: PreTrainedTokenizerFast, mutant_bos_token="sep", **kwargs
+):
     sample = tokenize_msa(sample, tokenizer, **kwargs)
-    sample = tokenize_mutants(sample, tokenizer)
+    sample = tokenize_mutants(sample, tokenizer, bos_token=mutant_bos_token)
     return sample
 
 
@@ -107,6 +119,7 @@ def load_gym_dataset(
     seed: Optional[int] = None,
     max_mutated_sequences: Optional[int] = None,
     max_tokens: int = 5000,
+    mutant_bos_token: str = "sep",
     gym_data_dir: str = "data/example_data/ProteinGym",
 ):
     df = build_gym_df(
@@ -118,7 +131,12 @@ def load_gym_dataset(
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     dataset = dataset.map(
-        functools.partial(tokenize, tokenizer=tokenizer, max_tokens=max_tokens),
+        functools.partial(
+            tokenize,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            mutant_bos_token=mutant_bos_token,
+        ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "mutated_sequences"],
     )
@@ -169,7 +187,7 @@ def load_gym_msa_dataset(
     return dataset
 
 
-class GymMSADataModule(LightningDataModule):
+class GymSingleMSADataModule(LightningDataModule):
     """For training on a single protein gym MSA."""
 
     def __init__(
@@ -217,6 +235,126 @@ class GymMSADataModule(LightningDataModule):
         ddict = self.msa_dataset.train_test_split(test_size=0.01, seed=42)
         self.train_dataset = ddict["train"]
         self.val_dataset = ddict["test"]
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        pass
+
+    def train_dataloader(self) -> list[DataLoader]:
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            collate_fn=self.collator,
+            num_workers=self.num_workers,
+            shuffle=True,
+        )
+
+    def val_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.val_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.collator,
+                shuffle=False,
+                num_workers=self.num_workers,
+            )
+        ]
+        loaders.append(
+            [
+                DataLoader(
+                    self.gym_dataset,
+                    batch_size=1,  # gym needs batch size 1
+                    shuffle=False,
+                )  # n.b. in this case we do standard collation
+            ]
+        )
+        return loaders
+
+    def test_dataloader(self) -> list[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.collator,
+                shuffle=False,
+                num_workers=self.num_workers,
+            )
+        ]
+        loaders.append(
+            [
+                DataLoader(
+                    self.gym_dataset,
+                    batch_size=1,  # gym needs batch size 1
+                    shuffle=False,
+                )  # n.b. in this case we do standard collation
+            ]
+        )
+        return loaders
+
+
+class GymMultiMSADataModule(LightningDataModule):
+    """For training on multiple protein gym MSAs.
+
+    Idea here is going to be to concatenate sequences from a single MSA up to
+    the max tokens limit, then tokenize.
+
+    This data module is therefore compatible with both single-sequence models
+    and multi-sequence models. It's also compatible with single MSA training and
+    multi-MSA training.
+    """
+
+    def __init__(
+        self,
+        dataset_cfg: ProteinDatasetConfig,
+        tokenizer_path: str,
+        gym_dms_ids: str,
+        gym_data_dir: str,
+        batch_size: int,
+        max_tokens: int,
+        max_gym_sequences: Optional[int] = None,
+        num_workers: int = 0,
+        keep_gaps: bool = True,
+        mutant_bos_token: str = "sep",
+    ):
+        super().__init__()
+        self.gym_data_dir = gym_data_dir
+        self.batch_size = batch_size
+        self.max_gym_sequences = max_gym_sequences
+        self.gym_dms_ids = gym_dms_ids
+        self.num_workers = num_workers
+        self.keep_gaps = keep_gaps
+        self.tokenizer = PreTrainedTokenizerFast(
+            tokenizer_file=tokenizer_path,
+            unk_token="[UNK]",
+            pad_token="[PAD]",
+            bos_token="[start-of-document]",
+            sep_token="[SEP]",
+            mask_token="[MASK]",
+            add_special_tokens=True,
+        )
+        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
+        # TODO: fix to avoid hardcoding
+        assert self.gym_dms_ids is not None
+        assert self.gym_data_dir is not None
+        self.gym_dataset = load_gym_dataset(
+            dms_ids=[gym_dms_ids],
+            tokenizer=self.tokenizer,
+            max_mutated_sequences=self.max_gym_sequences,
+            gym_data_dir=self.gym_data_dir,
+            mutant_bos_token=mutant_bos_token,  # we might want to set to bos
+        )
+        self.train_dataset = load_protein_dataset(
+            dataset_cfg,
+            tokenizer=self.tokenizer,
+            max_tokens=max_tokens,
+            keep_gaps=self.keep_gaps,
+        )
+        # TODO: fix so that train and val aren't the same
+        self.val_dataset = load_protein_dataset(
+            dataset_cfg,
+            tokenizer=self.tokenizer,
+            max_tokens=max_tokens,
+            keep_gaps=self.keep_gaps,
+        )
 
     def setup(self, stage: Optional[str] = None) -> None:
         pass

@@ -39,4 +39,4 @@ logger:
     tags: ${tags}
     group: "gym_train"
 
-# float32_matmul_precision: "high"
+float32_matmul_precision: "high"

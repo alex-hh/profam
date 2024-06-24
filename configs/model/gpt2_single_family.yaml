@@ -1,4 +1,4 @@
-_target_: src.models.gpt.GPT2SingleFamilyLitModule
+_target_: src.models.gpt.GPT2SingleSequenceLitModule
 scheduler_name: "inverse_sqrt"
 num_warmup_steps: 1000
 config:

@@ -21,7 +21,7 @@ with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
 
 
-class GPT2SingleFamilyLitModule(LightningModule):
+class GPT2SingleSequenceLitModule(LightningModule):
     def __init__(
         self,
         config: GPT2Config,
