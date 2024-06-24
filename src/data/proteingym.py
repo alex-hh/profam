@@ -14,7 +14,7 @@ def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
     # TODO: fix tokenization. copying hf loader for now
     concatenated_seqs = tokenizer.bos_token + tokenizer.sep_token.join(
         sample["MSA"]
-    )  # No EOS token here because the mutated seq will be added
+    )  # No EOS token here because the target seq will be added
     tokenized = tokenizer(
         concatenated_seqs, return_tensors="pt", add_special_tokens=False
     )
@@ -22,24 +22,27 @@ def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
     return sample
 
 
-def tokenize_mutants(sample, tokenizer: PreTrainedTokenizerFast):
-    sample["mutated_sequences"] = [
+def tokenize_completions(example, tokenizer: PreTrainedTokenizerFast):
+    example["completion_seqs"] = [
         tokenizer.sep_token + seq + tokenizer.sep_token
-        for seq in sample["mutated_sequences"]
+        for seq in example["completion_seqs"]
     ]
+    max_length = max(len(seq) for seq in example["completion_seqs"])
     tokenized = tokenizer(
-        sample["mutated_sequences"],
+        example["completion_seqs"],
         return_tensors="pt",
-        padding="max_length",
-        add_special_tokens=True,
+        padding="max_length",  # todo handle the padding in the validation step
+        truncation=True,
+        max_length=max_length,
+        add_special_tokens=False,
     )
-    sample["completion_ids"] = tokenized.input_ids
-    return sample
+    example["completion_ids"] = tokenized.input_ids
+    return example
 
 
 def tokenize(sample, tokenizer: PreTrainedTokenizerFast, **kwargs):
     sample = tokenize_msa(sample, tokenizer, **kwargs)
-    sample = tokenize_mutants(sample, tokenizer)
+    sample = tokenize_completions(sample, tokenizer)
     return sample
 
 
@@ -66,7 +69,7 @@ def load_dms_scores_for_row(row, seed, max_mutated_sequences, gym_data_dir):
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
-    row["mutated_sequences"] = dms_df["mutated_sequence"].tolist()
+    row["completion_seqs"] = dms_df["mutated_sequence"].tolist()
     return row
 
 
@@ -96,7 +99,7 @@ def build_gym_df(
         max_mutated_sequences=max_mutated_sequences,
         gym_data_dir=gym_data_dir,
     )
-    return df[["DMS_id", "MSA", "DMS_scores", "mutated_sequences"]]
+    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs"]]
 
 
 def load_gym_dataset(
@@ -118,10 +121,11 @@ def load_gym_dataset(
     dataset = dataset.map(
         functools.partial(tokenize, tokenizer=tokenizer, max_tokens=max_tokens),
         batched=False,
-        remove_columns=["DMS_id", "MSA", "mutated_sequences"],
+        remove_columns=["DMS_id", "MSA", "completion_seqs"],
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     dataset.set_format(
-        type="torch", columns=["input_ids", "completion_ids", "DMS_scores"]
+        type="torch",
+        columns=["input_ids", "completion_ids", "DMS_scores"],
     )
     return dataset
