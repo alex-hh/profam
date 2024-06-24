@@ -115,6 +115,7 @@ def load_protein_dataset(
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         tokenized.data["ds_name"] = cfg.name
         if include_doc_hashes:
+            # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
                 example["text"][:512].encode()
             ).hexdigest()

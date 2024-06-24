@@ -2,14 +2,11 @@ import json
 from typing import Any, Dict
 
 import numpy as np
-import pandas as pd
 import torch
-import wandb
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torchmetrics import MeanMetric
-from torchmetrics.classification import BinaryAUROC, BinaryPrecisionRecallCurve
 from transformers import MistralConfig, MistralForCausalLM
 from transformers.cache_utils import DynamicCache
 
