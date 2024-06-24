@@ -2,7 +2,9 @@ import json
 from typing import Any, Dict
 
 import numpy as np
+import pandas as pd
 import torch
+import wandb
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
@@ -83,6 +85,7 @@ class MistralLitModule(LightningModule):
         # TODO: add a max tokens in batch kwarg for scoring purposes.
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.scoring_max_tokens = scoring_max_tokens
+        self.dataset_sample_counts = {}
 
     def forward(
         self,
@@ -109,12 +112,13 @@ class MistralLitModule(LightningModule):
             "train/loss", self.train_loss, on_step=False, on_epoch=True, prog_bar=True
         )
         self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
-        # https://huggingface.co/docs/transformers/perplexity
-        # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
-        self.log(
-            "train/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
-        )
+
         with torch.no_grad():
+            # https://huggingface.co/docs/transformers/perplexity
+            # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
+            self.log(
+                "train/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+            )
             self.log(
                 "train/n_seqs",
                 (batch["input_ids"] == vocab["[SEP]"])
@@ -125,6 +129,7 @@ class MistralLitModule(LightningModule):
                 on_step=True,
                 on_epoch=False,
             )
+            self.log_ds_sample_counts(batch)
         return loss
 
     def _score_seqs_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
@@ -295,3 +300,13 @@ class MistralLitModule(LightningModule):
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer = torch.optim.Adam(self.parameters(), lr=2e-5, weight_decay=0.01)
         return {"optimizer": optimizer}
+
+    def log_ds_sample_counts(self, batch):
+        sd_name = batch["ds_name"].names
+        for ds in sd_name:
+            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
+        for k, v in self.dataset_sample_counts.items():
+            self.log(f"train/{k}_times_sampled", v, on_step=True, on_epoch=False)
+
+    def log_per_dataset_accuracy(self, batch, outputs):
+        pass
