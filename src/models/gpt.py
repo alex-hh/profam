@@ -1,6 +1,7 @@
 import json
 from typing import Any, Dict, Optional
 
+import time
 import numpy as np
 import torch
 from lightning import LightningModule
@@ -134,6 +135,19 @@ class GPT2SingleFamilyLitModule(LightningModule):
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
+        )
+
+    def on_train_batch_start(self, batch, batch_idx: int):
+        self._t0 = time.time()
+
+    def on_train_batch_end(self, batch, batch_idx: int):
+        self._t1 = time.time()
+        self.log(
+            "train/batch_time",
+            self._t1 - self._t0,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
         )
 
     def training_step(
