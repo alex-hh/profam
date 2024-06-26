@@ -96,6 +96,8 @@ def load_protein_dataset(
         streaming=True,
         sample_by="document",
     )
+    print("Dataset n shards", dataset.n_shards)
+    # TODO: possibly we could speed this up by batching...
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
 
     return dataset

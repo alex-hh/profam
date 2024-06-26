@@ -245,6 +245,7 @@ class GymSingleMSADataModule(LightningDataModule):
             batch_size=self.batch_size,
             collate_fn=self.collator,
             num_workers=self.num_workers,
+            persistent_workers=True,
             shuffle=True,
         )
 
