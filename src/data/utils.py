@@ -32,6 +32,8 @@ def load_protein_dataset(
     max_tokens: int = 5000,
     data_dir="../data",
 ) -> Dataset:
+    print(cfg)
+
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
             seq

@@ -4,3 +4,4 @@ data_path_pattern: ProteinGym/DMS_msa_files/*.a2m
 keep_gaps: true
 to_upper: true
 keep_insertions: true
+file_repeats: 1
