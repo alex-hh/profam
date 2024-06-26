@@ -308,17 +308,21 @@ class GymMultiMSADataModule(LightningDataModule):
         tokenizer_path: str,
         gym_dms_ids: str,
         gym_data_dir: str,
+        data_dir: str,
         batch_size: int,
         max_tokens: int,
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
         keep_gaps: bool = True,
         mutant_bos_token: str = "sep",
+        # will allow sampling multiple times from same dataset.
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
+        self.data_dir = data_dir
         self.batch_size = batch_size
         self.max_gym_sequences = max_gym_sequences
+        self.max_tokens = max_tokens
         self.gym_dms_ids = gym_dms_ids
         self.num_workers = num_workers
         self.keep_gaps = keep_gaps
@@ -336,7 +340,7 @@ class GymMultiMSADataModule(LightningDataModule):
         assert self.gym_dms_ids is not None
         assert self.gym_data_dir is not None
         self.gym_dataset = load_gym_dataset(
-            dms_ids=[gym_dms_ids],
+            dms_ids=gym_dms_ids,
             tokenizer=self.tokenizer,
             max_mutated_sequences=self.max_gym_sequences,
             gym_data_dir=self.gym_data_dir,
@@ -345,15 +349,21 @@ class GymMultiMSADataModule(LightningDataModule):
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=max_tokens,
-            keep_gaps=self.keep_gaps,
+            max_tokens=self.max_tokens,
+            data_dir=self.data_dir,
         )
-        # TODO: fix so that train and val aren't the same
+        # TODO: fix so that train, val, test aren't the same
         self.val_dataset = load_protein_dataset(
             dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=max_tokens,
-            keep_gaps=self.keep_gaps,
+            max_tokens=self.max_tokens,
+            data_dir=self.data_dir,
+        )
+        self.test_dataset = load_protein_dataset(
+            dataset_cfg,
+            tokenizer=self.tokenizer,
+            max_tokens=self.max_tokens,
+            data_dir=self.data_dir,
         )
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -365,7 +375,6 @@ class GymMultiMSADataModule(LightningDataModule):
             batch_size=self.batch_size,
             collate_fn=self.collator,
             num_workers=self.num_workers,
-            shuffle=True,
         )
 
     def val_dataloader(self) -> list[DataLoader]:

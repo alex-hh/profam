@@ -1,7 +1,9 @@
 import bisect
+import glob
 import itertools
 import os
 import random
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -21,6 +23,7 @@ class ProteinDatasetConfig:
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
+    file_repeats: int = 1
 
 
 def load_protein_dataset(
@@ -69,7 +72,9 @@ def load_protein_dataset(
         return tokenized
 
     if cfg.data_path_pattern is not None:
-        data_files = os.path.join(data_dir, cfg.data_path_pattern)
+        # replace hf path resolution with manual glob, to allow repetition
+        # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
+        data_files = glob.glob(os.path.join(data_dir, cfg.data_path_pattern))
     else:
         assert cfg.data_path_file is not None
         with open(os.path.join(data_dir, cfg.data_path_file), "r") as f:
@@ -77,7 +82,11 @@ def load_protein_dataset(
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
 
-    print(f"Loading {cfg.name} dataset from {len(data_files)} files")
+    assert isinstance(data_files, list)
+    data_files = data_files * cfg.file_repeats
+    print(
+        f"Loading {cfg.name} dataset from {len(data_files)} files ({cfg.file_repeats} repeats)"
+    )
     dataset = load_dataset(
         "text",
         data_files=data_files,
