@@ -8,8 +8,7 @@ accelerator: cpu
 devices: 1
 
 check_val_every_n_epoch: 1
-val_check_interval: 300  # check val after this many steps
-
+val_check_interval: 1000
 # set True to ensure deterministic results
 # makes training slower but gives more reproducibility than just setting seeds
 deterministic: False
