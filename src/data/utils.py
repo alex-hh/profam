@@ -8,8 +8,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 from datasets import Dataset, load_dataset
-from transformers import PreTrainedTokenizerFast
-from transformers import DataCollatorForLanguageModeling
+from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import _read_fasta_lines
 

@@ -15,7 +15,11 @@ from transformers import PreTrainedTokenizerFast
 from src.data.family_classification import load_classifier_dataset
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import ProteinDatasetConfig, load_protein_dataset, CustomDataCollator
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
 
 
 class ProteinDataModule(LightningDataModule):
