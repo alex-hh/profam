@@ -68,7 +68,11 @@ def load_msa_for_row(
     )
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     sampled_seqs = data_utils.sample_to_max_tokens(
-        seqs, seed=seed, keep_first=keep_wt, drop_first=drop_wt, max_tokens=max_tokens_for_msa
+        seqs,
+        seed=seed,
+        keep_first=keep_wt,
+        drop_first=drop_wt,
+        max_tokens=max_tokens_for_msa,
     )
     row["MSA"] = sampled_seqs
     return row
