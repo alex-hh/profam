@@ -1,5 +1,6 @@
 import bisect
 import glob
+import hashlib
 import itertools
 import os
 import random
@@ -11,6 +12,7 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
+from src.data.family_classification import load_classifier_dataset
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import ProteinDatasetConfig, load_protein_dataset
@@ -32,6 +34,8 @@ class ProteinDataModule(LightningDataModule):
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
         num_shards: Optional[int] = 8,
+        evaluate_ec_class: bool = True,
+        count_doc_hashes: bool = True,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -46,6 +50,7 @@ class ProteinDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
+        self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer_path = tokenizer_path
@@ -58,7 +63,8 @@ class ProteinDataModule(LightningDataModule):
             mask_token="[MASK]",
             add_special_tokens=True,
         )
-        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
+        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        self.count_doc_hashes = count_doc_hashes
 
     def setup(self, stage: Optional[str] = None) -> None:
         if self.num_workers > 0:
@@ -77,6 +83,7 @@ class ProteinDataModule(LightningDataModule):
                     data_dir=self.data_dir,
                 )
                 # unclear how to get a sharded dataset for use with num workers?
+                # actually when using data_files n_shards is equal to n_files
                 # https://huggingface.co/docs/datasets/about_mapstyle_vs_iterable
                 # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                 # https://github.com/huggingface/datasets/pull/5735
@@ -115,6 +122,10 @@ class ProteinDataModule(LightningDataModule):
                 gym_data_dir=self.gym_data_dir,
                 max_tokens=self.max_tokens,
             )
+        if self.evaluate_ec_class:
+            self.ec_class_dataset = load_classifier_dataset(
+                "data/example_data/expasy_ec/*.fasta", self.tokenizer
+            )
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
@@ -141,10 +152,18 @@ class ProteinDataModule(LightningDataModule):
                         self.gym_dataset,
                         batch_size=1,  # gym needs batch size 1
                         shuffle=False,
-                    )  # n.b. in this case we do standard collation
+                    ),  # n.b. in this case we do standard collation
                 ]
             )
-        print("Val loaders", loaders)
+        if self.evaluate_ec_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
+            )
         return loaders
 
     def test_dataloader(self) -> list[DataLoader]:
@@ -166,5 +185,14 @@ class ProteinDataModule(LightningDataModule):
                         shuffle=False,
                     )  # n.b. in this case we do standard collation
                 ]
+            )
+        if self.evaluate_ec_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
             )
         return loaders

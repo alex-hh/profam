@@ -2,6 +2,9 @@ import sqlite3
 import time
 
 """
+Create a sequence only database for UniRef100 sequences
+allows us to retrive sequences quickly by UniRef ID
+
 Sample of uniref100.fasta:
 >UniRef100_Q6GZX4 Putative transcription factor 001R n=4 Tax=Ranavirus TaxID=10492 RepID=001R_FRG3G
 MAFSAEDVLKEYDRRRRMEALLLSLYYPNDRKLLDYKEWSPPRVQVECPKAPVEWNNPPS

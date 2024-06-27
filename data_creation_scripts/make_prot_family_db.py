@@ -1,5 +1,13 @@
 import sqlite3
 
+
+"""
+Another experimental script that was for creating a 
+unified DB of all protein sequences and families
+probably not necessary
+"""
+
+
 def create_database(db_file):
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()

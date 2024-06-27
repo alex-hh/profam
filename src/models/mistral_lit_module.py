@@ -1,10 +1,11 @@
 import json
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
+from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torchmetrics import MeanMetric
 from transformers import MistralConfig, MistralForCausalLM
 from transformers.cache_utils import DynamicCache
@@ -43,15 +44,19 @@ class UpdatedDynamicCache(DynamicCache):
             )
 
 
-def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-100):
+def accuracy_from_outputs(
+    model_outputs,
+    input_ids,
+    start_ix=0,
+    ignore_index=-100,
+    dataset_names=None,
+):
     """Compute the accuracy of the target sequence given the model outputs.
-
     Args:
         model_outputs: The model outputs from the forward pass.
         input_ids: The input sequence.
         ignore_index: Token index to ignore when computing accuracy.
             (this will get added automatically by the data collator as padding)
-
     Returns:
         The accuracy of the target sequence.
     """
@@ -64,6 +69,14 @@ def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-10
     non_padding_mask = shift_labels != ignore_index
     # TODO: we might also want to ignore gaps...
     accuracy = (shift_logits.argmax(-1) == shift_labels).float()
+    if dataset_names is not None:
+        ds_accuracies = {}
+        for ds_name in set(dataset_names):
+            in_dataset_mask = np.array(dataset_names) == ds_name
+            ds_accuracies[ds_name] = (
+                accuracy[in_dataset_mask] * non_padding_mask[in_dataset_mask]
+            ).sum() / non_padding_mask[in_dataset_mask].sum()
+        return ds_accuracies
     accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
     return accuracy
 
@@ -124,6 +137,8 @@ class MistralLitModule(LightningModule):
         # TODO: add a max tokens in batch kwarg for scoring purposes.
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.scoring_max_tokens = scoring_max_tokens
+        self.dataset_sample_counts = {}
+        self.doc_hash_counts = {}
 
     def forward(
         self,
@@ -152,12 +167,18 @@ class MistralLitModule(LightningModule):
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False
         )
-        # https://huggingface.co/docs/transformers/perplexity
-        # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
-        self.log(
-            "train/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
-        )
+        self.log("train/batch_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+
         with torch.no_grad():
+            # https://huggingface.co/docs/transformers/perplexity
+            # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round)
+            self.log(
+                "train/ppl",
+                torch.exp(loss),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+            )
             self.log(
                 "train/n_seqs",
                 (batch["input_ids"] == vocab["[SEP]"])
@@ -168,6 +189,40 @@ class MistralLitModule(LightningModule):
                 on_step=True,
                 on_epoch=False,
             )
+            self.log_ds_sample_counts(batch)
+            if "ds_name" in batch:
+                per_dataset_accuracies = accuracy_from_outputs(
+                    outputs,
+                    batch["input_ids"],
+                    dataset_names=batch["ds_name"].text,
+                )
+                self.log_dict(
+                    {
+                        f"train/{k}_acc": v.item()
+                        for k, v in per_dataset_accuracies.items()
+                    },
+                    on_step=True,
+                    on_epoch=False,
+                )
+
+            if "doc_hash" in batch:
+                for i, (dataset, doc_hash) in enumerate(
+                    zip(batch["ds_name"].text, batch["doc_hash"].text)
+                ):
+                    self.doc_hash_counts[dataset] = self.doc_hash_counts.get(
+                        dataset, {}
+                    )
+                    self.doc_hash_counts[dataset][doc_hash] = (
+                        self.doc_hash_counts[dataset].get(doc_hash, 0) + 1
+                    )
+                self.log_dict(
+                    {
+                        f"{k}_max_sampled_doc": max(v.values())
+                        for k, v in self.doc_hash_counts.items()
+                    },
+                    on_step=True,
+                    on_epoch=False,
+                )
         return loss
 
     def on_before_optimizer_step(self, optimizer):
@@ -181,7 +236,7 @@ class MistralLitModule(LightningModule):
         )
         self.log("lr", optimizer.param_groups[0]["lr"])
 
-    def _score_mutants_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
@@ -212,11 +267,11 @@ class MistralLitModule(LightningModule):
         lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
-    def _score_mutants_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
-                "Mutant batch size > 1 not yet supported for mutant scoring"
+                "Target batch size > 1 not yet supported for target scoring"
             )
         all_lls = []
         completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
@@ -239,7 +294,7 @@ class MistralLitModule(LightningModule):
 
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
-    def score_mutants(
+    def score_seqs(
         self, input_ids, completion_ids, use_cache: bool = True, batch_size: int = 1
     ):
         assert (
@@ -247,28 +302,36 @@ class MistralLitModule(LightningModule):
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
         assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
         if use_cache:
-            return self._score_mutants_kv_cache(
+            return self._score_seqs_kv_cache(
                 input_ids, completion_ids, batch_size=batch_size
             )
         else:
-            return self._score_mutants_no_cache(
+            return self._score_seqs_no_cache(
                 input_ids, completion_ids, batch_size=batch_size
             )
 
-    def validation_step_proteingym(
-        self, batch: Dict[str, torch.Tensor]
+    def validation_step_likelihood_scoring(
+        self, batch: Dict[str, torch.Tensor], task: str = "classification"
     ) -> torch.Tensor:
-        """Assumes that batch contains the following:
-
-        input_ids: the prompt (i.e. MSA)
-        completion_ids: the completions (i.e. mutated sequences)
-
-        on caching: it seems like, if we modify what is passed to attention forward, existing cache
-        might just work. currently model/sampling loop probably passes just the next token.
         """
-        assert batch["DMS_scores"].ndim == 2  # b, n
+        Val step for proteinGym and family classification tasks.
+
+        Assumes that batch contains the following:
+        input_ids: the prompt (i.e. MSA)
+        completion_ids: the completions (i.e. mutated seqs / seqs to be classified)
+        """
+        if "DMS_scores" in batch:
+            target = "DMS_scores"
+        elif "family_labels" in batch:
+            target = "family_labels"
+        assert (
+            batch[target].ndim == 2
+            and batch["input_ids"].ndim == 2
+            and batch["input_ids"].shape[0] == 1
+            and batch["completion_ids"].ndim == 3
+        )
         L = batch["completion_ids"].shape[-1]
-        lls = self.score_mutants(
+        lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             use_cache=self.use_kv_cache_for_scoring,
@@ -276,19 +339,34 @@ class MistralLitModule(LightningModule):
             if self.use_kv_cache_for_scoring
             else 1,
         )
-        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
-        # TODO: log the specific landscape name
+        target_vals = batch[target][0].cpu().numpy()
+        if target == "DMS_scores":
+            metric, _ = spearmanr(lls, target_vals)
+            metric_name = "spearman_proteinGym"
+        elif target == "family_labels":
+            precision, recall, thresholds = precision_recall_curve(target_vals, lls)
+            metric = auc(recall, precision)
+            metric_name = "auprc_fam_classification"
+            au_roc = roc_auc_score(target_vals, lls)
+            self.log(
+                "auroc_fam_classification",
+                au_roc,
+                on_step=False,
+                on_epoch=True,
+            )
         self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
+            metric_name,
+            metric,
+            on_step=False,
+            on_epoch=True,
         )
+        return torch.tensor(metric, device=self.device)
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        # we check whether we are in proteingym loader by looking at keys in batch
-        if "DMS_scores" in batch:
-            outputs = self.validation_step_proteingym(batch)
-            return outputs
+        if "DMS_scores" in batch or "family_labels" in batch:
+            return self.validation_step_likelihood_scoring(batch)
         else:
             outputs = self(
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
@@ -306,10 +384,9 @@ class MistralLitModule(LightningModule):
     def test_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        # we check whether we are in proteingym loader by looking at keys in batch
-        if "DMS_scores" in batch:
-            outputs = self.validation_step_proteingym(batch)
-            return outputs
+        if "DMS_scores" in batch or "family_labels" in batch:
+            metric = self.validation_step_likelihood_scoring(batch)
+            return metric
         else:
             outputs = self(
                 batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
