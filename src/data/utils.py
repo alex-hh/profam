@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 from datasets import Dataset, load_dataset
 from transformers import PreTrainedTokenizerFast
+from transformers import DataCollatorForLanguageModeling
 
 from src.data.fasta import _read_fasta_lines
 
@@ -24,6 +25,51 @@ class ProteinDatasetConfig:
     keep_insertions: bool = False
     to_upper: bool = False
     file_repeats: int = 1
+    is_parquet: bool = False
+
+
+class StringObject:
+    """
+    Custom class to allow for
+    non-tensor elements in batch
+    """
+
+    text: List[str]
+
+    def to(self, device):
+        return self
+
+
+class CustomDataCollator:
+    """
+    Wraps DataCollatorForLanguageModeling
+    allows us to include elements which are not
+    tensors with seq_len dimension, eg. dataset names
+    """
+
+    def __init__(self, tokenizer, mlm=False):
+        self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
+
+    def __call__(self, examples):
+        has_ds_name = "ds_name" in examples[0]
+        has_doc_hash = "doc_hash" in examples[0]
+        if has_ds_name or has_doc_hash:
+            if has_ds_name:
+                ds_names = [example.pop("ds_name") for example in examples]
+            if has_doc_hash:
+                doc_hashes = [example.pop("doc_hash") for example in examples]
+            batch = self.base_collator(examples)
+            if has_ds_name:
+                ds_names_obj = StringObject()
+                ds_names_obj.text = ds_names
+                batch["ds_name"] = ds_names_obj
+            if has_doc_hash:
+                doc_hash_obj = StringObject()
+                doc_hash_obj.text = doc_hashes
+                batch["doc_hash"] = doc_hash_obj
+        else:
+            batch = self.base_collator(examples)
+        return batch
 
 
 def load_protein_dataset(

@@ -7,15 +7,15 @@ import random
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from datasets import Dataset, interleave_datasets, load_dataset
+from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import ProteinDatasetConfig, load_protein_dataset
+from src.data.utils import ProteinDatasetConfig, load_protein_dataset, CustomDataCollator
 
 
 class ProteinDataModule(LightningDataModule):
