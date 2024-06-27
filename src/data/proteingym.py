@@ -306,6 +306,7 @@ class GymMultiMSADataModule(LightningDataModule):
     def __init__(
         self,
         dataset_cfg: ProteinDatasetConfig,
+        val_dataset_cfg: ProteinDatasetConfig,
         tokenizer_path: str,
         gym_dms_ids: str,
         gym_data_dir: str,
@@ -355,13 +356,13 @@ class GymMultiMSADataModule(LightningDataModule):
         )
         # TODO: fix so that train, val, test aren't the same
         self.val_dataset = load_protein_dataset(
-            dataset_cfg,
+            val_dataset_cfg,
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
         )
         self.test_dataset = load_protein_dataset(
-            dataset_cfg,
+            val_dataset_cfg,
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
