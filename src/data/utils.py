@@ -4,7 +4,7 @@ import itertools
 import os
 import random
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from datasets import Dataset, load_dataset
