@@ -66,8 +66,9 @@ def load_msa_for_row(
         to_upper=True,
         keep_gaps=keep_gaps,
     )
+    max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     sampled_seqs = data_utils.sample_to_max_tokens(
-        seqs, seed=seed, keep_first=keep_wt, drop_first=drop_wt, max_tokens=max_tokens
+        seqs, seed=seed, keep_first=keep_wt, drop_first=drop_wt, max_tokens=max_tokens_for_msa
     )
     row["MSA"] = sampled_seqs
     return row
@@ -301,6 +302,8 @@ class GymMultiMSADataModule(LightningDataModule):
     This data module is therefore compatible with both single-sequence models
     and multi-sequence models. It's also compatible with single MSA training and
     multi-MSA training.
+
+    TODO: could this be unified with the hfdatamodule?
     """
 
     def __init__(
@@ -347,6 +350,7 @@ class GymMultiMSADataModule(LightningDataModule):
             max_mutated_sequences=self.max_gym_sequences,
             gym_data_dir=self.gym_data_dir,
             mutant_bos_token=mutant_bos_token,  # we might want to set to bos
+            max_tokens=max_tokens,
         )
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
