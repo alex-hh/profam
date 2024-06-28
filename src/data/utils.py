@@ -1,5 +1,6 @@
 import bisect
 import glob
+import hashlib
 import itertools
 import os
 import random
@@ -76,9 +77,8 @@ def load_protein_dataset(
     tokenizer: PreTrainedTokenizerFast,
     max_tokens: int = 5000,
     data_dir="../data",
+    include_doc_hashes: bool = False,
 ) -> Dataset:
-    print(cfg)
-
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
             seq
@@ -104,7 +104,7 @@ def load_protein_dataset(
         )
         tokenized = tokenizer(
             concatenated_seqs,
-            truncation=False,  # shouldn't be necessary - bisection should handle.
+            truncation=False,  # shouldnt be necessary: bisection should handle
             max_length=max_tokens,
             return_tensors="pt",
             # padding="longest",
@@ -116,6 +116,12 @@ def load_protein_dataset(
             max_tokens,
         )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        tokenized.data["ds_name"] = cfg.name
+        if include_doc_hashes:
+            # identify documents by a hash of the first 512 characters
+            tokenized.data["doc_hash"] = hashlib.md5(
+                example["text"][:512].encode()
+            ).hexdigest()
         return tokenized
 
     if cfg.data_path_pattern is not None:
