@@ -77,6 +77,7 @@ def load_protein_dataset(
     tokenizer: PreTrainedTokenizerFast,
     max_tokens: int = 5000,
     data_dir="../data",
+    split="train",
     include_doc_hashes: bool = False,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
@@ -140,13 +141,22 @@ def load_protein_dataset(
     print(
         f"Loading {cfg.name} dataset from {len(data_files)} files ({cfg.file_repeats} repeats)"
     )
-    dataset = load_dataset(
-        "text",
-        data_files=data_files,
-        split="train",
-        streaming=True,
-        sample_by="document",
-    )
+    if cfg.is_parquet:
+        dataset = load_dataset(
+            path="parquet",
+            data_files=cfg.data_path_pattern,
+            split=split,
+            streaming=True,
+            ignore_verifications=True,
+        )
+    else:
+        dataset = load_dataset(
+            "text",
+            data_files=data_files,
+            split=split,
+            streaming=True,
+            sample_by="document",
+        )
     print("Dataset n shards", dataset.n_shards)
     # TODO: possibly we could speed this up by batching...
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
