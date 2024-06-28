@@ -44,7 +44,7 @@ def tokenize_completions(sample, tokenizer: PreTrainedTokenizerFast, bos_token="
         sample["completion_seqs"],
         return_tensors="pt",
         padding="max_length",  # todo handle the padding in the validation step
-        truncation=True,
+        truncation=False,  # should be handled elsewhere
         max_length=max_length,
         add_special_tokens=False,
     )
