@@ -35,9 +35,9 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
 
 
 def tokenize_completions(sample, tokenizer: PreTrainedTokenizerFast, bos_token="sep"):
-    sample["mutated_sequences"] = [
+    sample["completion_seqs"] = [
         get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
-        for seq in sample["mutated_sequences"]
+        for seq in sample["completion_seqs"]
     ]
     max_length = max(len(seq) for seq in sample["completion_seqs"])
     tokenized = tokenizer(
@@ -366,7 +366,11 @@ class GymMultiMSADataModule(LightningDataModule):
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
         )
-        # TODO: fix so that train, val, test aren't the same
+        self.train_dataset = self.train_dataset.shuffle(
+            buffer_size=self.train_dataset.n_shards // dataset_cfg.file_repeats,
+            seed=42,
+        )
+        # TODO: fix so that train, val, test aren't all the same
         self.val_dataset = load_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
