@@ -138,6 +138,7 @@ def load_protein_dataset(
 
     assert isinstance(data_files, list)
     data_files = data_files * cfg.file_repeats
+    random.shuffle(data_files)  # TODO: seed explicitly?
     print(
         f"Loading {cfg.name} dataset from {len(data_files)} files ({cfg.file_repeats} repeats)"
     )
