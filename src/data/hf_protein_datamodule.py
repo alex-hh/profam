@@ -83,7 +83,6 @@ class ProteinDataModule(LightningDataModule):
                     dataset_config,
                     self.tokenizer,
                     self.max_tokens,
-                    split="train",
                     data_dir=self.data_dir,
                 )
                 # unclear how to get a sharded dataset for use with num workers?

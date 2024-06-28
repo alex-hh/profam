@@ -481,6 +481,7 @@ class GPT2LitModule(LightningModule):
                 num_warmup_steps=self.num_warmup_steps,
                 num_training_steps=self.num_training_steps,
             )
+            # https://lightning.ai/docs/pytorch/stable/common/optimization.html#automatic-optimization
             optim_dict["lr_scheduler"] = {
                 "scheduler": scheduler,
                 "interval": "step",
