@@ -420,3 +420,17 @@ class MistralLitModule(LightningModule):
                 "interval": "step",
             }
         return optim_dict
+
+    def log_ds_sample_counts(self, batch):
+        sd_name = batch["ds_name"].text
+        for ds in sd_name:
+            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
+
+        self.log_dict(
+            {
+                f"train/{k}_times_sampled": v
+                for k, v in self.dataset_sample_counts.items()
+            },
+            on_step=True,
+            on_epoch=False,
+        )
