@@ -10,9 +10,11 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 
 from src.data import fasta
 from src.data import utils as data_utils
-from src.data.utils import (ProteinDatasetConfig,
-                            load_protein_dataset,
-                            CustomDataCollator)
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
 
 
 def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
