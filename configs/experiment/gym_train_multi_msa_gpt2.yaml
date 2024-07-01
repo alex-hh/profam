@@ -43,4 +43,4 @@ logger:
     group: "gym_train_multi_msa"
 
 float32_matmul_precision: high
-ckpt_path: /home/alexhh/repos/profam/logs/train/runs/2024-06-27_13-22-06/checkpoints/epoch_003.ckpt
+# ckpt_path: /home/alexhh/repos/profam/logs/train/runs/2024-06-27_13-22-06/checkpoints/epoch_003.ckpt
