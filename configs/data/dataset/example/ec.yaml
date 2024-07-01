@@ -1,6 +1,6 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: ec
-data_path_pattern:  data/example_data/expasy_ec/*.fasta
+data_path_pattern:  example_data/expasy_ec/*.fasta
 keep_gaps: false
 to_upper: false
 keep_insertions: false
