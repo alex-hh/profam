@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -l tmem=16G
 #$ -l h_vmem=16G
-#$ -l h_rt=47:55:30
+#$ -l h_rt=23:55:30
 #$ -S /bin/bash
 #$ -N filterMSA
 #$ -t 1-270
