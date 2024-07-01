@@ -8,7 +8,7 @@
 #$ -l m_core=32
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N MistAll1
+#$ -N MistAll2
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -20,6 +20,7 @@ echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
+export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 conda activate venvPF
 source /share/apps/source_files/python/python-3.11.9.source
 python ${ROOT_DIR}/src/train.py \
