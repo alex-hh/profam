@@ -26,7 +26,7 @@ source /share/apps/source_files/python/python-3.11.9.source
 python ${ROOT_DIR}/src/train.py \
 data=data \
 data.data_dir=/state/patition1/ProFam_data_on_clifford \
-data.batch_size: 100 \
+data.batch_size=100 \
 trainer=gpu \
 trainer.devices=2 \
 trainer.max_epochs=100 \

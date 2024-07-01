@@ -21,5 +21,5 @@ conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 
-python ${ROOT_DIR}/filter_msas.py --task_index $((SGE_TASK_ID - 1))
+python ${ROOT_DIR}/data_creation_scripts/make_filtered_openfold_msas.py --task_index $((SGE_TASK_ID - 1))
 date
