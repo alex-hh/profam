@@ -21,10 +21,9 @@ echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-cd /state && ls && cd partition1 && ls && cd /state/partition1/ProFam_data && ls
+cd /state/partition1/ProFam_data
 echo "pwd: $(pwd)" && echo "ls: $(ls)"
 cd $ROOT_DIR
-bash scripts/directory_walk_clifford.sh
 conda activate venvPF
 source /share/apps/source_files/python/python-3.11.9.source
 python ${ROOT_DIR}/src/train.py \
