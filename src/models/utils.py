@@ -70,7 +70,7 @@ def log_likelihood_from_outputs(model_outputs, labels, start_ix=0, flatten=False
 
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
-    shift_labels = labels[..., start_ix + 1 :, :].contiguous()  # b, L
+    shift_labels = labels[..., start_ix + 1 :].contiguous()  # b, L
     # Ensure tensors are on the same device
     shift_labels = shift_labels.to(shift_logits.device)
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
