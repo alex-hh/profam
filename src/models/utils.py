@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from transformers.cache_utils import DynamicCache
 
@@ -30,7 +31,9 @@ class UpdatedDynamicCache(DynamicCache):
             )
 
 
-def accuracy_from_outputs(model_outputs, labels, start_ix=0, ignore_index=-100):
+def accuracy_from_outputs(
+    model_outputs, labels, start_ix=0, ignore_index=-100, dataset_names=None
+):
     """Compute the accuracy of the target sequence given the model outputs.
 
     Args:
@@ -51,6 +54,14 @@ def accuracy_from_outputs(model_outputs, labels, start_ix=0, ignore_index=-100):
     non_padding_mask = shift_labels != ignore_index
     # TODO: we might also want to ignore gaps...
     accuracy = (shift_logits.argmax(-1) == shift_labels).float()
+    if dataset_names is not None:
+        ds_accuracies = {}
+        for ds_name in set(dataset_names):
+            in_dataset_mask = np.array(dataset_names) == ds_name
+            ds_accuracies[ds_name] = (
+                accuracy[in_dataset_mask] * non_padding_mask[in_dataset_mask]
+            ).sum() / non_padding_mask[in_dataset_mask].sum()
+        return ds_accuracies
     accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
     return accuracy
 
