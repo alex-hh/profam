@@ -1,7 +1,6 @@
 from typing import Optional
 
-from transformers import LLamaConfig, LLamaForCausalLM
-from transformers.tokenizers import PreTrainedTokenizerFast
+from transformers import LLamaConfig, LLamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 

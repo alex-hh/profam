@@ -90,6 +90,8 @@ class ProteinDataModule(LightningDataModule):
             seed=42,
         )
         print("Num shards", self.train_dataset.n_shards)
+        if self.num_workers is None:
+            self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
         # will shuffle the shards order and use a shuffle buffer when you start iterating
         # n.b. set_epoch is required in order for shuffling to be correctly randomised
         # - this is handled by ShuffleCallback

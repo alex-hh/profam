@@ -7,8 +7,8 @@ from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
+from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
-from transformers.tokenizers import PreTrainedTokenizerFast
 
 from src.models.utils import (
     UpdatedDynamicCache,

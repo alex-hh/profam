@@ -1,7 +1,6 @@
 from typing import Optional
 
-from transformers import GPT2Config, GPT2LMHeadModel
-from transformers.tokenizers import PreTrainedTokenizerFast
+from transformers import GPT2Config, GPT2LMHeadModel, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 

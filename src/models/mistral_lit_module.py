@@ -1,7 +1,6 @@
 from typing import Optional
 
-from transformers import MistralConfig, MistralForCausalLM
-from transformers.tokenizers import PreTrainedTokenizerFast
+from transformers import MistralConfig, MistralForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
 
