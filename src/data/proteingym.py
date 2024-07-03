@@ -374,6 +374,7 @@ class GymMultiMSADataModule(LightningDataModule):
         keep_gaps: bool = True,
         mutant_bos_token: str = "sep",
         use_seq_pos: bool = False,
+        max_seq_pos: Optional[int] = None,
         # will allow sampling multiple times from same dataset.
     ):
         super().__init__()
@@ -395,6 +396,7 @@ class GymMultiMSADataModule(LightningDataModule):
             add_special_tokens=True,
         )
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        self.max_seq_pos = max_seq_pos
         if use_seq_pos:
             raise NotImplementedError
         # TODO: fix to avoid hardcoding
@@ -413,6 +415,8 @@ class GymMultiMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         self.train_dataset = self.train_dataset.shuffle(
             buffer_size=self.train_dataset.n_shards // dataset_cfg.file_repeats,
@@ -424,12 +428,16 @@ class GymMultiMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         self.test_dataset = load_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
 
     def setup(self, stage: Optional[str] = None) -> None:

@@ -82,7 +82,8 @@ class ProteinDataModule(LightningDataModule):
                     self.max_tokens,
                     data_dir=self.data_dir,
                     include_doc_hashes=self.count_doc_hashes,
-                    use_seq_pos=self.use_seq_pos
+                    use_seq_pos=self.use_seq_pos,
+                    max_seq_pos=self.max_seq_pos,
                 )
                 # unclear how to get a sharded dataset for use with num workers?
                 # actually when using data_files n_shards is equal to n_files
@@ -107,14 +108,16 @@ class ProteinDataModule(LightningDataModule):
             self.tokenizer,
             self.max_tokens,
             data_dir=self.data_dir,
-            use_seq_pos=self.use_seq_pos
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         self.test_dataset = load_protein_dataset(
             self.dataset_cfgs[self.val_dataset_name],
             self.tokenizer,
             self.max_tokens,
             data_dir=self.data_dir,
-            use_seq_pos=self.use_seq_pos
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         if self.evaluate_gym:
             assert self.gym_dms_ids is not None
@@ -125,7 +128,8 @@ class ProteinDataModule(LightningDataModule):
                 max_mutated_sequences=self.max_gym_sequences,
                 gym_data_dir=self.gym_data_dir,
                 max_tokens=self.max_tokens,
-                use_seq_pos=self.use_seq_pos
+                use_seq_pos=self.use_seq_pos,
+                max_seq_pos=self.max_seq_pos,
             )
         if self.evaluate_ec_class:
             self.ec_class_dataset = load_classifier_dataset(

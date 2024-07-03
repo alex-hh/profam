@@ -108,6 +108,7 @@ def load_protein_dataset(
     split="train",
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
+    max_seq_pos: int = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
@@ -157,7 +158,8 @@ def load_protein_dataset(
         if use_seq_pos:
             tokenized.data["seq_pos"] = get_seq_pos(
                 tokenized.input_ids,
-                tokenizer.sep_token_id
+                tokenizer.sep_token_id,
+                max_seq_pos=max_seq_pos
             )
 
         return tokenized
