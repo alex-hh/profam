@@ -1,0 +1,7 @@
+_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+name: openfold_aligned
+data_path_pattern: openfold/c50_si20_uniclust30_filtered/*.parquet
+is_parquet: true
+keep_gaps: true
+to_upper: false
+keep_insertions: false
