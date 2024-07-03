@@ -184,16 +184,13 @@ def load_gym_dataset(
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+    columns = ["input_ids", "completion_ids", "DMS_scores"]
     if use_relative_positions:
-        columns = [
-            "input_ids",
-            "completion_ids",
-            "DMS_scores",
+        columns += [
             "relative_positions",
             "completion_relative_positions"
         ]
-    else:
-        columns = ["input_ids", "completion_ids", "DMS_scores"]
+
     dataset.set_format(
         type="torch",
         columns=columns,

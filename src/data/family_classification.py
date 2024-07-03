@@ -77,10 +77,13 @@ def load_classifier_dataset(
         remove_columns=["MSA", "completion_seqs"],
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+    columns = ["input_ids", "completion_ids", "family_labels"]
     if use_relative_positions:
-        columns = ["input_ids", "completion_ids", "relative_positions"]
-    else:
-        columns = ["input_ids", "completion_ids"]
+        columns += [
+            "relative_positions",
+            "completion_relative_positions"
+        ]
+
     dataset.set_format(
         type="torch",
         columns=columns,
