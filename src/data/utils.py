@@ -140,7 +140,9 @@ def load_protein_dataset(
     data_files = data_files * cfg.file_repeats
     random.shuffle(data_files)  # TODO: seed explicitly?
     print(
-        f"Loading {cfg.name} dataset from {len(data_files)} files ({cfg.file_repeats} repeats)"
+        f"Loading {cfg.name} dataset from {len(data_files)} files, "
+        f"({cfg.file_repeats} repeats), "
+        f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
     if cfg.is_parquet:
         dataset = load_dataset(
