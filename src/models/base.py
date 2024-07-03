@@ -148,7 +148,7 @@ class BaseLitModule(LightningModule):
         )
         self.log("lr", optimizer.param_groups[0]["lr"])
 
-    def _score_mutants_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
@@ -229,7 +229,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
 
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
-    def score_mutants(self, input_ids, completion_ids, batch_size: int = 1):
+    def score_seqs(self, input_ids, completion_ids, batch_size: int = 1):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -266,7 +266,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
-        lls = self.score_mutants(
+        lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             batch_size=self.scoring_max_tokens // L,
@@ -396,7 +396,7 @@ class BaseFamilyLitModule(BaseLitModule):
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
-        lls = self.score_mutants(
+        lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             use_cache=self.use_kv_cache_for_scoring,

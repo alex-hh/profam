@@ -6,6 +6,6 @@ config:
   _target_: transformers.GPT2Config
   vocab_size: 41
   n_embd: 512
-  n_head: 6
+  n_head: 4
   n_layer: 6
   n_positions: 2048
