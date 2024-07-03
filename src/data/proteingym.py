@@ -162,6 +162,7 @@ def load_gym_msa_dataset(
     gym_data_dir: str = "data/example_data/ProteinGym",
     keep_gaps: bool = True,
 ):
+    """For single-sequence training."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     row = df[df["DMS_id"] == dms_id].iloc[0]
     labels, seqs = fasta.read_fasta(

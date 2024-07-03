@@ -12,7 +12,7 @@ class GPT2SingleSequenceLitModule(BaseSingleSequenceLitModule):
         config: GPT2Config,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
-        weight_decay: float = 0.01,
+        weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
@@ -37,13 +37,12 @@ class GPT2LitModule(BaseFamilyLitModule):
         config: GPT2Config,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
-        weight_decay: float = 0.01,
+        weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
-        compile: bool = False,
     ) -> None:
         model = GPT2LMHeadModel(config)
         super().__init__(

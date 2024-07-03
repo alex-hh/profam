@@ -7,7 +7,6 @@ from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
-from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 from transformers.tokenizers import PreTrainedTokenizerFast
 
@@ -58,6 +57,7 @@ class BaseLitModule(LightningModule):
             lr=self.lr,
             weight_decay=self.weight_decay,
             betas=(0.9, 0.95),
+            eps=1e-5,
         )
         optim_dict = {"optimizer": optimizer}
         if self.scheduler_name is not None:

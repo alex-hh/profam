@@ -26,10 +26,10 @@ class ProteinDataModule(LightningDataModule):
     def __init__(
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
+        val_dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer_path: str,
         data_dir: str,
-        val_dataset_name: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -43,11 +43,11 @@ class ProteinDataModule(LightningDataModule):
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
+        self.val_dataset_cfgs = val_dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.data_dir = data_dir
-        self.val_dataset_name = val_dataset_name
         self.num_shards = num_shards
         if num_workers is None:
             num_workers = min(os.cpu_count(), self.num_shards) or 1
