@@ -7,10 +7,11 @@ from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torchmetrics import MeanMetric
-from transformers import MistralConfig, MistralForCausalLM
+from transformers import MistralConfig
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
+from src.models.transformer_mods.modelling_mistral_pflm import MistralForCausalPFLM, MistralConfigPFLM
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)
@@ -116,7 +117,7 @@ def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=Fa
 class MistralLitModule(LightningModule):
     def __init__(
         self,
-        config: MistralConfig,
+        config: MistralConfigPFLM,
         lr: float = 1e-4,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
@@ -128,7 +129,7 @@ class MistralLitModule(LightningModule):
     ) -> None:
         super().__init__()
         self.save_hyperparameters(logger=False)
-        self.model = MistralForCausalLM(config)
+        self.model = MistralForCausalPFLM(config)
         self.lr = lr
         self.weight_decay = weight_decay
         self.scheduler_name = scheduler_name
@@ -139,6 +140,7 @@ class MistralLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.dataset_sample_counts = {}
         self.doc_hash_counts = {}
+        self.use_relative_positions = config.use_relative_positions
 
     def forward(
         self,
@@ -147,19 +149,27 @@ class MistralLitModule(LightningModule):
         labels=None,
         past_key_values=None,
         use_cache=False,
+        relative_positions=None,
     ):
         return self.model(
             input_ids,
             attention_mask=attention_mask,
+            relative_positions=relative_positions,
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
         )
 
+
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        outputs = self(batch["input_ids"], batch["attention_mask"], batch["input_ids"])
+        outputs = self(
+            batch["input_ids"],
+            batch["attention_mask"],
+            batch["input_ids"],
+            relative_positions=batch.get("relative_positions", None)
+        )
         loss = outputs.loss
         logits = outputs.logits
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
@@ -236,13 +246,24 @@ class MistralLitModule(LightningModule):
         )
         self.log("lr", optimizer.param_groups[0]["lr"])
 
-    def _score_seqs_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_kv_cache(
+        self,
+        input_ids,
+        completion_ids,
+        relative_positions: Optional[torch.LongTensor] = None,
+        completion_relative_positions: Optional[torch.LongTensor] = None,
+        batch_size: int = 1
+    ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        outputs = self.model(input_ids, use_cache=True)
+        outputs = self.model(
+            input_ids,
+            relative_positions=relative_positions,
+            use_cache=True
+        )
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
@@ -250,14 +271,16 @@ class MistralLitModule(LightningModule):
         for batch_start in range(0, completion_ids.shape[1], batch_size):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
             input_ids = completion_ids[
+                        :, batch_start : batch_start + batch_size
+                        ].reshape(-1, L)  # b_mut, L
+            relative_positions = completion_relative_positions[
                 :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # b_mut, L
+                ].reshape(-1, L)  # b_mut, L
             actual_batch_size = input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
             outputs = self.model(
                 input_ids,
+                relative_positions=relative_positions,
                 past_key_values=cache.batch_repeat_interleave(actual_batch_size),
                 use_cache=True,
             )
@@ -267,7 +290,13 @@ class MistralLitModule(LightningModule):
         lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
-    def _score_seqs_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_no_cache(
+        self,
+        input_ids,
+        completion_ids,
+        relative_positions: Optional[torch.LongTensor] = None,
+        batch_size: int = 1
+    ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
@@ -283,7 +312,7 @@ class MistralLitModule(LightningModule):
             assert (
                 input_ids[..., completion_start_pos - 1] == vocab["[SEP]"]
             )  # SEP token
-            outputs = self.model(input_ids)
+            outputs = self.model(input_ids, relative_positions=relative_positions)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, input_ids, start_ix=completion_start_pos - 1
@@ -295,7 +324,13 @@ class MistralLitModule(LightningModule):
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
     def score_seqs(
-        self, input_ids, completion_ids, use_cache: bool = True, batch_size: int = 1
+        self,
+        input_ids,
+        completion_ids,
+        relative_positions: Optional[torch.LongTensor] = None,
+        completion_relative_positions: Optional[torch.LongTensor] = None,
+        use_cache: bool = True,
+        batch_size: int = 1
     ):
         assert (
             input_ids.shape[0] == 1
@@ -303,11 +338,19 @@ class MistralLitModule(LightningModule):
         assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
         if use_cache:
             return self._score_seqs_kv_cache(
-                input_ids, completion_ids, batch_size=batch_size
+                input_ids,
+                completion_ids,
+                relative_positions=relative_positions,
+                completion_relative_positions=completion_relative_positions,
+                batch_size=batch_size
             )
         else:
             return self._score_seqs_no_cache(
-                input_ids, completion_ids, batch_size=batch_size
+                input_ids,
+                completion_ids,
+                relative_positions=relative_positions,
+                completion_relative_positions=completion_relative_positions,
+                batch_size=batch_size
             )
 
     def validation_step_likelihood_scoring(
@@ -334,6 +377,11 @@ class MistralLitModule(LightningModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
+            relative_positions=batch.get("relative_positions", None),
+            completion_relative_positions=batch.get(
+                "completion_relative_positions",
+                None
+            ),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=self.scoring_max_tokens // L
             if self.use_kv_cache_for_scoring
@@ -369,7 +417,10 @@ class MistralLitModule(LightningModule):
             return self.validation_step_likelihood_scoring(batch)
         else:
             outputs = self(
-                batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
+                batch["input_ids"],
+                batch["attention_mask"],
+                labels=batch["input_ids"],
+                relative_positions=batch.get("relative_positions", None)
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
@@ -389,7 +440,10 @@ class MistralLitModule(LightningModule):
             return metric
         else:
             outputs = self(
-                batch["input_ids"], batch["attention_mask"], labels=batch["input_ids"]
+                batch["input_ids"],
+                batch["attention_mask"],
+                labels=batch["input_ids"],
+                relative_positions=batch.get("relative_positions", None)
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)

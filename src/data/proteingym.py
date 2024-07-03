@@ -14,10 +14,15 @@ from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
     load_protein_dataset,
+    get_relative_positions
 )
 
 
-def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
+def tokenize_msa(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    max_tokens=5000,
+):
     # TODO: fix tokenization. copying hf loader for now
     concatenated_seqs = tokenizer.bos_token + tokenizer.sep_token.join(
         sample["MSA"]
@@ -57,10 +62,24 @@ def tokenize_completions(sample, tokenizer: PreTrainedTokenizerFast, bos_token="
 
 
 def tokenize(
-    sample, tokenizer: PreTrainedTokenizerFast, mutant_bos_token="sep", **kwargs
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    mutant_bos_token="sep",
+    use_relative_positions: bool = False,
+    **kwargs
 ):
     sample = tokenize_msa(sample, tokenizer, **kwargs)
     sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
+    if use_relative_positions:
+        sample["relative_positions"] = get_relative_positions(
+            sample["input_ids"],
+            tokenizer.sep_token_id
+        )
+
+        sample["completion_relative_positions"] = get_relative_positions(
+            sample["completion_ids"],
+            tokenizer.sep_token_id
+        )
     return sample
 
 
@@ -133,13 +152,14 @@ def load_gym_dataset(
     max_tokens: int = 5000,
     mutant_bos_token: str = "sep",
     gym_data_dir: str = "data/example_data/ProteinGym",
+    use_relative_positions: bool = False,
 ):
     df = build_gym_df(
         dms_ids,
         gym_data_dir=gym_data_dir,
         seed=seed,
         max_mutated_sequences=max_mutated_sequences,
-        max_tokens=max_tokens,
+        max_tokens=max_tokens
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     dataset = dataset.map(
@@ -148,14 +168,19 @@ def load_gym_dataset(
             tokenizer=tokenizer,
             max_tokens=max_tokens,
             mutant_bos_token=mutant_bos_token,
+            use_relative_positions=use_relative_positions
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+    if use_relative_positions:
+        columns = ["input_ids", "completion_ids", "DMS_scores", "relative_positions"]
+    else:
+        columns = ["input_ids", "completion_ids", "DMS_scores"]
     dataset.set_format(
         type="torch",
-        columns=["input_ids", "completion_ids", "DMS_scores"],
+        columns=columns,
     )
     return dataset
 
@@ -212,6 +237,7 @@ class GymSingleMSADataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
         keep_gaps: bool = True,
+        use_relative_positions: bool = False
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
@@ -220,6 +246,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.gym_dms_id = gym_dms_id
         self.num_workers = num_workers
         self.keep_gaps = keep_gaps
+        self.use_relative_positions = use_relative_positions
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
@@ -238,6 +265,7 @@ class GymSingleMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_mutated_sequences=self.max_gym_sequences,
             gym_data_dir=self.gym_data_dir,
+            use_relative_positions=self.use_relative_positions
         )
         self.msa_dataset = load_gym_msa_dataset(
             dms_id=gym_dms_id,
@@ -332,6 +360,7 @@ class GymMultiMSADataModule(LightningDataModule):
         num_workers: int = 0,
         keep_gaps: bool = True,
         mutant_bos_token: str = "sep",
+        use_relative_positions: bool = False,
         # will allow sampling multiple times from same dataset.
     ):
         super().__init__()
@@ -353,6 +382,8 @@ class GymMultiMSADataModule(LightningDataModule):
             add_special_tokens=True,
         )
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        if use_relative_positions:
+            raise NotImplementedError
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_ids is not None
         assert self.gym_data_dir is not None

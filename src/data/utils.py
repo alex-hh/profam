@@ -13,6 +13,7 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 
 from src.data.fasta import _read_fasta_lines
 
+import torch
 
 # TOOD: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
@@ -26,6 +27,7 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
+    use_relative_positions: bool = False
 
 
 class StringObject:
@@ -71,6 +73,16 @@ class CustomDataCollator:
             batch = self.base_collator(examples)
         return batch
 
+def get_relative_positions(input_ids, sep_token_id):
+    relative_position_ids = torch.zeros_like(input_ids)
+    current_position = 0
+    for i, token_id in enumerate(input_ids):
+        if token_id == sep_token_id or i == 0:
+            current_position = 0
+        else:
+            relative_position_ids[i] = current_position
+            current_position += 1
+    return relative_position_ids
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
@@ -79,6 +91,7 @@ def load_protein_dataset(
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
+    use_relative_positions: bool = False,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
@@ -116,6 +129,7 @@ def load_protein_dataset(
             tokenized.input_ids.shape[1],
             max_tokens,
         )
+
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         tokenized.data["ds_name"] = cfg.name
         if include_doc_hashes:
@@ -123,7 +137,15 @@ def load_protein_dataset(
             tokenized.data["doc_hash"] = hashlib.md5(
                 example["text"][:512].encode()
             ).hexdigest()
+
+        if use_relative_positions:
+            tokenized.data["relative_positions"] = get_relative_positions(
+                tokenized.input_ids,
+                tokenizer.sep_token_id
+            )
+
         return tokenized
+
 
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition

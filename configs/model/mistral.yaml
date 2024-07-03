@@ -1,6 +1,6 @@
 _target_: src.models.mistral_lit_module.MistralLitModule
 config:
-  _target_: transformers.MistralConfig
+  _target_: src.models.transformer_mods.modelling_mistral_pflm.MistralConfigPFLM
   vocab_size: 41
   hidden_size: 128
   intermediate_size: 512
@@ -11,6 +11,8 @@ config:
   bos_token_id: 26
   eos_token_id: 27
   sliding_window: 4096
+  use_relative_positions: True  # embed sequence relative position
+  max_relative_position: 1024  # maximum relative position to embed
 compile: False
 scoring_max_tokens: 8000  # number of tokens to use per batch when scoring mutants
 use_kv_cache_for_scoring: True  # use key-value cache for scoring

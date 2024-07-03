@@ -4,6 +4,7 @@ we create a dataset with a target family
 and a mix of decoys (members of other families)
 and non-decoys (members of the target family)
 """
+from functools import partial
 import glob
 import random
 
@@ -13,7 +14,7 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
-from src.data.proteingym import tokenize_completions, tokenize_msa
+from src.data.proteingym import tokenize
 
 
 def load_classifier_dataset(
@@ -22,6 +23,7 @@ def load_classifier_dataset(
     max_tokens_input=10000,
     max_seqs_to_predict=10,
     num_decoys_per_target=5,
+    use_relative_positions=False,
     seed=42,
 ):
     paths = sorted(glob.glob(fasta_file_pattern))
@@ -61,21 +63,24 @@ def load_classifier_dataset(
 
     # Create a dataset from the list of dictionaries
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
-
-    # Tokenize the MSA and completion sequences
-    dataset = dataset.map(
-        lambda example: tokenize_msa(example, tokenizer, max_tokens=max_tokens_input),
-        batched=False,
-    )
-    dataset = dataset.map(
-        lambda example: tokenize_completions(example, tokenizer),
+    dataset = dataset.map( #  todo 20 lines almost identical to src/data/proteingym.py
+        partial(
+            tokenize,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens_input,
+            mutant_bos_token="sep",  # todo check this
+            use_relative_positions=use_relative_positions
+        ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
     )
-
-    # Set the format of the dataset
+    # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+    if use_relative_positions:
+        columns = ["input_ids", "completion_ids", "DMS_scores", "relative_positions"]
+    else:
+        columns = ["input_ids", "completion_ids", "DMS_scores"]
     dataset.set_format(
-        type="torch", columns=["input_ids", "completion_ids", "family_labels"]
+        type="torch",
+        columns=columns,
     )
-
     return dataset
