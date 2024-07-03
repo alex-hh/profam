@@ -331,7 +331,6 @@ class GymMultiMSADataModule(LightningDataModule):
         max_tokens: int,
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
-        keep_gaps: bool = True,
         mutant_bos_token: str = "sep",
         # will allow sampling multiple times from same dataset.
     ):
@@ -343,7 +342,6 @@ class GymMultiMSADataModule(LightningDataModule):
         self.max_tokens = max_tokens
         self.gym_dms_ids = gym_dms_ids
         self.num_workers = num_workers
-        self.keep_gaps = keep_gaps
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",

@@ -8,7 +8,7 @@
 
 defaults:
   - override /data: gym_multi_msa
-  - override /model: gpt2small
+  - override /model: gpt2tiny
   - override /callbacks: default_with_shuffle
   - override /trainer: default
 

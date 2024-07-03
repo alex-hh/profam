@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from datasets import interleave_datasets
 from lightning import LightningDataModule
@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
+from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -19,10 +20,10 @@ class ProteinDataModule(LightningDataModule):
     def __init__(
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
-        val_dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer_path: str,
         data_dir: str,
+        val_dataset_name: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -30,20 +31,16 @@ class ProteinDataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
-        num_shards: Optional[int] = 8,
         evaluate_ec_class: bool = True,
         count_doc_hashes: bool = True,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
-        self.val_dataset_cfgs = val_dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.data_dir = data_dir
-        self.num_shards = num_shards
-        if num_workers is None:
-            num_workers = min(os.cpu_count(), self.num_shards) or 1
+        self.val_dataset_name = val_dataset_name
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
@@ -64,8 +61,8 @@ class ProteinDataModule(LightningDataModule):
         self.count_doc_hashes = count_doc_hashes
 
     def setup(self, stage: Optional[str] = None) -> None:
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
         if self.num_workers > 0:
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
             print(f"Using {self.num_workers} workers for data loading")
 
         train_datasets = []
@@ -92,6 +89,7 @@ class ProteinDataModule(LightningDataModule):
             split="train",
             seed=42,
         )
+        print("Num shards", self.train_dataset.n_shards)
         # will shuffle the shards order and use a shuffle buffer when you start iterating
         # n.b. set_epoch is required in order for shuffling to be correctly randomised
         # - this is handled by ShuffleCallback
