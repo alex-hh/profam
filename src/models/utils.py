@@ -30,7 +30,7 @@ class UpdatedDynamicCache(DynamicCache):
             )
 
 
-def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-100):
+def accuracy_from_outputs(model_outputs, labels, start_ix=0, ignore_index=-100):
     """Compute the accuracy of the target sequence given the model outputs.
 
     Args:
@@ -45,7 +45,7 @@ def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-10
     logits = model_outputs.logits
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
-    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
+    shift_labels = labels[..., start_ix + 1 :].contiguous()  # b, L
     # Ensure tensors are on the same device
     shift_labels = shift_labels.to(shift_logits.device)
     non_padding_mask = shift_labels != ignore_index
@@ -55,7 +55,7 @@ def accuracy_from_outputs(model_outputs, input_ids, start_ix=0, ignore_index=-10
     return accuracy
 
 
-def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=False):
+def log_likelihood_from_outputs(model_outputs, labels, start_ix=0, flatten=False):
     """Compute the negative log likelihood of the target sequence given the model outputs.
 
     Args:
@@ -70,11 +70,10 @@ def log_likelihood_from_outputs(model_outputs, input_ids, start_ix=0, flatten=Fa
 
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
-    shift_labels = input_ids[..., start_ix + 1 :].contiguous()  # b, L
+    shift_labels = labels[..., start_ix + 1 :, :].contiguous()  # b, L
     # Ensure tensors are on the same device
     shift_labels = shift_labels.to(shift_logits.device)
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
-    # TODO: handle possible padding?
 
     if flatten:
         # Flatten the tokens
