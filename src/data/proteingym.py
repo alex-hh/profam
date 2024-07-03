@@ -10,7 +10,11 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 
 from src.data import fasta
 from src.data import utils as data_utils
-from src.data.utils import ProteinDatasetConfig, load_protein_dataset
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
 
 
 def tokenize_msa(sample, tokenizer: PreTrainedTokenizerFast, max_tokens=5000):
@@ -226,7 +230,7 @@ class GymSingleMSADataModule(LightningDataModule):
             mask_token="[MASK]",
             add_special_tokens=True,
         )
-        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
+        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_id is not None
         assert self.gym_data_dir is not None
@@ -247,7 +251,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.val_dataset = ddict["test"]
 
     def setup(self, stage: Optional[str] = None) -> None:
-        pass
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
@@ -349,7 +353,7 @@ class GymMultiMSADataModule(LightningDataModule):
             mask_token="[MASK]",
             add_special_tokens=True,
         )
-        self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
+        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_ids is not None
         assert self.gym_data_dir is not None
@@ -386,7 +390,7 @@ class GymMultiMSADataModule(LightningDataModule):
         )
 
     def setup(self, stage: Optional[str] = None) -> None:
-        pass
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(

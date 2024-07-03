@@ -1,11 +1,5 @@
-import bisect
-import glob
-import hashlib
-import itertools
 import os
-import random
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from datasets import interleave_datasets
 from lightning import LightningDataModule
@@ -13,7 +7,6 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
-from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -71,8 +64,8 @@ class ProteinDataModule(LightningDataModule):
         self.count_doc_hashes = count_doc_hashes
 
     def setup(self, stage: Optional[str] = None) -> None:
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
         if self.num_workers > 0:
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
             print(f"Using {self.num_workers} workers for data loading")
 
         train_datasets = []
