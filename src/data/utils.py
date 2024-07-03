@@ -73,15 +73,31 @@ class CustomDataCollator:
             batch = self.base_collator(examples)
         return batch
 
-def get_relative_positions(input_ids, sep_token_id):
+def get_relative_positions(
+    input_ids,
+    sep_token_id,
+    max_relative_position: int = 1024
+):
+    """
+    returns a tensor representing the sequence position
+    of each token relative to the last SEP token
+    0-indexed
+    assumes that the zeroth token is not a residue
+    Note that PAD tokens also get assigned relative positions
+    """
     relative_position_ids = torch.zeros_like(input_ids)
     current_position = 0
     for i, token_id in enumerate(input_ids):
         if token_id == sep_token_id or i == 0:
             current_position = 0
+            assert (
+                token_id <= 24,
+                "First token should not represent a residue"
+            )
         else:
             relative_position_ids[i] = current_position
-            current_position += 1
+            if current_position < max_relative_position -1:
+                current_position += 1
     return relative_position_ids
 
 def load_protein_dataset(

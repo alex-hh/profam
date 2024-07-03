@@ -34,6 +34,7 @@ class ProteinDataModule(LightningDataModule):
         evaluate_ec_class: bool = True,
         count_doc_hashes: bool = True,
         use_relative_positions: bool = False,
+        max_relative_position: int = 1024,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -64,6 +65,7 @@ class ProteinDataModule(LightningDataModule):
         )
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.count_doc_hashes = count_doc_hashes
+        self.max_relative_position = max_relative_position
 
     def setup(self, stage: Optional[str] = None) -> None:
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -130,6 +132,7 @@ class ProteinDataModule(LightningDataModule):
                 "data/example_data/expasy_ec/*.fasta",
                 self.tokenizer,
                 use_relative_positions=self.use_relative_positions,
+                max_relative_position=self.max_relative_position,
             )
 
     def train_dataloader(self) -> list[DataLoader]:

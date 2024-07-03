@@ -24,6 +24,7 @@ def load_classifier_dataset(
     max_seqs_to_predict=10,
     num_decoys_per_target=5,
     use_relative_positions=False,
+    max_relative_position: int = 1024,
     seed=42,
 ):
     paths = sorted(glob.glob(fasta_file_pattern))
@@ -69,16 +70,17 @@ def load_classifier_dataset(
             tokenizer=tokenizer,
             max_tokens=max_tokens_input,
             mutant_bos_token="sep",  # todo check this
-            use_relative_positions=use_relative_positions
+            use_relative_positions=use_relative_positions,
+            max_relative_position=max_relative_position,
         ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     if use_relative_positions:
-        columns = ["input_ids", "completion_ids", "DMS_scores", "relative_positions"]
+        columns = ["input_ids", "completion_ids", "relative_positions"]
     else:
-        columns = ["input_ids", "completion_ids", "DMS_scores"]
+        columns = ["input_ids", "completion_ids"]
     dataset.set_format(
         type="torch",
         columns=columns,

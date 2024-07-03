@@ -6,6 +6,7 @@ import pandas as pd
 from datasets import Dataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
+from torch import stack
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data import fasta
@@ -66,6 +67,7 @@ def tokenize(
     tokenizer: PreTrainedTokenizerFast,
     mutant_bos_token="sep",
     use_relative_positions: bool = False,
+    max_relative_position: int = 1024,
     **kwargs
 ):
     sample = tokenize_msa(sample, tokenizer, **kwargs)
@@ -73,13 +75,19 @@ def tokenize(
     if use_relative_positions:
         sample["relative_positions"] = get_relative_positions(
             sample["input_ids"],
-            tokenizer.sep_token_id
+            tokenizer.sep_token_id,
+            max_relative_position=max_relative_position,
         )
-
-        sample["completion_relative_positions"] = get_relative_positions(
-            sample["completion_ids"],
-            tokenizer.sep_token_id
-        )
+        completion_pos = stack([
+            # todo: do we need to iterate or will each they be the same?
+            get_relative_positions(
+                completion,
+                tokenizer.sep_token_id,
+                max_relative_position=max_relative_position,
+            )
+            for completion in sample["completion_ids"]
+        ])
+        sample["completion_relative_positions"] = completion_pos
     return sample
 
 
@@ -153,6 +161,7 @@ def load_gym_dataset(
     mutant_bos_token: str = "sep",
     gym_data_dir: str = "data/example_data/ProteinGym",
     use_relative_positions: bool = False,
+    max_relative_position: int = 1024,
 ):
     df = build_gym_df(
         dms_ids,
@@ -168,14 +177,21 @@ def load_gym_dataset(
             tokenizer=tokenizer,
             max_tokens=max_tokens,
             mutant_bos_token=mutant_bos_token,
-            use_relative_positions=use_relative_positions
+            use_relative_positions=use_relative_positions,
+            max_relative_position=max_relative_position,
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     if use_relative_positions:
-        columns = ["input_ids", "completion_ids", "DMS_scores", "relative_positions"]
+        columns = [
+            "input_ids",
+            "completion_ids",
+            "DMS_scores",
+            "relative_positions",
+            "completion_relative_positions"
+        ]
     else:
         columns = ["input_ids", "completion_ids", "DMS_scores"]
     dataset.set_format(
