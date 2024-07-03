@@ -19,20 +19,20 @@ from torch.nn import CrossEntropyLoss
 class MistralConfigPFLM(MistralConfig):
     def __init__(
         self,
-        use_relative_positions=False,
-        max_relative_position=2048,
+        use_seq_pos=False,
+        max_seq_pos=2048,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.use_relative_positions = use_relative_positions
-        self.max_len_single_seq = max_relative_position
+        self.use_seq_pos = use_seq_pos
+        self.max_len_single_seq = max_seq_pos
 
 class MistralModelPFLM(MistralModel):
     def __init__(self, config: MistralConfigPFLM):
         super().__init__(config)
-        self.use_relative_positions = config.use_relative_positions
-        if config.use_relative_positions:
-            self.relative_embed_tokens = nn.Embedding(
+        self.use_seq_pos = config.use_seq_pos
+        if config.use_seq_pos:
+            self.seq_pos_tokens = nn.Embedding(
                 config.max_len_single_seq,
                 config.hidden_size
             )
@@ -41,7 +41,7 @@ class MistralModelPFLM(MistralModel):
         self,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
-        relative_positions: Optional[torch.LongTensor] = None,  # added for PFLM
+        seq_pos: Optional[torch.LongTensor] = None,  # added for PFLM
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -129,14 +129,14 @@ class MistralModelPFLM(MistralModel):
 
         hidden_states = inputs_embeds
         #### start of new PFLM code ####
-        if self.use_relative_positions:
-            if relative_positions is None:
+        if self.use_seq_pos:
+            if seq_pos is None:
                 raise ValueError(
-                    "use_relative_positions is True "
-                    "but relative_positions is not provided."
+                    "use_seq_pos is True "
+                    "but seq_pos is not provided."
                 )
-            relative_embeds = self.relative_embed_tokens(relative_positions)
-            hidden_states = hidden_states + relative_embeds
+            seq_pos_embeds = self.seq_pos_tokens(seq_pos)
+            hidden_states = hidden_states + seq_pos_embeds
         #### end of new PFLM code ####
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -203,7 +203,7 @@ class MistralForCausalPFLM(MistralForCausalLM):
         self,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
-        relative_positions: Optional[torch.LongTensor] = None,  # added this line for PFLM
+        seq_pos: Optional[torch.LongTensor] = None,  # added this line for PFLM
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -223,7 +223,7 @@ class MistralForCausalPFLM(MistralForCausalLM):
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            relative_positions=relative_positions,  # added this line for PFLM
+            seq_pos=seq_pos,  # added this line for PFLM
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,

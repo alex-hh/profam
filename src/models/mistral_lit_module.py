@@ -140,7 +140,7 @@ class MistralLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.dataset_sample_counts = {}
         self.doc_hash_counts = {}
-        self.use_relative_positions = config.use_relative_positions
+        self.use_seq_pos = config.use_seq_pos
 
     def forward(
         self,
@@ -149,12 +149,12 @@ class MistralLitModule(LightningModule):
         labels=None,
         past_key_values=None,
         use_cache=False,
-        relative_positions=None,
+        seq_pos=None,
     ):
         return self.model(
             input_ids,
             attention_mask=attention_mask,
-            relative_positions=relative_positions,
+            seq_pos=seq_pos,
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
@@ -168,7 +168,7 @@ class MistralLitModule(LightningModule):
             batch["input_ids"],
             batch["attention_mask"],
             batch["input_ids"],
-            relative_positions=batch.get("relative_positions", None)
+            seq_pos=batch.get("seq_pos", None)
         )
         loss = outputs.loss
         logits = outputs.logits
@@ -250,8 +250,8 @@ class MistralLitModule(LightningModule):
         self,
         input_ids,
         completion_ids,
-        relative_positions: Optional[torch.LongTensor] = None,
-        completion_relative_positions: Optional[torch.LongTensor] = None,
+        seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1
     ):
         # input_ids is b, L; completion_ids is b, n, L
@@ -261,7 +261,7 @@ class MistralLitModule(LightningModule):
         all_lls = []
         outputs = self.model(
             input_ids,
-            relative_positions=relative_positions,
+            seq_pos=seq_pos,
             use_cache=True
         )
         past_key_values = (
@@ -273,14 +273,14 @@ class MistralLitModule(LightningModule):
             input_ids = completion_ids[
                         :, batch_start : batch_start + batch_size
                         ].reshape(-1, L)  # b_mut, L
-            relative_positions = completion_relative_positions[
+            seq_pos = completion_seq_pos[
                 :, batch_start : batch_start + batch_size
                 ].reshape(-1, L)  # b_mut, L
             actual_batch_size = input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
             outputs = self.model(
                 input_ids,
-                relative_positions=relative_positions,
+                seq_pos=seq_pos,
                 past_key_values=cache.batch_repeat_interleave(actual_batch_size),
                 use_cache=True,
             )
@@ -294,7 +294,7 @@ class MistralLitModule(LightningModule):
         self,
         input_ids,
         completion_ids,
-        relative_positions: Optional[torch.LongTensor] = None,
+        seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1
     ):
         # input_ids is b, L; completion_ids is b, n, L
@@ -312,7 +312,7 @@ class MistralLitModule(LightningModule):
             assert (
                 input_ids[..., completion_start_pos - 1] == vocab["[SEP]"]
             )  # SEP token
-            outputs = self.model(input_ids, relative_positions=relative_positions)
+            outputs = self.model(input_ids, seq_pos=seq_pos)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, input_ids, start_ix=completion_start_pos - 1
@@ -327,8 +327,8 @@ class MistralLitModule(LightningModule):
         self,
         input_ids,
         completion_ids,
-        relative_positions: Optional[torch.LongTensor] = None,
-        completion_relative_positions: Optional[torch.LongTensor] = None,
+        input_seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
         use_cache: bool = True,
         batch_size: int = 1
     ):
@@ -340,16 +340,16 @@ class MistralLitModule(LightningModule):
             return self._score_seqs_kv_cache(
                 input_ids,
                 completion_ids,
-                relative_positions=relative_positions,
-                completion_relative_positions=completion_relative_positions,
+                seq_pos=input_seq_pos,
+                completion_seq_pos=completion_seq_pos,
                 batch_size=batch_size
             )
         else:
             return self._score_seqs_no_cache(
                 input_ids,
                 completion_ids,
-                relative_positions=relative_positions,
-                completion_relative_positions=completion_relative_positions,
+                seq_pos=input_seq_pos,
+                completion_seq_pos=completion_seq_pos,
                 batch_size=batch_size
             )
 
@@ -377,9 +377,9 @@ class MistralLitModule(LightningModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            relative_positions=batch.get("relative_positions", None),
-            completion_relative_positions=batch.get(
-                "completion_relative_positions",
+            input_seq_pos=batch.get("seq_pos", None),
+            completion_seq_pos=batch.get(
+                "completion_seq_pos",
                 None
             ),
             use_cache=self.use_kv_cache_for_scoring,
@@ -420,7 +420,7 @@ class MistralLitModule(LightningModule):
                 batch["input_ids"],
                 batch["attention_mask"],
                 labels=batch["input_ids"],
-                relative_positions=batch.get("relative_positions", None)
+                seq_pos=batch.get("seq_pos", None)
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)
@@ -443,7 +443,7 @@ class MistralLitModule(LightningModule):
                 batch["input_ids"],
                 batch["attention_mask"],
                 labels=batch["input_ids"],
-                relative_positions=batch.get("relative_positions", None)
+                seq_pos=batch.get("seq_pos", None)
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["input_ids"], ignore_index=-100)

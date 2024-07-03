@@ -27,7 +27,7 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
-    use_relative_positions: bool = False
+    use_seq_pos: bool = False
 
 
 class StringObject:
@@ -73,19 +73,19 @@ class CustomDataCollator:
             batch = self.base_collator(examples)
         return batch
 
-def get_relative_positions(
+def get_seq_pos(
     input_ids,
     sep_token_id,
-    max_relative_position: int = 1024
+    max_seq_pos: int = 1024
 ):
     """
     returns a tensor representing the sequence position
     of each token relative to the last SEP token
     0-indexed
     assumes that the zeroth token is not a residue
-    Note that PAD tokens also get assigned relative positions
+    Note that PAD tokens also get assigned seq positions
     """
-    relative_position_ids = torch.zeros_like(input_ids)
+    seq_pos_ids = torch.zeros_like(input_ids)
     current_position = 0
     for i, token_id in enumerate(input_ids):
         if token_id == sep_token_id or i == 0:
@@ -95,10 +95,10 @@ def get_relative_positions(
                 "First token should not represent a residue"
             )
         else:
-            relative_position_ids[i] = current_position
-            if current_position < max_relative_position -1:
+            seq_pos_ids[i] = current_position
+            if current_position < max_seq_pos -1:
                 current_position += 1
-    return relative_position_ids
+    return seq_pos_ids
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
@@ -107,7 +107,7 @@ def load_protein_dataset(
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
-    use_relative_positions: bool = False,
+    use_seq_pos: bool = False,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
@@ -154,8 +154,8 @@ def load_protein_dataset(
                 example["text"][:512].encode()
             ).hexdigest()
 
-        if use_relative_positions:
-            tokenized.data["relative_positions"] = get_relative_positions(
+        if use_seq_pos:
+            tokenized.data["seq_pos"] = get_seq_pos(
                 tokenized.input_ids,
                 tokenizer.sep_token_id
             )

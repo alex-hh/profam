@@ -8,4 +8,4 @@ gym_data_dir: ../data/ProteinGym
 data_dir: ../data
 max_tokens: 2048
 batch_size: 16
-use_relative_positions: True
+use_seq_pos: True
