@@ -50,6 +50,7 @@ class GPT2LitModule(BaseFamilyLitModule):
         if use_seq_pos:
             model = TransformerWithSequencePositionEmbeddings(
                 model,
+                model.wte,
                 use_seq_pos=use_seq_pos,
                 max_seq_pos=max_seq_pos,
             )

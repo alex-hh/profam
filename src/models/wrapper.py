@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import torch
 from torch import nn
@@ -14,11 +14,13 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
     def __init__(
         self,
         model: PreTrainedModel,
+        token_embedder: Callable,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
     ):
         super().__init__()
         self.model = model
+        self.token_embedder = token_embedder
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         if self.use_seq_pos:
@@ -35,7 +37,10 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         # n.b. we need to be careful about what happens when caching.
         # I think in that case input_ids should just be the continuation
         # and inputs_embeds should also.
-        inputs_embeds = self.embed_tokens(input_ids)
+        # different models will have different token embedders.
+        # we assume (which is case for e.g. gpt2 and mistral)
+        # that the model will itself add its own position embeddings to inputs_embeds
+        inputs_embeds = self.token_embedder(input_ids)
         if self.use_seq_pos:
             assert seq_pos is not None
             pos_embeds = self.seq_pos_embedding(seq_pos)
