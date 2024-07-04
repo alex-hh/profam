@@ -67,9 +67,8 @@ def tokenize(
     mutant_bos_token="sep",
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
-    **kwargs
 ):
-    sample = tokenize_msa(sample, tokenizer, **kwargs)
+    sample = tokenize_msa(sample, tokenizer)
     sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
     if use_seq_pos:
         sample["seq_pos"] = get_seq_pos(
@@ -101,6 +100,7 @@ def load_msa_for_row(
         to_upper=True,
         keep_gaps=keep_gaps,
     )
+    # need to allow room for the completion
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     sampled_seqs = data_utils.sample_to_max_tokens(
         seqs,
@@ -182,7 +182,6 @@ def load_gym_dataset(
         functools.partial(
             tokenize,
             tokenizer=tokenizer,
-            max_tokens=max_tokens,
             mutant_bos_token=mutant_bos_token,
             use_seq_pos=use_seq_pos,
             max_seq_pos=max_seq_pos,
