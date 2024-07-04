@@ -25,7 +25,7 @@ class MistralConfigPFLM(MistralConfig):
     ):
         super().__init__(**kwargs)
         self.use_seq_pos = use_seq_pos
-        self.max_len_single_seq = max_seq_pos
+        self.max_seq_pos = max_seq_pos
 
 class MistralModelPFLM(MistralModel):
     """
@@ -42,7 +42,7 @@ class MistralModelPFLM(MistralModel):
         self.use_seq_pos = config.use_seq_pos
         if config.use_seq_pos:
             self.seq_pos_tokens = nn.Embedding(
-                config.max_len_single_seq,
+                config.max_seq_pos,
                 config.hidden_size
             )
 

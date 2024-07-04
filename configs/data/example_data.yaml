@@ -20,4 +20,4 @@ max_gym_sequences: null
 num_workers: 0  # None means use all available CPU cores
 gym_data_dir: example_data/ProteinGym
 use_seq_pos: True  # embed sequence relative position
-max_seq_pos: 512  # maximum sequence position
+max_seq_pos: 1024  # maximum sequence position
