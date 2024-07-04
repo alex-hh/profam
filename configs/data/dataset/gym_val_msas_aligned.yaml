@@ -1,0 +1,8 @@
+_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+name: gym_val_msas
+data_path_pattern: null
+is_parquet: false
+keep_gaps: true
+to_upper: true
+keep_insertions: true
+data_path_file: ProteinGym/msa_files_val.txt

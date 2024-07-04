@@ -1,0 +1,82 @@
+# @package _global_
+# train on filtered openfold and
+# enzyme commission datasets
+
+
+defaults:
+  - override /data: null
+  - override /model: mistral #gpt2small
+  - override /callbacks: default_with_shuffle
+  - override /trainer: default
+  - _self_
+
+tags: ["gym_train"]
+
+seed: 12345
+
+
+trainer:
+  min_epochs: 10
+  max_epochs: 10000
+  gradient_clip_val: 0.3
+  accumulate_grad_batches: 124
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
+  accelerator: gpu
+
+model:
+  scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
+  num_warmup_steps: 600
+  lr: 6e-5
+
+data:
+  _target_: src.data.hf_protein_datamodule.ProteinDataModule
+  batch_size: 20
+  num_workers: 8
+  max_tokens: 4000
+  data_dir: ../data
+  val_dataset_name: interpro
+  tokenizer_path: src/data/components/profam_tokenizer.json
+  evaluate_gym: True
+  gym_data_dir: ../data/ProteinGym
+  count_doc_hashes: True # count the num times each document gets sampled
+  gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "CALM1_HUMAN_Weile_2017", "DYR_ECOLI_Thompson_2019", "DLG4_RAT_McLaughlin_2012", "REV_HV1H2_Fernandes_2016", "TAT_HV1BR_Fernandes_2016", "RL40A_YEAST_Roscoe_2013", "P53_HUMAN_Giacomelli_2018_WT_Nutlin"]
+  dataset_cfgs:
+    openfold_aligned_c50_si20:
+      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      name: openfold_aligned_c50_si20
+      data_path_pattern: openfold/c50_si20_uniclust30_filtered/*.parquet
+      is_parquet: true
+      keep_gaps: true
+      to_upper: false
+      keep_insertions: false
+
+    ec:
+      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      name: ec
+      data_path_pattern: ec/ec_fastas/*.fasta
+      is_parquet: false
+      keep_gaps: false
+      to_upper: false
+      keep_insertions: false
+
+    interpro:
+      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      name: interpro
+      data_path_pattern: ../profam/data/example_data/interpro/protein-matching-*.fasta
+      keep_gaps: false
+      to_upper: false
+      keep_insertions: false
+
+  data_weights:
+    openfold_aligned_c50_si20: 0.5
+    ec: 0.5
+    interpro: 0.0
+
+logger:
+  wandb:
+    tags: ${tags}
+    group: "gym_train_multi_msa"
+
+float32_matmul_precision: high
+ckpt_path: null

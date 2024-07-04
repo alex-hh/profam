@@ -6,6 +6,7 @@ and non-decoys (members of the target family)
 """
 import glob
 import random
+from functools import partial
 
 import pandas as pd
 from datasets import Dataset
@@ -13,7 +14,7 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
-from src.data.proteingym import tokenize_completions, tokenize_msa
+from src.data.proteingym import tokenize
 
 
 def load_classifier_dataset(
@@ -22,6 +23,8 @@ def load_classifier_dataset(
     max_tokens_input=10000,
     max_seqs_to_predict=10,
     num_decoys_per_target=5,
+    use_seq_pos=False,
+    max_seq_pos: int = 1024,
     seed=42,
 ):
     paths = sorted(glob.glob(fasta_file_pattern))
@@ -61,21 +64,24 @@ def load_classifier_dataset(
 
     # Create a dataset from the list of dictionaries
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
-
-    # Tokenize the MSA and completion sequences
-    dataset = dataset.map(
-        lambda example: tokenize_msa(example, tokenizer, max_tokens=max_tokens_input),
-        batched=False,
-    )
-    dataset = dataset.map(
-        lambda example: tokenize_completions(example, tokenizer),
+    dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
+        partial(
+            tokenize,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens_input,
+            mutant_bos_token="sep",  # todo check this
+            use_seq_pos=use_seq_pos,
+            max_seq_pos=max_seq_pos,
+        ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
     )
+    columns = ["input_ids", "completion_ids", "family_labels"]
+    if use_seq_pos:
+        columns += ["seq_pos", "completion_seq_pos"]
 
-    # Set the format of the dataset
     dataset.set_format(
-        type="torch", columns=["input_ids", "completion_ids", "family_labels"]
+        type="torch",
+        columns=columns,
     )
-
     return dataset

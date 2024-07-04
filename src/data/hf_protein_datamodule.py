@@ -1,145 +1,19 @@
-import bisect
-import glob
-import hashlib
-import itertools
 import os
-import random
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from datasets import Dataset, interleave_datasets, load_dataset
+from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
 from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
-
-
-# TODO: in future we might actually want standalone dataset class for
-# more flexible customisation (e.g. mapping uniprot ids via db)
-@dataclass
-class ProteinDatasetConfig:
-    data_path_pattern: str
-    name: str
-    keep_gaps: bool = False
-    keep_insertions: bool = False
-    to_upper: bool = False
-    # https://huggingface.co/docs/datasets-server/en/parquet
-    is_parquet: bool = False
-
-
-class StringObject:
-    """
-    Custom class to allow for
-    non-tensor elements in batch
-    """
-
-    text: List[str]
-
-    def to(self, device):
-        return self
-
-
-class CustomDataCollator:
-    """
-    Wraps DataCollatorForLanguageModeling
-    allows us to include elements which are not
-    tensors with seq_len dimension, eg. dataset names
-    """
-
-    def __init__(self, tokenizer, mlm=False):
-        self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
-
-    def __call__(self, examples):
-        has_ds_name = "ds_name" in examples[0]
-        has_doc_hash = "doc_hash" in examples[0]
-        if has_ds_name or has_doc_hash:
-            if has_ds_name:
-                ds_names = [example.pop("ds_name") for example in examples]
-            if has_doc_hash:
-                doc_hashes = [example.pop("doc_hash") for example in examples]
-            batch = self.base_collator(examples)
-            if has_ds_name:
-                ds_names_obj = StringObject()
-                ds_names_obj.text = ds_names
-                batch["ds_name"] = ds_names_obj
-            if has_doc_hash:
-                doc_hash_obj = StringObject()
-                doc_hash_obj.text = doc_hashes
-                batch["doc_hash"] = doc_hash_obj
-        else:
-            batch = self.base_collator(examples)
-        return batch
-
-
-def load_protein_dataset(
-    cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
-    max_tokens: int = 5000,
-    split="train",
-    include_doc_hashes=False,
-) -> Dataset:
-    def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        sequences = [
-            seq
-            for _, seq in _read_fasta_lines(
-                example["text"].split("\n"),
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
-            )
-        ]
-        random.shuffle(sequences)
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,  #  TODO insertion point gives seq lens > max_tokens+~500
-        )  # -2 for doc start and end tokens
-        concatenated_seqs = (
-            tokenizer.bos_token
-            + tokenizer.sep_token.join(sequences[:insertion_point])
-            + tokenizer.sep_token
-        )
-        tokenized = tokenizer(
-            concatenated_seqs,
-            truncation=True,
-            max_length=max_tokens,
-            return_tensors="pt",
-            padding="max_length",
-            add_special_tokens=False,
-        )
-        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
-        tokenized.data["ds_name"] = cfg.name
-        if include_doc_hashes:
-            # identify documents by a hash of the first 512 characters
-            tokenized.data["doc_hash"] = hashlib.md5(
-                example["text"][:512].encode()
-            ).hexdigest()
-        return tokenized
-
-    if cfg.is_parquet:
-        dataset = load_dataset(
-            path="parquet",
-            data_files=cfg.data_path_pattern,
-            split=split,
-            streaming=True,
-            ignore_verifications=True,
-        )
-    else:
-        dataset = load_dataset(
-            path="text",
-            data_files=cfg.data_path_pattern,
-            split=split,
-            streaming=True,
-            sample_by="document",
-        )
-    dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
-
-    return dataset
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
 
 
 class ProteinDataModule(LightningDataModule):
@@ -148,6 +22,8 @@ class ProteinDataModule(LightningDataModule):
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer_path: str,
+        data_dir: str,
+        val_dataset_name: str,
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -157,20 +33,24 @@ class ProteinDataModule(LightningDataModule):
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
         count_doc_hashes: bool = True,
+        use_seq_pos: bool = False,
+        max_seq_pos: int = 1024,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.max_tokens = max_tokens
-        if num_workers is None:
-            num_workers = os.cpu_count() or 1
+        self.data_dir = data_dir
+        self.val_dataset_name = val_dataset_name
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
-        self.gym_data_dir = gym_data_dir
+        self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
+        self.use_seq_pos = use_seq_pos
+        self.max_seq_pos = max_seq_pos  # max embed index for relative position
         self.tokenizer_path = tokenizer_path
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
@@ -184,38 +64,31 @@ class ProteinDataModule(LightningDataModule):
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.count_doc_hashes = count_doc_hashes
 
-        if self.evaluate_gym:
-            # TODO: fix to avoid hardcoding
-            assert self.gym_dms_ids is not None
-            assert self.gym_data_dir is not None
-            self.gym_dataset = load_gym_dataset(
-                dms_ids=self.gym_dms_ids,
-                tokenizer=self.tokenizer,
-                max_mutated_sequences=self.max_gym_sequences,
-                gym_data_dir=self.gym_data_dir,
-            )
-
     def setup(self, stage: Optional[str] = None) -> None:
         if self.num_workers > 0:
-            os.environ["TOKENIZERS_PARALLELISM"] = "true"
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
             print(f"Using {self.num_workers} workers for data loading")
 
         train_datasets = []
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
-            print(
-                f"{len(glob.glob(dataset_config.data_path_pattern))} "
-                f"files found for {data_key}"
-            )
-            dataset = load_protein_dataset(
-                dataset_config,
-                self.tokenizer,
-                self.max_tokens,
-                include_doc_hashes=self.count_doc_hashes,
-            )
-            train_datasets.append(dataset)
-            train_data_weights.append(self.data_weights[data_key])
-
+            if data_key != self.val_dataset_name:
+                dataset = load_protein_dataset(
+                    dataset_config,
+                    self.tokenizer,
+                    self.max_tokens,
+                    data_dir=self.data_dir,
+                    include_doc_hashes=self.count_doc_hashes,
+                    use_seq_pos=self.use_seq_pos,
+                    max_seq_pos=self.max_seq_pos,
+                )
+                # unclear how to get a sharded dataset for use with num workers?
+                # actually when using data_files n_shards is equal to n_files
+                # https://huggingface.co/docs/datasets/about_mapstyle_vs_iterable
+                # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
+                # https://github.com/huggingface/datasets/pull/5735
+                train_datasets.append(dataset)
+                train_data_weights.append(self.data_weights[data_key])
         self.train_dataset = interleave_datasets(
             train_datasets,
             probabilities=train_data_weights,
@@ -223,23 +96,47 @@ class ProteinDataModule(LightningDataModule):
             split="train",
             seed=42,
         )
+        print("Num shards", self.train_dataset.n_shards)
+        if self.num_workers is None:
+            self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
+        # will shuffle the shards order and use a shuffle buffer when you start iterating
+        # n.b. set_epoch is required in order for shuffling to be correctly randomised
+        # - this is handled by ShuffleCallback
+        self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
         self.val_dataset = load_protein_dataset(
-            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs[self.val_dataset_name],
+            self.tokenizer,
+            self.max_tokens,
+            data_dir=self.data_dir,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         self.test_dataset = load_protein_dataset(
-            self.dataset_cfgs["interpro"], self.tokenizer, self.max_tokens
+            self.dataset_cfgs[self.val_dataset_name],
+            self.tokenizer,
+            self.max_tokens,
+            data_dir=self.data_dir,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         if self.evaluate_gym:
-            # TODO: add configuration to avoid hardcoding
+            assert self.gym_dms_ids is not None
+            print("Loading gym dataset", self.gym_dms_ids)
             self.gym_dataset = load_gym_dataset(
-                dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
+                dms_ids=self.gym_dms_ids,
                 tokenizer=self.tokenizer,
                 max_mutated_sequences=self.max_gym_sequences,
                 gym_data_dir=self.gym_data_dir,
+                max_tokens=self.max_tokens,
+                use_seq_pos=self.use_seq_pos,
+                max_seq_pos=self.max_seq_pos,
             )
         if self.evaluate_ec_class:
             self.ec_class_dataset = load_classifier_dataset(
-                "data/example_data/expasy_ec/*.fasta", self.tokenizer
+                "data/example_data/expasy_ec/*.fasta",
+                self.tokenizer,
+                use_seq_pos=self.use_seq_pos,
+                max_seq_pos=self.max_seq_pos,
             )
 
     def train_dataloader(self) -> list[DataLoader]:

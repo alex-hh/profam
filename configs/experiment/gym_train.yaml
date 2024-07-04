@@ -1,0 +1,42 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: gym_train
+  - override /model: gpt2small
+  - override /callbacks: default_with_shuffle
+  - override /trainer: gpu
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["gym_train"]
+
+seed: 12345
+
+trainer:
+  min_epochs: 10
+  max_epochs: 10000
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 50
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 20
+  log_every_n_steps: 1
+
+model:
+  scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
+  num_warmup_steps: 600
+
+data:
+  batch_size: 3
+  num_workers: 4
+  max_tokens: 2048
+
+logger:
+  wandb:
+    tags: ${tags}
+    group: "gym_train"
+
+float32_matmul_precision: "high"
