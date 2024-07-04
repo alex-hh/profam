@@ -1,5 +1,4 @@
 import bisect
-import functools
 import glob
 import hashlib
 import itertools
@@ -117,7 +116,14 @@ def sample_tokenize_sequences(
     use_seq_pos: bool = False,
     max_seq_pos: Optional[int] = None,
 ) -> Dict[str, Any]:
+    """
+    Signature is supposed to be:
 
+    function(example: Dict[str, Any]) -> Dict[str, Any] if batched=False and with_indices=False and with_rank=False
+    we return a BatchEncoding, which acts like a dictionary whose keys and values are stored in the data object:
+    https://github.com/huggingface/transformers/blob/6c1d0b069de22d7ed8aa83f733c25045eea0585d/src/transformers/tokenization_utils_base.py#L284
+    i.e. BatchEncoding.data is a dictionary; BatchEncoding.keys() is equivalent to BatchEncoding.data.keys()
+    """
     random.shuffle(sequences)
     cumulative_lengths = list(
         itertools.accumulate([len(s) + 1 for s in sequences])
@@ -254,11 +260,28 @@ def load_protein_dataset(
     use_seq_pos: bool = False,
     max_seq_pos: int = None,
 ):
+    def preload_sequences(example):
+        sequences = [
+            seq
+            for _, seq in _read_fasta_lines(
+                example["text"].split("\n"),
+                keep_gaps=cfg.keep_gaps,
+                keep_insertions=cfg.keep_insertions,
+                to_upper=cfg.to_upper,
+            )
+        ]
+        doc_hash = hashlib.md5(example["text"][:512].encode()).hexdigest()
+        if include_doc_hashes:
+            example["doc_hash"] = doc_hash
+        example["sequences"] = sequences
+        return example
+
     def transform(batch):
-        # Question: what is the type of a batch
-        sequences = batch["sequences"]
-        # SHOULD BE A LIST OF LISTS
-        batch = defaultdict(list)
+        # a batch is a dict of lists
+        # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/arrow_dataset.py#L2872
+        sequences = batch["sequences"]  # a list of lists
+        new_batch = defaultdict(list)
+        # I think the batch gets returned directly, so sequences gets dropped for example
         for sequence_list in sequences:
             assert isinstance(sequence_list, list)
             tokenized = sample_tokenize_sequences(
@@ -268,10 +291,10 @@ def load_protein_dataset(
                 max_tokens=max_tokens,
                 use_seq_pos=use_seq_pos,
                 max_seq_pos=max_seq_pos,
-            )
-            for k, v in tokenized.data.items():
-                batch[k].append(v)
-        return batch
+            )  # tokenized is a dict or a batchencoding, which is also a kind of dict
+            for k, v in tokenized.items():
+                new_batch[k].append(v)
+        return new_batch
 
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -311,7 +334,8 @@ def load_protein_dataset(
             streaming=False,
             sample_by="document",
         )
-    print("Dataset n shards", dataset.n_shards)
+
+    dataset = dataset.map(preload_sequences, batched=False, remove_columns=["text"])
     # if streaming was False, we'd need to use set_transform: https://huggingface.co/docs/datasets/process#format-transform
     dataset.set_transform(transform)
     return dataset
