@@ -1,14 +1,14 @@
 from typing import Optional
 
-from transformers import GPT2Config, GPT2LMHeadModel, PreTrainedTokenizerFast
+from transformers import LLamaConfig, LLamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 
 
-class GPT2SingleSequenceLitModule(BaseSingleSequenceLitModule):
+class LLamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
     def __init__(
         self,
-        config: GPT2Config,
+        config: LLamaConfig,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
@@ -17,7 +17,7 @@ class GPT2SingleSequenceLitModule(BaseSingleSequenceLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 64000,
     ) -> None:
-        model = GPT2LMHeadModel(config)
+        model = LLamaForCausalLM(config)
         super().__init__(
             model,
             tokenizer,
@@ -30,10 +30,10 @@ class GPT2SingleSequenceLitModule(BaseSingleSequenceLitModule):
         )
 
 
-class GPT2LitModule(BaseFamilyLitModule):
+class LLamaLitModule(BaseFamilyLitModule):
     def __init__(
         self,
-        config: GPT2Config,
+        config: LLamaConfig,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
@@ -43,7 +43,7 @@ class GPT2LitModule(BaseFamilyLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
     ) -> None:
-        model = GPT2LMHeadModel(config)
+        model = LLamaForCausalLM(config)
         super().__init__(
             model,
             tokenizer,

@@ -74,6 +74,7 @@ class CustomDataCollator:
             batch = self.base_collator(examples)
         return batch
 
+
 def get_seq_pos(
     input_ids,
     sep_token_id,
@@ -96,14 +97,15 @@ def get_seq_pos(
             current_position = 0
             assert (
                 token_id <= last_aa_token_id,
-                "First token should not represent a residue"
+                "First token should not represent a residue",
             )
         else:
             seq_pos_ids[i] = current_position
-            if current_position < max_seq_pos -1:
+            if current_position < max_seq_pos - 1:
                 # don't add position indices higher than max_seq_pos
                 current_position += 1
     return seq_pos_ids
+
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
@@ -162,13 +164,10 @@ def load_protein_dataset(
 
         if use_seq_pos:
             tokenized.data["seq_pos"] = get_seq_pos(
-                tokenized.input_ids,
-                tokenizer.sep_token_id,
-                max_seq_pos=max_seq_pos
+                tokenized.input_ids, tokenizer.sep_token_id, max_seq_pos=max_seq_pos
             )
 
         return tokenized
-
 
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition

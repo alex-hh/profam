@@ -64,7 +64,7 @@ def load_classifier_dataset(
 
     # Create a dataset from the list of dictionaries
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
-    dataset = dataset.map( #  todo 20 lines almost identical to src/data/proteingym.py
+    dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
         partial(
             tokenize,
             tokenizer=tokenizer,
@@ -78,10 +78,7 @@ def load_classifier_dataset(
     )
     columns = ["input_ids", "completion_ids", "family_labels"]
     if use_seq_pos:
-        columns += [
-            "seq_pos",
-            "completion_seq_pos"
-        ]
+        columns += ["seq_pos", "completion_seq_pos"]
 
     dataset.set_format(
         type="torch",

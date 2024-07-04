@@ -5,8 +5,8 @@ from typing import List, Optional
 import pandas as pd
 from datasets import Dataset
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader
 from torch import stack
+from torch.utils.data import DataLoader
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data import fasta
@@ -14,8 +14,8 @@ from src.data import utils as data_utils
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
+    get_seq_pos,
     load_protein_dataset,
-    get_seq_pos
 )
 
 
@@ -78,15 +78,17 @@ def tokenize(
             tokenizer.sep_token_id,
             max_seq_pos=max_seq_pos,
         )
-        completion_pos = stack([
-            # todo: do we need to iterate or will each they be the same?
-            get_seq_pos(
-                completion,
-                tokenizer.sep_token_id,
-                max_seq_pos=max_seq_pos,
-            )
-            for completion in sample["completion_ids"]
-        ])
+        completion_pos = stack(
+            [
+                # todo: do we need to iterate or will each they be the same?
+                get_seq_pos(
+                    completion,
+                    tokenizer.sep_token_id,
+                    max_seq_pos=max_seq_pos,
+                )
+                for completion in sample["completion_ids"]
+            ]
+        )
         sample["completion_seq_pos"] = completion_pos
     return sample
 
@@ -168,7 +170,7 @@ def load_gym_dataset(
         gym_data_dir=gym_data_dir,
         seed=seed,
         max_mutated_sequences=max_mutated_sequences,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     dataset = dataset.map(
@@ -186,10 +188,7 @@ def load_gym_dataset(
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores"]
     if use_seq_pos:
-        columns += [
-            "seq_pos",
-            "completion_seq_pos"
-        ]
+        columns += ["seq_pos", "completion_seq_pos"]
 
     dataset.set_format(
         type="torch",
@@ -204,6 +203,7 @@ def load_gym_msa_dataset(
     gym_data_dir: str = "data/example_data/ProteinGym",
     keep_gaps: bool = True,
 ):
+    """For single-sequence training."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     row = df[df["DMS_id"] == dms_id].iloc[0]
     labels, seqs = fasta.read_fasta(
@@ -250,7 +250,7 @@ class GymSingleMSADataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
         keep_gaps: bool = True,
-        use_seq_pos: bool = False
+        use_seq_pos: bool = False,
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
@@ -278,7 +278,7 @@ class GymSingleMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_mutated_sequences=self.max_gym_sequences,
             gym_data_dir=self.gym_data_dir,
-            use_seq_pos=self.use_seq_pos
+            use_seq_pos=self.use_seq_pos,
         )
         self.msa_dataset = load_gym_msa_dataset(
             dms_id=gym_dms_id,
@@ -371,7 +371,6 @@ class GymMultiMSADataModule(LightningDataModule):
         max_tokens: int,
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
-        keep_gaps: bool = True,
         mutant_bos_token: str = "sep",
         use_seq_pos: bool = False,
         max_seq_pos: Optional[int] = None,
@@ -385,7 +384,6 @@ class GymMultiMSADataModule(LightningDataModule):
         self.max_tokens = max_tokens
         self.gym_dms_ids = gym_dms_ids
         self.num_workers = num_workers
-        self.keep_gaps = keep_gaps
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",

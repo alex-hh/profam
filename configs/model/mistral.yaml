@@ -13,6 +13,6 @@ config:
   sliding_window: 4096
   use_seq_pos: ${data.use_seq_pos}  # embed sequence relative position
   max_seq_pos: ${data.max_seq_pos}  # maximum sequence position
-compile: False
+
 scoring_max_tokens: 8000  # number of tokens to use per batch when scoring mutants
 use_kv_cache_for_scoring: True  # use key-value cache for scoring

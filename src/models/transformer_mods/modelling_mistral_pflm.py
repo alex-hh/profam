@@ -4,15 +4,19 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers.modeling_outputs import (CausalLMOutputWithPast,
-                                           BaseModelOutputWithPast)
+from transformers.modeling_outputs import (
+    BaseModelOutputWithPast,
+    CausalLMOutputWithPast,
+)
 from transformers.models.mistral.modeling_mistral import (
+    Cache,
+    DynamicCache,
     MistralConfig,
     MistralForCausalLM,
     MistralModel,
     _prepare_4d_causal_attention_mask,
     _prepare_4d_causal_attention_mask_for_sdpa,
-    logger, Cache, DynamicCache
+    logger,
 )
 
 
@@ -27,6 +31,7 @@ class MistralConfigPFLM(MistralConfig):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
 
+
 class MistralModelPFLM(MistralModel):
     """
     Inherits from MistralModel but adds option
@@ -37,14 +42,12 @@ class MistralModelPFLM(MistralModel):
     an extra embedding layer is added for seq_pos.
     these embeddings are added to the input embeddings.
     """
+
     def __init__(self, config: MistralConfigPFLM):
         super().__init__(config)
         self.use_seq_pos = config.use_seq_pos
         if config.use_seq_pos:
-            self.seq_pos_tokens = nn.Embedding(
-                config.max_seq_pos,
-                config.hidden_size
-            )
+            self.seq_pos_tokens = nn.Embedding(config.max_seq_pos, config.hidden_size)
 
     def forward(
         self,
@@ -59,23 +62,35 @@ class MistralModelPFLM(MistralModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_attentions = (
+            output_attentions
+            if output_attentions is not None
+            else self.config.output_attentions
+        )
         output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+            output_hidden_states
+            if output_hidden_states is not None
+            else self.config.output_hidden_states
         )
         use_cache = use_cache if use_cache is not None else self.config.use_cache
 
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         # retrieve input_ids and inputs_embeds
         if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
+            raise ValueError(
+                "You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time"
+            )
         elif input_ids is not None:
             batch_size, seq_length = input_ids.shape
         elif inputs_embeds is not None:
             batch_size, seq_length, _ = inputs_embeds.shape
         else:
-            raise ValueError("You have to specify either decoder_input_ids or decoder_inputs_embeds")
+            raise ValueError(
+                "You have to specify either decoder_input_ids or decoder_inputs_embeds"
+            )
 
         if self.gradient_checkpointing and self.training:
             if use_cache:
@@ -95,7 +110,10 @@ class MistralModelPFLM(MistralModel):
         if position_ids is None:
             device = input_ids.device if input_ids is not None else inputs_embeds.device
             position_ids = torch.arange(
-                past_key_values_length, seq_length + past_key_values_length, dtype=torch.long, device=device
+                past_key_values_length,
+                seq_length + past_key_values_length,
+                dtype=torch.long,
+                device=device,
             )
             position_ids = position_ids.unsqueeze(0).view(-1, seq_length)
         else:
@@ -104,7 +122,11 @@ class MistralModelPFLM(MistralModel):
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
 
-        if attention_mask is not None and self._attn_implementation == "flash_attention_2" and use_cache:
+        if (
+            attention_mask is not None
+            and self._attn_implementation == "flash_attention_2"
+            and use_cache
+        ):
             is_padding_right = attention_mask[:, -1].sum().item() != batch_size
             if is_padding_right:
                 raise ValueError(
@@ -115,7 +137,11 @@ class MistralModelPFLM(MistralModel):
 
         if self._attn_implementation == "flash_attention_2":
             # 2d mask is passed through the layers
-            attention_mask = attention_mask if (attention_mask is not None and 0 in attention_mask) else None
+            attention_mask = (
+                attention_mask
+                if (attention_mask is not None and 0 in attention_mask)
+                else None
+            )
         elif self._attn_implementation == "sdpa" and not output_attentions:
             # output_attentions=True can not be supported when using SDPA, and we fall back on
             # the manual implementation that requires a 4D causal mask in all cases.
@@ -140,10 +166,7 @@ class MistralModelPFLM(MistralModel):
         #### start of new PFLM code ####
         if self.use_seq_pos:
             if seq_pos is None:
-                raise ValueError(
-                    "use_seq_pos is True "
-                    "but seq_pos is not provided."
-                )
+                raise ValueError("use_seq_pos is True " "but seq_pos is not provided.")
             seq_pos_embeds = self.seq_pos_tokens(seq_pos)
             hidden_states = hidden_states + seq_pos_embeds
         #### end of new PFLM code ####
@@ -192,16 +215,25 @@ class MistralModelPFLM(MistralModel):
 
         next_cache = None
         if use_cache:
-            next_cache = next_decoder_cache.to_legacy_cache() if use_legacy_cache else next_decoder_cache
+            next_cache = (
+                next_decoder_cache.to_legacy_cache()
+                if use_legacy_cache
+                else next_decoder_cache
+            )
 
         if not return_dict:
-            return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
+            return tuple(
+                v
+                for v in [hidden_states, next_cache, all_hidden_states, all_self_attns]
+                if v is not None
+            )
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=next_cache,
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
         )
+
 
 class MistralForCausalPFLM(MistralForCausalLM):
     """
@@ -212,6 +244,7 @@ class MistralForCausalPFLM(MistralForCausalLM):
     1. MistralModelPFLM instead of MistralModel
     2. Overwrite the forward method to include seq_pos (otherwise identical)
     """
+
     def __init__(self, config: MistralConfigPFLM):
         super().__init__(config)
         self.model = MistralModelPFLM(config)
@@ -230,11 +263,19 @@ class MistralForCausalPFLM(MistralForCausalLM):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        output_attentions = (
+            output_attentions
+            if output_attentions is not None
+            else self.config.output_attentions
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        output_hidden_states = (
+            output_hidden_states
+            if output_hidden_states is not None
+            else self.config.output_hidden_states
+        )
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         outputs = self.model(
