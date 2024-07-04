@@ -15,6 +15,7 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         self,
         model: PreTrainedModel,
         token_embedder: Callable,
+        embedding_dim: int,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
     ):
@@ -24,9 +25,8 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         if self.use_seq_pos:
-            # TODO: do all models have embed_tokens embedding layer? presumably yes...
             self.seq_pos_embedding = nn.Embedding(
-                self.max_seq_pos, self.model.embed_tokens.embedding_dim
+                self.max_seq_pos, embedding_dim
             )
 
     def embed_inputs(
@@ -63,11 +63,10 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
-        inputs_embeds = self.embed_inputs(input_ids, inputs_embeds)
+        inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos)
         return self.model(
             input_ids=None,
             attention_mask=attention_mask,
-            seq_pos=seq_pos,
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
