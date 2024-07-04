@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import torch
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
@@ -26,6 +27,8 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
+    use_seq_pos: bool = False
+    max_seq_pos: Optional[int] = None
 
 
 class StringObject:
@@ -72,6 +75,38 @@ class CustomDataCollator:
         return batch
 
 
+def get_seq_pos(
+    input_ids,
+    sep_token_id,
+    max_seq_pos: int = 1024,
+    last_aa_token_id=24,
+):
+    """
+    returns a tensor representing the sequence position
+    of each token relative to the last SEP token
+    0-indexed
+    assumes that the zeroth token is not a residue
+    Note that PAD tokens also get assigned seq positions
+    after reaching the max_seq_pos it will just repeat
+    the last position index
+    """
+    seq_pos_ids = torch.zeros_like(input_ids)
+    current_position = 0
+    for i, token_id in enumerate(input_ids):
+        if token_id == sep_token_id or i == 0:
+            current_position = 0
+            assert (
+                token_id <= last_aa_token_id,
+                "First token should not represent a residue",
+            )
+        else:
+            seq_pos_ids[i] = current_position
+            if current_position < max_seq_pos - 1:
+                # don't add position indices higher than max_seq_pos
+                current_position += 1
+    return seq_pos_ids
+
+
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
@@ -79,6 +114,8 @@ def load_protein_dataset(
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
+    use_seq_pos: bool = False,
+    max_seq_pos: int = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         sequences = [
@@ -116,6 +153,7 @@ def load_protein_dataset(
             tokenized.input_ids.shape[1],
             max_tokens,
         )
+
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         tokenized.data["ds_name"] = cfg.name
         if include_doc_hashes:
@@ -123,6 +161,12 @@ def load_protein_dataset(
             tokenized.data["doc_hash"] = hashlib.md5(
                 example["text"][:512].encode()
             ).hexdigest()
+
+        if use_seq_pos:
+            tokenized.data["seq_pos"] = get_seq_pos(
+                tokenized.input_ids, tokenizer.sep_token_id, max_seq_pos=max_seq_pos
+            )
+
         return tokenized
 
     if cfg.data_path_pattern is not None:

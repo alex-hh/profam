@@ -2,3 +2,4 @@ _target_: src.data.proteingym.GymSingleMSADataModule
 tokenizer_path: src/data/components/profam_tokenizer.json
 gym_dms_id: "BLAT_ECOLX_Jacquier_2013"
 gym_data_dir: ../data/ProteinGym
+use_seq_pos: True

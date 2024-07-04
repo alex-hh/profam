@@ -29,6 +29,8 @@ def calc_grad_norm(params):
 
 
 class BaseLitModule(LightningModule):
+    """Assumes signature of CausalLM: e.g. labels is a kwarg"""
+
     def __init__(
         self,
         model: nn.Module,
@@ -73,6 +75,9 @@ class BaseLitModule(LightningModule):
             }
         return optim_dict
 
+    def get_forward_kwargs(self, batch):
+        return {}
+
     def forward(
         self,
         input_ids,
@@ -80,15 +85,17 @@ class BaseLitModule(LightningModule):
         labels=None,
         past_key_values=None,
         use_cache=False,
+        **kwargs,
     ):
         # TODO: verify that different model implementations interpret
         # past key values in same way wrt e.g. position ids.
         return self.model(
-            input_ids,
+            input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
+            **kwargs,
         )
 
     def on_train_batch_start(self, batch, batch_idx: int):
@@ -107,7 +114,13 @@ class BaseLitModule(LightningModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        outputs = self(batch["input_ids"], batch["attention_mask"], batch["labels"])
+        forward_kwargs = self.get_forward_kwargs(batch)
+        outputs = self(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
+            **forward_kwargs,
+        )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
@@ -148,7 +161,13 @@ class BaseLitModule(LightningModule):
         )
         self.log("lr", optimizer.param_groups[0]["lr"])
 
-    def _score_seqs_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_no_cache(
+        self,
+        input_ids,
+        completion_ids,
+        batch_size: int = 1,
+        seq_pos: Optional[torch.LongTensor] = None,
+    ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
@@ -168,7 +187,7 @@ class BaseLitModule(LightningModule):
             assert (
                 input_ids[..., completion_start_pos - 1] == self.tokenizer.sep_token_id
             )  # SEP token
-            outputs = self.model(input_ids)
+            outputs = self.model(input_ids=input_ids, seq_pos=seq_pos)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=completion_start_pos - 1
@@ -188,8 +207,12 @@ class BaseLitModule(LightningModule):
             outputs = self.validation_step_family_classification(batch)
             return outputs
         else:
+            forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
-                batch["input_ids"], batch["attention_mask"], labels=batch["labels"]
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                labels=batch["labels"],
+                **forward_kwargs,
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
@@ -209,8 +232,12 @@ class BaseLitModule(LightningModule):
             outputs = self.validation_step_proteingym(batch)
             return outputs
         else:
+            forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
-                batch["input_ids"], batch["attention_mask"], labels=batch["labels"]
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                labels=batch["labels"],
+                **forward_kwargs,
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
@@ -229,7 +256,12 @@ class BaseSingleSequenceLitModule(BaseLitModule):
 
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
-    def score_seqs(self, input_ids, completion_ids, batch_size: int = 1):
+    def score_seqs(
+        self,
+        input_ids,
+        completion_ids,
+        batch_size: int = 1,
+    ):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -243,7 +275,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
             ].reshape(
                 -1, L
             )  # b_mut, L
-            outputs = self.model(input_ids)
+            outputs = self.model(input_ids=input_ids)
             labels = torch.where(
                 input_ids == self.tokenizer.pad_token_id, -100, input_ids.clone()
             )
@@ -290,6 +322,7 @@ class BaseFamilyLitModule(BaseLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
+        use_seq_pos: bool = False,
     ):
         super().__init__(
             model,
@@ -305,14 +338,25 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.dataset_sample_counts = {}
         self.doc_hash_counts = {}
+        self.use_seq_pos = use_seq_pos
 
-    def _score_seqs_kv_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def get_forward_kwargs(self, batch):
+        return {"seq_pos": batch.get("seq_pos", None)}
+
+    def _score_seqs_kv_cache(
+        self,
+        input_ids,
+        completion_ids,
+        seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
+        batch_size: int = 1,
+    ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        outputs = self.model(input_ids, use_cache=True)
+        outputs = self.model(input_ids=input_ids, seq_pos=seq_pos, use_cache=True)
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
@@ -324,10 +368,16 @@ class BaseFamilyLitModule(BaseLitModule):
             ].reshape(
                 -1, L
             )  # b_mut, L
+            seq_pos = completion_seq_pos[
+                :, batch_start : batch_start + batch_size
+            ].reshape(
+                -1, L
+            )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
             actual_batch_size = input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
             outputs = self.model(
-                input_ids,
+                input_ids=input_ids,
+                seq_pos=seq_pos,
                 past_key_values=cache.batch_repeat_interleave(actual_batch_size),
                 use_cache=True,
             )
@@ -340,7 +390,14 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
-    def _score_seqs_no_cache(self, input_ids, completion_ids, batch_size: int = 1):
+    def _score_seqs_no_cache(
+        self,
+        input_ids,
+        completion_ids,
+        seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
+        batch_size: int = 1,
+    ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
             raise NotImplementedError(
@@ -353,10 +410,14 @@ class BaseFamilyLitModule(BaseLitModule):
                 [input_ids, completion_ids[:, completion_ix]],
                 dim=1,
             )
+            seq_pos = torch.cat(
+                [seq_pos, completion_seq_pos[:, completion_ix]],
+                dim=1,
+            )
             assert (
                 input_ids[..., completion_start_pos - 1] == self.tokenizer.sep_token_id
             )  # SEP token
-            outputs = self.model(input_ids)
+            outputs = self.model(input_ids=input_ids, seq_pos=seq_pos)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, input_ids, start_ix=completion_start_pos - 1
@@ -368,7 +429,13 @@ class BaseFamilyLitModule(BaseLitModule):
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
     def score_seqs(
-        self, input_ids, completion_ids, use_cache: bool = True, batch_size: int = 1
+        self,
+        input_ids,
+        completion_ids,
+        use_cache: bool = True,
+        batch_size: int = 1,
+        input_seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
     ):
         assert (
             input_ids.shape[0] == 1
@@ -376,11 +443,19 @@ class BaseFamilyLitModule(BaseLitModule):
         assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
         if use_cache:
             return self._score_seqs_kv_cache(
-                input_ids, completion_ids, batch_size=batch_size
+                input_ids,
+                completion_ids,
+                batch_size=batch_size,
+                seq_pos=input_seq_pos,
+                completion_seq_pos=completion_seq_pos,
             )
         else:
             return self._score_seqs_no_cache(
-                input_ids, completion_ids, batch_size=batch_size
+                input_ids,
+                completion_ids,
+                batch_size=batch_size,
+                seq_pos=input_seq_pos,
+                completion_seq_pos=completion_seq_pos,
             )
 
     def validation_step_proteingym(
@@ -399,6 +474,8 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
+            input_seq_pos=batch.get("seq_pos", None),
+            completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=self.scoring_max_tokens // L
             if self.use_kv_cache_for_scoring
@@ -430,6 +507,8 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
+            input_seq_pos=batch.get("seq_pos", None),
+            completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=self.scoring_max_tokens // L
             if self.use_kv_cache_for_scoring
@@ -459,7 +538,13 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        outputs = self(batch["input_ids"], batch["attention_mask"], batch["labels"])
+        forward_kwargs = self.get_forward_kwargs(batch)
+        outputs = self(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
+            **forward_kwargs,
+        )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)

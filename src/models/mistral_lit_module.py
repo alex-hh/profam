@@ -1,14 +1,18 @@
 from typing import Optional
 
-from transformers import MistralConfig, MistralForCausalLM, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
+from src.models.transformer_mods.modelling_mistral_pflm import (
+    MistralConfigPFLM,
+    MistralForCausalPFLM,
+)
 
 
 class MistralLitModule(BaseFamilyLitModule):
     def __init__(
         self,
-        config: MistralConfig,
+        config: MistralConfigPFLM,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
         scoring_max_tokens: int = 8000,
@@ -18,7 +22,7 @@ class MistralLitModule(BaseFamilyLitModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
     ) -> None:
-        model = MistralForCausalLM(config)
+        model = MistralForCausalPFLM(config)
         super().__init__(
             model,
             tokenizer,
@@ -29,4 +33,5 @@ class MistralLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
+            use_seq_pos=config.use_seq_pos,
         )
