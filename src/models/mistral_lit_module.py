@@ -6,12 +6,11 @@ import torch
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
-from torchmetrics import MeanMetric
-from transformers import MistralConfig
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
 from src.models.transformer_mods.modelling_mistral_pflm import MistralForCausalPFLM, MistralConfigPFLM
+
 # Initialize the tokenizer
 with open("scripts/vocab.json", "r") as jf:
     vocab = json.load(jf)

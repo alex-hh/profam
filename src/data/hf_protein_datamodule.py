@@ -53,6 +53,7 @@ class ProteinDataModule(LightningDataModule):
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.use_seq_pos = use_seq_pos
+        self.max_seq_pos = max_seq_pos  # max embed index for relative position
         self.tokenizer_path = tokenizer_path
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
@@ -65,7 +66,6 @@ class ProteinDataModule(LightningDataModule):
         )
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.count_doc_hashes = count_doc_hashes
-        self.max_seq_pos = max_seq_pos
 
     def setup(self, stage: Optional[str] = None) -> None:
         os.environ["TOKENIZERS_PARALLELISM"] = "false"

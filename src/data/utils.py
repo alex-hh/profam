@@ -8,12 +8,12 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import torch
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import _read_fasta_lines
 
-import torch
 
 # TOOD: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
@@ -28,6 +28,7 @@ class ProteinDatasetConfig:
     file_repeats: int = 1
     is_parquet: bool = False
     use_seq_pos: bool = False
+    max_seq_pos: Optional[int] = None
 
 
 class StringObject:
@@ -76,7 +77,8 @@ class CustomDataCollator:
 def get_seq_pos(
     input_ids,
     sep_token_id,
-    max_seq_pos: int = 1024
+    max_seq_pos: int = 1024,
+    last_aa_token_id=24,
 ):
     """
     returns a tensor representing the sequence position
@@ -84,6 +86,8 @@ def get_seq_pos(
     0-indexed
     assumes that the zeroth token is not a residue
     Note that PAD tokens also get assigned seq positions
+    after reaching the max_seq_pos it will just repeat
+    the last position index
     """
     seq_pos_ids = torch.zeros_like(input_ids)
     current_position = 0
@@ -91,12 +95,13 @@ def get_seq_pos(
         if token_id == sep_token_id or i == 0:
             current_position = 0
             assert (
-                token_id <= 24,
+                token_id <= last_aa_token_id,
                 "First token should not represent a residue"
             )
         else:
             seq_pos_ids[i] = current_position
             if current_position < max_seq_pos -1:
+                # don't add position indices higher than max_seq_pos
                 current_position += 1
     return seq_pos_ids
 

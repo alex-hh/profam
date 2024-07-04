@@ -1,3 +1,11 @@
+from typing import List, Optional, Tuple, Union
+
+import torch
+import torch.utils.checkpoint
+from torch import nn
+from torch.nn import CrossEntropyLoss
+from transformers.modeling_outputs import (CausalLMOutputWithPast,
+                                           BaseModelOutputWithPast)
 from transformers.models.mistral.modeling_mistral import (
     MistralConfig,
     MistralForCausalLM,
@@ -6,15 +14,7 @@ from transformers.models.mistral.modeling_mistral import (
     _prepare_4d_causal_attention_mask_for_sdpa,
     logger, Cache, DynamicCache
 )
-from transformers.modeling_outputs import (CausalLMOutputWithPast,
-                                           BaseModelOutputWithPast)
-from typing import List, Optional, Tuple, Union
 
-import torch
-import torch.nn.functional as F
-import torch.utils.checkpoint
-from torch import nn
-from torch.nn import CrossEntropyLoss
 
 class MistralConfigPFLM(MistralConfig):
     def __init__(
@@ -28,6 +28,15 @@ class MistralConfigPFLM(MistralConfig):
         self.max_len_single_seq = max_seq_pos
 
 class MistralModelPFLM(MistralModel):
+    """
+    Inherits from MistralModel but adds option
+    to include relative sequence position embeddings,
+    in addition to global position embeddings.
+
+    Forward method has to be overwritten to include seq_pos.
+    an extra embedding layer is added for seq_pos.
+    these embeddings are added to the input embeddings.
+    """
     def __init__(self, config: MistralConfigPFLM):
         super().__init__(config)
         self.use_seq_pos = config.use_seq_pos
@@ -195,6 +204,14 @@ class MistralModelPFLM(MistralModel):
         )
 
 class MistralForCausalPFLM(MistralForCausalLM):
+    """
+    Inherits from MistralForCausalLM but adds option
+    to include relative sequence position embeddings,
+    in addition to global position embeddings.
+    only 2 changes:
+    1. MistralModelPFLM instead of MistralModel
+    2. Overwrite the forward method to include seq_pos (otherwise identical)
+    """
     def __init__(self, config: MistralConfigPFLM):
         super().__init__(config)
         self.model = MistralModelPFLM(config)

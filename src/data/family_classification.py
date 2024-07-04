@@ -4,9 +4,9 @@ we create a dataset with a target family
 and a mix of decoys (members of other families)
 and non-decoys (members of the target family)
 """
-from functools import partial
 import glob
 import random
+from functools import partial
 
 import pandas as pd
 from datasets import Dataset
@@ -76,7 +76,6 @@ def load_classifier_dataset(
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
     )
-    # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "family_labels"]
     if use_seq_pos:
         columns += [
