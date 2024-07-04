@@ -12,6 +12,7 @@ from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
+    load_iterable_protein_dataset,
     load_protein_dataset,
 )
 
@@ -73,7 +74,7 @@ class ProteinDataModule(LightningDataModule):
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
             if data_key != self.val_dataset_name:
-                dataset = load_protein_dataset(
+                dataset = load_iterable_protein_dataset(
                     dataset_config,
                     self.tokenizer,
                     self.max_tokens,
@@ -103,7 +104,7 @@ class ProteinDataModule(LightningDataModule):
         # n.b. set_epoch is required in order for shuffling to be correctly randomised
         # - this is handled by ShuffleCallback
         self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
-        self.val_dataset = load_protein_dataset(
+        self.val_dataset = load_iterable_protein_dataset(
             self.dataset_cfgs[self.val_dataset_name],
             self.tokenizer,
             self.max_tokens,
@@ -111,7 +112,7 @@ class ProteinDataModule(LightningDataModule):
             use_seq_pos=self.use_seq_pos,
             max_seq_pos=self.max_seq_pos,
         )
-        self.test_dataset = load_protein_dataset(
+        self.test_dataset = load_iterable_protein_dataset(
             self.dataset_cfgs[self.val_dataset_name],
             self.tokenizer,
             self.max_tokens,

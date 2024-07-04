@@ -1,9 +1,11 @@
 import bisect
+import functools
 import glob
 import hashlib
 import itertools
 import os
 import random
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -107,7 +109,58 @@ def get_seq_pos(
     return seq_pos_ids
 
 
-def load_protein_dataset(
+def sample_tokenize_sequences(
+    sequences: List[str],
+    tokenizer: PreTrainedTokenizerFast,
+    dataset_cfg: ProteinDatasetConfig,
+    max_tokens: int = 5000,
+    use_seq_pos: bool = False,
+    max_seq_pos: Optional[int] = None,
+) -> Dict[str, Any]:
+
+    random.shuffle(sequences)
+    cumulative_lengths = list(
+        itertools.accumulate([len(s) + 1 for s in sequences])
+    )  # +1 for separator
+    insertion_point = bisect.bisect_left(
+        cumulative_lengths,
+        max_tokens - 2,
+    )  # -2 for doc start and end tokens
+    # TODO: could we get seq pos more straightforwardly here just using sequence lengths?
+    concatenated_seqs = (
+        tokenizer.bos_token
+        + tokenizer.sep_token.join(sequences[:insertion_point])
+        + tokenizer.sep_token
+    )
+    tokenized = tokenizer(
+        concatenated_seqs,
+        truncation=False,  # shouldnt be necessary: bisection should handle
+        max_length=max_tokens,
+        return_tensors="pt",
+        # padding="longest",
+        padding="max_length",
+        add_special_tokens=False,
+    )
+    assert tokenized.input_ids.shape[1] <= max_tokens, (
+        tokenized.input_ids.shape[1],
+        max_tokens,
+    )
+
+    # TODO: explain this - tokenizer maybe adds a batch dim?
+    # TODO: explain why the data attribute is used - is this what we get if we call dict on tokenized?
+    # should we just return tokenized.data rather than tokenized?
+    tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+    tokenized.data["ds_name"] = dataset_cfg.name
+
+    if use_seq_pos:
+        tokenized.data["seq_pos"] = get_seq_pos(
+            tokenized.input_ids, tokenizer.sep_token_id, max_seq_pos=max_seq_pos
+        )
+
+    return tokenized
+
+
+def load_iterable_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
     max_tokens: int = 5000,
@@ -115,9 +168,12 @@ def load_protein_dataset(
     split="train",
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
-    max_seq_pos: int = None,
+    max_seq_pos: Optional[int] = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        # TODO: move sequence loading into a proper preprocessing step:
+        # e.g. when data is loaded it would be good to access sequences directly
+        # maybe we can write a custom load_dataset function for this?
         sequences = [
             seq
             for _, seq in _read_fasta_lines(
@@ -127,47 +183,18 @@ def load_protein_dataset(
                 to_upper=cfg.to_upper,
             )
         ]
-        random.shuffle(sequences)
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
-        concatenated_seqs = (
-            tokenizer.bos_token
-            + tokenizer.sep_token.join(sequences[:insertion_point])
-            + tokenizer.sep_token
-        )
-        tokenized = tokenizer(
-            concatenated_seqs,
-            truncation=False,  # shouldnt be necessary: bisection should handle
-            max_length=max_tokens,
-            return_tensors="pt",
-            # padding="longest",
-            padding="max_length",
-            add_special_tokens=False,
-        )
-        assert tokenized.input_ids.shape[1] <= max_tokens, (
-            tokenized.input_ids.shape[1],
-            max_tokens,
-        )
-
-        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
-        tokenized.data["ds_name"] = cfg.name
+        doc_hash = hashlib.md5(example["text"][:512].encode()).hexdigest()
+        # TODO: check this gets kept even though not returned by sample_tokenize_sequences
         if include_doc_hashes:
-            # identify documents by a hash of the first 512 characters
-            tokenized.data["doc_hash"] = hashlib.md5(
-                example["text"][:512].encode()
-            ).hexdigest()
-
-        if use_seq_pos:
-            tokenized.data["seq_pos"] = get_seq_pos(
-                tokenized.input_ids, tokenizer.sep_token_id, max_seq_pos=max_seq_pos
-            )
-
-        return tokenized
+            example["doc_hash"] = doc_hash
+        return sample_tokenize_sequences(
+            sequences,
+            tokenizer,
+            cfg,
+            max_tokens=max_tokens,
+            use_seq_pos=use_seq_pos,
+            max_seq_pos=max_seq_pos,
+        )
 
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -188,6 +215,9 @@ def load_protein_dataset(
         f"({cfg.file_repeats} repeats), "
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
+    # n.b. number of shards is equal to number of files.
+    # this determines upper limit on num_workers
+    # https://discuss.huggingface.co/t/correct-way-to-use-multiple-workers-with-interleave-datasets-for-iterable-datasets/93544/2
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
@@ -206,8 +236,84 @@ def load_protein_dataset(
         )
     print("Dataset n shards", dataset.n_shards)
     # TODO: possibly we could speed this up by batching...
+    # since streaming is True, preprocess fasta gets applied on the fly
+    # https://huggingface.co/docs/datasets/stream#map
+    # if streaming was False, we'd need to use set_transform: https://huggingface.co/docs/datasets/process#format-transform
     dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
 
+    return dataset
+
+
+def load_protein_dataset(
+    cfg: ProteinDatasetConfig,
+    tokenizer: PreTrainedTokenizerFast,
+    max_tokens: int = 5000,
+    data_dir="../data",
+    split="train",
+    include_doc_hashes: bool = False,
+    use_seq_pos: bool = False,
+    max_seq_pos: int = None,
+):
+    def transform(batch):
+        # Question: what is the type of a batch
+        sequences = batch["sequences"]
+        # SHOULD BE A LIST OF LISTS
+        batch = defaultdict(list)
+        for sequence_list in sequences:
+            assert isinstance(sequence_list, list)
+            tokenized = sample_tokenize_sequences(
+                sequence_list,
+                tokenizer,
+                cfg,
+                max_tokens=max_tokens,
+                use_seq_pos=use_seq_pos,
+                max_seq_pos=max_seq_pos,
+            )
+            for k, v in tokenized.data.items():
+                batch[k].append(v)
+        return batch
+
+    if cfg.data_path_pattern is not None:
+        # replace hf path resolution with manual glob, to allow repetition
+        # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
+        data_files = glob.glob(os.path.join(data_dir, cfg.data_path_pattern))
+    else:
+        assert cfg.data_path_file is not None
+        with open(os.path.join(data_dir, cfg.data_path_file), "r") as f:
+            data_files = [
+                os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
+            ]
+
+    assert isinstance(data_files, list)
+    data_files = data_files * cfg.file_repeats
+    random.shuffle(data_files)  # TODO: seed explicitly?
+    print(
+        f"Loading {cfg.name} dataset from {len(data_files)} files, "
+        f"({cfg.file_repeats} repeats), "
+        f"{os.path.join(data_dir, cfg.data_path_pattern)}"
+    )
+    # n.b. number of shards is equal to number of files.
+    # this determines upper limit on num_workers
+    # https://discuss.huggingface.co/t/correct-way-to-use-multiple-workers-with-interleave-datasets-for-iterable-datasets/93544/2
+    if cfg.is_parquet:
+        dataset = load_dataset(
+            path="parquet",
+            data_files=cfg.data_path_pattern,
+            split=split,
+            streaming=False,
+            ignore_verifications=True,
+        )
+    else:
+        dataset = load_dataset(
+            "text",
+            data_files=data_files,
+            split=split,
+            streaming=False,
+            sample_by="document",
+        )
+    print("Dataset n shards", dataset.n_shards)
+    # if streaming was False, we'd need to use set_transform: https://huggingface.co/docs/datasets/process#format-transform
+    dataset.set_transform(transform)
     return dataset
 
 

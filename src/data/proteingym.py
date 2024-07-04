@@ -7,7 +7,7 @@ from datasets import Dataset
 from lightning import LightningDataModule
 from torch import stack
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
@@ -15,7 +15,7 @@ from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
     get_seq_pos,
-    load_protein_dataset,
+    load_iterable_protein_dataset,
 )
 
 
@@ -418,7 +418,7 @@ class GymMultiMSADataModule(LightningDataModule):
             mutant_bos_token=mutant_bos_token,  # we might want to set to bos
             max_tokens=max_tokens,
         )
-        self.train_dataset = load_protein_dataset(
+        self.train_dataset = load_iterable_protein_dataset(
             dataset_cfg,
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
@@ -431,7 +431,7 @@ class GymMultiMSADataModule(LightningDataModule):
             seed=42,
         )
         # TODO: fix so that train, val, test aren't all the same
-        self.val_dataset = load_protein_dataset(
+        self.val_dataset = load_iterable_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
@@ -439,7 +439,7 @@ class GymMultiMSADataModule(LightningDataModule):
             use_seq_pos=self.use_seq_pos,
             max_seq_pos=self.max_seq_pos,
         )
-        self.test_dataset = load_protein_dataset(
+        self.test_dataset = load_iterable_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
