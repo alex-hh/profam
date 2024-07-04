@@ -7,7 +7,7 @@ from datasets import Dataset
 from lightning import LightningDataModule
 from torch import stack
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
@@ -22,7 +22,6 @@ from src.data.utils import (
 def tokenize_msa(
     sample,
     tokenizer: PreTrainedTokenizerFast,
-    max_tokens=5000,
 ):
     # TODO: fix tokenization. copying hf loader for now
     concatenated_seqs = tokenizer.bos_token + tokenizer.sep_token.join(
@@ -96,7 +95,7 @@ def tokenize(
 def load_msa_for_row(
     row, seed, max_tokens, gym_data_dir, keep_wt=False, drop_wt=True, keep_gaps=False
 ):
-    labels, seqs = fasta.read_fasta(
+    _, seqs = fasta.read_fasta(
         os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
         keep_insertions=True,
         to_upper=True,
@@ -213,7 +212,7 @@ def load_gym_msa_dataset(
     """For single-sequence training."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     row = df[df["DMS_id"] == dms_id].iloc[0]
-    labels, seqs = fasta.read_fasta(
+    _, seqs = fasta.read_fasta(
         os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
         keep_insertions=True,
         to_upper=True,

@@ -6,6 +6,9 @@
 # to execute this experiment run:
 # python train.py experiment=example
 
+# N.B. we might get slightly weird distribution of msas across shards in this setup.
+# (if we shuffle after repeat then shard, for example.)
+
 defaults:
   - override /data: gym_multi_msa
   - override /model: gpt2tiny_seqpos
