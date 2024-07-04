@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
-from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -135,6 +134,7 @@ class ProteinDataModule(LightningDataModule):
             self.ec_class_dataset = load_classifier_dataset(
                 "data/example_data/expasy_ec/*.fasta",
                 self.tokenizer,
+                max_tokens=self.max_tokens,
                 use_seq_pos=self.use_seq_pos,
                 max_seq_pos=self.max_seq_pos,
             )
