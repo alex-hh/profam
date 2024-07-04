@@ -405,8 +405,7 @@ class GymMultiMSADataModule(LightningDataModule):
         )
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.max_seq_pos = max_seq_pos
-        if use_seq_pos:
-            raise NotImplementedError
+        self.use_seq_pos = use_seq_pos
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_ids is not None
         assert self.gym_data_dir is not None
@@ -417,6 +416,8 @@ class GymMultiMSADataModule(LightningDataModule):
             gym_data_dir=self.gym_data_dir,
             mutant_bos_token=mutant_bos_token,  # we might want to set to bos
             max_tokens=max_tokens,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
