@@ -25,9 +25,7 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         if self.use_seq_pos:
-            self.seq_pos_embedding = nn.Embedding(
-                self.max_seq_pos, embedding_dim
-            )
+            self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
 
     def embed_inputs(
         self,
