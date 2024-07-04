@@ -164,6 +164,7 @@ def load_gym_dataset(
     gym_data_dir: str = "data/example_data/ProteinGym",
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+    num_proc: Optional[int] = None,
 ):
     """mutant_bos_token should almost always be sep.
 
@@ -189,6 +190,7 @@ def load_gym_dataset(
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
+        num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores"]
@@ -284,6 +286,7 @@ class GymSingleMSADataModule(LightningDataModule):
             max_mutated_sequences=self.max_gym_sequences,
             gym_data_dir=self.gym_data_dir,
             use_seq_pos=self.use_seq_pos,
+            num_proc=self.num_workers,
         )
         self.msa_dataset = load_gym_msa_dataset(
             dms_id=gym_dms_id,
@@ -418,6 +421,7 @@ class GymMultiMSADataModule(LightningDataModule):
             max_tokens=max_tokens,
             use_seq_pos=self.use_seq_pos,
             max_seq_pos=self.max_seq_pos,
+            num_proc=self.num_workers,
         )
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
