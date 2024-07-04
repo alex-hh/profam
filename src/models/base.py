@@ -85,6 +85,7 @@ class BaseLitModule(LightningModule):
         labels=None,
         past_key_values=None,
         use_cache=False,
+        **kwargs,
     ):
         # TODO: verify that different model implementations interpret
         # past key values in same way wrt e.g. position ids.
@@ -94,6 +95,7 @@ class BaseLitModule(LightningModule):
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
+            **kwargs,
         )
 
     def on_train_batch_start(self, batch, batch_idx: int):
