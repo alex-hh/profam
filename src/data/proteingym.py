@@ -165,6 +165,11 @@ def load_gym_dataset(
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
 ):
+    """mutant_bos_token should almost always be sep.
+
+    when using a BaseSingleSequenceLitModule, however, we want it
+    to be bos, since no context sequences are passed during scoring.
+    """
     df = build_gym_df(
         dms_ids,
         gym_data_dir=gym_data_dir,
@@ -371,6 +376,11 @@ class GymMultiMSADataModule(LightningDataModule):
         max_tokens: int,
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
+        # when using a single sequence model (BaseSingleSequenceLitModule), it
+        # scoring passes as input to the model only the completion ids. Therefore
+        # the completion ids should have the bos token at the start.
+        # n.b. during training the model might nonetheless receive multiple concatenated
+        # sequences
         mutant_bos_token: str = "sep",
         use_seq_pos: bool = False,
         max_seq_pos: Optional[int] = None,

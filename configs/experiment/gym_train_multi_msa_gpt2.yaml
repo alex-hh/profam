@@ -26,13 +26,13 @@ trainer:
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
-  num_warmup_steps: 600
-  lr: 6e-5
+  num_warmup_steps: 400
+  lr: 1e-4
 
 data:
   batch_size: 4
   num_workers: 12
-  mutant_bos_token: "bos"  # for consistency when using single family scoring
+  mutant_bos_token: "sep"
   gym_dms_ids: [
     "BLAT_ECOLX_Jacquier_2013",
     "CALM1_HUMAN_Weile_2017",
