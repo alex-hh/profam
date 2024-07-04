@@ -260,6 +260,13 @@ def load_protein_dataset(
     use_seq_pos: bool = False,
     max_seq_pos: int = None,
 ):
+    """Load sequences once at the start rather than on the fly.
+
+    Still subsample and tokenize sequences on the fly.
+    This might be helpful for ProteinGym in particular, which has enormous MSAs.
+    TODO: create a filtered set of ProteinGym MSAs to test whether processing
+    is more efficient in that case.
+    """
     def preload_sequences(example):
         sequences = [
             seq
