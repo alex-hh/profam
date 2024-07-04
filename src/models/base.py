@@ -29,6 +29,8 @@ def calc_grad_norm(params):
 
 
 class BaseLitModule(LightningModule):
+    """Assumes signature of CausalLM: e.g. labels is a kwarg"""
+
     def __init__(
         self,
         model: nn.Module,
@@ -87,7 +89,7 @@ class BaseLitModule(LightningModule):
         # TODO: verify that different model implementations interpret
         # past key values in same way wrt e.g. position ids.
         return self.model(
-            input_ids,
+            input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
             past_key_values=past_key_values,
@@ -112,9 +114,9 @@ class BaseLitModule(LightningModule):
     ) -> torch.Tensor:
         forward_kwargs = self.get_forward_kwargs(batch)
         outputs = self(
-            batch["input_ids"],
-            batch["attention_mask"],
-            batch["labels"],
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
             **forward_kwargs,
         )
         loss = outputs.loss
@@ -183,7 +185,7 @@ class BaseLitModule(LightningModule):
             assert (
                 input_ids[..., completion_start_pos - 1] == self.tokenizer.sep_token_id
             )  # SEP token
-            outputs = self.model(input_ids, seq_pos=seq_pos)
+            outputs = self.model(input_ids=input_ids, seq_pos=seq_pos)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=completion_start_pos - 1
@@ -205,8 +207,8 @@ class BaseLitModule(LightningModule):
         else:
             forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
-                batch["input_ids"],
-                batch["attention_mask"],
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
                 labels=batch["labels"],
                 **forward_kwargs,
             )
@@ -228,11 +230,12 @@ class BaseLitModule(LightningModule):
             outputs = self.validation_step_proteingym(batch)
             return outputs
         else:
+            forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
-                batch["input_ids"],
-                batch["attention_mask"],
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
                 labels=batch["labels"],
-                seq_pos=batch.get("seq_pos", None),
+                **forward_kwargs,
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
@@ -270,7 +273,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
             ].reshape(
                 -1, L
             )  # b_mut, L
-            outputs = self.model(input_ids)
+            outputs = self.model(input_ids=input_ids)
             labels = torch.where(
                 input_ids == self.tokenizer.pad_token_id, -100, input_ids.clone()
             )
@@ -351,7 +354,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        outputs = self.model(input_ids, seq_pos=seq_pos, use_cache=True)
+        outputs = self.model(input_ids=input_ids, seq_pos=seq_pos, use_cache=True)
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
@@ -371,7 +374,7 @@ class BaseFamilyLitModule(BaseLitModule):
             actual_batch_size = input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
             outputs = self.model(
-                input_ids,
+                input_ids=input_ids,
                 seq_pos=seq_pos,
                 past_key_values=cache.batch_repeat_interleave(actual_batch_size),
                 use_cache=True,
@@ -412,7 +415,7 @@ class BaseFamilyLitModule(BaseLitModule):
             assert (
                 input_ids[..., completion_start_pos - 1] == self.tokenizer.sep_token_id
             )  # SEP token
-            outputs = self.model(input_ids, seq_pos=seq_pos)
+            outputs = self.model(input_ids=input_ids, seq_pos=seq_pos)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, input_ids, start_ix=completion_start_pos - 1
@@ -535,9 +538,9 @@ class BaseFamilyLitModule(BaseLitModule):
     ) -> torch.Tensor:
         forward_kwargs = self.get_forward_kwargs(batch)
         outputs = self(
-            batch["input_ids"],
-            batch["attention_mask"],
-            batch["labels"],
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
             **forward_kwargs,
         )
         loss = outputs.loss
