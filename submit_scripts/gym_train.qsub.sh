@@ -22,6 +22,8 @@ echo "####################  QSUB SCRIPT END  ####################"
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 
+nvidia-smi
+
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID
 mkdir -p ${SCRATCH_DIR}/data
 rsync -av /home/ahawkins/profam ${SCRATCH_DIR}/
@@ -42,5 +44,5 @@ source ${SCRATCH_DIR}/venv/bin/activate
 pip install -r ${SCRATCH_DIR}/profam/requirements.txt
 echo " ${date} Requirements installed"
 echo "Using python from $(which python)"
-python ${ROOT_DIR}/src/train.py trainer=gpu experiment=gym_train_multi_msa_gpt2
+python ${ROOT_DIR}/src/train.py trainer=gpu experiment=gym_train_multi_msa_gpt2_blat data.num_workers=4
 date
