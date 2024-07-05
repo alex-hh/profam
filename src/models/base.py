@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
+import tqdm
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
@@ -317,6 +318,7 @@ class BaseFamilyLitModule(BaseLitModule):
         seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
+        verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
@@ -328,7 +330,9 @@ class BaseFamilyLitModule(BaseLitModule):
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
         L = completion_ids.shape[-1]
-        for batch_start in range(0, completion_ids.shape[1], batch_size):
+        for batch_start in tqdm.tqdm(
+            range(0, completion_ids.shape[1], batch_size), disable=not verbose
+        ):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
             this_input_ids = completion_ids[
                 :, batch_start : batch_start + batch_size
@@ -366,6 +370,7 @@ class BaseFamilyLitModule(BaseLitModule):
         batch_size: int = 1,
         seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
+        verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
@@ -374,7 +379,9 @@ class BaseFamilyLitModule(BaseLitModule):
             )
         all_lls = []
         completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
-        for completion_ix in range(completion_ids.shape[1]):
+        for completion_ix in tqdm.tqdm(
+            range(completion_ids.shape[1]), disable=not verbose
+        ):
             this_input_ids = torch.cat(
                 [input_ids, completion_ids[:, completion_ix]],
                 dim=1,

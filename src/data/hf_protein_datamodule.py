@@ -132,6 +132,7 @@ class ProteinDataModule(LightningDataModule):
                 use_seq_pos=self.use_seq_pos,
                 max_seq_pos=self.max_seq_pos,
                 keep_gaps=self.keep_gym_gaps,
+                num_proc=self.num_workers,
             )
         if self.evaluate_ec_class:
             # TODO: add other classifier dataset kwargs to config
