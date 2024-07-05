@@ -290,8 +290,6 @@ class GymSingleMSADataModule(LightningDataModule):
         self.train_dataset = ddict["train"]
         self.val_dataset = ddict["test"]
 
-    def setup(self, stage: Optional[str] = None) -> None:
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
@@ -437,9 +435,6 @@ class GymMultiMSADataModule(LightningDataModule):
             use_seq_pos=self.use_seq_pos,
             max_seq_pos=self.max_seq_pos,
         )
-
-    def setup(self, stage: Optional[str] = None) -> None:
-        os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(

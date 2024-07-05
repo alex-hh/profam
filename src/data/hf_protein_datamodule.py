@@ -65,10 +65,6 @@ class ProteinDataModule(LightningDataModule):
         self.count_doc_hashes = count_doc_hashes
 
     def setup(self, stage: Optional[str] = None) -> None:
-        if self.num_workers > 0:
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-            print(f"Using {self.num_workers} workers for data loading")
-
         train_datasets = []
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
@@ -99,6 +95,7 @@ class ProteinDataModule(LightningDataModule):
         print("Num shards", self.train_dataset.n_shards)
         if self.num_workers is None:
             self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
+        print(f"Using {self.num_workers} workers for data loading")
         # will shuffle the shards order and use a shuffle buffer when you start iterating
         # n.b. set_epoch is required in order for shuffling to be correctly randomised
         # - this is handled by ShuffleCallback
