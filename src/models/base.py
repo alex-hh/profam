@@ -325,7 +325,8 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        outputs = self.model(input_ids=input_ids, seq_pos=seq_pos, use_cache=True)
+        forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+        outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
@@ -346,11 +347,12 @@ class BaseFamilyLitModule(BaseLitModule):
             )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            forward_kwargs = {"seq_pos": this_seq_pos} if self.use_seq_pos else {}
             outputs = self.model(
                 input_ids=this_input_ids,
-                seq_pos=this_seq_pos,
                 past_key_values=cache.batch_repeat_interleave(actual_batch_size),
                 use_cache=True,
+                **forward_kwargs,
             )
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
@@ -400,7 +402,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids[..., completion_start_pos - 1]
                 == self.tokenizer.sep_token_id
             )  # SEP token
-            outputs = self.model(input_ids=this_input_ids, seq_pos=this_seq_pos)
+            forward_kwargs = {"seq_pos": this_seq_pos} if self.use_seq_pos else {}
+            outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=completion_start_pos - 1

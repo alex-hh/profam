@@ -8,7 +8,7 @@
 
 defaults:
   - override /data: gym_multi_msa
-  - override /model: gpt2tiny_seqpos
+  - override /model: gpt2tiny
   - override /callbacks: default_with_shuffle
   - override /trainer: default
 
@@ -33,7 +33,7 @@ data:
   num_workers: 12
   mutant_bos_token: "sep"
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013"]
-  use_seq_pos: true
+  use_seq_pos: false
   max_seq_pos: 2048
   dataset_cfg:
     data_path_pattern: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m
