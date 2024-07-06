@@ -171,6 +171,7 @@ def load_gym_dataset(
     when using a BaseSingleSequenceLitModule, however, we want it
     to be bos, since no context sequences are passed during scoring.
     """
+    print(f"Loading gym dataset for evaluation, keeping gaps: {keep_gaps}")
     df = build_gym_df(
         dms_ids,
         gym_data_dir=gym_data_dir,

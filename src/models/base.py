@@ -309,7 +309,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_seq_pos = use_seq_pos
 
     def get_forward_kwargs(self, batch):
-        return {"seq_pos": batch.get("seq_pos", None)}
+        return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
     def _score_seqs_kv_cache(
         self,
@@ -340,14 +340,17 @@ class BaseFamilyLitModule(BaseLitModule):
             ].reshape(
                 -1, L
             )  # b_mut, L
-            this_seq_pos = completion_seq_pos[
-                :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+            forward_kwargs = {}
+            if self.use_seq_pos:
+                this_seq_pos = completion_seq_pos[
+                    :, batch_start : batch_start + batch_size
+                ].reshape(
+                    -1, L
+                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+                forward_kwargs["seq_pos"] = this_seq_pos
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
-            forward_kwargs = {"seq_pos": this_seq_pos} if self.use_seq_pos else {}
+
             outputs = self.model(
                 input_ids=this_input_ids,
                 past_key_values=cache.batch_repeat_interleave(actual_batch_size),
@@ -388,10 +391,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 [input_ids, completion_ids[:, completion_ix]],
                 dim=1,
             )
-            this_seq_pos = torch.cat(
-                [seq_pos, completion_seq_pos[:, completion_ix]],
-                dim=1,
-            )
+            forward_kwargs = {}
             # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
@@ -402,7 +402,12 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids[..., completion_start_pos - 1]
                 == self.tokenizer.sep_token_id
             )  # SEP token
-            forward_kwargs = {"seq_pos": this_seq_pos} if self.use_seq_pos else {}
+            if self.use_seq_pos:
+                this_seq_pos = torch.cat(
+                    [seq_pos, completion_seq_pos[:, completion_ix]],
+                    dim=1,
+                )
+                forward_kwargs["seq_pos"] = this_seq_pos
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
