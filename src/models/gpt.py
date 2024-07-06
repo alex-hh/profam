@@ -47,14 +47,14 @@ class GPT2LitModule(BaseFamilyLitModule):
         max_seq_pos: int = 2048,
     ) -> None:
         model = GPT2LMHeadModel(config)
-        if use_seq_pos:
-            model = TransformerWithSequencePositionEmbeddings(
-                model,
-                model.transformer.wte,
-                embedding_dim=config.hidden_size,
-                use_seq_pos=use_seq_pos,
-                max_seq_pos=max_seq_pos,
-            )
+        # if use_seq_pos:  # commenting out to check computation of inputs embeds is working
+        model = TransformerWithSequencePositionEmbeddings(
+            model,
+            model.transformer.wte,
+            embedding_dim=config.hidden_size,
+            use_seq_pos=use_seq_pos,
+            max_seq_pos=max_seq_pos,
+        )
         super().__init__(
             model,
             tokenizer,
