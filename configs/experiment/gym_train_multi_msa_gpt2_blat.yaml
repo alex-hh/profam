@@ -29,7 +29,7 @@ model:
   num_warmup_steps: 200
 
 data:
-  batch_size: 4
+  batch_size: 2  # for consistency with prime_frog run
   num_workers: 12
   mutant_bos_token: "sep"
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013"]

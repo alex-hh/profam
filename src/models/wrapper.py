@@ -51,7 +51,8 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         if self.use_seq_pos:
             assert seq_pos is not None
             pos_embeds = self.seq_pos_embedding(seq_pos)
-        return inputs_embeds + pos_embeds
+            inputs_embeds = inputs_embeds + pos_embeds
+        return inputs_embeds
 
     def forward(
         self,

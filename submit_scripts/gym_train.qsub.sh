@@ -2,8 +2,7 @@
 
 # Train ProFam
 
-#$ -l tmem=15.9G
-#$ -l h_vmem=15.9G
+#$ -l tmem=60G
 #$ -l gpu=true
 #$ -l hostname='bubba*'
 ## $ -l gpu_type=(rtx3090|rtx4090|a6000|a40|a10|a100|a100_80)
