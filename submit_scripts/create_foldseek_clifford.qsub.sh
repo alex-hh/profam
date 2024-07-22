@@ -2,10 +2,11 @@
 #$ -P cath
 #$ -l tmem=64G
 #$ -l h_vmem=64G
+#$ -l hostname=clifford*
 #$ -l tscratch=256G
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
-#$ -N foldseek72
+#$ -N foldseekCliff
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
