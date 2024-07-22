@@ -13,6 +13,7 @@ date
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID
 mkdir -p ${SCRATCH_DIR}/data/
 rsync -av /SAN/orengolab/cath_plm/profam_db ${SCRATCH_DIR}/
+echo "Copied ProFam to ${SCRATCH_DIR}/profam_db/"
 conda activate venvPF
 python data_creation_scripts/create_foldseek.py ${SCRATCH_DIR}
 date
