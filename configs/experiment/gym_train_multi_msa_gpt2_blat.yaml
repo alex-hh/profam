@@ -31,7 +31,7 @@ model:
 data:
   batch_size: 4
   num_workers: 12
-  mutant_bos_token: "bos"  # for consistency when using single family scoring
+  mutant_bos_token: "sep"
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013"]
   dataset_cfg:
     data_path_pattern: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m

@@ -36,7 +36,8 @@ class BaseLitModule(LightningModule):
         model: nn.Module,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
-        weight_decay: float = 0.01,
+        weight_decay: float = 0.1,
+        eps: float = 1e-5,
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
@@ -48,6 +49,7 @@ class BaseLitModule(LightningModule):
         self.save_hyperparameters(logger=False)
         self.lr = lr
         self.weight_decay = weight_decay
+        self.eps = eps
         self.num_warmup_steps = num_warmup_steps
         self.num_training_steps = num_training_steps
         self.scheduler_name = scheduler_name
@@ -59,7 +61,7 @@ class BaseLitModule(LightningModule):
             lr=self.lr,
             weight_decay=self.weight_decay,
             betas=(0.9, 0.95),
-            eps=1e-5,
+            eps=self.eps,
         )
         optim_dict = {"optimizer": optimizer}
         if self.scheduler_name is not None:
@@ -316,7 +318,7 @@ class BaseFamilyLitModule(BaseLitModule):
         model,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
-        weight_decay: float = 0.01,
+        weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,

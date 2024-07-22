@@ -6,7 +6,7 @@ defaults:
   - _self_
   - data: example_data
   - model: mistral
-  - callbacks: default
+  - callbacks: default_no_shuffle
   - logger: wandb
   - trainer: mps
   - paths: default

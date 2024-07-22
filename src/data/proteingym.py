@@ -7,7 +7,7 @@ from datasets import Dataset
 from lightning import LightningDataModule
 from torch import stack
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
@@ -22,7 +22,6 @@ from src.data.utils import (
 def tokenize_msa(
     sample,
     tokenizer: PreTrainedTokenizerFast,
-    max_tokens=5000,
 ):
     # TODO: fix tokenization. copying hf loader for now
     concatenated_seqs = tokenizer.bos_token + tokenizer.sep_token.join(
@@ -68,9 +67,8 @@ def tokenize(
     mutant_bos_token="sep",
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
-    **kwargs
 ):
-    sample = tokenize_msa(sample, tokenizer, **kwargs)
+    sample = tokenize_msa(sample, tokenizer)
     sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
     if use_seq_pos:
         sample["seq_pos"] = get_seq_pos(
@@ -96,12 +94,13 @@ def tokenize(
 def load_msa_for_row(
     row, seed, max_tokens, gym_data_dir, keep_wt=False, drop_wt=True, keep_gaps=False
 ):
-    labels, seqs = fasta.read_fasta(
+    _, seqs = fasta.read_fasta(
         os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
         keep_insertions=True,
         to_upper=True,
         keep_gaps=keep_gaps,
     )
+    # need to allow room for the completion
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     sampled_seqs = data_utils.sample_to_max_tokens(
         seqs,
@@ -164,7 +163,13 @@ def load_gym_dataset(
     gym_data_dir: str = "data/example_data/ProteinGym",
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+    num_proc: Optional[int] = None,
 ):
+    """mutant_bos_token should almost always be sep.
+
+    when using a BaseSingleSequenceLitModule, however, we want it
+    to be bos, since no context sequences are passed during scoring.
+    """
     df = build_gym_df(
         dms_ids,
         gym_data_dir=gym_data_dir,
@@ -177,13 +182,13 @@ def load_gym_dataset(
         functools.partial(
             tokenize,
             tokenizer=tokenizer,
-            max_tokens=max_tokens,
             mutant_bos_token=mutant_bos_token,
             use_seq_pos=use_seq_pos,
             max_seq_pos=max_seq_pos,
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
+        num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores"]
@@ -206,7 +211,7 @@ def load_gym_msa_dataset(
     """For single-sequence training."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     row = df[df["DMS_id"] == dms_id].iloc[0]
-    labels, seqs = fasta.read_fasta(
+    _, seqs = fasta.read_fasta(
         os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
         keep_insertions=True,
         to_upper=True,
@@ -279,6 +284,7 @@ class GymSingleMSADataModule(LightningDataModule):
             max_mutated_sequences=self.max_gym_sequences,
             gym_data_dir=self.gym_data_dir,
             use_seq_pos=self.use_seq_pos,
+            num_proc=self.num_workers,
         )
         self.msa_dataset = load_gym_msa_dataset(
             dms_id=gym_dms_id,
@@ -369,6 +375,11 @@ class GymMultiMSADataModule(LightningDataModule):
         max_tokens: int,
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
+        # when using a single sequence model (BaseSingleSequenceLitModule), it
+        # scoring passes as input to the model only the completion ids. Therefore
+        # the completion ids should have the bos token at the start.
+        # n.b. during training the model might nonetheless receive multiple concatenated
+        # sequences
         mutant_bos_token: str = "sep",
         use_seq_pos: bool = False,
         max_seq_pos: Optional[int] = None,
@@ -393,8 +404,7 @@ class GymMultiMSADataModule(LightningDataModule):
         )
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.max_seq_pos = max_seq_pos
-        if use_seq_pos:
-            raise NotImplementedError
+        self.use_seq_pos = use_seq_pos
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_ids is not None
         assert self.gym_data_dir is not None
@@ -405,6 +415,9 @@ class GymMultiMSADataModule(LightningDataModule):
             gym_data_dir=self.gym_data_dir,
             mutant_bos_token=mutant_bos_token,  # we might want to set to bos
             max_tokens=max_tokens,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
+            num_proc=self.num_workers,
         )
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
