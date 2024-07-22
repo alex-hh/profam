@@ -26,6 +26,7 @@ class ProteinDataModule(LightningDataModule):
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
+        keep_gym_gaps: bool = False,
         gym_data_dir: Optional[str] = None,
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
@@ -44,6 +45,7 @@ class ProteinDataModule(LightningDataModule):
         self.val_dataset_name = val_dataset_name
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
+        self.keep_gym_gaps = keep_gym_gaps
         self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
@@ -129,6 +131,8 @@ class ProteinDataModule(LightningDataModule):
                 max_tokens=self.max_tokens,
                 use_seq_pos=self.use_seq_pos,
                 max_seq_pos=self.max_seq_pos,
+                keep_gaps=self.keep_gym_gaps,
+                num_proc=self.num_workers,
             )
         if self.evaluate_ec_class:
             # TODO: add other classifier dataset kwargs to config

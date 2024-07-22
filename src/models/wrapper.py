@@ -38,11 +38,21 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         # different models will have different token embedders.
         # we assume (which is case for e.g. gpt2 and mistral)
         # that the model will itself add its own position embeddings to inputs_embeds
+        assert input_ids.ndim == 2
+        # gpt2 code
+        # elif input_ids is not None:
+        #     self.warn_if_padding_and_no_attention_mask(input_ids, attention_mask)
+        #     input_shape = input_ids.size()
+        #     input_ids = input_ids.view(-1, input_shape[-1])
+        #     batch_size = input_ids.shape[0]
+
+        # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
         if self.use_seq_pos:
             assert seq_pos is not None
             pos_embeds = self.seq_pos_embedding(seq_pos)
-        return inputs_embeds + pos_embeds
+            inputs_embeds = inputs_embeds + pos_embeds
+        return inputs_embeds
 
     def forward(
         self,
