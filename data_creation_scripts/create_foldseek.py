@@ -23,6 +23,11 @@ def make_cluster_dictionary(cluster_path):
                 print("Processed", line_counter, "lines for cluster dictionary")
     return cluster_dict
 
+def get_sequence_from_profam_db(uniprot_id, cursor):
+    cursor.execute('SELECT sequence FROM sequences WHERE sequence_id = ?', (uniprot_id,))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
 def create_foldseek_fastas(db_path, cluster_dict, save_dir):
     for cluster_id, members in cluster_dict.items():
 

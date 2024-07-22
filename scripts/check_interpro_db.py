@@ -19,4 +19,10 @@ for table in tables:
         print(f"  {column[1]} ({column[2]})")
     print()
 
-conn.close()
+# Execute a query to count the rows in the sequences table
+cursor.execute("SELECT COUNT(*) FROM sequences")
+
+# Fetch the result
+row_count = cursor.fetchone()[0]
+
+print(f"Number of rows in the sequences table: {row_count}")
