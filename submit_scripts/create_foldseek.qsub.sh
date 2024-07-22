@@ -2,8 +2,8 @@
 #$ -P cath
 #$ -l tmem=64G
 #$ -l h_vmem=64G
-#$ -l tscratch=64G
-#$ -l h_rt=72:55:30
+#$ -l tscratch=256G
+#$ -l h_rt=95:55:30
 #$ -S /bin/bash
 #$ -N foldseek
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
