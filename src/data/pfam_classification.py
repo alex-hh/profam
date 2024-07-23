@@ -68,15 +68,21 @@ def load_pfam_classification_dataset(
         partial(
             tokenize,
             tokenizer=tokenizer,
-            max_tokens=max_tokens,
             use_seq_pos=use_seq_pos,
             max_seq_pos=max_seq_pos
         ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"]
     )
-    columns = [""]
-    pass
+    columns = ["input_ids", "completion_ids", "family_labels"]
+    if use_seq_pos:
+        columns += ["seq_pos", "completion_seq_pos"]
+
+    dataset.set_format(
+        type="torch",
+        columns=columns,
+    )
+    return dataset
 
 if __name__ == '__main__':
     load_pfam_classification_dataset()

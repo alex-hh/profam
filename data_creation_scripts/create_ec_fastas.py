@@ -58,6 +58,15 @@ def parse_expasy_file(file_path, output_dir):
         else:
             print(f"No UniProt IDs found for EC subclass {subclass_match}")
 
+def create_train_test_split():
+    """
+    Pick some EC classes at different levels
+    of the hierarchy to create a train-test split
+    cluster sequences to make the classification
+    more challenging
+    """
+    pass
+
 if __name__ == "__main__":
     # Parse the expasy_enzyme_commission_all_class.dat file
     file_path = "../data/ec/expasy_enzyme_commission_all_class.dat"
