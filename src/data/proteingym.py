@@ -302,7 +302,6 @@ class GymSingleMSADataModule(LightningDataModule):
         self.train_dataset = ddict["train"]
         self.val_dataset = ddict["test"]
 
-
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
             self.train_dataset,
