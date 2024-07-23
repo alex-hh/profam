@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
+import tqdm
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
@@ -163,41 +164,6 @@ class BaseLitModule(LightningModule):
         )
         self.log("lr", optimizer.param_groups[0]["lr"])
 
-    def _score_seqs_no_cache(
-        self,
-        input_ids,
-        completion_ids,
-        batch_size: int = 1,
-        seq_pos: Optional[torch.LongTensor] = None,
-    ):
-        # input_ids is b, L; completion_ids is b, n, L
-        if batch_size > 1:
-            raise NotImplementedError(
-                "Mutant batch size > 1 not yet supported for mutant scoring"
-            )
-        all_lls = []
-        completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
-        for completion_ix in range(completion_ids.shape[1]):
-            input_ids = torch.cat(
-                [input_ids, completion_ids[:, completion_ix]],
-                dim=1,
-            )
-            # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
-            labels = torch.where(
-                input_ids == self.tokenizer.pad_token_id, -100, input_ids.clone()
-            )
-            assert (
-                input_ids[..., completion_start_pos - 1] == self.tokenizer.sep_token_id
-            )  # SEP token
-            outputs = self.model(input_ids=input_ids, seq_pos=seq_pos)
-            # TODO: maybe relabel start_ix - a bit confusing
-            log_likelihood = log_likelihood_from_outputs(
-                outputs, labels, start_ix=completion_start_pos - 1
-            )  # 1, L
-            all_lls.append(log_likelihood.mean(-1).item())
-        lls = np.array(all_lls)
-        return lls
-
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
@@ -343,7 +309,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_seq_pos = use_seq_pos
 
     def get_forward_kwargs(self, batch):
-        return {"seq_pos": batch.get("seq_pos", None)}
+        return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
     def _score_seqs_kv_cache(
         self,
@@ -352,39 +318,49 @@ class BaseFamilyLitModule(BaseLitModule):
         seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
+        verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        outputs = self.model(input_ids=input_ids, seq_pos=seq_pos, use_cache=True)
+        forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+        outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
         L = completion_ids.shape[-1]
-        for batch_start in range(0, completion_ids.shape[1], batch_size):
+        for batch_start in tqdm.tqdm(
+            range(0, completion_ids.shape[1], batch_size), disable=not verbose
+        ):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
-            input_ids = completion_ids[
+            this_input_ids = completion_ids[
                 :, batch_start : batch_start + batch_size
             ].reshape(
                 -1, L
             )  # b_mut, L
-            seq_pos = completion_seq_pos[
-                :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
-            actual_batch_size = input_ids.shape[0]
+            forward_kwargs = {}
+            if self.use_seq_pos:
+                this_seq_pos = completion_seq_pos[
+                    :, batch_start : batch_start + batch_size
+                ].reshape(
+                    -1, L
+                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+                forward_kwargs["seq_pos"] = this_seq_pos
+            actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+
             outputs = self.model(
-                input_ids=input_ids,
-                seq_pos=seq_pos,
+                input_ids=this_input_ids,
                 past_key_values=cache.batch_repeat_interleave(actual_batch_size),
                 use_cache=True,
+                **forward_kwargs,
             )
             labels = torch.where(
-                input_ids == self.tokenizer.pad_token_id, -100, input_ids.clone()
+                this_input_ids == self.tokenizer.pad_token_id,
+                -100,
+                this_input_ids.clone(),
             )
             log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
             all_lls.append(log_likelihood.mean(-1))  # b_mut
@@ -396,9 +372,10 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         input_ids,
         completion_ids,
+        batch_size: int = 1,
         seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
-        batch_size: int = 1,
+        verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
@@ -407,22 +384,34 @@ class BaseFamilyLitModule(BaseLitModule):
             )
         all_lls = []
         completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
-        for completion_ix in range(completion_ids.shape[1]):
-            input_ids = torch.cat(
+        for completion_ix in tqdm.tqdm(
+            range(completion_ids.shape[1]), disable=not verbose
+        ):
+            this_input_ids = torch.cat(
                 [input_ids, completion_ids[:, completion_ix]],
                 dim=1,
             )
-            seq_pos = torch.cat(
-                [seq_pos, completion_seq_pos[:, completion_ix]],
-                dim=1,
+            forward_kwargs = {}
+            # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
+            labels = torch.where(
+                this_input_ids == self.tokenizer.pad_token_id,
+                -100,
+                this_input_ids.clone(),
             )
             assert (
-                input_ids[..., completion_start_pos - 1] == self.tokenizer.sep_token_id
+                this_input_ids[..., completion_start_pos - 1]
+                == self.tokenizer.sep_token_id
             )  # SEP token
-            outputs = self.model(input_ids=input_ids, seq_pos=seq_pos)
+            if self.use_seq_pos:
+                this_seq_pos = torch.cat(
+                    [seq_pos, completion_seq_pos[:, completion_ix]],
+                    dim=1,
+                )
+                forward_kwargs["seq_pos"] = this_seq_pos
+            outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
-                outputs, input_ids, start_ix=completion_start_pos - 1
+                outputs, labels, start_ix=completion_start_pos - 1
             )  # 1, L
             all_lls.append(log_likelihood.mean(-1).item())
         lls = np.array(all_lls)
