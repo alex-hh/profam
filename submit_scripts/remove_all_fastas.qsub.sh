@@ -10,5 +10,5 @@
 #$ -j y
 date
 cd /SAN/orengolab/cath_plm/ProFam/data/foldseek
-rm -f *.fasta
+find . -maxdepth 1 -name "*.fasta" -exec rm {} \;
 date
