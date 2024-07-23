@@ -526,6 +526,60 @@ class BaseFamilyLitModule(BaseLitModule):
 
         return torch.tensor(metric, device=self.device)
 
+    def update_family_likelihoods(self, batch, lls):
+        """
+        each batch evaluates the ll of all test seqs
+        conditioned on a single family. This means
+        we can re-use the KV cache across all seqs
+        for the multi-class objective we need to store
+        the liklihood of each seq conditioned on each
+        family.
+        """
+        # check if self.family_likelihoods is initialized
+        if not hasattr(self, "family_likelihoods"):
+            self.family_likelihooods = {}
+        for i, t in enumerate(batch["family_labels"][0].cpu().numpy()):
+            ll = lls[i]
+            if i not in self.family_likelihoods:
+                self.family_likelihoods[i] = {}
+            if t == 1:
+                assert 1 not in self.family_likelihoods[i]
+                self.family_likelihoods[i][1] = ll
+            else:
+                if 0 not in self.family_likelihoods[i]:
+                    self.family_likelihoods[i][0] = []
+                self.family_likelihoods[i][0].append(ll)
+
+    def validation_epoch_end(self, outputs):
+        if hasattr(self, "family_likelihoods"):
+            ce_scores = []
+            acc_scores = []
+            for eval_seq, lls in self.family_likelihoods.items():
+                #softmax likelihoods to get probability over families
+                labels = np.array([1] + [0] * len(lls[0]))
+                lls = [lls[1]] + lls[0]
+                probs = np.exp(lls) / np.exp(lls).sum()
+                # calculate cross entropy
+                ce = -np.log(probs[labels == 1]).mean()
+                ce_scores.append(ce)
+                if np.argmax(probs) == 0:
+                    acc_scores.append(1)
+                else:
+                    acc_scores.append(0)
+
+            self.log(
+                "family_class_cr_ent",
+                sum(ce_scores) / len(ce_scores),
+                on_step=False
+            )
+
+            self.log(
+                "family_class_acc",
+                sum(acc_scores) / len(acc_scores),
+                on_step=False
+            )
+        self.family_likelihooods = {}
+
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
