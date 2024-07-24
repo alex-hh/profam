@@ -523,7 +523,8 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=False,
             on_epoch=True,
         )
-        self.update_family_likelihoods(batch, lls)
+        if "ds_name" in batch and "pfam" in batch["ds_name"].text:
+            self.update_family_likelihoods(batch, lls)
         return torch.tensor(metric, device=self.device)
 
     def update_family_likelihoods(self, batch, lls):
@@ -533,22 +534,21 @@ class BaseFamilyLitModule(BaseLitModule):
         we can re-use the KV cache across all seqs.
         For the multi-class objective we need to store
         the liklihood of each seq conditioned on each
-        family.
+        family. lls from each batch are stored here
         """
-        # check if self.family_likelihoods is initialized
         if not hasattr(self, "family_likelihoods"):
             self.family_likelihoods = {}
-        for i, t in enumerate(batch["family_labels"][0].cpu().numpy()):
-            ll = lls[i]
-            if i not in self.family_likelihoods:
-                self.family_likelihoods[i] = {}
-            if t == 1:
-                assert 1 not in self.family_likelihoods[i]
-                self.family_likelihoods[i][1] = ll
+        for eval_seq_id, label in enumerate(batch["family_labels"][0].cpu().numpy()):
+            ll = lls[eval_seq_id]
+            if eval_seq_id not in self.family_likelihoods:
+                self.family_likelihoods[eval_seq_id] = {}
+            if label == 1:
+                assert 1 not in self.family_likelihoods[eval_seq_id]  # 1 fam per seq
+                self.family_likelihoods[eval_seq_id][1] = ll
             else:
-                if 0 not in self.family_likelihoods[i]:
-                    self.family_likelihoods[i][0] = []
-                self.family_likelihoods[i][0].append(ll)
+                if 0 not in self.family_likelihoods[eval_seq_id]:
+                    self.family_likelihoods[eval_seq_id][0] = []
+                self.family_likelihoods[eval_seq_id][0].append(ll)
 
     def on_validation_epoch_end(self):
         super().on_validation_epoch_end()
@@ -558,15 +558,19 @@ class BaseFamilyLitModule(BaseLitModule):
             for eval_seq, lls in self.family_likelihoods.items():
                 #softmax likelihoods to get probability over families
                 labels = np.array([1] + [0] * len(lls[0]))
-                lls = [lls[1]] + lls[0]
-                probs = np.exp(lls) / np.exp(lls).sum()
-                # calculate cross entropy
-                ce = -np.log(probs[labels == 1]).mean()
-                ce_scores.append(ce)
-                if np.argmax(probs) == 0:
-                    acc_scores.append(1)
+                if 1 in lls:
+                    lls = [lls[1]] + lls[0]
+                    probs = np.exp(lls) / np.exp(lls).sum()
+                    # calculate cross entropy
+                    ce = -np.log(probs[labels == 1]).mean()
+                    ce_scores.append(ce)
+                    if np.argmax(probs) == 0:
+                        acc_scores.append(1)
+                    else:
+                        acc_scores.append(0)
                 else:
-                    acc_scores.append(0)
+                    print(f"Warning: Eval seq has no positive family")
+
 
             self.log(
                 "family_class_cr_ent",

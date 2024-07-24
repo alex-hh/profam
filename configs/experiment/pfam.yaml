@@ -6,7 +6,7 @@ defaults:
   - override /trainer: gpu
   - _self_
 
-tags: ["pfam"]
+tags: ["pfam", "mistral_small"]
 
 seed: 12345
 

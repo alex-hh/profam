@@ -194,7 +194,6 @@ def load_protein_dataset(
             data_files=cfg.data_path_pattern,
             split=split,
             streaming=True,
-            ignore_verifications=True,
         )
     else:
         dataset = load_dataset(
