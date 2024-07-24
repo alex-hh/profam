@@ -523,21 +523,21 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=False,
             on_epoch=True,
         )
-
+        self.update_family_likelihoods(batch, lls)
         return torch.tensor(metric, device=self.device)
 
     def update_family_likelihoods(self, batch, lls):
         """
         each batch evaluates the ll of all test seqs
         conditioned on a single family. This means
-        we can re-use the KV cache across all seqs
-        for the multi-class objective we need to store
+        we can re-use the KV cache across all seqs.
+        For the multi-class objective we need to store
         the liklihood of each seq conditioned on each
         family.
         """
         # check if self.family_likelihoods is initialized
         if not hasattr(self, "family_likelihoods"):
-            self.family_likelihooods = {}
+            self.family_likelihoods = {}
         for i, t in enumerate(batch["family_labels"][0].cpu().numpy()):
             ll = lls[i]
             if i not in self.family_likelihoods:
@@ -550,7 +550,8 @@ class BaseFamilyLitModule(BaseLitModule):
                     self.family_likelihoods[i][0] = []
                 self.family_likelihoods[i][0].append(ll)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
+        super().on_validation_epoch_end()
         if hasattr(self, "family_likelihoods"):
             ce_scores = []
             acc_scores = []
@@ -578,7 +579,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 sum(acc_scores) / len(acc_scores),
                 on_step=False
             )
-        self.family_likelihooods = {}
+            self.family_likelihooods = {}
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int

@@ -69,25 +69,27 @@ def tokenize(
     max_seq_pos: int = 1024,
 ):
     sample = tokenize_msa(sample, tokenizer)
-    sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
+    if "completion_ids" not in sample:
+        sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
     if use_seq_pos:
         sample["seq_pos"] = get_seq_pos(
             sample["input_ids"],
             tokenizer.sep_token_id,
             max_seq_pos=max_seq_pos,
         )
-        completion_pos = stack(
-            [
-                # todo: do we need to iterate or will each they be the same?
-                get_seq_pos(
-                    completion,
-                    tokenizer.sep_token_id,
-                    max_seq_pos=max_seq_pos,
-                )
-                for completion in sample["completion_ids"]
-            ]
-        )
-        sample["completion_seq_pos"] = completion_pos
+        if "completion_seq_pos" not in sample:
+            completion_pos = stack(
+                [
+                    # todo: do we need to iterate or will each they be the same?
+                    get_seq_pos(
+                        completion,
+                        tokenizer.sep_token_id,
+                        max_seq_pos=max_seq_pos,
+                    )
+                    for completion in sample["completion_ids"]
+                ]
+            )
+            sample["completion_seq_pos"] = completion_pos
     return sample
 
 

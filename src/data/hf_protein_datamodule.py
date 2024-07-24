@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
-from src.data.pfam_classification import load_pfam_classification_dataset
+from src.data.pfam_classification import load_pfam_classification_dataset_optimized, load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -146,11 +146,12 @@ class ProteinDataModule(LightningDataModule):
             )
 
         if self.evaluate_pfam_class:
-            self.pfam_class_dataset = load_pfam_classification_dataset(
+            self.pfam_class_dataset = load_pfam_classification_dataset_optimized(
                 self.tokenizer,
                 max_tokens=self.max_tokens,
                 use_seq_pos=self.use_seq_pos,
                 max_seq_pos=self.max_seq_pos,
+                num_workers=self.num_workers,
             )
 
     def train_dataloader(self) -> list[DataLoader]:
