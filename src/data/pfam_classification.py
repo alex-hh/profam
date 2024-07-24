@@ -25,11 +25,18 @@ from src.data import fasta
 from src.data.proteingym import tokenize, tokenize_completions
 
 
-def tokenize_pfam (msa_path, eval_names, tokenized_eval_seqs,
-                tokenizer, use_seq_pos, max_seq_pos, completion_seq_pos):
+def tokenize_pfam(
+    msa_path,
+    eval_names,
+    tokenized_eval_seqs,
+    tokenizer,
+    use_seq_pos,
+    max_seq_pos,
+    completion_seq_pos,
+):
     """"""
-    msa_name = msa_path['msa_paths'].split('/')[-1].split('_')[0]
-    msa_names, msa_seqs = fasta.read_fasta(msa_path['msa_paths'])
+    msa_name = msa_path["msa_paths"].split("/")[-1].split("_")[0]
+    msa_names, msa_seqs = fasta.read_fasta(msa_path["msa_paths"])
     assert len(set(msa_names)) == 1
     assert msa_name in msa_names
 
@@ -45,7 +52,7 @@ def tokenize_pfam (msa_path, eval_names, tokenized_eval_seqs,
         tokenizer=tokenizer,
         use_seq_pos=use_seq_pos,
         max_seq_pos=max_seq_pos,
-        mutant_bos_token="sep"
+        mutant_bos_token="sep",
     )
 
     sample["family_labels"] = [1 if s == msa_name else 0 for s in eval_names]
@@ -62,13 +69,13 @@ def load_pfam_classification_dataset(
     num_workers=4,
     max_eval_per_fam=4,
 ):
-    pfam_dir = '../data/pfam/pfam_eval_splits/clustered_split_fastas'
+    pfam_dir = "../data/pfam/pfam_eval_splits/clustered_split_fastas"
     combined_eval_seqs = []
     eval_labels = []
 
     eval_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_test.fasta"))
     for eval_path in eval_seq_paths:
-        eval_name = eval_path.split('/')[-1].split('_')[0]
+        eval_name = eval_path.split("/")[-1].split("_")[0]
         eval_names, eval_seqs = fasta.read_fasta(eval_path)
         assert len(set(eval_names)) == 1
         assert eval_name in eval_names
@@ -78,11 +85,12 @@ def load_pfam_classification_dataset(
     # Tokenize eval sequences once and re-use
     tok_eval_seqs = tokenize_completions(
         sample={"completion_seqs": combined_eval_seqs},
-        tokenizer=tokenizer, bos_token="sep"
+        tokenizer=tokenizer,
+        bos_token="sep",
     )
     if use_seq_pos:
         n_seqs, longest = tok_eval_seqs["completion_ids"].shape
-        completion_seq_pos = arange(-1, longest-1).repeat(n_seqs, 1)
+        completion_seq_pos = arange(-1, longest - 1).repeat(n_seqs, 1)
         assert completion_seq_pos.shape == tok_eval_seqs["completion_ids"].shape
         completion_seq_pos[:, 0] = 0
         completion_seq_pos.clamp_(max=max_seq_pos)

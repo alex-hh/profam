@@ -556,7 +556,7 @@ class BaseFamilyLitModule(BaseLitModule):
             ce_scores = []
             acc_scores = []
             for eval_seq, lls in self.family_likelihoods.items():
-                #softmax likelihoods to get probability over families
+                # softmax likelihoods to get probability over families
                 labels = np.array([1] + [0] * len(lls[0]))
                 if 1 in lls:
                     lls = [lls[1]] + lls[0]
@@ -571,17 +571,12 @@ class BaseFamilyLitModule(BaseLitModule):
                 else:
                     print(f"Warning: Eval seq has no positive family")
 
-
             self.log(
-                "family_class_cr_ent",
-                sum(ce_scores) / len(ce_scores),
-                on_step=False
+                "family_class_cr_ent", sum(ce_scores) / len(ce_scores), on_step=False
             )
 
             self.log(
-                "family_class_acc",
-                sum(acc_scores) / len(acc_scores),
-                on_step=False
+                "family_class_acc", sum(acc_scores) / len(acc_scores), on_step=False
             )
             self.family_likelihooods = {}
 
