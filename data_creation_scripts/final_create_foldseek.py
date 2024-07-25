@@ -1,6 +1,6 @@
 import glob
 import os
-from data_creation_scripts.create_foldseek import fasta_to_parquet
+from src.data_creation_scripts.create_foldseek import fasta_to_parquet
 
 
 if __name__ == "__main__":
