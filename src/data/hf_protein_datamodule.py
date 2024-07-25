@@ -90,6 +90,8 @@ class ProteinDataModule(LightningDataModule):
                 # https://github.com/huggingface/datasets/pull/5735
                 train_datasets.append(dataset)
                 train_data_weights.append(self.data_weights[data_key])
+        train_data_weights = [w / sum(train_data_weights) for w in train_data_weights]
+
         self.train_dataset = interleave_datasets(
             train_datasets,
             probabilities=train_data_weights,

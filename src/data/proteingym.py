@@ -193,7 +193,7 @@ def load_gym_dataset(
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
-        num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
+        num_proc=num_proc or None,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores"]
