@@ -115,7 +115,7 @@ def load_pfam_classification_dataset(
         remove_columns=["msa_paths"],
         batched=False,
         # batch_size=10,  # Adjust this based on your memory constraints
-        num_proc=num_workers,
+        num_proc=num_workers or None,
     )
 
     columns = ["input_ids", "completion_ids", "family_labels", "ds_name"]

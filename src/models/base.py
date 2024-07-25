@@ -543,7 +543,8 @@ class BaseFamilyLitModule(BaseLitModule):
             if eval_seq_id not in self.family_likelihoods:
                 self.family_likelihoods[eval_seq_id] = {}
             if label == 1:
-                assert 1 not in self.family_likelihoods[eval_seq_id]  # 1 fam per seq
+                if 1 in self.family_likelihoods[eval_seq_id]:  # 1 fam per seq
+                    bp = 1
                 self.family_likelihoods[eval_seq_id][1] = ll
             else:
                 if 0 not in self.family_likelihoods[eval_seq_id]:

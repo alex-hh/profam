@@ -10,10 +10,13 @@ tags: ["pfam", "mistral_small"]
 
 seed: 12345
 
+trainer:
+  val_check_interval: 3
+
 data:
   _target_: src.data.hf_protein_datamodule.ProteinDataModule
-  batch_size: 20
-  num_workers: 8
+  batch_size: 40
+  num_workers: 0
   max_tokens: 4000
   data_dir: ../data
   val_dataset_name: interpro
@@ -32,8 +35,8 @@ data:
       data_path_pattern: pfam/parquets/Domain/*.parquet
       is_parquet: true
       keep_gaps: true
-      to_upper: false
-      keep_insertions: false
+      to_upper: true
+      keep_insertions: true
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro

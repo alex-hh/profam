@@ -3,10 +3,7 @@ import pandas as pd
 import random
 
 """
-load all of the pfams that are in the seed sequences
-randomly sample some families for evaluation
-create fasta files for the train/test split for these sequences
-remove these families from the pfam training data
+load all of the pfams that are in th:data
 """
 
 def make_pfam_select_fam(pfam_select_fam_path):

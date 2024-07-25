@@ -30,5 +30,5 @@ if __name__=="__main__":
                 # remove empty text rows
                 df = df[df["text"].apply(lambda x: len(x)>5)]
                 print(f"Removed {orig_len - len(df)} rows from {parquet_file}")
-                table = pa.Table.from_pandas(df)
-                pq.write_table(table, parquet_file)
+            table = pa.Table.from_pandas(df, preserve_index=False)
+            pq.write_table(table, parquet_file)

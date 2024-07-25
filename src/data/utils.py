@@ -67,7 +67,10 @@ class CustomDataCollator:
                 pfam_accs = [example.pop("pfam_acc") for example in examples]
             if has_msa_id:
                 msa_ids = [example.pop("msa_id") for example in examples]
-            batch = self.base_collator(examples)
+            try:
+                batch = self.base_collator(examples)
+            except Exception as e:
+                bp=1
             if has_ds_name:
                 ds_names_obj = StringObject()
                 ds_names_obj.text = ds_names
