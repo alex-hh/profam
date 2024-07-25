@@ -81,6 +81,7 @@ def create_foldseek_fastas(db_path, cluster_dict, save_dir):
                 print("Number of failed sequences:", seq_fail_counter)
                 print("Number of successful sequences:", seq_success_counter)
                 fasta_to_parquet(save_dir, cluster_counter)
+    fasta_to_parquet(save_dir, cluster_counter)
 
 
 if __name__ == "__main__":
