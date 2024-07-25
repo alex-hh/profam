@@ -1,0 +1,7 @@
+_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+name: pfam_domain
+data_path_pattern: pfam/parquets/Domain/*.parquet
+is_parquet: true
+keep_gaps: true
+to_upper: false
+keep_insertions: false

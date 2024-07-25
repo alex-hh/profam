@@ -44,17 +44,17 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
 
 
 def tokenize_completions(sample, tokenizer: PreTrainedTokenizerFast, bos_token="sep"):
+    max_length = max(len(seq) for seq in sample["completion_seqs"])
     sample["completion_seqs"] = [
         get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
         for seq in sample["completion_seqs"]
     ]
-    max_length = max(len(seq) for seq in sample["completion_seqs"])
     tokenized = tokenizer(
         sample["completion_seqs"],
         return_tensors="pt",
         padding="max_length",  # todo handle the padding in the validation step
         truncation=False,  # should be handled elsewhere
-        max_length=max_length,
+        max_length=max_length + 2,  # bos_token and sep_token
         add_special_tokens=False,
     )
     sample["completion_ids"] = tokenized.input_ids
@@ -69,25 +69,27 @@ def tokenize(
     max_seq_pos: int = 1024,
 ):
     sample = tokenize_msa(sample, tokenizer)
-    sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
+    if "completion_ids" not in sample:
+        sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
     if use_seq_pos:
         sample["seq_pos"] = get_seq_pos(
             sample["input_ids"],
             tokenizer.sep_token_id,
             max_seq_pos=max_seq_pos,
         )
-        completion_pos = stack(
-            [
-                # todo: do we need to iterate or will each they be the same?
-                get_seq_pos(
-                    completion,
-                    tokenizer.sep_token_id,
-                    max_seq_pos=max_seq_pos,
-                )
-                for completion in sample["completion_ids"]
-            ]
-        )
-        sample["completion_seq_pos"] = completion_pos
+        if "completion_seq_pos" not in sample:
+            completion_pos = stack(
+                [
+                    # todo: do we need to iterate or will each they be the same?
+                    get_seq_pos(
+                        completion,
+                        tokenizer.sep_token_id,
+                        max_seq_pos=max_seq_pos,
+                    )
+                    for completion in sample["completion_ids"]
+                ]
+            )
+            sample["completion_seq_pos"] = completion_pos
     return sample
 
 
@@ -161,6 +163,7 @@ def load_gym_dataset(
     max_tokens: int = 5000,
     mutant_bos_token: str = "sep",
     gym_data_dir: str = "data/example_data/ProteinGym",
+    keep_gaps: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
     num_proc: Optional[int] = None,
@@ -170,12 +173,14 @@ def load_gym_dataset(
     when using a BaseSingleSequenceLitModule, however, we want it
     to be bos, since no context sequences are passed during scoring.
     """
+    print(f"Loading gym dataset for evaluation, keeping gaps: {keep_gaps}")
     df = build_gym_df(
         dms_ids,
         gym_data_dir=gym_data_dir,
         seed=seed,
         max_mutated_sequences=max_mutated_sequences,
         max_tokens=max_tokens,
+        keep_gaps=keep_gaps,
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     dataset = dataset.map(
@@ -188,7 +193,7 @@ def load_gym_dataset(
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
-        num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
+        num_proc=num_proc or None,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores"]
@@ -207,6 +212,7 @@ def load_gym_msa_dataset(
     tokenizer,
     gym_data_dir: str = "data/example_data/ProteinGym",
     keep_gaps: bool = True,
+    num_proc: Optional[int] = None,
 ):
     """For single-sequence training."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
@@ -239,6 +245,7 @@ def load_gym_msa_dataset(
         tokenize_sequence,
         batched=True,
         remove_columns=["sequence"],
+        num_proc=num_proc,
     )
     return dataset
 
@@ -285,6 +292,7 @@ class GymSingleMSADataModule(LightningDataModule):
             gym_data_dir=self.gym_data_dir,
             use_seq_pos=self.use_seq_pos,
             num_proc=self.num_workers,
+            keep_gaps=self.keep_gaps,
         )
         self.msa_dataset = load_gym_msa_dataset(
             dms_id=gym_dms_id,
@@ -295,7 +303,6 @@ class GymSingleMSADataModule(LightningDataModule):
         ddict = self.msa_dataset.train_test_split(test_size=0.01, seed=42)
         self.train_dataset = ddict["train"]
         self.val_dataset = ddict["test"]
-
 
     def train_dataloader(self) -> list[DataLoader]:
         return DataLoader(
@@ -418,6 +425,7 @@ class GymMultiMSADataModule(LightningDataModule):
             use_seq_pos=self.use_seq_pos,
             max_seq_pos=self.max_seq_pos,
             num_proc=self.num_workers,
+            keep_gaps=dataset_cfg.keep_gaps,
         )
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
