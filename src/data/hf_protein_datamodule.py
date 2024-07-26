@@ -92,11 +92,13 @@ class ProteinDataModule(LightningDataModule):
         self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
 
     def setup_val_datasets(self):
-        val_datasets = []
+        self.val_datasets = []
+        if self.val_dataset_cfgs is None:
+            return
         for v_data_key, config in self.val_dataset_cfgs.items():
             if v_data_key == "gym":
                 print("Loading gym dataset", config.gym_dms_ids)
-                val_datasets.append(
+                self.val_datasets.append(
                     load_gym_dataset(
                         dms_ids=config.gym_dms_ids,
                         tokenizer=self.tokenizer,
@@ -111,7 +113,7 @@ class ProteinDataModule(LightningDataModule):
                 )
             elif v_data_key == "ec":
                 print("Loading EC class dataset")
-                val_datasets.append(
+                self.val_datasets.append(
                     load_classifier_dataset(
                         fasta_file_pattern=config.data_path,
                         tokenizer=self.tokenizer,
@@ -126,7 +128,7 @@ class ProteinDataModule(LightningDataModule):
                     )
                 )
             else:
-                val_datasets.append(
+                self.val_datasets.append(
                     load_protein_dataset(
                         self.dataset_cfgs[v_data_key],
                         self.tokenizer,
@@ -136,7 +138,6 @@ class ProteinDataModule(LightningDataModule):
                         max_seq_pos=self.max_seq_pos,
                     )
                 )
-        self.val_datasets = val_datasets
 
 
     def setup_test_datasets(self):
