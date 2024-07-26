@@ -6,7 +6,7 @@ which contains:
 - completion_ids (tokens of seqs to predict)
 - family_labels (binary in-family or not)
 
-for pfam we evluate likelihood of sequence
+for pfam we evaluate likelihood of sequence
 conditioning on prompts from different families
 likelihoods for different prompts are logits
 in a multi-class classification problem
@@ -23,6 +23,9 @@ from torch import arange
 
 from src.data import fasta
 from src.data.proteingym import tokenize, tokenize_completions
+import src.data.utils as data_utils
+
+
 
 
 def tokenize_pfam(
@@ -30,15 +33,25 @@ def tokenize_pfam(
     eval_names,
     tokenized_eval_seqs,
     tokenizer,
+    max_msa_tokens,
     use_seq_pos,
     max_seq_pos,
     completion_seq_pos,
+    seed=42,
 ):
     """"""
     msa_name = msa_path["msa_paths"].split("/")[-1].split("_")[0]
     msa_names, msa_seqs = fasta.read_fasta(msa_path["msa_paths"])
     assert len(set(msa_names)) == 1
     assert msa_name in msa_names
+
+    data_utils.sample_to_max_tokens(
+        msa_seqs,
+        seed=seed,
+        keep_first=True,
+        drop_first=False,
+        max_tokens=max_msa_tokens,
+    )
 
     sample = {
         "MSA": msa_seqs,
@@ -74,6 +87,7 @@ def load_pfam_classification_dataset(
     eval_labels = []
 
     eval_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_test.fasta"))
+    max_eval_len = 0
     for eval_path in eval_seq_paths:
         eval_name = eval_path.split("/")[-1].split("_")[0]
         eval_names, eval_seqs = fasta.read_fasta(eval_path)
@@ -81,6 +95,8 @@ def load_pfam_classification_dataset(
         assert eval_name in eval_names
         combined_eval_seqs.extend(eval_seqs[:max_eval_per_fam])
         eval_labels.extend(eval_names[:max_eval_per_fam])
+        # todo: current form always counts gaps towards limit
+        max_eval_len = max(max_eval_len, max(map(len, eval_seqs)))
 
     # Tokenize eval sequences once and re-use
     tok_eval_seqs = tokenize_completions(
@@ -88,6 +104,7 @@ def load_pfam_classification_dataset(
         tokenizer=tokenizer,
         bos_token="sep",
     )
+    max_msa_tokens = max_tokens - max_eval_len - 2
     if use_seq_pos:
         n_seqs, longest = tok_eval_seqs["completion_ids"].shape
         completion_seq_pos = arange(-1, longest - 1).repeat(n_seqs, 1)
@@ -103,9 +120,11 @@ def load_pfam_classification_dataset(
         eval_names=eval_labels,
         tokenized_eval_seqs=tokenized_eval_seqs,
         tokenizer=tokenizer,
+        max_msa_tokens=max_msa_tokens,
         use_seq_pos=use_seq_pos,
         max_seq_pos=max_seq_pos,
         completion_seq_pos=completion_seq_pos,
+        seed=seed,
     )
 
     # Create dataset and apply processing
