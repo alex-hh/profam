@@ -113,12 +113,12 @@ def load_msa_for_row(
     return row
 
 
-def load_dms_scores_for_row(row, seed, max_mutated_sequences, gym_data_dir):
+def load_dms_scores_for_row(row, seed, max_eval_seqs, gym_data_dir):
     dms_df = pd.read_csv(
         os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", row["DMS_filename"])
     )
-    if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
-        dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
+    if max_eval_seqs is not None and max_eval_seqs < len(dms_df):
+        dms_df = dms_df.sample(n=max_eval_seqs, random_state=seed)
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = dms_df["mutated_sequence"].tolist()
     return row
@@ -128,7 +128,7 @@ def build_gym_df(
     dms_ids,
     gym_data_dir: str,
     seed: Optional[int] = None,
-    max_mutated_sequences: Optional[int] = None,
+    max_eval_seqs: Optional[int] = None,
     max_tokens: int = 5000,
     keep_gaps: bool = False,
 ):
@@ -147,7 +147,7 @@ def build_gym_df(
         load_dms_scores_for_row,
         axis=1,
         seed=seed,
-        max_mutated_sequences=max_mutated_sequences,
+        max_eval_seqs=max_eval_seqs,
         gym_data_dir=gym_data_dir,
     )
     return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs"]]
@@ -157,7 +157,7 @@ def load_gym_dataset(
     dms_ids,
     tokenizer,
     seed: Optional[int] = None,
-    max_mutated_sequences: Optional[int] = None,
+    max_eval_seqs: Optional[int] = None,
     max_tokens: int = 5000,
     mutant_bos_token: str = "sep",
     gym_data_dir: str = "data/example_data/ProteinGym",
@@ -176,7 +176,7 @@ def load_gym_dataset(
         dms_ids,
         gym_data_dir=gym_data_dir,
         seed=seed,
-        max_mutated_sequences=max_mutated_sequences,
+        max_eval_seqs=max_eval_seqs,
         max_tokens=max_tokens,
         keep_gaps=keep_gaps,
     )
@@ -257,7 +257,7 @@ class GymSingleMSADataModule(LightningDataModule):
         gym_dms_id: str,
         gym_data_dir: str,
         batch_size: int,
-        max_gym_sequences: Optional[int] = None,
+        max_eval_seqs: Optional[int] = None,
         num_workers: int = 0,
         keep_gaps: bool = True,
         use_seq_pos: bool = False,
@@ -265,7 +265,7 @@ class GymSingleMSADataModule(LightningDataModule):
         super().__init__()
         self.gym_data_dir = gym_data_dir
         self.batch_size = batch_size
-        self.max_gym_sequences = max_gym_sequences
+        self.max_eval_seqs = max_eval_seqs
         self.gym_dms_id = gym_dms_id
         self.num_workers = num_workers
         self.keep_gaps = keep_gaps
@@ -286,7 +286,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.gym_dataset = load_gym_dataset(
             dms_ids=[gym_dms_id],
             tokenizer=self.tokenizer,
-            max_mutated_sequences=self.max_gym_sequences,
+            max_eval_seqs=self.max_eval_seqs,
             gym_data_dir=self.gym_data_dir,
             use_seq_pos=self.use_seq_pos,
             num_proc=self.num_workers,
@@ -378,7 +378,7 @@ class GymMultiMSADataModule(LightningDataModule):
         data_dir: str,
         batch_size: int,
         max_tokens: int,
-        max_gym_sequences: Optional[int] = None,
+        max_eval_seqs: Optional[int] = None,
         num_workers: int = 0,
         # when using a single sequence model (BaseSingleSequenceLitModule), it
         # scoring passes as input to the model only the completion ids. Therefore
@@ -394,7 +394,7 @@ class GymMultiMSADataModule(LightningDataModule):
         self.gym_data_dir = gym_data_dir
         self.data_dir = data_dir
         self.batch_size = batch_size
-        self.max_gym_sequences = max_gym_sequences
+        self.max_eval_seqs = max_eval_seqs
         self.max_tokens = max_tokens
         self.gym_dms_ids = gym_dms_ids
         self.num_workers = num_workers
@@ -416,7 +416,7 @@ class GymMultiMSADataModule(LightningDataModule):
         self.gym_dataset = load_gym_dataset(
             dms_ids=gym_dms_ids,
             tokenizer=self.tokenizer,
-            max_mutated_sequences=self.max_gym_sequences,
+            max_eval_seqs=self.max_eval_seqs,
             gym_data_dir=self.gym_data_dir,
             mutant_bos_token=mutant_bos_token,  # we might want to set to bos
             max_tokens=max_tokens,

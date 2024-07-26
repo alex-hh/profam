@@ -33,7 +33,7 @@ config = MistralConfig(
 gym_dataset = load_gym_dataset(
     dms_ids=["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"],
     tokenizer=tokenizer,
-    max_mutated_sequences=5,
+    max_eval_seqs=5,
 )
 batch_size = 1
 gym_loader = DataLoader(

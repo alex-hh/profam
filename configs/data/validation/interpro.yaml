@@ -1,0 +1,5 @@
+name: interpro
+data_path: example_data/interpro/protein-matching-*.fasta
+keep_gaps: false
+to_upper: false
+keep_insertions: false

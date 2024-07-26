@@ -21,10 +21,13 @@ def load_classifier_dataset(
     fasta_file_pattern,
     tokenizer: PreTrainedTokenizerFast,
     max_tokens=10000,
-    max_seqs_to_predict=10,
-    num_decoys_per_target=5,
+    num_decoys_per_target=5,  # todo remove this once we have fixed the data
     use_seq_pos=False,
     max_seq_pos: int = 1024,
+    keep_gaps=True,
+    to_upper=False,
+    keep_insertions=True,
+    max_eval_seqs=100,
     seed=42,
 ):
     paths = sorted(glob.glob(fasta_file_pattern))
@@ -35,7 +38,7 @@ def load_classifier_dataset(
         # Load sequences from the target family
         _, seqs = fasta.read_fasta(target_family_path)
         target_family_seqs = seqs.copy()
-        n_targ_seqs = min(len(target_family_seqs) // 2, max_seqs_to_predict)
+        n_targ_seqs = min(len(target_family_seqs) // 2, max_eval_seqs)
         target_seqs = random.sample(target_family_seqs, n_targ_seqs)
         remaining_seqs = list(set(target_family_seqs) - set(target_seqs))
         decoy_seqs = []

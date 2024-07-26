@@ -1,0 +1,7 @@
+name: ec
+data_path: data/example_data/expasy_ec/*.fasta
+keep_gaps: true
+to_upper: false
+keep_insertions: true
+max_eval_seqs: 100
+num_decoys_per_target: 5
