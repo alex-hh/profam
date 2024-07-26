@@ -3,7 +3,8 @@ defaults:
   - dataset/example@dataset_cfgs.openfold_aligned: openfold_aligned
   - dataset/example@dataset_cfgs.openfold_raw: openfold_raw
   - dataset/example@dataset_cfgs.ec: ec
-  - dataset/example@dataset_cfgs.interpro: interpro
+  - dataset/example@val_dataset_cfgs.interpro: interpro
+
   - _self_
 data_weights:
   openfold_aligned: 0.4
@@ -13,11 +14,7 @@ batch_size: 2
 max_tokens: 5000
 data_dir: data
 tokenizer_path: src/data/components/profam_tokenizer.json
-evaluate_gym: true
-val_dataset_name: interpro
-gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 max_gym_sequences: null
 num_workers: 0  # None means use all available CPU cores
-gym_data_dir: example_data/ProteinGym
 use_seq_pos: True  # embed sequence relative position
 max_seq_pos: 1024  # maximum sequence position

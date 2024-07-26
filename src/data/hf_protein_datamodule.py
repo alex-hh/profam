@@ -19,11 +19,11 @@ class ProteinDataModule(LightningDataModule):
     def __init__(
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
-        val_dataset_cfgs: Dict,
-        test_dataset_cfgs: Dict,
         data_weights: Dict[str, float],
         tokenizer_path: str,
         data_dir: str,
+        val_dataset_cfgs: Optional[Dict] = None,
+        test_dataset_cfgs: Optional[Dict] = None,
         batch_size: int = 8,
         max_tokens: int = 5000,
         num_workers: Optional[int] = None,
