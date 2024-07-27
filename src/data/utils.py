@@ -12,10 +12,10 @@ import torch
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import _read_fasta_lines
+from src.data.fasta import _read_fasta_lines_with_positions
 
 
-# TOOD: in future we might actually want standalone dataset class for
+# TODO: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
 @dataclass
 class ProteinDatasetConfig:
@@ -118,16 +118,21 @@ def load_protein_dataset(
     max_seq_pos: int = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        sequences = [
-            seq
-            for _, seq in _read_fasta_lines(
-                example["text"].split("\n"),
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
-            )
-        ]
-        random.shuffle(sequences)
+        sequences = []
+        positions = []
+        for _, seq, pos in _read_fasta_lines_with_positions(
+            example["text"].split("\n"),
+            keep_gaps=cfg.keep_gaps,
+            keep_insertions=cfg.keep_insertions,
+            to_upper=cfg.to_upper,
+        ):
+            sequences.append(seq)
+            positions.append(pos)
+        # TODO: seed explicitly?
+        perm = np.random.permutation(len(sequences))
+        sequences = [sequences[i] for i in perm]
+        positions = [positions[i] for i in perm]
+
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
@@ -163,9 +168,9 @@ def load_protein_dataset(
             ).hexdigest()
 
         if use_seq_pos:
-            tokenized.data["seq_pos"] = get_seq_pos(
-                tokenized.input_ids, tokenizer.sep_token_id, max_seq_pos=max_seq_pos
-            )
+            raise NotImplementedError()
+            # tokenized.data["seq_pos"] = get_seq_pos_from_positions(positions)
+            # tokenized.data["seq_pos"] =
 
         return tokenized
 

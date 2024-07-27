@@ -59,6 +59,68 @@ def _read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=Fals
     yield desc, parse(seq)
 
 
+def convert_sequence_with_positions(
+    seq, keep_gaps=True, keep_insertions=True, to_upper=False
+):
+    """
+    Get positions relative to sequence. For alignments position is relative to match states.
+    i.e. insertions have the same position as the previous match state.
+
+    TODO: write test
+    """
+    match_index = 0
+    positions = []
+    sequence = ""
+    if not keep_gaps:
+        assert keep_insertions, "If not keeping gaps should keep insertions"
+    if keep_insertions:
+        assert to_upper, "If keeping insertions should convert to upper case"
+    for aa in seq:
+        if keep_gaps or aa != "-":
+            upper = aa.upper()
+            if upper == aa or keep_insertions:
+                positions.append(match_index)
+                sequence += upper
+                if upper == aa:
+                    match_index += 1
+
+    return sequence, positions
+
+
+def _read_fasta_lines_with_positions(
+    lines, keep_gaps=True, keep_insertions=True, to_upper=False
+):
+    seq = desc = None
+
+    def parse(s):
+        if not keep_gaps:
+            s = re.sub("-", "", s)
+            s = re.sub("\.", "", s)
+        if not keep_insertions:
+            s = re.sub(r"[a-z\.]", "", s)
+        return s.replace(".", "-").upper() if to_upper else s
+
+    for line in lines:
+        # Line may be empty if seq % file_line_width == 0
+        if len(line) > 0 and line[0] == ">":
+            if seq is not None:
+                yield desc, parse(seq), convert_sequence_with_positions(
+                    seq,
+                    keep_gaps=keep_gaps,
+                    keep_insertions=keep_insertions,
+                    to_upper=to_upper,
+                )
+            desc = line.strip()[1:]
+            seq = ""
+        else:
+            assert isinstance(seq, str)
+            seq += line.strip()
+    assert isinstance(seq, str) and isinstance(desc, str)
+    yield desc, parse(seq), convert_sequence_with_positions(
+        seq, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
+    )
+
+
 def fasta_generator(
     filepath,
     encoding=None,
