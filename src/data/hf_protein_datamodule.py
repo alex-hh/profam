@@ -128,9 +128,10 @@ class ProteinDataModule(LightningDataModule):
                     )
                 )
             else:
+                print(f"Loading {v_data_key} val dataset")
                 self.val_datasets.append(
                     load_protein_dataset(
-                        config
+                        config,
                         self.tokenizer,
                         self.max_tokens,
                         data_dir=self.data_dir,
