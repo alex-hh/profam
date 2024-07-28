@@ -140,10 +140,8 @@ class ProteinDataModule(LightningDataModule):
                     )
                 )
 
-
     def setup_test_datasets(self):
         self.test_datasets = []
-
 
     def setup(self, stage: Optional[str] = None) -> None:
         self.setup_train_datasets()
