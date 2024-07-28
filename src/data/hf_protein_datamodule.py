@@ -130,7 +130,7 @@ class ProteinDataModule(LightningDataModule):
             else:
                 self.val_datasets.append(
                     load_protein_dataset(
-                        self.dataset_cfgs[v_data_key],
+                        config
                         self.tokenizer,
                         self.max_tokens,
                         data_dir=self.data_dir,

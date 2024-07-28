@@ -3,7 +3,7 @@ defaults:
   - dataset/example@dataset_cfgs.openfold_aligned: openfold_aligned
   - dataset/example@dataset_cfgs.openfold_raw: openfold_raw
   - dataset/example@dataset_cfgs.ec: ec
-  - dataset/example@val_dataset_cfgs.interpro: interpro
+  - validation@val_dataset_cfgs.interpro: interpro
 
   - _self_
 data_weights:
@@ -14,7 +14,6 @@ batch_size: 2
 max_tokens: 5000
 data_dir: data
 tokenizer_path: src/data/components/profam_tokenizer.json
-max_gym_sequences: null
 num_workers: 0  # None means use all available CPU cores
 use_seq_pos: True  # embed sequence relative position
 max_seq_pos: 1024  # maximum sequence position
