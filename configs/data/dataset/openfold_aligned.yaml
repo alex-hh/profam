@@ -1,6 +1,6 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: openfold_aligned
-data_path_pattern: openfold/uniclust30_filtered_parquet/*.parquet
+data_path: openfold/uniclust30_filtered_parquet/*.parquet
 is_parquet: true
 keep_gaps: true
 to_upper: false

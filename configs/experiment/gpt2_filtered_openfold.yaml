@@ -45,7 +45,7 @@ data:
     openfold_aligned_c50_si20:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: openfold_aligned_c50_si20
-      data_path_pattern: openfold/c50_si20_uniclust30_filtered/*.parquet
+      data_path: openfold/c50_si20_uniclust30_filtered/*.parquet
       is_parquet: true
       keep_gaps: true
       to_upper: false
@@ -54,7 +54,7 @@ data:
     ec:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: ec
-      data_path_pattern: ec/ec_fastas/*.fasta
+      data_path: ec/ec_fastas/*.fasta
       is_parquet: false
       keep_gaps: false
       to_upper: false
@@ -63,7 +63,7 @@ data:
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro
-      data_path_pattern: ../profam/data/example_data/interpro/protein-matching-*.fasta
+      data_path: ../profam/data/example_data/interpro/protein-matching-*.fasta
       keep_gaps: false
       to_upper: false
       keep_insertions: false

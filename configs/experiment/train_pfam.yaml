@@ -32,7 +32,7 @@ data:
     pfam_domain:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: pfam_domain
-      data_path_pattern: pfam/parquets/Domain/*.parquet
+      data_path: pfam/parquets/Domain/*.parquet
       is_parquet: true
       keep_gaps: true
       to_upper: true
@@ -40,14 +40,14 @@ data:
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro
-      data_path_pattern: ../profam/data/example_data/interpro/protein-matching-*.fasta
+      data_path: ../profam/data/example_data/interpro/protein-matching-*.fasta
       keep_gaps: false
       to_upper: false
       keep_insertions: false
     foldseek:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: foldseek
-      data_path_pattern: foldseek/*.parquet
+      data_path: foldseek/*.parquet
       keep_gaps: false
       to_upper: false
       keep_insertions: false

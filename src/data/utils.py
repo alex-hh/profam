@@ -21,7 +21,7 @@ from src.data.fasta import _read_fasta_lines
 class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
-    data_path_pattern: Optional[str] = None
+    data_path: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
@@ -169,10 +169,10 @@ def load_protein_dataset(
 
         return tokenized
 
-    if cfg.data_path_pattern is not None:
+    if cfg.data_path is not None:
         # replace hf path resolution with manual glob, to allow repetition
         # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
-        data_files = glob.glob(os.path.join(data_dir, cfg.data_path_pattern))
+        data_files = glob.glob(os.path.join(data_dir, cfg.data_path))
     else:
         assert cfg.data_path_file is not None
         with open(os.path.join(data_dir, cfg.data_path_file), "r") as f:
@@ -186,12 +186,12 @@ def load_protein_dataset(
     print(
         f"Loading {cfg.name} dataset from {len(data_files)} files, "
         f"({cfg.file_repeats} repeats), "
-        f"{os.path.join(data_dir, cfg.data_path_pattern)}"
+        f"{os.path.join(data_dir, cfg.data_path)}"
     )
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
-            data_files=cfg.data_path_pattern,
+            data_files=cfg.data_path,
             split=split,
             streaming=True,
             ignore_verifications=True,

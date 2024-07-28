@@ -34,7 +34,7 @@ data:
   mutant_bos_token: "bos"  # for consistency when using single family scoring
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "CALM1_HUMAN_Weile_2017", "DYR_ECOLI_Thompson_2019", "DLG4_RAT_McLaughlin_2012", "REV_HV1H2_Fernandes_2016", "TAT_HV1BR_Fernandes_2016", "RL40A_YEAST_Roscoe_2013", "P53_HUMAN_Giacomelli_2018_WT_Nutlin"]
   dataset_cfg:
-    # data_path_pattern: ProteinGym/DMS_msa_files/*.a2m
+    # data_path: ProteinGym/DMS_msa_files/*.a2m
     file_repeats: 100
 
 logger:

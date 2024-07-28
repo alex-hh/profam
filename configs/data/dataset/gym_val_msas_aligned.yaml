@@ -1,6 +1,6 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: gym_val_msas
-data_path_pattern: null
+data_path: null
 is_parquet: false
 keep_gaps: true
 to_upper: true

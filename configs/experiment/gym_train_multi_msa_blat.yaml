@@ -36,7 +36,7 @@ data:
   use_seq_pos: false
   max_seq_pos: 2048
   dataset_cfg:
-    data_path_pattern: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m
+    data_path: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m
     file_repeats: 1000
 
 logger:

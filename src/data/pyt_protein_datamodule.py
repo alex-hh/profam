@@ -9,10 +9,10 @@
 # import random
 #
 # class ProteinDocumentDataset(Dataset):
-#     def __init__(self, data_path_pattern: str,  tokenizer: PreTrainedTokenizerFast,
+#     def __init__(self, data_path: str,  tokenizer: PreTrainedTokenizerFast,
 #                  max_tokens: int = 5000, sep_token: str = "[SEP]"):
 #         raise NotImplementedError("This class is not implemented yet: Use hf_protein_datamodule.py instead.")
-#         self.sequence_files = glob.glob(data_path_pattern)
+#         self.sequence_files = glob.glob(data_path)
 #         self.tokenizer = tokenizer
 #         self.max_tokens = max_tokens
 #         self.sep_token = sep_token
@@ -40,9 +40,9 @@
 #         return example
 #
 # class ProteinDataModuleNoHug(LightningDataModule):
-#     def __init__(self, data_path_pattern: str, tokenizer_path: str, batch_size: int = 8, max_tokens: int = 5000):
+#     def __init__(self, data_path: str, tokenizer_path: str, batch_size: int = 8, max_tokens: int = 5000):
 #         super().__init__()
-#         self.data_path_pattern = data_path_pattern
+#         self.data_path = data_path
 #         self.batch_size = batch_size
 #         self.max_tokens = max_tokens
 #         self.sep_token = "[SEP]"
@@ -60,7 +60,7 @@
 #
 #
 #     def setup(self, stage: Optional[str] = None) -> None:
-#         self.dataset = ProteinDocumentDataset(self.data_path_pattern, self.tokenizer, self.max_tokens, self.sep_token)
+#         self.dataset = ProteinDocumentDataset(self.data_path, self.tokenizer, self.max_tokens, self.sep_token)
 #
 #     def train_dataloader(self) -> DataLoader:
 #         return DataLoader(self.dataset, batch_size=self.batch_size, collate_fn=self.collator)

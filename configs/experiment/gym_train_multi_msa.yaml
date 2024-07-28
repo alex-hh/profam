@@ -52,7 +52,7 @@ data:
     file_repeats: 100
   val_dataset_cfg:
     # evaluate just on BLAT for now
-    data_path_pattern: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m
+    data_path: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m
 
 logger:
   wandb:
