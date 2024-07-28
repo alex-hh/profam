@@ -29,6 +29,7 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
     use_seq_pos: bool = False
     max_seq_pos: Optional[int] = None
+    document_tag: str = "[RAW]"
 
 
 class StringObject:
@@ -115,38 +116,6 @@ def get_seq_pos_from_positions(
     return seq_pos
 
 
-def get_seq_pos(
-    input_ids,
-    sep_token_id,
-    max_seq_pos: int = 1024,
-    last_aa_token_id=24,
-):
-    """
-    returns a tensor representing the sequence position
-    of each token relative to the last SEP token
-    0-indexed
-    assumes that the zeroth token is not a residue
-    Note that PAD tokens also get assigned seq positions
-    after reaching the max_seq_pos it will just repeat
-    the last position index
-    """
-    seq_pos_ids = torch.zeros_like(input_ids)
-    current_position = 0
-    for i, token_id in enumerate(input_ids):
-        if token_id == sep_token_id or i == 0:
-            current_position = 0
-            assert (
-                token_id <= last_aa_token_id,
-                "First token should not represent a residue",
-            )
-        else:
-            seq_pos_ids[i] = current_position
-            if current_position < max_seq_pos - 1:
-                # don't add position indices higher than max_seq_pos
-                current_position += 1
-    return seq_pos_ids
-
-
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
@@ -192,7 +161,8 @@ def load_protein_dataset(
             max_tokens - 2,
         )  # -2 for doc start and end tokens
         concatenated_seqs = (
-            tokenizer.bos_token
+            tokenizer.convert_tokens_to_ids(cfg.document_tag)
+            + tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
             + tokenizer.sep_token
         )

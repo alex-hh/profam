@@ -59,7 +59,7 @@
     },
     {
       "id": 31,
-      "content": "[SP1]",
+      "content": "[RAW]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -68,7 +68,7 @@
     },
     {
       "id": 32,
-      "content": "[SP2]",
+      "content": "[MSA]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,

@@ -72,6 +72,7 @@ def load_classifier_dataset(
             mutant_bos_token="sep",  # todo check this
             use_seq_pos=use_seq_pos,
             max_seq_pos=max_seq_pos,
+            document_tag="[RAW]",
         ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],

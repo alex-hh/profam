@@ -22,10 +22,13 @@ from src.data.utils import (
 def tokenize_msa(
     sample,
     tokenizer: PreTrainedTokenizerFast,
+    document_tag: Optional[str] = "[RAW]",
 ):
     # TODO: fix tokenization. copying hf loader for now
-    concatenated_seqs = tokenizer.bos_token + tokenizer.sep_token.join(
-        sample["MSA"]
+    concatenated_seqs = (
+        tokenizer.convert_tokens_to_ids(document_tag)
+        + tokenizer.bos_token
+        + tokenizer.sep_token.join(sample["MSA"])
     )  # No EOS token here because the target seq will be added
     tokenized = tokenizer(
         concatenated_seqs, return_tensors="pt", add_special_tokens=False
@@ -67,8 +70,9 @@ def tokenize(
     mutant_bos_token="sep",
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+    document_tag="[RAW]",
 ):
-    sample = tokenize_msa(sample, tokenizer)
+    sample = tokenize_msa(sample, tokenizer, document_tag=document_tag)
     sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
     if use_seq_pos:
         sample["seq_pos"] = get_seq_pos(
@@ -188,6 +192,7 @@ def load_gym_dataset(
             mutant_bos_token=mutant_bos_token,
             use_seq_pos=use_seq_pos,
             max_seq_pos=max_seq_pos,
+            document_tag="[MSA]" if keep_gaps else "[RAW]",
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
