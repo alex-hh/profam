@@ -4,6 +4,6 @@ data_path_pattern: funfams/full_alignments/*/*.faa
 is_parquet: false
 # n.b. these are alignments so we could keep_gaps
 keep_gaps: false
-to_upper: false
+to_upper: true
 keep_insertions: true
 document_tag: "[RAW]"
