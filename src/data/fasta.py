@@ -30,7 +30,7 @@ def gzread(filename, encoding=None):
     f.close()
 
 
-def _read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
+def read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
     """
     From esm
     Works for fasta and a2m/a3m
@@ -87,18 +87,10 @@ def convert_sequence_with_positions(
     return sequence, positions
 
 
-def _read_fasta_lines_with_positions(
+def read_fasta_lines_with_positions(
     lines, keep_gaps=True, keep_insertions=True, to_upper=False
 ):
     seq = desc = None
-
-    def parse(s):
-        if not keep_gaps:
-            s = re.sub("-", "", s)
-            s = re.sub("\.", "", s)
-        if not keep_insertions:
-            s = re.sub(r"[a-z\.]", "", s)
-        return s.replace(".", "-").upper() if to_upper else s
 
     for line in lines:
         # Line may be empty if seq % file_line_width == 0
@@ -137,7 +129,7 @@ def fasta_generator(
     # if a return statement is used it closes the context manager too early
     # with gzread(filepath, encoding=encoding) as fin:
     with open(filepath, "r", encoding=encoding) as fin:
-        yield from _read_fasta_lines(
+        yield from read_fasta_lines(
             fin, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
         )
 

@@ -12,7 +12,7 @@ import torch
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import _read_fasta_lines, _read_fasta_lines_with_positions
+from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
 
 
 # TODO: in future we might actually want standalone dataset class for
@@ -75,7 +75,7 @@ class CustomDataCollator:
         return batch
 
 
-def get_seq_pos_from_positions(
+def get_flat_seq_pos_from_positions(
     positions,
     max_seq_pos: int = 1024,
     prepend_index=0,
@@ -91,6 +91,28 @@ def get_seq_pos_from_positions(
     flat_positions += [min(p, max_seq_pos) for p in positions[-1]]
     flat_positions.append(append_index)
     return flat_positions
+
+
+def get_seq_pos_from_positions(
+    input_ids,
+    positions,
+    pad_token_id,
+    max_seq_pos: int = 1024,
+    prepend_index=0,
+    append_index=0,
+    sep_index=0,
+):
+    seq_pos = torch.zeros_like(input_ids)
+    flat_pos = get_flat_seq_pos_from_positions(
+        positions,
+        max_seq_pos=max_seq_pos,
+        prepend_index=prepend_index,
+        append_index=append_index,
+        sep_index=sep_index,
+    )
+    pad_start = torch.argwhere(input_ids == pad_token_id).min()
+    seq_pos[:pad_start] = torch.tensor(flat_pos)
+    return seq_pos
 
 
 def get_seq_pos(
@@ -137,7 +159,7 @@ def load_protein_dataset(
         if cfg.use_seq_pos:
             sequences = []
             positions = []
-            for _, seq, pos in _read_fasta_lines_with_positions(
+            for _, seq, pos in read_fasta_lines_with_positions(
                 example["text"].split("\n"),
                 keep_gaps=cfg.keep_gaps,
                 keep_insertions=cfg.keep_insertions,
@@ -190,14 +212,12 @@ def load_protein_dataset(
             ).hexdigest()
 
         if cfg.use_seq_pos:
-            seq_pos = torch.zeros_like(tokenized.input_ids)
-            flat_pos = get_seq_pos_from_positions(
-                positions[:insertion_point], max_seq_pos=cfg.max_seq_pos
+            seq_pos = get_seq_pos_from_positions(
+                tokenized.input_ids,
+                positions[:insertion_point],
+                pad_token_id=tokenizer.pad_token_id,
+                max_seq_pos=cfg.max_seq_pos,
             )
-            pad_start = torch.argwhere(
-                tokenized.input_ids == tokenizer.pad_token_id
-            ).min()
-            seq_pos[:pad_start] = torch.tensor(flat_pos)
             tokenized.data["seq_pos"] = seq_pos
 
         return tokenized
