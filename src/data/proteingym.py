@@ -23,17 +23,27 @@ def tokenize_msa(
     sample,
     tokenizer: PreTrainedTokenizerFast,
     document_tag: Optional[str] = "[RAW]",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
 ):
     # TODO: fix tokenization. copying hf loader for now
     concatenated_seqs = (
-        tokenizer.convert_tokens_to_ids(document_tag)
-        + tokenizer.bos_token
-        + tokenizer.sep_token.join(sample["MSA"])
+        document_tag + tokenizer.bos_token + tokenizer.sep_token.join(sample["MSA"])
     )  # No EOS token here because the target seq will be added
     tokenized = tokenizer(
         concatenated_seqs, return_tensors="pt", add_special_tokens=False
     )
     sample["input_ids"] = tokenized.input_ids[0]  # no extra dim
+    if use_seq_pos:
+        # gym msas don't contain insertions so no need to worry about that
+        positions = [list(range(len(s))) for s in sample["MSA"]]
+        sample["seq_pos"] = get_seq_pos_from_positions(
+            sample["input_ids"],
+            positions,
+            pad_token_id=tokenizer.pad_token_id,
+            max_seq_pos=max_seq_pos,
+            num_start_tokens=2,
+        )
     return sample
 
 
@@ -46,7 +56,13 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
         pass
 
 
-def tokenize_completions(sample, tokenizer: PreTrainedTokenizerFast, bos_token="sep"):
+def tokenize_completions(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    bos_token="sep",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
+):
     max_length = max(len(seq) for seq in sample["completion_seqs"])
     sample["completion_seqs"] = [
         get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
@@ -61,6 +77,19 @@ def tokenize_completions(sample, tokenizer: PreTrainedTokenizerFast, bos_token="
         add_special_tokens=False,
     )
     sample["completion_ids"] = tokenized.input_ids
+    if use_seq_pos:
+        completion_seq_pos = stack(
+            [
+                get_seq_pos_from_positions(
+                    sample["completion_ids"][i],
+                    [list(range(len(seq)))],
+                    pad_token_id=tokenizer.pad_token_id,
+                    max_seq_pos=max_seq_pos,
+                )
+                for i, seq in enumerate(sample["completion_seqs"])
+            ]
+        )
+        sample["completion_seq_pos"] = completion_seq_pos
     return sample
 
 
@@ -72,26 +101,20 @@ def tokenize(
     max_seq_pos: int = 1024,
     document_tag="[RAW]",
 ):
-    sample = tokenize_msa(sample, tokenizer, document_tag=document_tag)
-    sample = tokenize_completions(sample, tokenizer, bos_token=mutant_bos_token)
-    if use_seq_pos:
-        sample["seq_pos"] = get_seq_pos(
-            sample["input_ids"],
-            tokenizer.sep_token_id,
-            max_seq_pos=max_seq_pos,
-        )
-        completion_pos = stack(
-            [
-                # todo: do we need to iterate or will each they be the same?
-                get_seq_pos(
-                    completion,
-                    tokenizer.sep_token_id,
-                    max_seq_pos=max_seq_pos,
-                )
-                for completion in sample["completion_ids"]
-            ]
-        )
-        sample["completion_seq_pos"] = completion_pos
+    sample = tokenize_msa(
+        sample,
+        tokenizer,
+        document_tag=document_tag,
+        use_seq_pos=use_seq_pos,
+        max_seq_pos=max_seq_pos,
+    )
+    sample = tokenize_completions(
+        sample,
+        tokenizer,
+        bos_token=mutant_bos_token,
+        use_seq_pos=use_seq_pos,
+        max_seq_pos=max_seq_pos,
+    )
     return sample
 
 
