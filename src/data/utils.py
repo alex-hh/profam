@@ -29,6 +29,9 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
     use_seq_pos: bool = False
     max_seq_pos: Optional[int] = None
+    gym_dms_ids: Optional[list] = None
+    gym_data_dir: Optional[str] = None
+
 
 
 class StringObject:
