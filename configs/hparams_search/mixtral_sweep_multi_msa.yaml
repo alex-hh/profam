@@ -1,0 +1,54 @@
+# @package _global_
+
+# example hyperparameter optimization of some experiment with Optuna:
+# python train.py -m hparams_search=mnist_optuna experiment=example
+
+defaults:
+  - override /hydra/sweeper: optuna
+
+# choose metric which will be optimized by Optuna
+# make sure this is the correct name of some metric logged in lightning module!
+optimized_metric: "val/loss/dataloader_idx_0"
+
+hydra:
+  mode: "MULTIRUN" # set hydra to multirun by default if this config is attached
+
+  sweeper:
+    _target_: hydra_plugins.hydra_optuna_sweeper.optuna_sweeper.OptunaSweeper
+
+    # name of the study to persist optimization results
+    study_name: mixtral_hyper_search
+
+    n_jobs: 1
+
+    # 'minimize' or 'maximize' the objective
+    direction: minimize
+
+    # total number of runs that will be executed
+    n_trials: 20
+
+    # you can choose bayesian sampler (tpe), random search (without optimization), grid sampler, and others
+    # docs: https://optuna.readthedocs.io/en/stable/reference/samplers.html
+    sampler:
+      _target_: optuna.samplers.TPESampler
+      seed: 1234
+      n_startup_trials: 10 # number of random sampling runs before optimization starts
+
+    # define hyperparameter search space
+    params:
+      model.scheduler_name: choice('inverse_sqrt', 'cosine')
+      model.num_warmup_steps: interval(100, 1000)
+      model.lr: interval(1e-5, 1e-3)
+      model.config.hidden_act: choice('silu', 'relu', 'gelu')
+      model.config.hidden_size: choice(256, 512, 768)
+      model.config.attention_dropout: interval(0.0, 0.5)
+      model.config.initializer_range: interval(0.01, 0.05)
+      model.config.intermediate_size: choice(512, 1024, 2048)
+      model.config.num_attention_heads: choice(8, 12, 16)
+      model.config.num_experts_per_tok: choice(1, 2, 4)
+      model.config.num_hidden_layers: choice(6, 12, 24)
+      model.config.num_key_value_heads: choice(8, 12, 16)
+      model.config.num_local_expert: choice(4, 8, 12)
+      model.config.router_aux_loss_coef: interval(0.0001, 0.01)
+      model.config.router_jitter_noise: interval(0.0, 0.1)
+      model.config.rms_norm_eps: interval(1e-06, 1e-04)
