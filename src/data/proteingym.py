@@ -204,6 +204,8 @@ def load_gym_dataset(
     to be bos, since no context sequences are passed during scoring.
     """
     print(f"Loading gym dataset for evaluation, keeping gaps: {keep_gaps}")
+    if num_proc == 0:
+        num_proc = None
     df = build_gym_df(
         dms_ids,
         gym_data_dir=gym_data_dir,
@@ -247,6 +249,8 @@ def load_gym_msa_dataset(
     num_proc: Optional[int] = None,
 ):
     """For single-sequence training."""
+    if num_proc == 0:
+        num_proc = None
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     row = df[df["DMS_id"] == dms_id].iloc[0]
     _, seqs = fasta.read_fasta(

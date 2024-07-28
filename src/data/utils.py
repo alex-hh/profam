@@ -92,6 +92,7 @@ def get_flat_seq_pos_from_positions(
             flat_positions.append(sep_index)
         flat_positions += [min(p + 1, max_seq_pos) for p in positions[-1]]
         flat_positions += [append_index] * num_end_tokens
+        return flat_positions
     else:
         return []
 
