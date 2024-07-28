@@ -37,12 +37,14 @@ def tokenize_msa(
     if use_seq_pos:
         # gym msas don't contain insertions so no need to worry about that
         positions = [list(range(len(s))) for s in sample["MSA"]]
+        print("positions", positions, "msa", sample["MSA"])
         sample["seq_pos"] = get_seq_pos_from_positions(
             sample["input_ids"],
             positions,
             pad_token_id=tokenizer.pad_token_id,
             max_seq_pos=max_seq_pos,
             num_start_tokens=2,
+            num_end_tokens=0,
         )
     return sample
 
@@ -64,12 +66,12 @@ def tokenize_completions(
     max_seq_pos: int = 1024,
 ):
     max_length = max(len(seq) for seq in sample["completion_seqs"])
-    sample["completion_seqs"] = [
+    completion_seqs = [
         get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
         for seq in sample["completion_seqs"]
     ]
     tokenized = tokenizer(
-        sample["completion_seqs"],
+        completion_seqs,
         return_tensors="pt",
         padding="max_length",  # todo handle the padding in the validation step
         truncation=False,  # should be handled elsewhere
@@ -85,6 +87,7 @@ def tokenize_completions(
                     [list(range(len(seq)))],
                     pad_token_id=tokenizer.pad_token_id,
                     max_seq_pos=max_seq_pos,
+                    num_start_tokens=1,
                 )
                 for i, seq in enumerate(sample["completion_seqs"])
             ]
@@ -136,6 +139,8 @@ def load_msa_for_row(
         drop_first=drop_wt,
         max_tokens=max_tokens_for_msa,
     )
+    assert len(sampled_seqs) > 0, "No sequences sampled - check max tokens"
+    print(f"Sampled {len(sampled_seqs)} sequences for MSA")
     row["MSA"] = sampled_seqs
     return row
 
@@ -208,6 +213,7 @@ def load_gym_dataset(
         keep_gaps=keep_gaps,
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
+    print("Loading gym dataset")
     dataset = dataset.map(
         functools.partial(
             tokenize,

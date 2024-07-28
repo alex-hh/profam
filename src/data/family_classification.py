@@ -52,6 +52,9 @@ def load_classifier_dataset(
         msa_seqs = data_utils.sample_to_max_tokens(
             remaining_seqs, seed=seed, max_tokens=max_tokens_for_msa
         )
+        assert (
+            len(msa_seqs) > 0
+        ), f"No msa seqs sampled for family classification, check max tokens {max_tokens_for_msa}"
 
         family_labels = [1] * len(target_seqs) + [0] * len(decoy_seqs)
 

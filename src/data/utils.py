@@ -81,6 +81,7 @@ def get_flat_seq_pos_from_positions(
     append_index=0,
     sep_index=0,
     num_start_tokens=1,
+    num_end_tokens=1,
 ):
     # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
     flat_positions = [prepend_index] * num_start_tokens
@@ -88,8 +89,8 @@ def get_flat_seq_pos_from_positions(
         # add 1 so that sep doesnt have same position index
         flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
         flat_positions.append(sep_index)
-    flat_positions += [min(p, max_seq_pos) for p in positions[-1]]
-    flat_positions.append(append_index)
+    flat_positions += [min(p + 1, max_seq_pos) for p in positions[-1]]
+    flat_positions += [append_index] * num_end_tokens
     return flat_positions
 
 
@@ -99,6 +100,7 @@ def get_seq_pos_from_positions(
     pad_token_id,
     max_seq_pos: int = 1024,
     num_start_tokens=1,
+    num_end_tokens=1,
 ):
     assert input_ids.ndim == 1
     seq_pos = torch.zeros_like(input_ids)
@@ -109,6 +111,7 @@ def get_seq_pos_from_positions(
         append_index=0,
         sep_index=0,
         num_start_tokens=num_start_tokens,  # TODO: handle better
+        num_end_tokens=num_end_tokens,
     )
     pad_any = torch.argwhere(input_ids == pad_token_id)
     if pad_any.any():
