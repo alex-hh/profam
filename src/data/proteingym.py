@@ -14,7 +14,7 @@ from src.data import utils as data_utils
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
-    get_seq_pos,
+    get_seq_pos_from_positions,
     load_protein_dataset,
 )
 

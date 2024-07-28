@@ -82,9 +82,10 @@ def get_flat_seq_pos_from_positions(
     prepend_index=0,
     append_index=0,
     sep_index=0,
+    num_start_tokens=1,
 ):
     # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
-    flat_positions = [prepend_index]
+    flat_positions = [prepend_index] * num_start_tokens
     for sequence_positions in positions[:-1]:
         # add 1 so that sep doesnt have same position index
         flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
@@ -99,17 +100,17 @@ def get_seq_pos_from_positions(
     positions,
     pad_token_id,
     max_seq_pos: int = 1024,
-    prepend_index=0,
-    append_index=0,
-    sep_index=0,
+    num_start_tokens=1,
 ):
+    assert input_ids.ndim == 1
     seq_pos = torch.zeros_like(input_ids)
     flat_pos = get_flat_seq_pos_from_positions(
         positions,
         max_seq_pos=max_seq_pos,
-        prepend_index=prepend_index,
-        append_index=append_index,
-        sep_index=sep_index,
+        prepend_index=0,
+        append_index=0,
+        sep_index=0,
+        num_start_tokens=num_start_tokens,  # TODO: handle better
     )
     pad_start = torch.argwhere(input_ids == pad_token_id).min()
     seq_pos[:pad_start] = torch.tensor(flat_pos)
@@ -125,7 +126,6 @@ def load_protein_dataset(
     include_doc_hashes: bool = False,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        perm = np.random.permutation(len(sequences))
         if cfg.use_seq_pos:
             sequences = []
             positions = []
@@ -139,6 +139,7 @@ def load_protein_dataset(
                 positions.append(pos)
 
             # TODO: seed explicitly?
+            perm = np.random.permutation(len(sequences))
             sequences = [sequences[i] for i in perm]
             positions = [positions[i] for i in perm]
         else:
@@ -151,6 +152,7 @@ def load_protein_dataset(
                     to_upper=cfg.to_upper,
                 )
             ]
+            perm = np.random.permutation(len(sequences))
             sequences = [sequences[i] for i in perm]
 
         cumulative_lengths = list(
@@ -161,7 +163,7 @@ def load_protein_dataset(
             max_tokens - 2,
         )  # -2 for doc start and end tokens
         concatenated_seqs = (
-            tokenizer.convert_tokens_to_ids(cfg.document_tag)
+            cfg.document_tag
             + tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
             + tokenizer.sep_token
@@ -195,6 +197,7 @@ def load_protein_dataset(
                 positions[:insertion_point],
                 pad_token_id=tokenizer.pad_token_id,
                 max_seq_pos=cfg.max_seq_pos,
+                num_start_tokens=2,
             )
             tokenized.data["seq_pos"] = seq_pos
 

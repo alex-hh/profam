@@ -84,6 +84,7 @@ def convert_sequence_with_positions(
                 if upper == aa:
                     match_index += 1
 
+    assert len(positions) == len(sequence)
     return sequence, positions
 
 
