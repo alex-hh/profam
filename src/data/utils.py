@@ -84,14 +84,16 @@ def get_flat_seq_pos_from_positions(
     num_end_tokens=1,
 ):
     # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
-    flat_positions = [prepend_index] * num_start_tokens
-    for sequence_positions in positions[:-1]:
-        # add 1 so that sep doesnt have same position index
-        flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
-        flat_positions.append(sep_index)
-    flat_positions += [min(p + 1, max_seq_pos) for p in positions[-1]]
-    flat_positions += [append_index] * num_end_tokens
-    return flat_positions
+    if len(positions) > 0:
+        flat_positions = [prepend_index] * num_start_tokens
+        for sequence_positions in positions[:-1]:
+            # add 1 so that sep doesnt have same position index
+            flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
+            flat_positions.append(sep_index)
+        flat_positions += [min(p + 1, max_seq_pos) for p in positions[-1]]
+        flat_positions += [append_index] * num_end_tokens
+    else:
+        return []
 
 
 def get_seq_pos_from_positions(

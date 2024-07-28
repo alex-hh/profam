@@ -32,7 +32,7 @@ jobs:
           data.data_dir=data \
           data.batch_size=2 \
           data.num_workers=1 \
-          data.max_tokens=1500 \
+          data.max_tokens=100 \
           data.gym_data_dir="tiny_data/ProteinGym" \
           logger=null_logger \
           'model.config.hidden_size=4' \
