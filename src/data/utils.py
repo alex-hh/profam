@@ -156,6 +156,7 @@ def load_protein_dataset(
     include_doc_hashes: bool = False,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        perm = np.random.permutation(len(sequences))
         if cfg.use_seq_pos:
             sequences = []
             positions = []
@@ -169,12 +170,19 @@ def load_protein_dataset(
                 positions.append(pos)
 
             # TODO: seed explicitly?
-            perm = np.random.permutation(len(sequences))
             sequences = [sequences[i] for i in perm]
             positions = [positions[i] for i in perm]
         else:
-            # TODO: revert to prev version (poss more efficient?)
-            raise NotImplementedError()
+            sequences = [
+                seq
+                for _, seq in read_fasta_lines(
+                    example["text"].split("\n"),
+                    keep_gaps=cfg.keep_gaps,
+                    keep_insertions=cfg.keep_insertions,
+                    to_upper=cfg.to_upper,
+                )
+            ]
+            sequences = [sequences[i] for i in perm]
 
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
