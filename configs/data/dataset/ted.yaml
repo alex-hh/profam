@@ -4,5 +4,5 @@ data_path_pattern: ted/ted_s50_by_sfam/*S50_rep_seq.fasta
 is_parquet: false
 keep_gaps: false
 to_upper: false
-keep_insertions: false
+keep_insertions: true
 document_tag: "[RAW]"

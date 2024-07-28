@@ -4,5 +4,5 @@ data_path_pattern: ec/ec_fastas/*.fasta
 is_parquet: false
 keep_gaps: false
 to_upper: false
-keep_insertions: false
+keep_insertions: true
 document_tag: "[RAW]"

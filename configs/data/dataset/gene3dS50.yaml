@@ -4,4 +4,4 @@ data_path_pattern: gene3d/all_sfams_4.3/*/*_s50_rep_seq.fasta
 is_parquet: false
 keep_gaps: false
 to_upper: false
-keep_insertions: false
+keep_insertions: true

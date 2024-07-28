@@ -3,4 +3,4 @@ name: ec
 data_path_pattern:  example_data/expasy_ec/*.fasta
 keep_gaps: false
 to_upper: false
-keep_insertions: false
+keep_insertions: true
