@@ -12,7 +12,7 @@ import torch
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import _read_fasta_lines_with_positions
+from src.data.fasta import _read_fasta_lines, _read_fasta_lines_with_positions
 
 
 # TODO: in future we might actually want standalone dataset class for
@@ -75,6 +75,24 @@ class CustomDataCollator:
         return batch
 
 
+def get_seq_pos_from_positions(
+    positions,
+    max_seq_pos: int = 1024,
+    prepend_index=0,
+    append_index=0,
+    sep_index=0,
+):
+    # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
+    flat_positions = [prepend_index]
+    for sequence_positions in positions[:-1]:
+        # add 1 so that sep doesnt have same position index
+        flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
+        flat_positions.append(sep_index)
+    flat_positions += [min(p, max_seq_pos) for p in positions[-1]]
+    flat_positions.append(append_index)
+    return flat_positions
+
+
 def get_seq_pos(
     input_ids,
     sep_token_id,
@@ -114,24 +132,27 @@ def load_protein_dataset(
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        sequences = []
-        positions = []
-        for _, seq, pos in _read_fasta_lines_with_positions(
-            example["text"].split("\n"),
-            keep_gaps=cfg.keep_gaps,
-            keep_insertions=cfg.keep_insertions,
-            to_upper=cfg.to_upper,
-        ):
-            sequences.append(seq)
-            positions.append(pos)
-        # TODO: seed explicitly?
-        perm = np.random.permutation(len(sequences))
-        sequences = [sequences[i] for i in perm]
-        positions = [positions[i] for i in perm]
+        if cfg.use_seq_pos:
+            sequences = []
+            positions = []
+            for _, seq, pos in _read_fasta_lines_with_positions(
+                example["text"].split("\n"),
+                keep_gaps=cfg.keep_gaps,
+                keep_insertions=cfg.keep_insertions,
+                to_upper=cfg.to_upper,
+            ):
+                sequences.append(seq)
+                positions.append(pos)
+
+            # TODO: seed explicitly?
+            perm = np.random.permutation(len(sequences))
+            sequences = [sequences[i] for i in perm]
+            positions = [positions[i] for i in perm]
+        else:
+            # TODO: revert to prev version (poss more efficient?)
+            raise NotImplementedError()
 
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
@@ -160,6 +181,7 @@ def load_protein_dataset(
         )
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        # tokenized.input_ids is flat now
         tokenized.data["ds_name"] = cfg.name
         if include_doc_hashes:
             # identify documents by a hash of the first 512 characters
@@ -167,10 +189,16 @@ def load_protein_dataset(
                 example["text"][:512].encode()
             ).hexdigest()
 
-        if use_seq_pos:
-            raise NotImplementedError()
-            # tokenized.data["seq_pos"] = get_seq_pos_from_positions(positions)
-            # tokenized.data["seq_pos"] =
+        if cfg.use_seq_pos:
+            seq_pos = torch.zeros_like(tokenized.input_ids)
+            flat_pos = get_seq_pos_from_positions(
+                positions[:insertion_point], max_seq_pos=cfg.max_seq_pos
+            )
+            pad_start = torch.argwhere(
+                tokenized.input_ids == tokenizer.pad_token_id
+            ).min()
+            seq_pos[:pad_start] = torch.tensor(flat_pos)
+            tokenized.data["seq_pos"] = seq_pos
 
         return tokenized
 
@@ -202,6 +230,7 @@ def load_protein_dataset(
             ignore_verifications=True,
         )
     else:
+        # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
             "text",
             data_files=data_files,

@@ -104,21 +104,26 @@ def _read_fasta_lines_with_positions(
         # Line may be empty if seq % file_line_width == 0
         if len(line) > 0 and line[0] == ">":
             if seq is not None:
-                yield desc, parse(seq), convert_sequence_with_positions(
+                seq, pos = convert_sequence_with_positions(
                     seq,
                     keep_gaps=keep_gaps,
                     keep_insertions=keep_insertions,
                     to_upper=to_upper,
                 )
+                yield desc, seq, pos
             desc = line.strip()[1:]
             seq = ""
         else:
             assert isinstance(seq, str)
             seq += line.strip()
     assert isinstance(seq, str) and isinstance(desc, str)
-    yield desc, parse(seq), convert_sequence_with_positions(
-        seq, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
+    seq, pos = convert_sequence_with_positions(
+        seq,
+        keep_gaps=keep_gaps,
+        keep_insertions=keep_insertions,
+        to_upper=to_upper,
     )
+    yield desc, seq, pos
 
 
 def fasta_generator(
