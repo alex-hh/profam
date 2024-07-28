@@ -110,7 +110,11 @@ def get_seq_pos_from_positions(
         sep_index=0,
         num_start_tokens=num_start_tokens,  # TODO: handle better
     )
-    pad_start = torch.argwhere(input_ids == pad_token_id).min()
+    pad_any = torch.argwhere(input_ids == pad_token_id)
+    if pad_any.any():
+        pad_start = pad_any.min()
+    else:
+        pad_start = input_ids.shape[0]
     seq_pos[:pad_start] = torch.tensor(flat_pos)
     return seq_pos
 
