@@ -27,8 +27,6 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
-    use_seq_pos: bool = False
-    max_seq_pos: Optional[int] = None
     document_tag: str = "[RAW]"
 
 
@@ -124,9 +122,11 @@ def load_protein_dataset(
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        if cfg.use_seq_pos:
+        if use_seq_pos:
             sequences = []
             positions = []
             for _, seq, pos in read_fasta_lines_with_positions(
@@ -191,12 +191,12 @@ def load_protein_dataset(
                 example["text"][:512].encode()
             ).hexdigest()
 
-        if cfg.use_seq_pos:
+        if use_seq_pos:
             seq_pos = get_seq_pos_from_positions(
                 tokenized.input_ids,
                 positions[:insertion_point],
                 pad_token_id=tokenizer.pad_token_id,
-                max_seq_pos=cfg.max_seq_pos,
+                max_seq_pos=max_seq_pos,
                 num_start_tokens=2,
             )
             tokenized.data["seq_pos"] = seq_pos
