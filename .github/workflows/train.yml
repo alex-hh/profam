@@ -22,6 +22,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+# TODO: seed?
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 python src/train.py \
