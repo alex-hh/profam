@@ -25,7 +25,7 @@ class MistralLitModule(BaseFamilyLitModule):
         if use_seq_pos:
             model = TransformerWithSequencePositionEmbeddings(
                 model,
-                model.embed_tokens,
+                model.model.embed_tokens,
                 embedding_dim=config.hidden_size,
                 use_seq_pos=use_seq_pos,
                 max_seq_pos=max_seq_pos,
