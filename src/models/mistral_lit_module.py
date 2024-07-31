@@ -1,6 +1,6 @@
 from typing import Optional
 
-from transformers import PreTrainedTokenizerFast, MistralConfig, MistralForCausalLM
+from transformers import MistralConfig, MistralForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
 from src.models.wrapper import TransformerWithSequencePositionEmbeddings
@@ -22,9 +22,7 @@ class MistralLitModule(BaseFamilyLitModule):
         max_seq_pos: int = 2048,
     ) -> None:
         model = MistralForCausalLM(config)
-        if (
-            use_seq_pos
-        ):
+        if use_seq_pos:
             model = TransformerWithSequencePositionEmbeddings(
                 model,
                 model.embed_tokens,
