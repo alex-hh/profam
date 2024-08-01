@@ -29,6 +29,7 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
     use_seq_pos: bool = False
     max_seq_pos: Optional[int] = None
+    minimum_sequences: Optional[int] = None
 
 
 class StringObject:
@@ -156,6 +157,7 @@ def load_protein_dataset(
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         tokenized.data["ds_name"] = cfg.name
+        tokenized.data["total_num_sequences"] = len(sequences)
         if include_doc_hashes:
             # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
@@ -168,6 +170,21 @@ def load_protein_dataset(
             )
 
         return tokenized
+
+    def batched_preprocess_and_filter(batch):
+        batch_dict = {}
+        for example_text in batch["text"]:
+            example = {"text": example_text}
+            processed = preprocess_fasta(example).data
+            if (
+                cfg.minimum_sequences is not None
+                and processed["total_num_sequences"] >= cfg.minimum_sequences
+            ):
+                for k, v in processed.items():
+                    if k not in batch_dict:
+                        batch_dict[k] = []
+                    batch_dict[k].append(v)
+        return batch_dict
 
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -205,8 +222,9 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    # TODO: possibly we could speed this up by batching...
-    dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
+    dataset = dataset.map(
+        batched_preprocess_and_filter, batched=True, remove_columns=["text"]
+    )
 
     return dataset
 
