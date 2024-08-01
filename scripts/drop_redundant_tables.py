@@ -1,7 +1,7 @@
 import sqlite3
 
 # Connect to the database
-conn = sqlite3.connect('/SAN/orengolab/cath_plm/profam_db/profam.db')
+conn = sqlite3.connect("/SAN/orengolab/cath_plm/profam_db/profam.db")
 cursor = conn.cursor()
 
 # SQL statements to drop the tables

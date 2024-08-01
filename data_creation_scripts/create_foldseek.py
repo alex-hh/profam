@@ -5,6 +5,7 @@ converts them into parquet files.
 first create a dictionary for the clusters
 then iterate through the file.
 """
+import argparse
 import random
 import sys
 import sqlite3
@@ -92,6 +93,7 @@ def create_foldseek_fastas(db_path, cluster_dict, save_dir):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
     scratch_dir = sys.argv[1]
     cluster_path = "../data/foldseek/1-AFDBClusters-entryId_repId_taxId.tsv"
     uniprot_db_path = f"{scratch_dir}/profam_db/profam.db"
