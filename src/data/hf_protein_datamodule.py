@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
-from src.data.fasta import _read_fasta_lines
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -28,6 +27,7 @@ class ProteinDataModule(LightningDataModule):
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
+        keep_gym_gaps: bool = False,
         gym_data_dir: Optional[str] = None,
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
@@ -46,6 +46,7 @@ class ProteinDataModule(LightningDataModule):
         self.val_dataset_name = val_dataset_name
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
+        self.keep_gym_gaps = keep_gym_gaps
         self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
@@ -66,10 +67,6 @@ class ProteinDataModule(LightningDataModule):
         self.count_doc_hashes = count_doc_hashes
 
     def setup(self, stage: Optional[str] = None) -> None:
-        if self.num_workers > 0:
-            os.environ["TOKENIZERS_PARALLELISM"] = "false"
-            print(f"Using {self.num_workers} workers for data loading")
-
         train_datasets = []
         train_data_weights = []
         for data_key, dataset_config in self.dataset_cfgs.items():
@@ -100,6 +97,7 @@ class ProteinDataModule(LightningDataModule):
         print("Num shards", self.train_dataset.n_shards)
         if self.num_workers is None:
             self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
+        print(f"Using {self.num_workers} workers for data loading")
         # will shuffle the shards order and use a shuffle buffer when you start iterating
         # n.b. set_epoch is required in order for shuffling to be correctly randomised
         # - this is handled by ShuffleCallback
@@ -131,11 +129,15 @@ class ProteinDataModule(LightningDataModule):
                 max_tokens=self.max_tokens,
                 use_seq_pos=self.use_seq_pos,
                 max_seq_pos=self.max_seq_pos,
+                keep_gaps=self.keep_gym_gaps,
+                num_proc=self.num_workers,
             )
         if self.evaluate_ec_class:
+            # TODO: add other classifier dataset kwargs to config
             self.ec_class_dataset = load_classifier_dataset(
                 "data/example_data/expasy_ec/*.fasta",
                 self.tokenizer,
+                max_tokens=self.max_tokens,
                 use_seq_pos=self.use_seq_pos,
                 max_seq_pos=self.max_seq_pos,
             )

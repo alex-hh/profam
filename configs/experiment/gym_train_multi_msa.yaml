@@ -6,6 +6,9 @@
 # to execute this experiment run:
 # python train.py experiment=example
 
+# N.B. we might get slightly weird distribution of msas across shards in this setup.
+# (if we shuffle after repeat then shard, for example.)
+
 defaults:
   - override /data: gym_multi_msa
   - override /model: gpt2tiny_seqpos
@@ -35,16 +38,21 @@ data:
   mutant_bos_token: "sep"
   gym_dms_ids: [
     "BLAT_ECOLX_Jacquier_2013",
-    "CALM1_HUMAN_Weile_2017",
-    "DYR_ECOLI_Thompson_2019",
-    "DLG4_RAT_McLaughlin_2012",
-    "REV_HV1H2_Fernandes_2016",
-    "TAT_HV1BR_Fernandes_2016",
-    "RL40A_YEAST_Roscoe_2013",
-    "P53_HUMAN_Giacomelli_2018_WT_Nutlin"
+    # "CALM1_HUMAN_Weile_2017",
+    # "DYR_ECOLI_Thompson_2019",
+    # "DLG4_RAT_McLaughlin_2012",
+    # "REV_HV1H2_Fernandes_2016",
+    # "TAT_HV1BR_Fernandes_2016",
+    # "RL40A_YEAST_Roscoe_2013",
+    # "P53_HUMAN_Giacomelli_2018_WT_Nutlin",
   ]
+  use_seq_pos: true
+  max_seq_pos: 2048
   dataset_cfg:
     file_repeats: 100
+  val_dataset_cfg:
+    # evaluate just on BLAT for now
+    data_path_pattern: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m
 
 logger:
   wandb:

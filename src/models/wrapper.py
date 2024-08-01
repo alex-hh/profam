@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import torch
 from torch import nn
@@ -14,18 +14,18 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
     def __init__(
         self,
         model: PreTrainedModel,
+        token_embedder: Callable,
+        embedding_dim: int,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
     ):
         super().__init__()
         self.model = model
+        self.token_embedder = token_embedder
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         if self.use_seq_pos:
-            # TODO: do all models have embed_tokens embedding layer? presumably yes...
-            self.seq_pos_embedding = nn.Embedding(
-                self.max_seq_pos, self.model.embed_tokens.embedding_dim
-            )
+            self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
 
     def embed_inputs(
         self,
@@ -35,11 +35,24 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         # n.b. we need to be careful about what happens when caching.
         # I think in that case input_ids should just be the continuation
         # and inputs_embeds should also.
-        inputs_embeds = self.embed_tokens(input_ids)
+        # different models will have different token embedders.
+        # we assume (which is case for e.g. gpt2 and mistral)
+        # that the model will itself add its own position embeddings to inputs_embeds
+        assert input_ids.ndim == 2
+        # gpt2 code
+        # elif input_ids is not None:
+        #     self.warn_if_padding_and_no_attention_mask(input_ids, attention_mask)
+        #     input_shape = input_ids.size()
+        #     input_ids = input_ids.view(-1, input_shape[-1])
+        #     batch_size = input_ids.shape[0]
+
+        # in this case model's position ids will be inferred from inputs_embeds
+        inputs_embeds = self.token_embedder(input_ids)
         if self.use_seq_pos:
             assert seq_pos is not None
             pos_embeds = self.seq_pos_embedding(seq_pos)
-        return inputs_embeds + pos_embeds
+            inputs_embeds = inputs_embeds + pos_embeds
+        return inputs_embeds
 
     def forward(
         self,
@@ -58,11 +71,10 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
-        inputs_embeds = self.embed_inputs(input_ids, inputs_embeds)
+        inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos)
         return self.model(
             input_ids=None,
             attention_mask=attention_mask,
-            seq_pos=seq_pos,
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,

@@ -2,10 +2,9 @@
 
 # Train ProFam
 
-#$ -l tmem=15.9G
-#$ -l h_vmem=15.9G
+#$ -l tmem=60G
 #$ -l gpu=true
-## $ -l hostname='bubba*'
+#$ -l hostname='bubba*'
 ## $ -l gpu_type=(rtx3090|rtx4090|a6000|a40|a10|a100|a100_80)
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
@@ -21,6 +20,8 @@ echo "####################  QSUB SCRIPT END  ####################"
 # conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
+
+nvidia-smi
 
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID
 mkdir -p ${SCRATCH_DIR}/data
@@ -42,5 +43,5 @@ source ${SCRATCH_DIR}/venv/bin/activate
 pip install -r ${SCRATCH_DIR}/profam/requirements.txt
 echo " ${date} Requirements installed"
 echo "Using python from $(which python)"
-python ${ROOT_DIR}/src/train.py trainer=gpu experiment=gym_train
+python ${ROOT_DIR}/src/train.py trainer=gpu experiment=gym_train_multi_msa_gpt2_blat data.num_workers=4
 date
