@@ -267,6 +267,7 @@ def load_protein_dataset(
     TODO: create a filtered set of ProteinGym MSAs to test whether processing
     is more efficient in that case.
     """
+
     def preload_sequences(example):
         sequences = [
             seq
