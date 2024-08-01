@@ -227,7 +227,7 @@ def load_iterable_protein_dataset(
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
-            data_files=cfg.data_path_pattern,
+            data_files=data_files,
             split=split,
             streaming=True,
             ignore_verifications=True,
@@ -328,7 +328,7 @@ def load_protein_dataset(
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
-            data_files=cfg.data_path_pattern,
+            data_files=data_files,
             split=split,
             streaming=False,
             ignore_verifications=True,
