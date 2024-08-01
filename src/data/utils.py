@@ -185,6 +185,10 @@ def load_protein_dataset(
                     if k not in batch_dict:
                         batch_dict[k] = []
                     batch_dict[k].append(v)
+        print(
+            len(batch["text"]),
+            len(batch_dict["ds_name"]) if "ds_name" in batch_dict else 0,
+        )
         return batch_dict
 
     if cfg.data_path_pattern is not None:
@@ -224,12 +228,17 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
+    # with batched map there is a massive delay before training actually starts - why?
+    # dataset = dataset.map(
+    #     batched_preprocess_and_filter,
+    #     batched=True,
+    #     remove_columns=["text"],
+    #     batch_size=2,
+    # )
+    # filter after map also seems to slow things down...
     dataset = dataset.map(
-        batched_preprocess_and_filter,
-        batched=True,
-        remove_columns=["text"],
-        batch_size=30,
-    )
+        preprocess_fasta, batched=False, remove_columns=["text"]
+    ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
 
     return dataset
 
