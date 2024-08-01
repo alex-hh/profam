@@ -599,7 +599,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 )
             if "total_num_sequences" in batch:
                 self.log(
-                    "train/total_num_sequences", batch["total_num_sequences"].mean()
+                    "train/total_num_sequences",
+                    batch["total_num_sequences"].float().mean(),
                 )
         return loss
 
