@@ -598,7 +598,9 @@ class BaseFamilyLitModule(BaseLitModule):
                     on_epoch=False,
                 )
             if "total_num_sequences" in batch:
-                self.log("train/total_num_sequences", np.mean(batch["total_num_sequences"]))
+                self.log(
+                    "train/total_num_sequences", batch["total_num_sequences"].mean()
+                )
         return loss
 
     def log_ds_sample_counts(self, batch):
