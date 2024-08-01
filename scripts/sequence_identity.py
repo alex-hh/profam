@@ -13,6 +13,7 @@ def compute_pairwise_identity(seq1, seq2):
     seq_length = min(len(seq1), len(seq2))
     matches = global_align[0][2]
     percent_match = (matches / seq_length) * 100
+    # print(global_align[0])
     return percent_match
 
 
