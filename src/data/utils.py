@@ -127,6 +127,7 @@ def load_protein_dataset(
                 keep_insertions=cfg.keep_insertions,
                 to_upper=cfg.to_upper,
             )
+            if len(seq < (max_seq_pos or 1e8))
         ]
         random.shuffle(sequences)
         cumulative_lengths = list(
@@ -157,7 +158,8 @@ def load_protein_dataset(
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         tokenized.data["ds_name"] = cfg.name
-        tokenized.data["total_num_sequences"] = len(sequences)
+        tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
+        print(len(sequences))
         if include_doc_hashes:
             # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
