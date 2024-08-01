@@ -177,8 +177,8 @@ def load_protein_dataset(
             example = {"text": example_text}
             processed = preprocess_fasta(example).data
             if (
-                cfg.minimum_sequences is not None
-                and processed["total_num_sequences"] >= cfg.minimum_sequences
+                cfg.minimum_sequences is None
+                or processed["total_num_sequences"] >= cfg.minimum_sequences
             ):
                 for k, v in processed.items():
                     if k not in batch_dict:
