@@ -127,7 +127,7 @@ def load_protein_dataset(
                 keep_insertions=cfg.keep_insertions,
                 to_upper=cfg.to_upper,
             )
-            if len(seq < (max_seq_pos or 1e8))
+            if len(seq) < (max_seq_pos or 1e8)
         ]
         random.shuffle(sequences)
         cumulative_lengths = list(
@@ -159,7 +159,6 @@ def load_protein_dataset(
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         tokenized.data["ds_name"] = cfg.name
         tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
-        print(len(sequences))
         if include_doc_hashes:
             # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
@@ -210,11 +209,12 @@ def load_protein_dataset(
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
-            data_files=cfg.data_path_pattern,
+            data_files=data_files,
             split=split,
             streaming=True,
             ignore_verifications=True,
         )
+        dataset = dataset.remove_columns(["__index_level_0__"])
     else:
         dataset = load_dataset(
             "text",
@@ -225,7 +225,10 @@ def load_protein_dataset(
         )
     print("Dataset n shards", dataset.n_shards)
     dataset = dataset.map(
-        batched_preprocess_and_filter, batched=True, remove_columns=["text"]
+        batched_preprocess_and_filter,
+        batched=True,
+        remove_columns=["text"],
+        batch_size=30,
     )
 
     return dataset
