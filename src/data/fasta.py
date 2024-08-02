@@ -30,7 +30,7 @@ def gzread(filename, encoding=None):
     f.close()
 
 
-def _read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
+def read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
     """
     From esm
     Works for fasta and a2m/a3m
@@ -59,6 +59,70 @@ def _read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=Fals
     yield desc, parse(seq)
 
 
+def convert_sequence_with_positions(
+    seq, keep_gaps=True, keep_insertions=True, to_upper=False
+):
+    """
+    Get positions relative to sequence. For alignments position is relative to match states.
+    i.e. insertions have the same position as the previous match state.
+
+    TODO: write test
+    """
+    match_index = 0
+    positions = []
+    sequence = ""
+    if not keep_gaps:
+        assert keep_insertions, "If not keeping gaps should keep insertions"
+    if keep_insertions:
+        assert to_upper, "If keeping insertions should convert to upper case"
+    for aa in seq:
+        if keep_gaps or aa != "-":
+            if aa == ".":
+                # dont keep gaps in insert columns: we can modify later if we ever want to use
+                pass
+            # TODO: check for valid characters
+            upper = aa.upper()
+            if upper == aa or keep_insertions:
+                positions.append(match_index)
+                sequence += upper
+                if upper == aa and aa != ".":  # includes case where aa is "-"
+                    match_index += 1
+
+    assert len(positions) == len(sequence)
+    return sequence, positions
+
+
+def read_fasta_lines_with_positions(
+    lines, keep_gaps=True, keep_insertions=True, to_upper=False
+):
+    seq = desc = None
+
+    for line in lines:
+        # Line may be empty if seq % file_line_width == 0
+        if len(line) > 0 and line[0] == ">":
+            if seq is not None:
+                seq, pos = convert_sequence_with_positions(
+                    seq,
+                    keep_gaps=keep_gaps,
+                    keep_insertions=keep_insertions,
+                    to_upper=to_upper,
+                )
+                yield desc, seq, pos
+            desc = line.strip()[1:]
+            seq = ""
+        else:
+            assert isinstance(seq, str)
+            seq += line.strip()
+    assert isinstance(seq, str) and isinstance(desc, str)
+    seq, pos = convert_sequence_with_positions(
+        seq,
+        keep_gaps=keep_gaps,
+        keep_insertions=keep_insertions,
+        to_upper=to_upper,
+    )
+    yield desc, seq, pos
+
+
 def fasta_generator(
     filepath,
     encoding=None,
@@ -70,7 +134,7 @@ def fasta_generator(
     # if a return statement is used it closes the context manager too early
     # with gzread(filepath, encoding=encoding) as fin:
     with open(filepath, "r", encoding=encoding) as fin:
-        yield from _read_fasta_lines(
+        yield from read_fasta_lines(
             fin, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
         )
 

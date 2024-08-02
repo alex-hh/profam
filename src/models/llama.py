@@ -35,7 +35,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         self,
         config: LlamaConfig,
         tokenizer: PreTrainedTokenizerFast,
-        lr: float = 1e-4,
+        lr: float = 3e-4,
         weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
@@ -47,7 +47,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         From the paper:
         We trained using the AdamW optimizer (Loshchilov and Hutter, 2017),
         with beta1=0.9,beta2=0.95,eps=10-5. We use a cosine learning rate schedule, with warmup
-        of 2000 steps, and decay final learning rate down to 10% of the peak learning rate.
+        of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
         model = LlamaForCausalLM(config)
