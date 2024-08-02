@@ -235,13 +235,13 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
                 if cluster_counter % 10000 == 0:
                     print("\nProcessed", cluster_counter, "clusters")
                     print("Number of failed sequences:", seq_fail_counter)
-                    print("Number of successful sequences:", seq_success_counter)
+                    print("Number of successful sequences:", seq_success_counter, flush=True)
                     save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
                     clusters_to_save = []
 
     print("\nProcessed", cluster_counter, "clusters")
     print("Number of failed sequences:", seq_fail_counter)
-    print("Number of successful sequences:", seq_success_counter)
+    print("Number of successful sequences:", seq_success_counter, flush=True)
     save_pdbs_to_parquet(save_dir, cluster_counter)
 
 
@@ -252,18 +252,18 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     scratch_dir = sys.argv[1]
-    save_dir = "../data/foldseek_struct/"
+    save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
 
     if not os.path.exists(cluster_dict_pickle_path):
-        print("Creating foldseek dataset")
+        print("Creating foldseek dataset", flush=True)
         cluster_dict = make_cluster_dictionary(args.cluster_path)
         print("Number of clusters:", len(cluster_dict))
         print("Saving cluster dictionary")
         with open(save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
             pickle.dump(cluster_dict, f)
     else:
-        print("Loading cluster dictionary")
+        print("Loading cluster dictionary", flush=True)
         with open(cluster_dict_pickle_path, "rb") as f:
             cluster_dict = pickle.load(f)
         print("Number of clusters:", len(cluster_dict))
