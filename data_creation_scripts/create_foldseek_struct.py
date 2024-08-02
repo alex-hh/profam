@@ -4,6 +4,7 @@ converts them into parquet files. The parquet files contain sequences
 as well as backbone coordinates (N, Ca, C, O).
 """
 import argparse
+import dask.dataframe as dd
 from typing import List
 import biotite
 from biotite.sequence import ProteinSequence
@@ -28,19 +29,17 @@ import os
 
 def read_mapping():
     # One thing we need to be careful about is making sure we can map correctly
-    df = pd.read_csv(
+    df = dd.read_csv(
         "/SAN/bioinf/afdb_domain/zipmaker/zip_index",
         sep="\t",
         names=["afdb_id", "seq_hash", "zip_file"]
     )
     df["uniprot_id"] = df["afdb_id"].apply(lambda x: x.split("-")[1])
+    df.set_index("uniprot_id", inplace=True)
     return df
 
 # Read the mapping file to get the pdb to zip file mapping
 pdb_to_zip = read_mapping()
-mappings = pdb_to_zip[pdb_to_zip["uniprot_id"].isin(uniprot_ids)]
-uniprot_to_zip = dict(zip(mappings["uniprot_id"].values, mappings["zip_file"].values))
-uniprot_to_afdb = dict(zip(mappings["uniprot_id"].values, mappings["afdb_id"].values))
 
 
 def extract_pdb_file(uniprot_id, output_folder):
@@ -49,10 +48,9 @@ def extract_pdb_file(uniprot_id, output_folder):
         os.makedirs(output_folder)
 
     # Extract the specified PDB files
-
-    afdb_id = uniprot_to_afdb[uniprot_id]
-    if uniprot_id in uniprot_to_zip:
-        zip_filename = pdb_to_zip[uniprot_id]
+    try:
+        afdb_id = pdb_to_zip.loc[uniprot_id, "afdb_id"]
+        zip_filename = pdb_to_zip.loc[uniprot_id, "zip_file"]
         zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
         with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
             if afdb_id + ".pdb" in zip_ref.namelist():
@@ -62,7 +60,8 @@ def extract_pdb_file(uniprot_id, output_folder):
             else:
                 print(f"{afdb_id} not found in {zip_filename}")
                 return False
-    else:
+    except Exception as e:
+        print(e)
         print(f"No zip file containing {uniprot_id} found in mapping")
         return False
 
