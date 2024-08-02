@@ -309,10 +309,31 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_seq_pos = use_seq_pos
 
     def encode_sequences(self, sequences):
-        raise NotImplementedError()
+        # TODO: add MSA / RAW document type token...
+        concatenated_seqs = (
+            self.tokenizer.bos_token
+            + self.tokenizer.sep_token.join(sequences)
+            + self.tokenizer.sep_token
+        )
+        tokenized = self.tokenizer(
+            concatenated_seqs,
+            truncation=False,  # shouldnt be necessary: bisection should handle
+            return_tensors="pt",
+            # padding="longest",
+            padding="longest",
+            add_special_tokens=False,
+        )
+        return tokenized.input_ids
 
     def decode_tokens(self, tokens):
-        raise NotImplementedError()
+        return (
+            self.tokenizer.decode(tokens)
+            .replace(" ", "")
+            .split("[SEP]")
+            .replace("[RAW]", "")
+            .replace("[MSA]", "")
+            .replace("[start-of-document]", "")
+        )
 
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}

@@ -53,6 +53,7 @@ class ProteinDataModule(LightningDataModule):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos  # max embed index for relative position
         self.tokenizer_path = tokenizer_path
+        # TODO: properly assign other special tokens
         self.tokenizer = PreTrainedTokenizerFast(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
