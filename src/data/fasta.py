@@ -79,7 +79,7 @@ def convert_sequence_with_positions(
         if keep_gaps or aa != "-":
             if aa == ".":
                 # dont keep gaps in insert columns: we can modify later if we ever want to use
-                pass
+                continue
             # TODO: check for valid characters
             upper = aa.upper()
             if upper == aa or keep_insertions:
