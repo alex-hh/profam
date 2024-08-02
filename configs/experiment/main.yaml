@@ -19,6 +19,7 @@ trainer:
   gradient_clip_val: 1.0
   val_check_interval: 1.0  # TODO: set this appropriately...
   check_val_every_n_epoch: 1
+  num_sanity_val_steps: 2
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
