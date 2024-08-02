@@ -118,6 +118,8 @@ def load_protein_dataset(
     max_seq_pos: int = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        # N.B. for stockholm format we need to check that sequences aren't split over
+        # multiple lines
         sequences = [
             seq
             for _, seq in _read_fasta_lines(
