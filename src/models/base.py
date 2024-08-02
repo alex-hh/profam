@@ -308,6 +308,12 @@ class BaseFamilyLitModule(BaseLitModule):
         self.doc_hash_counts = {}
         self.use_seq_pos = use_seq_pos
 
+    def encode_sequences(self, sequences):
+        raise NotImplementedError()
+
+    def decode_tokens(self, tokens):
+        raise NotImplementedError()
+
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
@@ -449,7 +455,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 completion_seq_pos=completion_seq_pos,
             )
 
-    def sample_seqs(
+    def _sample_seqs(
         self,
         input_ids,
         num_sequences,
@@ -476,6 +482,22 @@ class BaseFamilyLitModule(BaseLitModule):
             )
             all_outputs.append(outputs)
         return torch.cat(all_outputs, dim=0)
+
+    def sample_seqs(
+        self,
+        sequence_prompt,
+        num_sequences,
+        batch_size: int = 1,
+    ):
+        # TODO: encode sequence prompt and get sequence pos if necessary.
+        encoded = self._sample_seqs(input_ids, num_sequences)
+        return self.decode_tokens(encoded)
+
+    def validation_step_esmfold(self, batch):
+        # TODO: batch should prob contain a wt / representative sequence to which we compare
+        samples = self.sample_seqs(batch["input_ids"])
+        # TODO: process this correctly
+        input_sequences = self.tokenizer.decode(batch["input_ids"])
 
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
