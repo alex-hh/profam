@@ -195,10 +195,11 @@ def load_protein_dataset(
             padding="max_length",
             add_special_tokens=False,
         )
-        assert tokenized.input_ids.shape[1] <= max_tokens, (
-            tokenized.input_ids.shape[1],
-            max_tokens,
-        )
+        if max_tokens is not None:
+            assert tokenized.input_ids.shape[1] <= max_tokens, (
+                tokenized.input_ids.shape[1],
+                max_tokens,
+            )
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
