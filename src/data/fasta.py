@@ -77,11 +77,15 @@ def convert_sequence_with_positions(
         assert to_upper, "If keeping insertions should convert to upper case"
     for aa in seq:
         if keep_gaps or aa != "-":
+            if aa == ".":
+                # dont keep gaps in insert columns: we can modify later if we ever want to use
+                pass
+            # TODO: check for valid characters
             upper = aa.upper()
             if upper == aa or keep_insertions:
                 positions.append(match_index)
                 sequence += upper
-                if upper == aa:
+                if upper == aa and aa != ".":  # includes case where aa is "-"
                     match_index += 1
 
     assert len(positions) == len(sequence)
