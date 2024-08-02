@@ -368,27 +368,6 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
-    def _sample_seqs_kv_cache(
-        self,
-        input_ids,
-        num_samples: int,
-        batch_size: int = 1,
-        seq_pos: Optional[torch.LongTensor] = None,
-        verbose: bool = False,
-    ):
-        forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
-        outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
-        past_key_values = (
-            outputs.past_key_values
-        )  # just a tuple of tensors - doesn't get extended
-        all_samples = []
-        for batch_start in tqdm.tqdm(
-            range(0, num_samples, batch_size), disable=not verbose
-        ):
-            raise NotImplementedError(
-                "TODO: implement sampling with kv cache (use hf utils if poss)"
-            )
-
     def _score_seqs_no_cache(
         self,
         input_ids,
@@ -473,6 +452,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def sample_seqs(
         self,
         input_ids,
+        num_sequences,
         batch_size: int = 1,
         input_seq_pos: Optional[torch.LongTensor] = None,
     ):
@@ -480,11 +460,22 @@ class BaseFamilyLitModule(BaseLitModule):
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
         assert input_ids.ndim == 2  # b, L
-        return self._sample_seqs_kv_cache(
-            input_ids,
-            batch_size=batch_size,
-            seq_pos=input_seq_pos,
-        )
+        all_outputs = []
+        for batch_start in range(0, num_sequences, batch_size):
+            num_return_sequences = min(batch_size, num_sequences - batch_start)
+            forward_kwargs = (
+                {"seq_pos": input_seq_pos.expand(num_return_sequences, -1)}
+                if self.use_seq_pos
+                else {}
+            )
+            outputs = self.model.generate(
+                input_ids=input_ids,
+                num_return_sequences=num_return_sequences,
+                return_dict_in_generate=False,
+                **forward_kwargs,
+            )
+            all_outputs.append(outputs)
+        return torch.cat(all_outputs, dim=0)
 
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
