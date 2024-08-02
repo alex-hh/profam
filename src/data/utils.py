@@ -128,12 +128,13 @@ def get_seq_pos_from_positions(
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
-    max_tokens: int = 5000,
+    max_tokens: Optional[int] = 5000,
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+    shuffle: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         # N.B. for stockholm format we need to check that sequences aren't split over
@@ -151,9 +152,10 @@ def load_protein_dataset(
                 positions.append(pos)
 
             # TODO: seed explicitly?
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
-            positions = [positions[i] for i in perm]
+            if shuffle:
+                perm = np.random.permutation(len(sequences))
+                sequences = [sequences[i] for i in perm]
+                positions = [positions[i] for i in perm]
         else:
             sequences = [
                 seq
@@ -164,16 +166,20 @@ def load_protein_dataset(
                     to_upper=cfg.to_upper,
                 )
             ]
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
+            if shuffle:
+                perm = np.random.permutation(len(sequences))
+                sequences = [sequences[i] for i in perm]
 
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
+        if max_tokens is not None:
+            cumulative_lengths = list(
+                itertools.accumulate([len(s) + 1 for s in sequences])
+            )  # +1 for separator
+            insertion_point = bisect.bisect_left(
+                cumulative_lengths,
+                max_tokens - 2,
+            )  # -2 for doc start and end tokens
+        else:
+            insertion_point = len(sequences)
         concatenated_seqs = (
             cfg.document_tag
             + tokenizer.bos_token
