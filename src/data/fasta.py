@@ -87,6 +87,8 @@ def convert_sequence_with_positions(
                 sequence += upper
                 if upper == aa and aa != ".":  # includes case where aa is "-"
                     match_index += 1
+        elif aa == "-":
+            match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
 
     assert len(positions) == len(sequence)
     return sequence, positions
