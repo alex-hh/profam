@@ -84,23 +84,6 @@ def make_cluster_dictionary(cluster_path):
     return cluster_dict
 
 
-def fasta_to_parquet(save_dir, batch_id):
-    fastas = glob.glob(save_dir + "*.fasta")
-    results = []
-    for fasta in fastas:
-        cluster_id = os.path.splitext(os.path.basename(fasta))[0]
-        with open(fasta, "r") as f:
-            text = f.read()
-        results.append({'text': text, "cluster_id": cluster_id, "num_sequences": len(text.split(">")) - 1})
-        os.remove(fasta)
-    df = pd.DataFrame(results)
-    table = pa.Table.from_pandas(df)
-    output_file = f'{save_dir}/{batch_id}.parquet'
-    pq.write_table(table, output_file)
-    print(f"Saved batch {batch_id} to {output_file}")
-    return output_file
-
-
 backbone_atoms = ["N", "CA", "C", "O"]
 
 
@@ -184,7 +167,7 @@ def load_structure(fpath, chain=None):
     return structure
 
 
-def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter):
+def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=False):
     # Save the pdbs to parquet
     results = []
     for cluster_id in clusters_to_save:
@@ -223,7 +206,7 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter):
         return output_file
 
 
-def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1):
+def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, verbose=False):
     seq_fail_counter = 0
     seq_success_counter = 0
     cluster_counter = 0
@@ -256,13 +239,17 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1):
                     save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
                     clusters_to_save = []
 
-    fasta_to_parquet(save_dir, cluster_counter)
+    print("\nProcessed", cluster_counter, "clusters")
+    print("Number of failed sequences:", seq_fail_counter)
+    print("Number of successful sequences:", seq_success_counter)
+    save_pdbs_to_parquet(save_dir, cluster_counter)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
-    parser.add_argument("minimum_cluster_size", type=int, default=1)
+    parser.add_argument("--minimum_cluster_size", type=int, default=1)
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
     scratch_dir = sys.argv[1]
     save_dir = "../data/foldseek_struct/"
@@ -281,4 +268,4 @@ if __name__ == "__main__":
             cluster_dict = pickle.load(f)
         print("Number of clusters:", len(cluster_dict))
 
-    create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=args.minimum_cluster_size)
+    create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=args.minimum_cluster_size, verbose=args.verbose)
