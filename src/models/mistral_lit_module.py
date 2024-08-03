@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from transformers import PreTrainedTokenizerFast
 
