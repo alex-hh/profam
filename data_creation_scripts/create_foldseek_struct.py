@@ -221,10 +221,11 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
                 "O": all_coords["O"],
             }
         )
-        # shutil.rmtree(os.path.join(save_dir, cluster_id))
+        shutil.rmtree(os.path.join(save_dir, cluster_id))
+
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
-    output_file = os.path.join(f'{save_dir}, {cluster_counter}.parquet')
+    output_file = os.path.join(f'{save_dir}', f'{cluster_counter}.parquet')
     pq.write_table(table, output_file)
     print(f"Saved {clusters_to_save} clusters to {output_file}")
     return output_file
