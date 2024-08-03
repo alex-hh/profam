@@ -40,7 +40,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 12288,
+        scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
     ) -> None:
         """

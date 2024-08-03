@@ -42,7 +42,7 @@ class BaseLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 12288,
+        scoring_max_tokens: int = 10240,
     ) -> None:
         super().__init__()
         self.model = model

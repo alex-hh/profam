@@ -24,6 +24,7 @@ trainer:
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
   num_warmup_steps: 1000
+  scoring_max_tokens: 10240
 
 data:
   batch_size: 2
@@ -47,3 +48,5 @@ logger:
     group: "gym_train_multi_msa"
 
 float32_matmul_precision: high
+pre_evaluate_gym: false  # use to run evaluation first to check for issues
+pre_evaluate_ec_class: false
