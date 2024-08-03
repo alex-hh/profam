@@ -34,6 +34,7 @@ def read_mapping():
         sep="\t",
         names=["afdb_id", "seq_hash", "zip_file"]
     )
+    print(df.head()["afdb_id"], flush=True)
     df["uniprot_id"] = df["afdb_id"].apply(lambda x: x.split("-")[1])
     df.set_index("uniprot_id", inplace=True)
     return df
