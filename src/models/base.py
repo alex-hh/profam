@@ -326,6 +326,10 @@ class BaseFamilyLitModule(BaseLitModule):
         return tokenized.input_ids
 
     def decode_tokens(self, tokens):
+        # TODO: some kind of assertion on shape
+        assert tokens.ndim == 2 and tokens.shape[0] == 1
+        if tokens[:, -1] == self.tokenizer.sep_token_id:
+            tokens = tokens[:, :-1]
         return (
             self.tokenizer.decode(tokens)
             .replace(" ", "")
@@ -333,6 +337,7 @@ class BaseFamilyLitModule(BaseLitModule):
             .replace("[RAW]", "")
             .replace("[MSA]", "")
             .replace("[start-of-document]", "")
+            .replace("[end-of-document]", "")
         )
 
     def get_forward_kwargs(self, batch):
