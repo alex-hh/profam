@@ -27,6 +27,7 @@ import pyarrow.parquet as pq
 import zipfile
 import os
 
+dask.config.set({"dataframe.shuffle.method": "disk"})
 
 def read_mapping():
     # One thing we need to be careful about is making sure we can map correctly
@@ -38,6 +39,7 @@ def read_mapping():
     # df["num_parts"] = df["afdb_id"].apply(lambda x: len(x.split("-")))
     # min_val, max_val, mean_val = dask.compute(df["num_parts"].min(), df["num_parts"].max(), df["num_parts"].mean())
     df["uniprot_id"] = df["afdb_id"].apply(lambda x: x.split("-")[1], meta=("x", "str"))
+    df = df.persist()
     df.set_index("uniprot_id")
     return df
 
