@@ -72,7 +72,7 @@ def extract_pdb_file(uniprot_id, output_folder):
 
     # Extract the specified PDB files
     try:
-        afdb_id, zip_filename = af2zip[uniprot_id]
+        zip_filename, afdb_id = af2zip[uniprot_id]
         zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
         with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
             if afdb_id + ".pdb" in zip_ref.namelist():
@@ -221,7 +221,7 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
             os.remove(pdb)
         df = pd.DataFrame(results)
         table = pa.Table.from_pandas(df)
-        output_file = f'{save_dir}/{cluster_counter}.parquet'
+        output_file = os.path.join(f'{save_dir}, {cluster_counter}.parquet')
         pq.write_table(table, output_file)
         print(f"Saved {clusters_to_save} clusters to {output_file}")
         return output_file
@@ -263,7 +263,7 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
     print("\nProcessed", cluster_counter, "clusters")
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
-    save_pdbs_to_parquet(save_dir, cluster_counter)
+    save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
 
 
 if __name__ == "__main__":
