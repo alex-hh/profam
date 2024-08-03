@@ -506,11 +506,12 @@ class BaseFamilyLitModule(BaseLitModule):
 
     def sample_seqs(
         self,
-        sequence_prompt,
+        sequence_prompt: List[str],
         num_sequences,
         batch_size: int = 1,
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
+        input_ids = self.encode_sequences(sequence_prompt)
         encoded = self._sample_seqs(input_ids, num_sequences)
         return self.decode_tokens(encoded)
 
