@@ -29,6 +29,24 @@ import os
 
 dask.config.set({"dataframe.shuffle.method": "disk"})
 
+
+def make_zip_dictionary():
+    line_counter = 0
+    af2zip = {}
+    with open("/SAN/bioinf/afdb_domain/zipmaker/zip_index", "r") as f:
+        for line in f:
+            line = line.strip().split("\t")
+            afdb_id = line[0]
+            uniprot_id = afdb_id.split("-")[1]
+            zip_file = line[2]
+            af2zip[uniprot_id] = (zip_file, afdb_id)
+
+            line_counter += 1
+            if line_counter % 100000 == 0:
+                print("Processed", line_counter, "lines for cluster dictionary")
+    return af2zip
+
+
 def read_mapping():
     # One thing we need to be careful about is making sure we can map correctly
     df = dd.read_csv(
@@ -44,7 +62,7 @@ def read_mapping():
     return df
 
 # Read the mapping file to get the pdb to zip file mapping
-pdb_to_zip = read_mapping()
+af2zip = make_zip_dictionary()
 
 
 def extract_pdb_file(uniprot_id, output_folder):
@@ -54,8 +72,7 @@ def extract_pdb_file(uniprot_id, output_folder):
 
     # Extract the specified PDB files
     try:
-        afdb_id = pdb_to_zip.loc[uniprot_id, "afdb_id"].compute()
-        zip_filename = pdb_to_zip.loc[uniprot_id, "zip_file"].compute()
+        afdb_id, zip_filename = af2zip[uniprot_id]
         zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
         with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
             if afdb_id + ".pdb" in zip_ref.namelist():
