@@ -149,6 +149,14 @@ class ProteinDataModule(LightningDataModule):
             num_workers=self.num_workers,
         )
 
+    def gym_dataloader(self) -> DataLoader:
+        assert self.evaluate_gym, "Gym validation not enabled"
+        return DataLoader(
+            self.gym_dataset,
+            batch_size=1,  # gym needs batch size 1
+            shuffle=False,
+        )
+
     def val_dataloader(self) -> list[DataLoader]:
         loaders = [
             DataLoader(
