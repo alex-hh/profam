@@ -4,6 +4,7 @@ converts them into parquet files. The parquet files contain sequences
 as well as backbone coordinates (N, Ca, C, O).
 """
 import argparse
+import dask
 import dask.dataframe as dd
 from typing import List
 import biotite
@@ -34,9 +35,10 @@ def read_mapping():
         sep="\t",
         names=["afdb_id", "seq_hash", "zip_file"]
     )
-    print(df.head()["afdb_id"], flush=True)
-    df["uniprot_id"] = df["afdb_id"].apply(lambda x: x.split("-")[1])
-    df.set_index("uniprot_id", inplace=True)
+    # df["num_parts"] = df["afdb_id"].apply(lambda x: len(x.split("-")))
+    # min_val, max_val, mean_val = dask.compute(df["num_parts"].min(), df["num_parts"].max(), df["num_parts"].mean())
+    df["uniprot_id"] = df["afdb_id"].apply(lambda x: x.split("-")[1], meta=("x", "str"))
+    df.set_index("uniprot_id")
     return df
 
 # Read the mapping file to get the pdb to zip file mapping
@@ -50,8 +52,8 @@ def extract_pdb_file(uniprot_id, output_folder):
 
     # Extract the specified PDB files
     try:
-        afdb_id = pdb_to_zip.loc[uniprot_id, "afdb_id"]
-        zip_filename = pdb_to_zip.loc[uniprot_id, "zip_file"]
+        afdb_id = pdb_to_zip.loc[uniprot_id, "afdb_id"].compute()
+        zip_filename = pdb_to_zip.loc[uniprot_id, "zip_file"].compute()
         zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
         with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
             if afdb_id + ".pdb" in zip_ref.namelist():
