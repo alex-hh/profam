@@ -1,4 +1,7 @@
 """Supplement foldseek representatives with redundant 50% id sequences from AF50 clusters.
+
+TODO: instead make this a command line option in create_foldseek.py.
+TODO: instead of building a database just use dask for sequence lookups given AFDB fasta file.
 """
 import argparse
 import random

@@ -6,6 +6,7 @@ as well as backbone coordinates (N, Ca, C, O).
 import argparse
 import dask
 import dask.dataframe as dd
+import shutil
 from typing import List
 import biotite
 from biotite.sequence import ProteinSequence
@@ -207,24 +208,26 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
             sequences.append(seq)
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
-            # TODO: save representative?
-            results.append(
-                {
-                    "sequences": sequences,
-                    "cluster_id": cluster_id,
-                    "N": all_coords["N"],
-                    "CA": all_coords["CA"],
-                    "C": all_coords["C"],
-                    "O": all_coords["O"],
-                }
-            )
             os.remove(pdb)
-        df = pd.DataFrame(results)
-        table = pa.Table.from_pandas(df)
-        output_file = os.path.join(f'{save_dir}, {cluster_counter}.parquet')
-        pq.write_table(table, output_file)
-        print(f"Saved {clusters_to_save} clusters to {output_file}")
-        return output_file
+
+        # TODO: save representative?
+        results.append(
+            {
+                "sequences": sequences,
+                "cluster_id": cluster_id,
+                "N": all_coords["N"],
+                "CA": all_coords["CA"],
+                "C": all_coords["C"],
+                "O": all_coords["O"],
+            }
+        )
+        # shutil.rmtree(os.path.join(save_dir, cluster_id))
+    df = pd.DataFrame(results)
+    table = pa.Table.from_pandas(df)
+    output_file = os.path.join(f'{save_dir}, {cluster_counter}.parquet')
+    pq.write_table(table, output_file)
+    print(f"Saved {clusters_to_save} clusters to {output_file}")
+    return output_file
 
 
 def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, verbose=False):
@@ -271,7 +274,10 @@ if __name__ == "__main__":
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--include_af50", action="store_true")
     args = parser.parse_args()
+    if args.include_af50:
+        raise NotImplementedError("AF50 not implemented yet")
     scratch_dir = sys.argv[1]
     save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
