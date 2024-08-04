@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=88G
-#$ -l h_vmem=88G
+#$ -l tmem=128G
+#$ -l h_vmem=128G
 #$ -l h_rt=123:55:30
 #$ -S /bin/bash
 #$ -N foldseekF
