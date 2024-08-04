@@ -133,6 +133,7 @@ class ProteinDataModule(LightningDataModule):
             )
         if self.evaluate_ec_class:
             # TODO: add other classifier dataset kwargs to config
+            print("Loading classifier dataset")
             self.ec_class_dataset = load_classifier_dataset(
                 "data/example_data/expasy_ec/*.fasta",
                 self.tokenizer,
