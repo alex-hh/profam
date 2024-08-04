@@ -295,4 +295,4 @@ if __name__ == "__main__":
             cluster_dict = pickle.load(f)
         print("Number of clusters:", len(cluster_dict))
 
-    create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=args.minimum_cluster_size, verbose=args.verbose)
+    create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=args.minimum_cluster_size)
