@@ -221,6 +221,7 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
                 "O": all_coords["O"],
             }
         )
+        print("Deleting directory", os.path.join(save_dir, cluster_id), flush=True)
         shutil.rmtree(os.path.join(save_dir, cluster_id))
 
     df = pd.DataFrame(results)
@@ -275,11 +276,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--include_af50", action="store_true")
+    # parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
-    if args.include_af50:
-        raise NotImplementedError("AF50 not implemented yet")
     scratch_dir = sys.argv[1]
     save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")

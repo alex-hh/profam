@@ -7,10 +7,7 @@ then iterate through the file.
 """
 import argparse
 import random
-import sys
-import sqlite3
 import pickle
-import glob
 import os
 import re
 import pandas as pd
@@ -93,7 +90,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir):
     # shuffle first so that we de-correlate cluster identities in parquet files
     clusters = list(cluster_dict.keys())
     random.shuffle(clusters)
-    
+
     results = []
 
     with open(seq_fail_path, "w") as fail_file:
