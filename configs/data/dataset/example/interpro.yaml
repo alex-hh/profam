@@ -2,5 +2,5 @@ _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: interpro
 data_path_pattern: example_data/interpro/protein-matching-*.fasta
 keep_gaps: false
-to_upper: false
-keep_insertions: false
+to_upper: true
+keep_insertions: true
