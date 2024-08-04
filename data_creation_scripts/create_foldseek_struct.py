@@ -264,10 +264,11 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
                     save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
                     clusters_to_save = []
 
-    print("\nProcessed", cluster_counter, "clusters")
-    print("Number of failed sequences:", seq_fail_counter)
-    print("Number of successful sequences:", seq_success_counter, flush=True)
-    save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
+    if len(clusters_to_save) > 0:
+        print("\nProcessed", cluster_counter, "clusters")
+        print("Number of failed sequences:", seq_fail_counter)
+        print("Number of successful sequences:", seq_success_counter, flush=True)
+        save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
 
 
 if __name__ == "__main__":
