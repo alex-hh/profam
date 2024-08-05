@@ -5,6 +5,8 @@ converts them into parquet files.
 first create a dictionary for the clusters
 then iterate through the file.
 """
+import argparse
+import random
 import sys
 import sqlite3
 import pickle
@@ -43,9 +45,10 @@ def fasta_to_parquet(save_dir, batch_id):
     fastas = glob.glob(save_dir + "*.fasta")
     results = []
     for fasta in fastas:
+        cluster_id = os.path.splitext(os.path.basename(fasta))[0]
         with open(fasta, "r") as f:
             text = f.read()
-        results.append({'text': text})
+        results.append({'text': text, "cluster_id": cluster_id, "num_sequences": len(text.split(">")) - 1})
         os.remove(fasta)
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
@@ -63,8 +66,13 @@ def create_foldseek_fastas(db_path, cluster_dict, save_dir):
     cluster_counter = 0
     seq_fail_path = save_dir + "failed_sequences.txt"
 
+    # shuffle first so that we de-correlate cluster identities in parquet files
+    clusters = list(cluster_dict.keys())
+    random.shuffle(clusters)
+
     with open(seq_fail_path, "w") as fail_file:
-        for cluster_id, members in cluster_dict.items():
+        for cluster_id in clusters:
+            members = cluster_dict[cluster_id]
             cluster_counter += 1
             with open(save_dir + cluster_id + ".fasta", "w") as f:
                 for member in members:
@@ -85,6 +93,7 @@ def create_foldseek_fastas(db_path, cluster_dict, save_dir):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
     scratch_dir = sys.argv[1]
     cluster_path = "../data/foldseek/1-AFDBClusters-entryId_repId_taxId.tsv"
     uniprot_db_path = f"{scratch_dir}/profam_db/profam.db"
