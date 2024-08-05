@@ -2,6 +2,9 @@
 Loads PDB files for the foldseek clusters and
 converts them into parquet files. The parquet files contain sequences
 as well as backbone coordinates (N, Ca, C, O).
+
+N.B. this is slow and will require optimisation/parallelisation:
+10000 clusters takes around a day.
 """
 import argparse
 import dask

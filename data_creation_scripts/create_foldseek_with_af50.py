@@ -4,6 +4,8 @@ converts them into parquet files.
 
 first create a dictionary for the clusters
 then iterate through the file.
+
+N.B. this runs very quickly.
 """
 import argparse
 import random
@@ -62,6 +64,7 @@ def make_af50_dictionary(af50_path):
             entry_id = line[1]
             # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
             clu_flag = int(line[2])  # 1
+            # n.b. the 2s are duplicates of the other cluster dict
             # n.b. we don't include the representative in its own cluster atm
             if clu_flag == 1:
                 if rep_id not in af50_dict:
@@ -74,7 +77,7 @@ def make_af50_dictionary(af50_path):
 
 
 def save_clusters_to_parquet(cluster_df, save_dir, cluster_counter):
-    table = pa.Table.from_pandas(df)
+    table = pa.Table.from_pandas(cluster_df)
     output_file = os.path.join(f'{save_dir}', f'{cluster_counter}.parquet')
     pq.write_table(table, output_file)
     print(f"Saved {len(cluster_df)} clusters to {output_file}")
@@ -114,18 +117,19 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir):
                     seq_fail_counter += 1
                     fail_file.write(member + "\n")
                 
-                for af50_member in af50_dict[member]:
-                    assert not af50_member == member
-                    try:
-                        sequence = sequence_dict[af50_member]
-                        sequences.append(sequence)
-                        is_foldseek_representative.append(False)
-                        is_af50_representative.append(False)
-                        seq_success_counter += 1
-                        accessions.append(af50_member)
-                    except:
-                        seq_fail_counter += 1
-                        fail_file.write(af50_member + "\n")
+                if member in af50_dict:
+                    for af50_member in af50_dict[member]:
+                        assert not af50_member == member
+                        try:
+                            sequence = sequence_dict[af50_member]
+                            sequences.append(sequence)
+                            is_foldseek_representative.append(False)
+                            is_af50_representative.append(False)
+                            seq_success_counter += 1
+                            accessions.append(af50_member)
+                        except:
+                            seq_fail_counter += 1
+                            fail_file.write(af50_member + "\n")
 
             results.append(
                 {
@@ -142,7 +146,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir):
                 print("Number of successful sequences:", seq_success_counter)
                 save_clusters_to_parquet(pd.DataFrame(results), save_dir, cluster_counter)
                 results = []
-        
+
         if len(results) > 0:
             print("\nProcessed", cluster_counter, "clusters")
             print("Number of failed sequences:", seq_fail_counter)
@@ -185,12 +189,12 @@ if __name__ == "__main__":
         with open(af50_dict_pickle_path, "rb") as f:
             af50_dict = pickle.load(f)
 
-    if not os.path.exists(sequence_dict_pickle_path):
-        sequence_dict = make_sequence_dictionary(afdb_fasta_path)
-        with open(sequence_dict_pickle_path, "wb") as f:
-            pickle.dump(sequence_dict, f)
-    else:
-        with open(sequence_dict_pickle_path, "rb") as f:
-            sequence_dict = pickle.load(f)
+    sequence_dict = make_sequence_dictionary(afdb_fasta_path)
+    # with 128 GB memory, can't save sequence dict
+    # with open(sequence_dict_pickle_path, "wb") as f:
+    #     pickle.dump(sequence_dict, f)
+    # else:
+    #     with open(sequence_dict_pickle_path, "rb") as f:
+    #         sequence_dict = pickle.load(f)
 
     create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir)
