@@ -84,13 +84,14 @@ def save_clusters_to_parquet(cluster_df, save_dir, cluster_counter):
     return output_file
 
 
-def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir):
+def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, skip_af50=False):
     seq_fail_counter = 0
     seq_success_counter = 0
     cluster_counter = 0
     seq_fail_path = save_dir + "failed_sequences.txt"
 
     # shuffle first so that we de-correlate cluster identities in parquet files
+    # TODO: seed this
     clusters = list(cluster_dict.keys())
     random.shuffle(clusters)
 
@@ -117,7 +118,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir):
                     seq_fail_counter += 1
                     fail_file.write(member + "\n")
                 
-                if member in af50_dict:
+                if not skip_af50 and member in af50_dict:
                     for af50_member in af50_dict[member]:
                         assert not af50_member == member
                         try:
@@ -131,15 +132,15 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir):
                             seq_fail_counter += 1
                             fail_file.write(af50_member + "\n")
 
-            results.append(
-                {
-                    "sequences": sequences,
-                    "cluster_id": foldseek_cluster_id,
-                    "is_foldseek_representative": is_foldseek_representative,
-                    "is_af50_representative": is_af50_representative,
-                    "accessions": accessions,
-                }
-            )
+            res = {
+                "sequences": sequences,
+                "cluster_id": foldseek_cluster_id,
+                "is_foldseek_representative": is_foldseek_representative,
+                "accessions": accessions,
+            }
+            if not skip_af50:
+                res["is_af50_representative"] = is_af50_representative
+            results.append(res)
             if cluster_counter % 10000 == 0:
                 print("\nProcessed", cluster_counter, "clusters")
                 print("Number of failed sequences:", seq_fail_counter)
@@ -157,10 +158,14 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path")  # use a subset of the clusters to test the script
+    parser.add_argument("--skip_af50")
     args = parser.parse_args()
 
     # cluster_path = "/SAN/orengolab/cath_plm/ProFam/data/foldseek/1-AFDBClusters-entryId_repId_taxId.tsv"
-    save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/"
+    if args.skip_af50:
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_v2/"
+    else:
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/"
     af50_path = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
     afdb_fasta_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences.fasta"
 
@@ -197,4 +202,4 @@ if __name__ == "__main__":
     #     with open(sequence_dict_pickle_path, "rb") as f:
     #         sequence_dict = pickle.load(f)
 
-    create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir)
+    create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, skip_af50=args.skip_af50s)
