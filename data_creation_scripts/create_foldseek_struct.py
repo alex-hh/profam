@@ -19,7 +19,6 @@ from biotite.structure.residues import get_residues
 import numpy as np
 import random
 import sys
-import sqlite3
 import pickle
 import glob
 import os
@@ -243,7 +242,8 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     clusters = list(cluster_dict.keys())
-    random.shuffle(clusters)
+    rng = np.random.default_rng(seed=42)
+    rng.shuffle(clusters)
     clusters_to_save = []
 
     with open(seq_fail_path, "w") as fail_file:
