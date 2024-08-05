@@ -205,4 +205,4 @@ if __name__ == "__main__":
     #     with open(sequence_dict_pickle_path, "rb") as f:
     #         sequence_dict = pickle.load(f)
 
-    create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, skip_af50=args.skip_af50s)
+    create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, skip_af50=args.skip_af50)
