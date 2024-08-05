@@ -160,11 +160,12 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path")  # use a subset of the clusters to test the script
-    parser.add_argument("--skip_af50")
+    parser.add_argument("--skip_af50", action="store_true")
     args = parser.parse_args()
 
     # cluster_path = "/SAN/orengolab/cath_plm/ProFam/data/foldseek/1-AFDBClusters-entryId_repId_taxId.tsv"
     if args.skip_af50:
+        print("Skipping af50 members in document creation")
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_v2/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/"
