@@ -10,6 +10,7 @@ N.B. this runs very quickly.
 import argparse
 import random
 import pickle
+import numpy as np
 import os
 import re
 import pandas as pd
@@ -93,7 +94,8 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
     # shuffle first so that we de-correlate cluster identities in parquet files
     # TODO: seed this
     clusters = list(cluster_dict.keys())
-    random.shuffle(clusters)
+    rng = np.random.default_rng(seed=42)
+    rng.shuffle(clusters)
 
     results = []
 
