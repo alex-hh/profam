@@ -5,11 +5,15 @@ as well as backbone coordinates (N, Ca, C, O).
 
 N.B. this is slow and will require optimisation/parallelisation:
 10000 clusters takes around a day.
+
+There are 1000000 proteome files (i.e. a factor of 200 reduction in
+number of files if we use these rather than pdb files.)
 """
 import argparse
 import dask
 import dask.dataframe as dd
 import shutil
+from collections import defaultdict
 from typing import List
 import biotite
 from biotite.sequence import ProteinSequence
@@ -17,8 +21,8 @@ from biotite.structure import filter_amino_acids, get_chains, apply_residue_wise
 from biotite.structure.io import pdb, pdbx
 from biotite.structure.residues import get_residues
 import numpy as np
-import random
 import sys
+import time
 import pickle
 import glob
 import os
@@ -89,6 +93,27 @@ def extract_pdb_file(uniprot_id, output_folder):
         print(e)
         print(f"No zip file containing {uniprot_id} found in mapping")
         return False
+
+
+def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
+    # Ensure the output folder exists
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Extract the specified PDB files
+    zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
+    successes = []
+    with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
+        names = zip_ref.namelist()
+        for afdb_id in afdb_ids:
+            if afdb_id + ".pdb" in names:
+                zip_ref.extract(afdb_id + ".pdb", output_folder)
+                print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}")
+                successes.append(True)
+            else:
+                print(f"{afdb_id} not found in {zip_filename}")
+                successes.append(False)
+    return successes
 
 
 def make_cluster_dictionary(cluster_path):
@@ -245,6 +270,7 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
     rng = np.random.default_rng(seed=42)
     rng.shuffle(clusters)
     clusters_to_save = []
+    pdb_lookup = defaultdict(list)
 
     with open(seq_fail_path, "w") as fail_file:
         for cluster_id in clusters:
@@ -254,19 +280,23 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
                 cluster_counter += 1
 
                 for member in members:
-                    extracted = extract_pdb_file(member, os.path.join(save_dir, cluster_id, "pdbs"))
-                    if extracted:
-                        seq_success_counter += 1
-                    else:
-                        seq_fail_counter += 1
-                        fail_file.write(member + "\n")
+                    zip_filename, afdb_id = af2zip[member]
+                    pdb_lookup[zip_filename].append(afdb_id)
 
                 if cluster_counter % 10000 == 0:
+                    for zip_filename, afdb_ids in pdb_lookup.items():
+                        t0 = time.time()
+                        successes = extract_multi_pdb_files(afdb_ids, zip_filename, os.path.join(save_dir, cluster_counter, "pdbs"))
+                        t1 = time.time()
+                        print("Extracted", len(afdb_ids), "pdbs in", t1 - t0, "seconds", zip_filename, flush=True)
+                        seq_success_counter += sum(successes)
+                        seq_fail_counter += len(successes) - sum(successes)
                     print("\nProcessed", cluster_counter, "clusters")
                     print("Number of failed sequences:", seq_fail_counter)
                     print("Number of successful sequences:", seq_success_counter, flush=True)
                     save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
                     clusters_to_save = []
+                    pdb_lookup = defaultdict(list)
 
     if len(clusters_to_save) > 0:
         print("\nProcessed", cluster_counter, "clusters")
