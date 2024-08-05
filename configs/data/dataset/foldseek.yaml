@@ -1,0 +1,7 @@
+_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+name: foldseek
+data_path_pattern: foldseek/*.parquet
+is_parquet: true
+keep_gaps: false
+to_upper: false
+keep_insertions: false
