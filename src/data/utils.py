@@ -132,15 +132,19 @@ def load_protein_dataset(
     max_seq_pos: int = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        sequences = [
-            seq
-            for _, seq in _read_fasta_lines(
-                example["text"].split("\n"),
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
-            )
-        ]
+        if "sequences" in example:
+            # TODO: support more complex selection / redundancy control for e.g. foldseek clusters
+            sequences = example["sequences"]
+        else:
+            sequences = [
+                seq
+                for _, seq in _read_fasta_lines(
+                    example["text"].split("\n"),
+                    keep_gaps=cfg.keep_gaps,
+                    keep_insertions=cfg.keep_insertions,
+                    to_upper=cfg.to_upper,
+                )
+            ]
         random.shuffle(sequences)
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
