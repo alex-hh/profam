@@ -107,7 +107,7 @@ typing_extensions==4.11.0
 tzdata==2024.1
 urllib3==2.2.1
 virtualenv==20.26.1
-wandb==0.17.0
+wandb
 wcwidth==0.2.13
 xxhash==3.4.1
 yarl==1.9.4
