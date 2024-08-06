@@ -243,11 +243,12 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
     return output_file
 
 
-def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, verbose=False):
+def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, verbose=False, parquet_index=None):
     seq_fail_counter = 0
     seq_success_counter = 0
     cluster_counter = 0
     seq_fail_path = save_dir + "failed_sequences.txt"
+    _parquet_index = 0
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     clusters = list(cluster_dict.keys())
@@ -263,30 +264,36 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
                 clusters_to_save.append(cluster_id)
                 cluster_counter += 1
 
-                for member in members:
-                    zip_filename, afdb_id = af2zip[member]
-                    pdb_lookup[zip_filename].append((cluster_id, afdb_id))
+                if parquet_index is None or _parquet_index == parquet_index:
+                    for member in members:
+                        zip_filename, afdb_id = af2zip[member]
+                        pdb_lookup[zip_filename].append((cluster_id, afdb_id))
 
                 if cluster_counter % 10000 == 0:
-                    for zip_filename, _ids in pdb_lookup.items():
-                        cluster_ids = [x[0] for x in _ids]
-                        afdb_ids = [x[1] for x in _ids]
-                        t0 = time.time()
-                        successes = extract_multi_pdb_files(
-                            cluster_ids, afdb_ids, zip_filename, save_dir,
-                        )
-                        t1 = time.time()
-                        print("Extracted", len(afdb_ids), "pdbs in", t1 - t0, "seconds", zip_filename, flush=True)
-                        seq_success_counter += sum(successes)
-                        seq_fail_counter += len(successes) - sum(successes)
-                    print("\nProcessed", cluster_counter, "clusters")
-                    print("Number of failed sequences:", seq_fail_counter)
-                    print("Number of successful sequences:", seq_success_counter, flush=True)
-                    save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
+                    if parquet_index is None or _parquet_index == parquet_index:
+                        for zip_filename, _ids in pdb_lookup.items():
+                            cluster_ids = [x[0] for x in _ids]
+                            afdb_ids = [x[1] for x in _ids]
+                            t0 = time.time()
+                            successes = extract_multi_pdb_files(
+                                cluster_ids, afdb_ids, zip_filename, save_dir,
+                            )
+                            t1 = time.time()
+                            print("Extracted", len(afdb_ids), "pdbs in", t1 - t0, "seconds", zip_filename, flush=True)
+                            seq_success_counter += sum(successes)
+                            seq_fail_counter += len(successes) - sum(successes)
+
+                        print("\nProcessed", cluster_counter, "clusters")
+                        print("Number of failed sequences:", seq_fail_counter)
+                        print("Number of successful sequences:", seq_success_counter, flush=True)
+                        save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter)
+                        # TODO: write failures to fail file
+                    _parquet_index += 1
                     clusters_to_save = []
                     pdb_lookup = defaultdict(list)
 
     if len(clusters_to_save) > 0:
+        # TODO: handle overhang with parquet index
         print("\nProcessed", cluster_counter, "clusters")
         print("Number of failed sequences:", seq_fail_counter)
         print("Number of successful sequences:", seq_success_counter, flush=True)
@@ -297,8 +304,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
-    parser.add_argument("--cluster_start", type=int, default=0)
-    parser.add_argument("--cluster_end", type=int, default=None)
+    parser.add_argument("--parquet_index", type=int, default=None)
     args = parser.parse_args()
     save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
@@ -316,4 +322,4 @@ if __name__ == "__main__":
             cluster_dict = pickle.load(f)
         print("Number of clusters:", len(cluster_dict))
 
-    create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=args.minimum_cluster_size)
+    create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=args.minimum_cluster_size, parquet_index=args.parquet_index)
