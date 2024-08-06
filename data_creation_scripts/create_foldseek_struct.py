@@ -4,7 +4,7 @@ converts them into parquet files. The parquet files contain sequences
 as well as backbone coordinates (N, Ca, C, O).
 
 N.B. this is slow and will require optimisation/parallelisation:
-10000 clusters takes around a day.
+10000 clusters takes around 8 hours.
 
 There are 1000000 proteome files (i.e. a factor of 200 reduction in
 number of files if we use these rather than pdb files.)
