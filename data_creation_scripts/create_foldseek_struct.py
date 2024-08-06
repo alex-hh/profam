@@ -292,8 +292,7 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
                     clusters_to_save = []
                     pdb_lookup = defaultdict(list)
 
-    if len(clusters_to_save) > 0:
-        # TODO: handle overhang with parquet index
+    if len(clusters_to_save) > 0 and ((_parquet_index == parquet_index) or parquet_index is None):  # should catch overhang as long as high enough index is passed
         print("\nProcessed", cluster_counter, "clusters")
         print("Number of failed sequences:", seq_fail_counter)
         print("Number of successful sequences:", seq_success_counter, flush=True)
