@@ -9,7 +9,7 @@
 #SBATCH --job-name=job123
 
 # set number of GPUs
-#SBATCH --gres=gpu:8
+#SBATCH --gres=gpu:1
 #SBATCH --output=/jmain02/home/J2AD021/dxt03/axh06-dxt03/ProFam/profam/slurm_logs/slurm_%j.out
 #SBATCH --error=/jmain02/home/J2AD021/dxt03/axh06-dxt03/ProFam/profam/slurm_logs/slurm_%j.err
 
