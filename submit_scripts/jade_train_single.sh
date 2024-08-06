@@ -20,4 +20,4 @@ source ~/pfenv/bin/activate
 
 cd ~/ProFam/profam
 
-WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam trainer=gpu
+WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam trainer=gpu logger.wandb.mode="offline"
