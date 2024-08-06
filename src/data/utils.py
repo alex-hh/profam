@@ -27,6 +27,7 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
+    minimum_sequences: Optional[int] = None
     document_tag: str = "[RAW]"
 
 
@@ -204,6 +205,7 @@ def load_protein_dataset(
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
         tokenized.data["ds_name"] = cfg.name
+        tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
         if include_doc_hashes:
             # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
@@ -221,6 +223,25 @@ def load_protein_dataset(
             tokenized.data["seq_pos"] = seq_pos
 
         return tokenized
+
+    def batched_preprocess_and_filter(batch):
+        batch_dict = {}
+        for example_text in batch["text"]:
+            example = {"text": example_text}
+            processed = preprocess_fasta(example).data
+            if (
+                cfg.minimum_sequences is None
+                or processed["total_num_sequences"] >= cfg.minimum_sequences
+            ):
+                for k, v in processed.items():
+                    if k not in batch_dict:
+                        batch_dict[k] = []
+                    batch_dict[k].append(v)
+        print(
+            len(batch["text"]),
+            len(batch_dict["ds_name"]) if "ds_name" in batch_dict else 0,
+        )
+        return batch_dict
 
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -249,6 +270,7 @@ def load_protein_dataset(
             streaming=True,
             ignore_verifications=True,
         )
+        dataset = dataset.remove_columns(["__index_level_0__"])
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
@@ -259,8 +281,17 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    # TODO: possibly we could speed this up by batching...
-    dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
+    # with batched map there is a massive delay before training actually starts - why?
+    # dataset = dataset.map(
+    #     batched_preprocess_and_filter,
+    #     batched=True,
+    #     remove_columns=["text"],
+    #     batch_size=2,
+    # )
+    # filter after map also seems to slow things down...
+    dataset = dataset.map(
+        preprocess_fasta, batched=False, remove_columns=["text"]
+    ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
 
     return dataset
 
