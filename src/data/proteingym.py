@@ -340,7 +340,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.train_dataset = ddict["train"]
         self.val_dataset = ddict["test"]
 
-    def train_dataloader(self) -> list[DataLoader]:
+    def train_dataloader(self) -> List[DataLoader]:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -350,7 +350,7 @@ class GymSingleMSADataModule(LightningDataModule):
             shuffle=True,
         )
 
-    def val_dataloader(self) -> list[DataLoader]:
+    def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.val_dataset,
@@ -371,7 +371,7 @@ class GymSingleMSADataModule(LightningDataModule):
         )
         return loaders
 
-    def test_dataloader(self) -> list[DataLoader]:
+    def test_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.test_dataset,
@@ -493,7 +493,7 @@ class GymMultiMSADataModule(LightningDataModule):
             max_seq_pos=self.max_seq_pos,
         )
 
-    def train_dataloader(self) -> list[DataLoader]:
+    def train_dataloader(self) -> List[DataLoader]:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -501,7 +501,7 @@ class GymMultiMSADataModule(LightningDataModule):
             num_workers=self.num_workers,
         )
 
-    def val_dataloader(self) -> list[DataLoader]:
+    def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.val_dataset,
@@ -522,7 +522,7 @@ class GymMultiMSADataModule(LightningDataModule):
         )
         return loaders
 
-    def test_dataloader(self) -> list[DataLoader]:
+    def test_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.test_dataset,

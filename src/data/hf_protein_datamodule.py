@@ -145,7 +145,7 @@ class ProteinDataModule(LightningDataModule):
                 )
             self._is_setup = True
 
-    def train_dataloader(self) -> list[DataLoader]:
+    def train_dataloader(self) -> List[DataLoader]:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -170,7 +170,7 @@ class ProteinDataModule(LightningDataModule):
             shuffle=False,
         )
 
-    def val_dataloader(self) -> list[DataLoader]:
+    def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.val_dataset,
@@ -201,7 +201,7 @@ class ProteinDataModule(LightningDataModule):
             )
         return loaders
 
-    def test_dataloader(self) -> list[DataLoader]:
+    def test_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.test_dataset,
