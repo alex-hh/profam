@@ -40,3 +40,18 @@ class TokenThroughputMonitor(ThroughputMonitor):
             super().on_validation_batch_end(
                 trainer, pl_module, outputs, batch, *args, **kwargs
             )
+
+
+class PrintCallback(Callback):
+    def __init__(self, print_freq=1):
+        self.print_freq = print_freq
+
+    def on_train_epoch_end(self, trainer, pl_module):
+        if self.print_freq > 0 and (
+            (pl_module.current_epoch + 1) % self.print_freq == 0
+        ):
+            metrics = trainer.callback_metrics
+            metrics_msg = "\t".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
+            print(
+                f"Epoch {pl_module.current_epoch}, metrics:\t{metrics_msg}", flush=True
+            )
