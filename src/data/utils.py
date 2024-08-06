@@ -270,7 +270,8 @@ def load_protein_dataset(
             streaming=True,
             ignore_verifications=True,
         )
-        dataset = dataset.remove_columns(["__index_level_0__"])
+        if "__index_level_0__" in dataset.column_names:
+            dataset = dataset.remove_columns(["__index_level_0__"])
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
