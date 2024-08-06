@@ -10,8 +10,6 @@ There are 1000000 proteome files (i.e. a factor of 200 reduction in
 number of files if we use these rather than pdb files.)
 """
 import argparse
-import dask
-import dask.dataframe as dd
 import shutil
 from collections import defaultdict
 from typing import List
@@ -33,8 +31,6 @@ import pyarrow.parquet as pq
 
 import zipfile
 import os
-
-dask.config.set({"dataframe.shuffle.method": "disk"})
 
 
 def make_zip_dictionary():
@@ -95,7 +91,8 @@ def extract_pdb_file(uniprot_id, output_folder):
         return False
 
 
-def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
+def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
+    assert len(cluster_ids) == len(afdb_ids)
     # Ensure the output folder exists
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -105,10 +102,11 @@ def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
     successes = []
     with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
         names = zip_ref.namelist()
-        for afdb_id in afdb_ids:
+        for cluster_id, afdb_id in zip(cluster_ids, afdb_ids):
+            cluster_output_folder = os.path.join(output_folder, cluster_id, "pdbs")
             if afdb_id + ".pdb" in names:
-                zip_ref.extract(afdb_id + ".pdb", output_folder)
-                print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}")
+                zip_ref.extract(afdb_id + ".pdb", cluster_output_folder)
+                print(f"Extracted {afdb_id} from {zip_filename} to {cluster_output_folder}")
                 successes.append(True)
             else:
                 print(f"{afdb_id} not found in {zip_filename}")
@@ -281,12 +279,16 @@ def create_foldseek_parquets(cluster_dict, save_dir, minimum_cluster_size=1, ver
 
                 for member in members:
                     zip_filename, afdb_id = af2zip[member]
-                    pdb_lookup[zip_filename].append(afdb_id)
+                    pdb_lookup[zip_filename].append((cluster_id, afdb_id))
 
                 if cluster_counter % 10000 == 0:
-                    for zip_filename, afdb_ids in pdb_lookup.items():
+                    for zip_filename, _ids in pdb_lookup.items():
+                        cluster_ids = [x[0] for x in _ids]
+                        afdb_ids = [x[1] for x in _ids]
                         t0 = time.time()
-                        successes = extract_multi_pdb_files(afdb_ids, zip_filename, os.path.join(save_dir, cluster_counter, "pdbs"))
+                        successes = extract_multi_pdb_files(
+                            cluster_ids, afdb_ids, zip_filename, save_dir,
+                        )
                         t1 = time.time()
                         print("Extracted", len(afdb_ids), "pdbs in", t1 - t0, "seconds", zip_filename, flush=True)
                         seq_success_counter += sum(successes)
@@ -309,9 +311,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
-    # parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--cluster_start", type=int, default=0)
+    parser.add_argument("--cluster_end", type=int, default=None)
     args = parser.parse_args()
-    scratch_dir = sys.argv[1]
     save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
 
