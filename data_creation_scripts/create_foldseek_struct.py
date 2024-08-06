@@ -50,20 +50,6 @@ def make_zip_dictionary():
     return af2zip
 
 
-def read_mapping():
-    # One thing we need to be careful about is making sure we can map correctly
-    df = dd.read_csv(
-        "/SAN/bioinf/afdb_domain/zipmaker/zip_index",
-        sep="\t",
-        names=["afdb_id", "seq_hash", "zip_file"]
-    )
-    # df["num_parts"] = df["afdb_id"].apply(lambda x: len(x.split("-")))
-    # min_val, max_val, mean_val = dask.compute(df["num_parts"].min(), df["num_parts"].max(), df["num_parts"].mean())
-    df["uniprot_id"] = df["afdb_id"].apply(lambda x: x.split("-")[1], meta=("x", "str"))
-    df = df.persist()
-    df.set_index("uniprot_id")
-    return df
-
 # Read the mapping file to get the pdb to zip file mapping
 af2zip = make_zip_dictionary()
 
