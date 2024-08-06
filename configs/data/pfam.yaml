@@ -5,7 +5,7 @@ defaults:
   - dataset@dataset_cfgs.pfam_val: pfam
   - _self_
 data_weights:
-  foldseek: 1.0
+  pfam: 1.0
 # TODO: actually hold out val
 dataset_cfgs:
   pfam_val:
