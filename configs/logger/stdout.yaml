@@ -1,0 +1,2 @@
+stdout:
+  _target_: src.utils.loggers.StdoutLogger

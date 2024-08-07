@@ -3,13 +3,15 @@
 #SBATCH --nodes=1
 
 # set max wallclock time
-#SBATCH --time=10:00:00
 
 # set name of job
 #SBATCH --job-name=job123
 
 # set number of GPUs
 #SBATCH --gres=gpu:8
+#SBATCH --partition=long
+#SBATCH --cpus-per-task=5
+#SBATCH --ntasks-per-node=8
 #SBATCH --output=/jmain02/home/J2AD021/dxt03/axh06-dxt03/ProFam/profam/slurm_logs/slurm_%j.out
 
 
@@ -20,4 +22,4 @@ source ~/pfenv/bin/activate
 
 cd ~/ProFam/profam
 
-WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam trainer=ddp trainer.devices=8 +logger.wandb.mode="offline"
+WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam trainer=ddp trainer.devices=8 +logger.wandb.mode="offline" float32_matmul_precision=null data.num_workers=20
