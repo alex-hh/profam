@@ -1,4 +1,6 @@
-from typing import Any, Dict, Mapping, Namespace, Optional, Union
+from typing import Any, Dict, Mapping, Optional, Union
+from typing_extensions import override
+from argparse import Namespace
 from lightning.fabric.loggers.logger import _DummyExperiment as DummyExperiment
 from lightning.pytorch.loggers.logger import Logger
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
@@ -22,3 +24,15 @@ class StdOutLogger(Logger):
     @rank_zero_only
     def log_hyperparams(self, params: Union[Dict[str, Any], Namespace]) -> None:
         print(params)
+
+    @property
+    @override
+    def name(self) -> str:
+        """Return the experiment name."""
+        return ""
+
+    @property
+    @override
+    def version(self) -> str:
+        """Return the experiment version."""
+        return ""
