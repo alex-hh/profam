@@ -22,7 +22,7 @@ class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
     data_path_pattern: Optional[str] = None
-    holdout_data_path_pattern: Optional[str] = None
+    holdout_data_files: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
@@ -200,6 +200,7 @@ def load_protein_dataset(
             ]
 
     if cfg.holdout_data_files is not None:
+        assert isinstance(cfg.holdout_data_files, list)
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in cfg.holdout_data_files]
         print("Excluding", all_files - len(data_files), "holdout files")
