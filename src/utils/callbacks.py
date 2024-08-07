@@ -1,4 +1,6 @@
 from lightning.pytorch.callbacks import Callback, ThroughputMonitor
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
+from typing_extensions import override
 
 
 class ShuffleCallback(Callback):
@@ -23,8 +25,33 @@ class PrintCallback(Callback):
 
 
 class TokenThroughputMonitor(ThroughputMonitor):
-    def __init__(self):
+    """Modified to compute samples / tokens sizes and skip validation throughput (for now.)"""
+
+    def __init__(self, run_on_validation: bool = False):
         super().__init__(
             batch_size_fn=lambda x: x["input_ids"].shape[0],
             length_fn=lambda x: x["input_ids"].shape[1] * x["input_ids"].shape[0],
         )
+        self.run_on_validation = run_on_validation
+
+    @override
+    @rank_zero_only
+    def on_validation_start(self, trainer, pl_module):
+        if self.run_on_validation:
+            super().on_validation_start(trainer, pl_module)
+
+    @override
+    @rank_zero_only
+    def on_validation_end(self, trainer, pl_module):
+        if self.run_on_validation:
+            super().on_validation_end(trainer, pl_module)
+
+    @override
+    @rank_zero_only
+    def on_validation_batch_end(
+        self, trainer, pl_module, outputs, batch, *args, **kwargs
+    ):
+        if self.run_on_validation:
+            super().on_validation_batch_end(
+                trainer, pl_module, outputs, batch, *args, **kwargs
+            )
