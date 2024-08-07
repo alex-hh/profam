@@ -270,7 +270,9 @@ def load_protein_dataset(
             streaming=True,
             ignore_verifications=True,
         )
-        columns_to_drop = [c for c in dataset.column_names if c not in ["text", "sequences"]]
+        columns_to_drop = [
+            c for c in dataset.column_names if c not in ["text", "sequences"]
+        ]
         dataset = dataset.remove_columns(columns_to_drop)
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
