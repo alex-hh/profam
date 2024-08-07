@@ -1,4 +1,4 @@
-from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.callbacks import Callback, ThroughputMonitor
 
 
 class ShuffleCallback(Callback):
@@ -20,3 +20,11 @@ class PrintCallback(Callback):
             print(
                 f"Epoch {pl_module.current_epoch}, metrics:\t{metrics_msg}", flush=True
             )
+
+
+class TokenThroughputMonitor(ThroughputMonitor):
+    def __init__(self):
+        super().__init__(
+            batch_size_fn=lambda x: x["input_ids"].shape[0],
+            length_fn=lambda x: x["input_ids"].shape[1] * x["input_ids"].shape[0],
+        )
