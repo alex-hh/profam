@@ -8,6 +8,10 @@ N.B. this is slow and will require optimisation/parallelisation:
 
 There are 1000000 proteome files (i.e. a factor of 200 reduction in
 number of files if we use these rather than pdb files.)
+
+For parallelisation, there are two options: parallelising within
+building of single parquets, and parallelising across building of
+distinct parquets.
 """
 import argparse
 import shutil
