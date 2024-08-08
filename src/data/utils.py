@@ -12,10 +12,10 @@ import torch
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import _read_fasta_lines
+from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
 
 
-# TOOD: in future we might actually want standalone dataset class for
+# TODO: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
 @dataclass
 class ProteinDatasetConfig:
@@ -28,8 +28,8 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
-    use_seq_pos: bool = False
-    max_seq_pos: Optional[int] = None
+    minimum_sequences: Optional[int] = None
+    document_tag: str = "[RAW]"
 
 
 class StringObject:
@@ -90,36 +90,55 @@ class CustomDataCollator:
         return batch
 
 
-def get_seq_pos(
-    input_ids,
-    sep_token_id,
+def get_flat_seq_pos_from_positions(
+    positions,
     max_seq_pos: int = 1024,
-    last_aa_token_id=24,
+    prepend_index=0,
+    append_index=0,
+    sep_index=0,
+    num_start_tokens=1,
+    num_end_tokens=1,
 ):
-    """
-    returns a tensor representing the sequence position
-    of each token relative to the last SEP token
-    0-indexed
-    assumes that the zeroth token is not a residue
-    Note that PAD tokens also get assigned seq positions
-    after reaching the max_seq_pos it will just repeat
-    the last position index
-    """
-    seq_pos_ids = torch.zeros_like(input_ids)
-    current_position = 0
-    for i, token_id in enumerate(input_ids):
-        if token_id == sep_token_id or i == 0:
-            current_position = 0
-            assert (
-                token_id <= last_aa_token_id,
-                "First token should not represent a residue",
-            )
-        else:
-            seq_pos_ids[i] = current_position
-            if current_position < max_seq_pos - 1:
-                # don't add position indices higher than max_seq_pos
-                current_position += 1
-    return seq_pos_ids
+    # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
+    if len(positions) > 0:
+        flat_positions = [prepend_index] * num_start_tokens
+        for sequence_positions in positions[:-1]:
+            # add 1 so that sep doesnt have same position index
+            flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
+            flat_positions.append(sep_index)
+        flat_positions += [min(p + 1, max_seq_pos) for p in positions[-1]]
+        flat_positions += [append_index] * num_end_tokens
+        return flat_positions
+    else:
+        return []
+
+
+def get_seq_pos_from_positions(
+    input_ids,
+    positions,
+    pad_token_id,
+    max_seq_pos: int = 1024,
+    num_start_tokens=1,
+    num_end_tokens=1,
+):
+    assert input_ids.ndim == 1
+    seq_pos = torch.zeros_like(input_ids)
+    flat_pos = get_flat_seq_pos_from_positions(
+        positions,
+        max_seq_pos=max_seq_pos,
+        prepend_index=0,
+        append_index=0,
+        sep_index=0,
+        num_start_tokens=num_start_tokens,  # TODO: handle better
+        num_end_tokens=num_end_tokens,
+    )
+    pad_any = torch.argwhere(input_ids == pad_token_id)
+    if pad_any.any():
+        pad_start = pad_any.min()
+    else:
+        pad_start = input_ids.shape[0]
+    seq_pos[:pad_start] = torch.tensor(flat_pos)
+    return seq_pos
 
 
 def load_protein_dataset(
@@ -130,23 +149,38 @@ def load_protein_dataset(
     split="train",
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
-    max_seq_pos: int = None,
+    max_seq_pos: int = 1024,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        if "sequences" in example:
-            # TODO: support more complex selection / redundancy control for e.g. foldseek clusters
-            sequences = example["sequences"]
+        if use_seq_pos:
+            sequences = []
+            positions = []
+            for _, seq, pos in read_fasta_lines_with_positions(
+                example["text"].split("\n"),
+                keep_gaps=cfg.keep_gaps,
+                keep_insertions=cfg.keep_insertions,
+                to_upper=cfg.to_upper,
+            ):
+                sequences.append(seq)
+                positions.append(pos)
+
+            # TODO: seed explicitly?
+            perm = np.random.permutation(len(sequences))
+            sequences = [sequences[i] for i in perm]
+            positions = [positions[i] for i in perm]
         else:
             sequences = [
                 seq
-                for _, seq in _read_fasta_lines(
+                for _, seq in read_fasta_lines(
                     example["text"].split("\n"),
                     keep_gaps=cfg.keep_gaps,
                     keep_insertions=cfg.keep_insertions,
                     to_upper=cfg.to_upper,
                 )
             ]
-        random.shuffle(sequences)
+            perm = np.random.permutation(len(sequences))
+            sequences = [sequences[i] for i in perm]
+
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
@@ -155,7 +189,8 @@ def load_protein_dataset(
             max_tokens - 2,
         )  # -2 for doc start and end tokens
         concatenated_seqs = (
-            tokenizer.bos_token
+            cfg.document_tag
+            + tokenizer.bos_token
             + tokenizer.sep_token.join(sequences[:insertion_point])
             + tokenizer.sep_token
         )
@@ -174,7 +209,9 @@ def load_protein_dataset(
         )
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        # tokenized.input_ids is flat now
         tokenized.data["ds_name"] = cfg.name
+        tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
         if include_doc_hashes:
             # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
@@ -182,11 +219,35 @@ def load_protein_dataset(
             ).hexdigest()
 
         if use_seq_pos:
-            tokenized.data["seq_pos"] = get_seq_pos(
-                tokenized.input_ids, tokenizer.sep_token_id, max_seq_pos=max_seq_pos
+            seq_pos = get_seq_pos_from_positions(
+                tokenized.input_ids,
+                positions[:insertion_point],
+                pad_token_id=tokenizer.pad_token_id,
+                max_seq_pos=max_seq_pos,
+                num_start_tokens=2,
             )
+            tokenized.data["seq_pos"] = seq_pos
 
         return tokenized
+
+    def batched_preprocess_and_filter(batch):
+        batch_dict = {}
+        for example_text in batch["text"]:
+            example = {"text": example_text}
+            processed = preprocess_fasta(example).data
+            if (
+                cfg.minimum_sequences is None
+                or processed["total_num_sequences"] >= cfg.minimum_sequences
+            ):
+                for k, v in processed.items():
+                    if k not in batch_dict:
+                        batch_dict[k] = []
+                    batch_dict[k].append(v)
+        print(
+            len(batch["text"]),
+            len(batch_dict["ds_name"]) if "ds_name" in batch_dict else 0,
+        )
+        return batch_dict
 
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -221,7 +282,12 @@ def load_protein_dataset(
             streaming=True,
             verification_mode="no_checks",
         )
+        try:
+            dataset = dataset.remove_columns(["__index_level_0__"])
+        except:
+            pass
     else:
+        # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -230,15 +296,23 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    # Verify the dataset by looking at the first few items
     print("Verifying dataset content:")
     for i, item in enumerate(dataset.take(3)):
         print(f"  Item {i + 1}:")
         for key, value in item.items():
             print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
         print()
-    # TODO: possibly we could speed this up by batching...
-    dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
+    # with batched map there is a massive delay before training actually starts - why?
+    # dataset = dataset.map(
+    #     batched_preprocess_and_filter,
+    #     batched=True,
+    #     remove_columns=["text"],
+    #     batch_size=2,
+    # )
+    # filter after map also seems to slow things down...
+    dataset = dataset.map(
+        preprocess_fasta, batched=False, remove_columns=["text"]
+    ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
 
     return dataset
 

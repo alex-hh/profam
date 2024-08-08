@@ -42,7 +42,7 @@ class BaseLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 8000,
+        scoring_max_tokens: int = 10240,
     ) -> None:
         super().__init__()
         self.model = model
@@ -462,13 +462,14 @@ class BaseFamilyLitModule(BaseLitModule):
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
+        L_prompt = batch["input_ids"].shape[-1]
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=self.scoring_max_tokens // L
+            batch_size=(self.scoring_max_tokens - L_prompt) // L
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -495,13 +496,14 @@ class BaseFamilyLitModule(BaseLitModule):
             and batch["completion_ids"].ndim == 3
         )
         L = batch["completion_ids"].shape[-1]
+        L_prompt = batch["input_ids"].shape[-1]
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=self.scoring_max_tokens // L
+            batch_size=(self.scoring_max_tokens - L_prompt) // L
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -650,6 +652,11 @@ class BaseFamilyLitModule(BaseLitModule):
                     },
                     on_step=True,
                     on_epoch=False,
+                )
+            if "total_num_sequences" in batch:
+                self.log(
+                    "train/total_num_sequences",
+                    batch["total_num_sequences"].float().mean(),
                 )
         return loss
 

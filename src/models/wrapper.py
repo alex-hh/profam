@@ -18,11 +18,13 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         embedding_dim: int,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
+        require_seq_pos: bool = True,
     ):
         super().__init__()
         self.model = model
         self.token_embedder = token_embedder
         self.use_seq_pos = use_seq_pos
+        self.require_seq_pos = require_seq_pos
         self.max_seq_pos = max_seq_pos
         if self.use_seq_pos:
             self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
@@ -49,9 +51,11 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
         if self.use_seq_pos:
-            assert seq_pos is not None
-            pos_embeds = self.seq_pos_embedding(seq_pos)
-            inputs_embeds = inputs_embeds + pos_embeds
+            if self.require_seq_pos:
+                assert seq_pos is not None
+            if seq_pos is not None:
+                pos_embeds = self.seq_pos_embedding(seq_pos)
+                inputs_embeds = inputs_embeds + pos_embeds
         return inputs_embeds
 
     def forward(

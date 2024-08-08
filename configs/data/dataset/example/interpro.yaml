@@ -3,5 +3,5 @@ name: interpro
 data_path_pattern: example_data/interpro/protein-matching-*.fasta
 holdout_data_files: null
 keep_gaps: false
-to_upper: false
-keep_insertions: false
+to_upper: true
+keep_insertions: true

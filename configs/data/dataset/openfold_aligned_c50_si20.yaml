@@ -6,3 +6,4 @@ is_parquet: true
 keep_gaps: true
 to_upper: false
 keep_insertions: false
+document_tag: "[MSA]"

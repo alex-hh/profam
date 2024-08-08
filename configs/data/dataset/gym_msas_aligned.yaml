@@ -7,3 +7,4 @@ keep_gaps: true
 to_upper: true
 keep_insertions: true
 file_repeats: 1
+document_tag: "[MSA]"
