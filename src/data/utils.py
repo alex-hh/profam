@@ -22,6 +22,7 @@ class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
     data_path_pattern: Optional[str] = None
+    holdout_data_files: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
@@ -56,11 +57,14 @@ class CustomDataCollator:
     def __call__(self, examples):
         has_ds_name = "ds_name" in examples[0]
         has_doc_hash = "doc_hash" in examples[0]
-        if has_ds_name or has_doc_hash:
+        has_msa_id = "msa_id" in examples[0]
+        if has_ds_name or has_doc_hash or has_msa_id:
             if has_ds_name:
                 ds_names = [example.pop("ds_name") for example in examples]
             if has_doc_hash:
                 doc_hashes = [example.pop("doc_hash") for example in examples]
+            if has_msa_id:
+                msa_ids = [example.pop("msa_id") for example in examples]
             batch = self.base_collator(examples)
             if has_ds_name:
                 ds_names_obj = StringObject()
@@ -70,6 +74,10 @@ class CustomDataCollator:
                 doc_hash_obj = StringObject()
                 doc_hash_obj.text = doc_hashes
                 batch["doc_hash"] = doc_hash_obj
+            if has_msa_id:
+                msa_id_obj = StringObject()
+                msa_id_obj.text = msa_ids
+                batch["msa_id"] = msa_id_obj
         else:
             batch = self.base_collator(examples)
         return batch
@@ -254,6 +262,12 @@ def load_protein_dataset(
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
 
+    if cfg.holdout_data_files is not None:
+        assert isinstance(cfg.holdout_data_files, list)
+        all_files = len(data_files)
+        data_files = [f for f in data_files if f not in cfg.holdout_data_files]
+        print("Excluding", all_files - len(data_files), "holdout files")
+
     assert isinstance(data_files, list)
     data_files = data_files * cfg.file_repeats
     random.shuffle(data_files)  # TODO: seed explicitly?
@@ -268,7 +282,7 @@ def load_protein_dataset(
             data_files=data_files,
             split=split,
             streaming=True,
-            ignore_verifications=True,
+            verification_mode="no_checks",
         )
         columns_to_drop = [
             c for c in dataset.column_names if c not in ["text", "sequences"]
@@ -284,6 +298,12 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
+    print("Verifying dataset content:")
+    for i, item in enumerate(dataset.take(3)):
+        print(f"  Item {i + 1}:")
+        for key, value in item.items():
+            print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
+        print()
     # with batched map there is a massive delay before training actually starts - why?
     # dataset = dataset.map(
     #     batched_preprocess_and_filter,

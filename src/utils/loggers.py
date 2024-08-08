@@ -25,7 +25,7 @@ class StdOutLogger(Logger):
 
     @rank_zero_only
     def log_hyperparams(self, params: Union[Dict[str, Any], Namespace]) -> None:
-        print(params, flush=True)
+        pass
 
     @property
     @override

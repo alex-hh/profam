@@ -539,7 +539,6 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=False,
             on_epoch=True,
         )
-
         return torch.tensor(metric, device=self.device)
 
     def training_step(
