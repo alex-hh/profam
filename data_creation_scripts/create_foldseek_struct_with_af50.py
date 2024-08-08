@@ -251,11 +251,11 @@ def build_single_parquet(
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = []
         for zip_filename, _ids in pdb_lookup.items():
-            cluster_ids = [x[0] for x in _ids]
+            zf_cluster_ids = [x[0] for x in _ids]
             afdb_ids = [x[1] for x in _ids]
             result = pool.apply_async(
                 extract_pdbs,
-                args=(zip_filename, cluster_ids, afdb_ids, save_dir)
+                args=(zip_filename, zf_cluster_ids, afdb_ids, save_dir)
             )
             results.append(result)
 
