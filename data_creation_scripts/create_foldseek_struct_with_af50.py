@@ -27,7 +27,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import zipfile
 import os
-from src.data.structure import get_atom_coords_residuewise, load_structure
+from src.data.pdb import get_atom_coords_residuewise, load_structure
 
 
 def make_zip_dictionary():
