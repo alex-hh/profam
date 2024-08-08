@@ -326,7 +326,7 @@ if __name__ == "__main__":
     parser.add_argument("--skip_af50", action="store_true")
     args = parser.parse_args()
 
-    print("Num cpus", os.cpu_count())
+    print("Num cpus", os.cpu_count(), flush=True)
 
     save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
