@@ -131,7 +131,6 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, metadata_l
             is_foldseek_representative.append(metadata["is_foldseek_representative"])
             is_af50_representative.append(metadata["is_af50_representative"])
             structure = load_structure(pdb, chain="A")
-            # TODO - fix O loading
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
             residue_identities = get_residues(structure)[1]
             seq = "".join(

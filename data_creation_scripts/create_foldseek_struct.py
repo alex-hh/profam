@@ -117,13 +117,14 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
     # Save the pdbs to parquet
     results = []
     for cluster_id in clusters_to_save:
-        pdbs = glob.glob(os.path.join(save_dir, cluster_id, "pdbs/*.pdb"))
+        # nb sorting a recent change
+        pdbs = sorted(list(glob.glob(os.path.join(save_dir, cluster_id, "pdbs/*.pdb"))))
         sequences = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
+        accessions = []
 
         for pdb in pdbs:
             structure = load_structure(pdb, chain="A")
-            # TODO - fix O loading
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
             residue_identities = get_residues(structure)[1]
             seq = "".join(
@@ -133,6 +134,7 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
             os.remove(pdb)
+            accessions.append(os.path.basename(pdb).split(".")[0].split("-")[1])
 
         # TODO: save representative?
         results.append(
@@ -143,6 +145,7 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, verbose=Fa
                 "CA": all_coords["CA"],
                 "C": all_coords["C"],
                 "O": all_coords["O"],
+                "accessions": accessions,
             }
         )
         print("Deleting directory", os.path.join(save_dir, cluster_id), flush=True)
