@@ -67,7 +67,7 @@ def make_zip_dictionary():
 
             line_counter += 1
             if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for cluster dictionary")
+                print("Processed", line_counter, "lines for zip file dictionary")
     return af2zip
 
 
@@ -235,15 +235,18 @@ def build_single_parquet(
 
                     if not skip_af50 and member in af50_dict:
                         for af50_member in af50_dict[member]:
-                            assert not af50_member == member
-                            zip_filename, afdb_id = af2zip[af50_member]
-                            pdb_lookup[zip_filename].append((cluster_id, afdb_id))
-                            metadata_lookup[afdb_id] = {
-                                "cluster_id": cluster_id,
-                                "accession": member,
-                                "is_foldseek_representative": False,
-                                "is_af50_representative": False,
-                            }
+                            try:
+                                assert not af50_member == member
+                                zip_filename, afdb_id = af2zip[af50_member]
+                                pdb_lookup[zip_filename].append((cluster_id, afdb_id))
+                                metadata_lookup[afdb_id] = {
+                                    "cluster_id": cluster_id,
+                                    "accession": member,
+                                    "is_foldseek_representative": False,
+                                    "is_af50_representative": False,
+                                }
+                            except:
+                                print("Error looking up", af50_member)
 
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
