@@ -250,7 +250,7 @@ def create_foldseek_parquets(
     minimum_cluster_size=1,
     verbose=False,
     skip_af50=False,
-    parquet_id=None,
+    parquet_ids=None,
 ):
     # shuffle first so that we de-correlate cluster identities in parquet files
     clusters = list(cluster_dict.keys())
@@ -260,7 +260,7 @@ def create_foldseek_parquets(
     parquet_size = 10000  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [clusters[i:i + parquet_size] for i in range(0, len(clusters), parquet_size)]
-    if parquet_id is None:
+    if parquet_ids is None:
         # TODO: enable multiprocessing here
         for parquet_ix, cluster_ids in enumerate(clusters_to_save):
             build_single_parquet(
@@ -273,15 +273,16 @@ def create_foldseek_parquets(
                 skip_af50=skip_af50,
             )
     else:
-        build_single_parquet(
-            parquet_id,
-            cluster_ids=clusters_to_save[parquet_id],
-            af2zip=af2zip,
-            af50_dict=af50_dict,
-            save_dir=save_dir,
-            minimum_cluster_size=minimum_cluster_size,
-            skip_af50=skip_af50,
-        )
+        raise NotImplementedError("Parallelisation not yet implemented")
+        # build_single_parquet(
+        #     parquet_id,
+        #     cluster_ids=clusters_to_save[parquet_id],
+        #     af2zip=af2zip,
+        #     af50_dict=af50_dict,
+        #     save_dir=save_dir,
+        #     minimum_cluster_size=minimum_cluster_size,
+        #     skip_af50=skip_af50,
+        # )
 
 
 if __name__ == "__main__":
@@ -290,7 +291,8 @@ if __name__ == "__main__":
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
     parser.add_argument("--cluster_start", type=int, default=0)
     parser.add_argument("--cluster_end", type=int, default=None)
-    parser.add_argument("--parquet_id", type=int, default=None)
+    parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
+    parser.add_argument("--num_processes", type=int, default=1)
     args = parser.parse_args()
     save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
@@ -330,5 +332,5 @@ if __name__ == "__main__":
         af50_dict=af50_dict,
         save_dir=save_dir,
         minimum_cluster_size=args.minimum_cluster_size,
-        parquet_id=args.parquet_id,
+        parquet_ids=args.parquet_ids,
     )
