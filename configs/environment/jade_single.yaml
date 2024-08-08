@@ -9,3 +9,9 @@ data:
 
 trainer:
   precision: 32
+
+logger:
+  wandb:
+    mode: "offline"
+
+float32_matmul_precision: null

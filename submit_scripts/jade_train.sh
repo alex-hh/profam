@@ -22,4 +22,7 @@ source ~/pfenv/bin/activate
 
 cd ~/ProFam/profam
 
-WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam trainer=ddp trainer.devices=8 +logger.wandb.mode="offline" float32_matmul_precision=null data.num_workers=20
+mkdir /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
+scp -r ~/ProFam/profam/data/pfam /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
+scp -r ~/ProFam/profam/data/ProteinGym /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
+WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam +environment=jade
