@@ -22,6 +22,7 @@ class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
     data_path_pattern: Optional[str] = None
+    holdout_data_files: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
@@ -132,15 +133,19 @@ def load_protein_dataset(
     max_seq_pos: int = None,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        sequences = [
-            seq
-            for _, seq in _read_fasta_lines(
-                example["text"].split("\n"),
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
-            )
-        ]
+        if "sequences" in example:
+            # TODO: support more complex selection / redundancy control for e.g. foldseek clusters
+            sequences = example["sequences"]
+        else:
+            sequences = [
+                seq
+                for _, seq in _read_fasta_lines(
+                    example["text"].split("\n"),
+                    keep_gaps=cfg.keep_gaps,
+                    keep_insertions=cfg.keep_insertions,
+                    to_upper=cfg.to_upper,
+                )
+            ]
         random.shuffle(sequences)
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
@@ -193,6 +198,12 @@ def load_protein_dataset(
             data_files = [
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
+
+    if cfg.holdout_data_files is not None:
+        assert isinstance(cfg.holdout_data_files, list)
+        all_files = len(data_files)
+        data_files = [f for f in data_files if f not in cfg.holdout_data_files]
+        print("Excluding", all_files - len(data_files), "holdout files")
 
     assert isinstance(data_files, list)
     data_files = data_files * cfg.file_repeats
