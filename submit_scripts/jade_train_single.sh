@@ -21,4 +21,7 @@ source ~/pfenv/bin/activate
 cd ~/ProFam/profam
 
 # TODO: copy data to local scratch space
-WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam trainer=gpu logger=stdout float32_matmul_precision=null trainer.precision=32 data.num_workers=5
+mkdir /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
+scp -r ~/ProFam/profam/data/pfam /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
+scp -r ~/ProFam/profam/data/ProteinGym /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
+WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam environment=jade_single

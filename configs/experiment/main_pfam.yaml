@@ -7,7 +7,6 @@ defaults:
   - override /data: pfam
   - override /model: llama_tiny
   - override /callbacks: default_with_shuffle
-  - override /trainer: gpu
 
 tags: ["pfam"]
 
