@@ -2,15 +2,17 @@ import argparse
 import glob
 import os
 import string
-from typing import Callable, Optional, Sequence
+from typing import Callable, Optional, Sequence, TypeVar
 
 import numpy as np
+import pandas as pd
 import torch
 from datasets import load_dataset
 from hydra import compose, initialize_config_dir
 from poet.alphabets import Uniprot21
 from poet.models.poet import PoET
 from poet.msa.sampling import MSASampler, NeighborsSampler
+from torch import nn
 
 from src.constants import BASEDIR
 from src.data.fasta import read_fasta_lines
@@ -133,6 +135,7 @@ def main(args):
         )
 
     all_metrics = []
+    criteria = nn.CrossEntropyLoss(ignore_index=alphabet.mask_token, reduction="none")
 
     for i in range(len(dataset)):
         if "text" in dataset.column_names:
@@ -198,10 +201,19 @@ def main(args):
             xs: torch.Tensor = torch.cat(
                 [torch.from_numpy(s).long() for s in this_msa_sequences]
             ).cuda()
-            logits = model(xs.unsqueeze(0), segment_sizes.unsqueeze(0))
-            # `targets = this_variants[:, 1:]
-            # score = -criteria.forward(logits.transpose(1, 2), targets).float().sum(dim=1)
-            # logps.append(score.cpu().numpy())`
+            logits = model(xs[:-1].unsqueeze(0), segment_sizes.unsqueeze(0))
+            targets = xs[1:].unsqueeze(0)
+            preds = logits.argmax(-1)
+            # TODO: exclude bos etc.
+            accuracy = (preds == targets).float().mean().item()
+            score = (
+                -criteria.forward(logits.transpose(1, 2), targets).float().sum(dim=1)
+            )
+            example_metrics = {"accuracy": accuracy, "nll": score}
+            all_metrics.append(example_metrics)
+
+    all_metrics = pd.DataFrame.from_records(all_metrics)
+    all_metrics.to_csv("poet_results.csv")  # TODO: update output path
 
 
 if __name__ == "__main__":
