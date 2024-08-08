@@ -17,6 +17,7 @@ class PrintCallback(Callback):
         if self.print_freq > 0 and (
             (pl_module.current_epoch + 1) % self.print_freq == 0
         ):
+            # TODO: check exactly what gets logged here
             metrics = trainer.callback_metrics
             metrics_msg = "\t".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
             print(
