@@ -5,7 +5,6 @@ defaults:
 
 data:
   num_workers: 5
-  data_dir: /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
 
 trainer:
   precision: 32
