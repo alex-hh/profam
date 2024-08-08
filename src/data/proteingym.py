@@ -37,7 +37,6 @@ def tokenize_msa(
     if use_seq_pos:
         # gym msas don't contain insertions so no need to worry about that
         positions = [list(range(len(s))) for s in sample["MSA"]]
-        print("positions", positions, "msa", sample["MSA"])
         sample["seq_pos"] = get_seq_pos_from_positions(
             sample["input_ids"],
             positions,

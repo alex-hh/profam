@@ -46,7 +46,8 @@ class ProteinDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.keep_gym_gaps = keep_gym_gaps
-        self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
+        if self.evaluate_gym:
+            self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
@@ -89,6 +90,9 @@ class ProteinDataModule(LightningDataModule):
                     # https://github.com/huggingface/datasets/pull/5735
                     train_datasets.append(dataset)
                     train_data_weights.append(self.data_weights[data_key])
+            train_data_weights = [
+                w / sum(train_data_weights) for w in train_data_weights
+            ]
             self.train_dataset = interleave_datasets(
                 train_datasets,
                 probabilities=train_data_weights,
@@ -143,6 +147,7 @@ class ProteinDataModule(LightningDataModule):
                     use_seq_pos=self.use_seq_pos,
                     max_seq_pos=self.max_seq_pos,
                 )
+
             self._is_setup = True
 
     def train_dataloader(self) -> list[DataLoader]:
