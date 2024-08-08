@@ -20,4 +20,5 @@ source ~/pfenv/bin/activate
 
 cd ~/ProFam/profam
 
+# TODO: copy data to local scratch space
 WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam trainer=gpu logger=stdout float32_matmul_precision=null trainer.precision=32 data.num_workers=5
