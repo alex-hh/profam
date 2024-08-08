@@ -34,6 +34,7 @@ from src.data.pdb import get_atom_coords_residuewise, load_structure
 
 def make_af50_dictionary(af50_path):
     line_counter = 0
+    af50_dict = {}
     with open(af50_path, "r") as f:
         for line in f:
             line = line.strip().split("\t")

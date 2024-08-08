@@ -42,7 +42,7 @@ class BaseLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 8000,
+        scoring_max_tokens: int = 10240,
     ) -> None:
         super().__init__()
         self.model = model
@@ -462,13 +462,14 @@ class BaseFamilyLitModule(BaseLitModule):
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
+        L_prompt = batch["input_ids"].shape[-1]
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=self.scoring_max_tokens // L
+            batch_size=(self.scoring_max_tokens - L_prompt) // L
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -495,13 +496,14 @@ class BaseFamilyLitModule(BaseLitModule):
             and batch["completion_ids"].ndim == 3
         )
         L = batch["completion_ids"].shape[-1]
+        L_prompt = batch["input_ids"].shape[-1]
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=self.scoring_max_tokens // L
+            batch_size=(self.scoring_max_tokens - L_prompt) // L
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -523,62 +525,7 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=False,
             on_epoch=True,
         )
-        if "ds_name" in batch and "pfam" in batch["ds_name"].text:
-            self.update_family_likelihoods(batch, lls)
         return torch.tensor(metric, device=self.device)
-
-    def update_family_likelihoods(self, batch, lls):
-        """
-        each batch evaluates the ll of all test seqs
-        conditioned on a single family. This means
-        we can re-use the KV cache across all seqs.
-        For the multi-class objective we need to store
-        the liklihood of each seq conditioned on each
-        family. lls from each batch are stored here
-        """
-        if not hasattr(self, "family_likelihoods"):
-            self.family_likelihoods = {}
-        for eval_seq_id, label in enumerate(batch["family_labels"][0].cpu().numpy()):
-            ll = lls[eval_seq_id]
-            if eval_seq_id not in self.family_likelihoods:
-                self.family_likelihoods[eval_seq_id] = {}
-            if label == 1:
-                assert 1 not in self.family_likelihoods[eval_seq_id]  # 1 fam per seq
-                self.family_likelihoods[eval_seq_id][1] = ll
-            else:
-                if 0 not in self.family_likelihoods[eval_seq_id]:
-                    self.family_likelihoods[eval_seq_id][0] = []
-                self.family_likelihoods[eval_seq_id][0].append(ll)
-
-    def on_validation_epoch_end(self):
-        super().on_validation_epoch_end()
-        if hasattr(self, "family_likelihoods"):
-            ce_scores = []
-            acc_scores = []
-            for eval_seq, lls in self.family_likelihoods.items():
-                # softmax likelihoods to get probability over families
-                labels = np.array([1] + [0] * len(lls[0]))
-                if 1 in lls:
-                    lls = [lls[1]] + lls[0]
-                    probs = np.exp(lls) / np.exp(lls).sum()
-                    # calculate cross entropy
-                    ce = -np.log(probs[labels == 1]).mean()
-                    ce_scores.append(ce)
-                    if np.argmax(probs) == 0:
-                        acc_scores.append(1)
-                    else:
-                        acc_scores.append(0)
-                else:
-                    print(f"Warning: Eval seq has no positive family")
-
-            self.log(
-                "family_class_cr_ent", sum(ce_scores) / len(ce_scores), on_step=False
-            )
-
-            self.log(
-                "family_class_acc", sum(acc_scores) / len(acc_scores), on_step=False
-            )
-            self.family_likelihooods = {}
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -650,6 +597,11 @@ class BaseFamilyLitModule(BaseLitModule):
                     },
                     on_step=True,
                     on_epoch=False,
+                )
+            if "total_num_sequences" in batch:
+                self.log(
+                    "train/total_num_sequences",
+                    batch["total_num_sequences"].float().mean(),
                 )
         return loss
 

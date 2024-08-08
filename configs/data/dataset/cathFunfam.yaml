@@ -5,5 +5,6 @@ holdout_data_files: null
 is_parquet: false
 # n.b. these are alignments so we could keep_gaps
 keep_gaps: false
-to_upper: false
-keep_insertions: false
+to_upper: true
+keep_insertions: true
+document_tag: "[RAW]"
