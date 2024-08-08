@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
-from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -33,7 +32,6 @@ class ProteinDataModule(LightningDataModule):
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
-        evaluate_pfam_class: bool = False,
         count_doc_hashes: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
@@ -51,7 +49,6 @@ class ProteinDataModule(LightningDataModule):
         if self.evaluate_gym:
             self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
-        self.evaluate_pfam_class = evaluate_pfam_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.use_seq_pos = use_seq_pos
@@ -149,15 +146,6 @@ class ProteinDataModule(LightningDataModule):
                     max_seq_pos=self.max_seq_pos,
                 )
 
-            if self.evaluate_pfam_class:
-                self.pfam_class_dataset = load_pfam_classification_dataset(
-                    self.tokenizer,
-                    max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
-                    num_workers=self.num_workers or None,
-                )
-
             self._is_setup = True
 
     def train_dataloader(self) -> list[DataLoader]:
@@ -180,15 +168,6 @@ class ProteinDataModule(LightningDataModule):
         assert self.evaluate_ec_class, "EC class validation not enabled"
         return DataLoader(
             self.ec_class_dataset,
-            batch_size=1,
-            collate_fn=self.collator,
-            shuffle=False,
-        )
-
-    def pfam_dataloader(self) -> DataLoader:
-        assert self.evaluate_pfam_class
-        return DataLoader(
-            self.pfam_class_dataset,
             batch_size=1,
             collate_fn=self.collator,
             shuffle=False,
@@ -218,15 +197,6 @@ class ProteinDataModule(LightningDataModule):
             loaders.append(
                 DataLoader(
                     self.ec_class_dataset,
-                    batch_size=1,
-                    collate_fn=self.collator,
-                    shuffle=False,
-                )
-            )
-        if self.evaluate_pfam_class:
-            loaders.append(
-                DataLoader(
-                    self.pfam_class_dataset,
                     batch_size=1,
                     collate_fn=self.collator,
                     shuffle=False,

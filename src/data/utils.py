@@ -57,15 +57,12 @@ class CustomDataCollator:
     def __call__(self, examples):
         has_ds_name = "ds_name" in examples[0]
         has_doc_hash = "doc_hash" in examples[0]
-        has_pfam_acc = "pfam_acc" in examples[0]
         has_msa_id = "msa_id" in examples[0]
-        if has_ds_name or has_doc_hash or has_pfam_acc or has_msa_id:
+        if has_ds_name or has_doc_hash or has_msa_id:
             if has_ds_name:
                 ds_names = [example.pop("ds_name") for example in examples]
             if has_doc_hash:
                 doc_hashes = [example.pop("doc_hash") for example in examples]
-            if has_pfam_acc:
-                pfam_accs = [example.pop("pfam_acc") for example in examples]
             if has_msa_id:
                 msa_ids = [example.pop("msa_id") for example in examples]
             batch = self.base_collator(examples)
@@ -77,10 +74,6 @@ class CustomDataCollator:
                 doc_hash_obj = StringObject()
                 doc_hash_obj.text = doc_hashes
                 batch["doc_hash"] = doc_hash_obj
-            if has_pfam_acc:
-                pfam_acc_obj = StringObject()
-                pfam_acc_obj.text = pfam_accs
-                batch["pfam_acc"] = pfam_acc_obj
             if has_msa_id:
                 msa_id_obj = StringObject()
                 msa_id_obj.text = msa_ids
