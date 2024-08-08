@@ -322,8 +322,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
-    parser.add_argument("--cluster_start", type=int, default=0)
-    parser.add_argument("--cluster_end", type=int, default=None)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
     args = parser.parse_args()
