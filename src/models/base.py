@@ -101,6 +101,20 @@ class BaseLitModule(LightningModule):
             **kwargs,
         )
 
+    def on_train_epoch_start(self):
+        self._t0_epoch = time.time()
+
+    def on_train_epoch_end(self):
+        # n.b. includes val: https://lightning.ai/docs/pytorch/stable/common/lightning_module.html#hooks
+        self._t1_epoch = time.time()
+        self.log(
+            "train/epoch_time",
+            self._t1_epoch - self._t0_epoch,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+
     def on_train_batch_start(self, batch, batch_idx: int):
         self._t0 = time.time()
 
