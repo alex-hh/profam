@@ -524,7 +524,7 @@ class BaseFamilyLitModule(BaseLitModule):
             on_epoch=True,
         )
 
-        return torch.tensor(metric, device=self.device)
+        return torch.tensor(metric, device=self.device, dtype=torch.float32)
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
