@@ -133,7 +133,7 @@ def make_cluster_dictionary(cluster_path):
     return cluster_dict
 
 
-def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, metadata_lookup, verbose=False):
+def save_pdbs_to_parquet(save_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
     # Save the pdbs to parquet
     results = []
     for cluster_id in clusters_to_save:
@@ -180,13 +180,14 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, cluster_counter, metadata_l
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
-    output_file = os.path.join(f'{save_dir}', f'{cluster_counter}.parquet')
+    output_file = os.path.join(f'{save_dir}', f'{parquet_id}.parquet')
     pq.write_table(table, output_file)
     print(f"Saved {clusters_to_save} clusters to {output_file}")
     return output_file
 
 
 def extract_pdbs(zip_filename, cluster_ids, afdb_ids, save_dir):
+    # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
     t0 = time.time()
     successes = extract_multi_pdb_files(
         cluster_ids, afdb_ids, zip_filename, save_dir,
@@ -204,6 +205,7 @@ def build_single_parquet(
     save_dir,
     minimum_cluster_size=1,
     skip_af50=False,
+    num_processes=None,
 ):
     seq_fail_counter = 0
     seq_success_counter = 0
@@ -213,6 +215,7 @@ def build_single_parquet(
     pdb_lookup = defaultdict(list)
     metadata_lookup = dict()
 
+    t1 = time.time()
     with open(seq_fail_path, "w") as fail_file:
         for cluster_id in cluster_ids:
             members = cluster_dict[cluster_id]
@@ -241,26 +244,32 @@ def build_single_parquet(
                                 "is_af50_representative": False,
                             }
 
-                # Parallel extraction of pdb files
-                with multiprocessing.Pool() as pool:
-                    results = []
-                    for zip_filename, _ids in pdb_lookup.items():
-                        cluster_ids = [x[0] for x in _ids]
-                        afdb_ids = [x[1] for x in _ids]
-                        result = pool.apply_async(
-                            extract_pdbs,
-                            args=(zip_filename, cluster_ids, afdb_ids, save_dir)
-                        )
-                        results.append(result)
+    t2 = time.time()
+    print("Built lookup in", t2 - t1, "seconds", flush=True)
+    # Parallel extraction of pdb files
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        results = []
+        for zip_filename, _ids in pdb_lookup.items():
+            cluster_ids = [x[0] for x in _ids]
+            afdb_ids = [x[1] for x in _ids]
+            result = pool.apply_async(
+                extract_pdbs,
+                args=(zip_filename, cluster_ids, afdb_ids, save_dir)
+            )
+            results.append(result)
 
-                    for result in results:
-                        success_count, fail_count = result.get()
-                        seq_success_counter += success_count
-                        seq_fail_counter += fail_count
-                print("\nProcessed", cluster_counter, "clusters")
-                print("Number of failed sequences:", seq_fail_counter)
-                print("Number of successful sequences:", seq_success_counter, flush=True)
-                save_pdbs_to_parquet(save_dir, cluster_ids, cluster_counter, metadata_lookup)
+        for result in results:
+            success_count, fail_count = result.get()
+            seq_success_counter += success_count
+            seq_fail_counter += fail_count
+    print("\nProcessed", cluster_counter, "clusters")
+    print("Number of failed sequences:", seq_fail_counter)
+    print("Number of successful sequences:", seq_success_counter, flush=True)
+    t3 = time.time()
+    print("Extracted pdbs in", t3 - t2, "seconds", flush=True)
+    save_pdbs_to_parquet(save_dir, cluster_ids, parquet_id, metadata_lookup)
+    t4 = time.time()
+    print("Saved parquet in", t4 - t3, "seconds", flush=True)
 
 
 def create_foldseek_parquets(
@@ -272,6 +281,7 @@ def create_foldseek_parquets(
     verbose=False,
     skip_af50=False,
     parquet_ids=None,
+    num_processes=None,
 ):
     # shuffle first so that we de-correlate cluster identities in parquet files
     clusters = list(cluster_dict.keys())
@@ -292,6 +302,7 @@ def create_foldseek_parquets(
                 save_dir=save_dir,
                 minimum_cluster_size=minimum_cluster_size,
                 skip_af50=skip_af50,
+                num_processes=num_processes,
             )
     else:
         for parquet_id in parquet_ids:
@@ -303,6 +314,7 @@ def create_foldseek_parquets(
                 save_dir=save_dir,
                 minimum_cluster_size=minimum_cluster_size,
                 skip_af50=skip_af50,
+                num_processes=num_processes,
             )
 
 
@@ -314,15 +326,14 @@ if __name__ == "__main__":
     parser.add_argument("--cluster_end", type=int, default=None)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
-    parser.add_argument("--num_processes", type=int, default=1)
     args = parser.parse_args()
 
     print("Num cpus", os.cpu_count())
 
-    save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
+    save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
     af50_dict_pickle_path = os.path.join(save_dir, "af50_cluster_dict.pkl")
-
+    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
     af2zip = make_zip_dictionary()
 
     if not os.path.exists(cluster_dict_pickle_path):
@@ -353,4 +364,5 @@ if __name__ == "__main__":
         save_dir=save_dir,
         minimum_cluster_size=args.minimum_cluster_size,
         parquet_ids=args.parquet_ids,
+        num_processes=os.cpu_count(),
     )
