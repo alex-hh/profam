@@ -263,7 +263,7 @@ def load_protein_dataset(
             ]
 
     if cfg.holdout_data_files is not None:
-        assert isinstance(cfg.holdout_data_files, list)
+        assert isinstance(cfg.holdout_data_files, list), f"holdout files is {type(cfg.holdout_data_files)} not list"
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in cfg.holdout_data_files]
         print("Excluding", all_files - len(data_files), "holdout files")
