@@ -4,6 +4,7 @@ import hashlib
 import itertools
 import os
 import random
+from omegaconf.listconfig import ListConfig
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -263,7 +264,7 @@ def load_protein_dataset(
             ]
 
     if cfg.holdout_data_files is not None:
-        assert isinstance(cfg.holdout_data_files, list), f"holdout files is {type(cfg.holdout_data_files)} not list"
+        assert isinstance(cfg.holdout_data_files, list) or isinstance(cfg.holdout_data_files, ListConfig), f"holdout files is {type(cfg.holdout_data_files)} not list"
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in cfg.holdout_data_files]
         print("Excluding", all_files - len(data_files), "holdout files")
