@@ -22,7 +22,12 @@ source ~/pfenv/bin/activate
 
 cd ~/ProFam/profam
 
+export NCCL_DEBUG=INFO
+export PYTHONFAULTHANDLER=1
+
 mkdir /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
 scp -r ~/ProFam/data/pfam /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
 scp -r ~/ProFam/data/ProteinGym /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
-WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam +environment=jade data.data_dir=/raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
+MASTER_ADDR=localhost MASTER_PORT=29500 WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py experiment=main_pfam +environment=jade data.data_dir=/raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
+# https://github.com/acherstyx/hydra-torchrun-launcher
+# WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py -m hydra/launcher=torchrun hydra.launcher.nproc_per_node=8 experiment=main_pfam +environment=jade data.data_dir=/raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
