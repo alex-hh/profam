@@ -143,6 +143,7 @@ def load_protein_dataset(
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+    remove_text: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         if use_seq_pos:
@@ -275,10 +276,10 @@ def load_protein_dataset(
             streaming=True,
             verification_mode="no_checks",
         )
-        try:
-            dataset = dataset.remove_columns(["__index_level_0__"])
-        except:
-            pass
+        columns_to_drop = [
+            c for c in dataset.column_names if c not in ["text", "sequences"]
+        ]
+        dataset = dataset.remove_columns(columns_to_drop)
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
@@ -304,7 +305,7 @@ def load_protein_dataset(
     # )
     # filter after map also seems to slow things down...
     dataset = dataset.map(
-        preprocess_fasta, batched=False, remove_columns=["text"]
+        preprocess_fasta, batched=False, remove_columns=["text"] if remove_text else []
     ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
 
     return dataset
