@@ -1,6 +1,7 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: pfam
 data_path_pattern: pfam/combined_parquets/*.parquet
+holdout_data_files: pfam/combined_parquets/Family_95000795_101711374.parquet
 is_parquet: true
 keep_gaps: false
 to_upper: true
