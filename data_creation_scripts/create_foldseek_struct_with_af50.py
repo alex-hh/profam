@@ -87,7 +87,8 @@ def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
             if afdb_id + ".pdb" in names:
                 if os.path.isdir(cluster_output_folder):
                     print("Cluster output folder exists", cluster_output_folder, cluster_ids, afdb_ids)
-                assert not os.path.isfile(os.path.join(cluster_output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder}"
+                # TODO: print worker...
+                assert not os.path.isfile(os.path.join(cluster_output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
                 zip_ref.extract(afdb_id + ".pdb", cluster_output_folder)
                 print(f"Extracted {afdb_id} from {zip_filename} to {cluster_output_folder}")
                 successes.append(True)
