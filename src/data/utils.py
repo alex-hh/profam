@@ -140,6 +140,7 @@ def load_protein_dataset(
     max_tokens: int = 5000,
     data_dir="../data",
     split="train",
+    padding="max_length",
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
@@ -191,10 +192,10 @@ def load_protein_dataset(
         tokenized = tokenizer(
             concatenated_seqs,
             truncation=False,  # shouldnt be necessary: bisection should handle
-            max_length=max_tokens,
+            max_length=max_tokens if padding == "max_length" else None,
             return_tensors="pt",
             # padding="longest",
-            padding="max_length",
+            padding=padding,
             add_special_tokens=False,
         )
         assert tokenized.input_ids.shape[1] <= max_tokens, (

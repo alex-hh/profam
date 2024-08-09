@@ -332,15 +332,13 @@ class BaseFamilyLitModule(BaseLitModule):
             tokens = tokens[:, :-1]
         # TODO: use batch_decode for batches
         dec = self.tokenizer.decode(tokens.squeeze(0))
-        return (
-            "".join(dec
-            .replace(" ", "")
-            .split("[SEP]"))
-            .replace("[RAW]", "")
+        return [
+            s.replace("[RAW]", "")
             .replace("[MSA]", "")
             .replace("[start-of-document]", "")
             .replace("[end-of-document]", "")
-        )
+            for s in dec.replace(" ", "").split("[SEP]")
+        ]
 
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
@@ -492,10 +490,17 @@ class BaseFamilyLitModule(BaseLitModule):
         input_seq_pos: Optional[torch.LongTensor] = None,
         include_prompt_in_output: bool = False,
     ):
+        # TODO: pass attention mask, pad_token_id to avoid the following warning:
+        # The attention mask and the pad token id were not set. As a consequence, you may
+        # observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+        # TODO: add temperature kwarg
+        # TODO: check whether model spontaneously adds the SEP token
+
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
         assert input_ids.ndim == 2  # b, L
+        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         all_outputs = []
         if input_seq_pos is not None:
             raise NotImplementedError(
