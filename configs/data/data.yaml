@@ -17,7 +17,7 @@ data_weights:
   cathFunfam: 0.1
   ted: 0.3
 batch_size: 22
-max_tokens: 8000
+max_tokens: 8192
 data_dir: ../data
 val_dataset_name: interpro
 tokenizer_path: src/data/components/profam_tokenizer.json

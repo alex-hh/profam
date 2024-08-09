@@ -28,7 +28,7 @@ conda activate venvPF
 source /share/apps/source_files/python/python-3.11.9.source
 python ${ROOT_DIR}/src/train.py \
 data=data \
-data.data_dir=/state/patition1/ProFam_data \
+data.data_dir=/state/partition1/ProFam_data \
 data.batch_size=100 \
 trainer=gpu \
 trainer.devices=2 \

@@ -22,6 +22,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+# TODO: seed?
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 python src/train.py \
@@ -32,7 +33,7 @@ jobs:
           data.data_dir=data \
           data.batch_size=2 \
           data.num_workers=1 \
-          data.max_tokens=100 \
+          data.max_tokens=2000 \
           data.gym_data_dir="tiny_data/ProteinGym" \
           logger=null_logger \
           'model.config.hidden_size=4' \

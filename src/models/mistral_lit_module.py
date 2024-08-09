@@ -1,18 +1,15 @@
 from typing import Optional
 
-from transformers import PreTrainedTokenizerFast
+from transformers import MistralConfig, MistralForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
-from src.models.transformer_mods.modelling_mistral_pflm import (
-    MistralConfigPFLM,
-    MistralForCausalPFLM,
-)
+from src.models.wrapper import TransformerWithSequencePositionEmbeddings
 
 
 class MistralLitModule(BaseFamilyLitModule):
     def __init__(
         self,
-        config: MistralConfigPFLM,
+        config: MistralConfig,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
         scoring_max_tokens: int = 8000,
@@ -21,8 +18,18 @@ class MistralLitModule(BaseFamilyLitModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
+        use_seq_pos: bool = False,
+        max_seq_pos: int = 2048,
     ) -> None:
-        model = MistralForCausalPFLM(config)
+        model = MistralForCausalLM(config)
+        if use_seq_pos:
+            model = TransformerWithSequencePositionEmbeddings(
+                model,
+                model.model.embed_tokens,
+                embedding_dim=config.hidden_size,
+                use_seq_pos=use_seq_pos,
+                max_seq_pos=max_seq_pos,
+            )
         super().__init__(
             model,
             tokenizer,
@@ -33,5 +40,5 @@ class MistralLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
-            use_seq_pos=config.use_seq_pos,
+            use_seq_pos=use_seq_pos,
         )

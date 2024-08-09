@@ -17,7 +17,6 @@ trainer:
   min_epochs: 10
   max_epochs: 10000
   gradient_clip_val: 1.0
-  accumulate_grad_batches: 36
   val_check_interval: 1.0
   check_val_every_n_epoch: 1
 
