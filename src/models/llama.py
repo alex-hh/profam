@@ -59,7 +59,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         ):  # commenting out to check computation of inputs embeds is working
             model = TransformerWithSequencePositionEmbeddings(
                 model,
-                model.transformer.wte,
+                model.model.embed_tokens,
                 embedding_dim=config.hidden_size,
                 use_seq_pos=use_seq_pos,
                 max_seq_pos=max_seq_pos,
