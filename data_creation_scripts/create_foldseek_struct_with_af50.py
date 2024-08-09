@@ -50,7 +50,7 @@ def make_af50_dictionary(af50_path):
                 af50_dict[rep_id].append(entry_id)
             line_counter += 1
             if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for cluster dictionary")
+                print("Processed", line_counter, "lines for af50 cluster dictionary")
     return af50_dict
 
 
@@ -71,29 +71,6 @@ def make_zip_dictionary():
     return af2zip
 
 
-def extract_pdb_file(uniprot_id, output_folder):
-    # Ensure the output folder exists
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    # Extract the specified PDB files
-    try:
-        zip_filename, afdb_id = af2zip[uniprot_id]
-        zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
-        with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
-            if afdb_id + ".pdb" in zip_ref.namelist():
-                zip_ref.extract(afdb_id + ".pdb", output_folder)
-                print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}")
-                return True
-            else:
-                print(f"{afdb_id} not found in {zip_filename}")
-                return False
-    except Exception as e:
-        print(e)
-        print(f"No zip file containing {uniprot_id} found in mapping")
-        return False
-
-
 def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
     assert len(cluster_ids) == len(afdb_ids)
     # Ensure the output folder exists
@@ -108,6 +85,9 @@ def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
         for cluster_id, afdb_id in zip(cluster_ids, afdb_ids):
             cluster_output_folder = os.path.join(output_folder, cluster_id, "pdbs")
             if afdb_id + ".pdb" in names:
+                if os.path.isdir(cluster_output_folder):
+                    print("Cluster output folder exists", cluster_output_folder, cluster_ids, afdb_ids)
+                assert not os.path.isfile(os.path.join(cluster_output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder}"
                 zip_ref.extract(afdb_id + ".pdb", cluster_output_folder)
                 print(f"Extracted {afdb_id} from {zip_filename} to {cluster_output_folder}")
                 successes.append(True)
@@ -189,6 +169,7 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, parquet_id, metadata_lookup
 
 def extract_pdbs(zip_filename, cluster_ids, afdb_ids, save_dir):
     # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
+    print("Extracting pdbs", cluster_ids, afdb_ids, flush=True)
     t0 = time.time()
     successes = extract_multi_pdb_files(
         cluster_ids, afdb_ids, zip_filename, save_dir,
