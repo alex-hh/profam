@@ -3,6 +3,7 @@ from typing import Optional
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
+from src.models.wrapper import TransformerWithSequencePositionEmbeddings
 
 
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
@@ -42,6 +43,8 @@ class LlamaLitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
+        use_seq_pos: bool = False,
+        max_seq_pos: int = 2048,
     ) -> None:
         """
         From the paper:
@@ -51,6 +54,16 @@ class LlamaLitModule(BaseFamilyLitModule):
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
         model = LlamaForCausalLM(config)
+        if (
+            use_seq_pos
+        ):  # commenting out to check computation of inputs embeds is working
+            model = TransformerWithSequencePositionEmbeddings(
+                model,
+                model.transformer.wte,
+                embedding_dim=config.hidden_size,
+                use_seq_pos=use_seq_pos,
+                max_seq_pos=max_seq_pos,
+            )
         super().__init__(
             model,
             tokenizer,

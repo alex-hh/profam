@@ -12,3 +12,5 @@ config:
   rope_theta: 10000
   max_position_embeddings: 8192  # used in llama rope implementation
   scoring_max_tokens: 10240
+use_seq_pos: ${data.use_seq_pos}
+max_seq_pos: ${data.max_seq_pos}
