@@ -330,10 +330,12 @@ class BaseFamilyLitModule(BaseLitModule):
         assert tokens.ndim == 2 and tokens.shape[0] == 1
         if tokens[:, -1] == self.tokenizer.sep_token_id:
             tokens = tokens[:, :-1]
+        # TODO: use batch_decode for batches
+        dec = self.tokenizer.decode(tokens.squeeze(0))
         return (
-            self.tokenizer.decode(tokens)
+            "".join(dec
             .replace(" ", "")
-            .split("[SEP]")
+            .split("[SEP]"))
             .replace("[RAW]", "")
             .replace("[MSA]", "")
             .replace("[start-of-document]", "")
@@ -486,13 +488,19 @@ class BaseFamilyLitModule(BaseLitModule):
         input_ids,
         num_sequences,
         batch_size: int = 1,
+        max_length: int = 8192,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
+        include_prompt_in_output: bool = False,
     ):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
         assert input_ids.ndim == 2  # b, L
         all_outputs = []
+        if input_seq_pos is not None:
+            raise NotImplementedError(
+                "Sequence position embeddings not yet supported for sampling"
+            )
         for batch_start in range(0, num_sequences, batch_size):
             num_return_sequences = min(batch_size, num_sequences - batch_start)
             forward_kwargs = (
@@ -504,8 +512,11 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids=input_ids,
                 num_return_sequences=num_return_sequences,
                 return_dict_in_generate=False,
+                max_length=max_length,
                 **forward_kwargs,
             )
+            if not include_prompt_in_output:
+                outputs = outputs[:, input_ids.shape[1] :]
             all_outputs.append(outputs)
         return torch.cat(all_outputs, dim=0)
 
