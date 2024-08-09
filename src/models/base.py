@@ -505,10 +505,6 @@ class BaseFamilyLitModule(BaseLitModule):
         assert input_ids.ndim == 2  # b, L
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         all_outputs = []
-        if input_seq_pos is not None:
-            raise NotImplementedError(
-                "Sequence position embeddings not yet supported for sampling"
-            )
         for batch_start in range(0, num_sequences, batch_size):
             num_return_sequences = min(batch_size, num_sequences - batch_start)
             forward_kwargs = (
@@ -548,6 +544,10 @@ class BaseFamilyLitModule(BaseLitModule):
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
         input_ids = self.encode_sequences(sequence_prompt)
+        if self.use_seq_pos:
+            raise NotImplementedError(
+                "Sequence position not yet supported for sampling"
+            )
         encoded = self._sample_seqs(input_ids, num_sequences)
         return self.decode_tokens(encoded)
 
