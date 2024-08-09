@@ -80,11 +80,11 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     trainer: Trainer = hydra.utils.instantiate(
         cfg.trainer, callbacks=callbacks, logger=logger
     )
-    print(trainer.strategy._get_process_group_backend())
-    print(
-        trainer.strategy.cluster_environment,
-        trainer.strategy.cluster_environment.__dict__,
-    )
+    # print(trainer.strategy._get_process_group_backend())
+    # print(
+    #     trainer.strategy.cluster_environment,
+    #     trainer.strategy.cluster_environment.__dict__,
+    # )
 
     object_dict = {
         "cfg": cfg,
