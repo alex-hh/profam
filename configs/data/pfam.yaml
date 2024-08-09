@@ -6,7 +6,6 @@ defaults:
   - _self_
 data_weights:
   pfam: 1.0
-# TODO: actually hold out val
 dataset_cfgs:
   pfam_val:
     data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
