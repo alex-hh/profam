@@ -113,7 +113,7 @@ class BaseLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-        )
+        )  # not getting logged to callback metrics - why...
 
     def on_train_batch_start(self, batch, batch_idx: int):
         self._t0 = time.time()
