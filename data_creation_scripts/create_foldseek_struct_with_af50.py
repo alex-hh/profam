@@ -169,7 +169,7 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, parquet_id, metadata_lookup
 
 def extract_pdbs(zip_filename, cluster_ids, afdb_ids, save_dir):
     # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
-    print("Extracting pdbs", cluster_ids, afdb_ids, flush=True)
+    print("Extracting pdbs", zip_filename, cluster_ids, afdb_ids, flush=True)
     t0 = time.time()
     successes = extract_multi_pdb_files(
         cluster_ids, afdb_ids, zip_filename, save_dir,
@@ -235,6 +235,7 @@ def build_single_parquet(
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = []
         for zip_filename, _ids in pdb_lookup.items():
+            print("Zip filename", zip_filename, "ids", _ids, flush=True)
             zf_cluster_ids = [x[0] for x in _ids]
             afdb_ids = [x[1] for x in _ids]
             result = pool.apply_async(
@@ -316,7 +317,7 @@ if __name__ == "__main__":
     save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
     af50_dict_pickle_path = os.path.join(save_dir, "af50_cluster_dict.pkl")
-    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
+    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
     af2zip = make_zip_dictionary()
 
     if not os.path.exists(cluster_dict_pickle_path):
