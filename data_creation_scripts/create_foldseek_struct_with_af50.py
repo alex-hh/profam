@@ -14,6 +14,8 @@ building of single parquets, and parallelising across building of
 distinct parquets.
 """
 import argparse
+import datetime
+import hashlib
 import shutil
 from collections import defaultdict
 import multiprocessing
@@ -29,7 +31,11 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import zipfile
 import os
+from filelock import FileLock
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+
+
+lock_file = "directory.lock"
 
 
 def make_af50_dictionary(af50_path):
@@ -71,6 +77,14 @@ def make_zip_dictionary():
     return af2zip
 
 
+def generate_lock_file_name(directory):
+    now = datetime.datetime.now().isoformat()
+    hash_object = hashlib.md5(now.encode())
+    unique_hash = hash_object.hexdigest()
+    lock_file_name = f"{unique_hash}.lock"
+    return os.path.join(directory, lock_file_name)
+
+
 def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
     assert len(cluster_ids) == len(afdb_ids)
     # Ensure the output folder exists
@@ -84,17 +98,23 @@ def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
         names = zip_ref.namelist()
         for cluster_id, afdb_id in zip(cluster_ids, afdb_ids):
             cluster_output_folder = os.path.join(output_folder, cluster_id, "pdbs")
-            if afdb_id + ".pdb" in names:
-                if os.path.isdir(cluster_output_folder):
-                    print("Cluster output folder exists", cluster_output_folder, cluster_ids, afdb_ids)
-                # TODO: print worker...
-                assert not os.path.isfile(os.path.join(cluster_output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
-                zip_ref.extract(afdb_id + ".pdb", cluster_output_folder)
-                print(f"Extracted {afdb_id} from {zip_filename} to {cluster_output_folder}")
-                successes.append(True)
-            else:
-                print(f"{afdb_id} not found in {zip_filename}")
-                successes.append(False)
+            if not os.path.exists(cluster_output_folder):
+                os.makedirs(cluster_output_folder)
+            lock_file = generate_lock_file_name(cluster_output_folder)
+            lock = FileLock(lock_file)
+
+            with lock:
+                if afdb_id + ".pdb" in names:
+                    if os.path.isdir(cluster_output_folder):
+                        print("Cluster output folder exists", cluster_output_folder, cluster_ids, afdb_ids)
+                    # TODO: print worker...
+                    assert not os.path.isfile(os.path.join(cluster_output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
+                    zip_ref.extract(afdb_id + ".pdb", cluster_output_folder)
+                    print(f"Extracted {afdb_id} from {zip_filename} to {cluster_output_folder}")
+                    successes.append(True)
+                else:
+                    print(f"{afdb_id} not found in {zip_filename}")
+                    successes.append(False)
     return successes
 
 
