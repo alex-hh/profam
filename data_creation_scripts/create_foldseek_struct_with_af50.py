@@ -99,7 +99,7 @@ def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
         for cluster_id, afdb_id in zip(cluster_ids, afdb_ids):
             cluster_output_folder = os.path.join(output_folder, cluster_id, "pdbs")
             if not os.path.exists(cluster_output_folder):
-                os.makedirs(cluster_output_folder)
+                os.makedirs(cluster_output_folder, exist_ok=True)
             lock_file = generate_lock_file_name(cluster_output_folder)
             lock = FileLock(lock_file)
 
