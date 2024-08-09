@@ -101,7 +101,7 @@ def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
             if not os.path.exists(cluster_output_folder):
                 os.makedirs(cluster_output_folder, exist_ok=True)
             lock_file = generate_lock_file_name(cluster_output_folder)
-            lock = FileLock(lock_file)
+            lock = FileLock(lock_file, timeout=10)
 
             with lock:
                 if afdb_id + ".pdb" in names:
@@ -135,11 +135,11 @@ def make_cluster_dictionary(cluster_path):
     return cluster_dict
 
 
-def save_pdbs_to_parquet(save_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
+def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
     # Save the pdbs to parquet
     results = []
     for cluster_id in clusters_to_save:
-        pdbs = glob.glob(os.path.join(save_dir, cluster_id, "pdbs/*.pdb"))
+        pdbs = glob.glob(os.path.join(scratch_dir, cluster_id, "pdbs/*.pdb"))
         sequences = []
         accessions = []
         is_foldseek_representative = []
@@ -177,8 +177,8 @@ def save_pdbs_to_parquet(save_dir, clusters_to_save, parquet_id, metadata_lookup
                 "is_af50_representative": is_af50_representative,
             }
         )
-        print("Deleting directory", os.path.join(save_dir, cluster_id), flush=True)
-        shutil.rmtree(os.path.join(save_dir, cluster_id))
+        print("Deleting directory", os.path.join(scratch_dir, cluster_id), flush=True)
+        shutil.rmtree(os.path.join(scratch_dir, cluster_id))
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
@@ -206,6 +206,7 @@ def build_single_parquet(
     af2zip,
     af50_dict,
     save_dir,
+    scratch_dir,
     minimum_cluster_size=1,
     skip_af50=False,
     num_processes=None,
@@ -252,7 +253,7 @@ def build_single_parquet(
 
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
-    # Parallel extraction of pdb files
+    # Parallel extraction of pdb files"
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = []
         for zip_filename, _ids in pdb_lookup.items():
@@ -261,7 +262,7 @@ def build_single_parquet(
             afdb_ids = [x[1] for x in _ids]
             result = pool.apply_async(
                 extract_pdbs,
-                args=(zip_filename, zf_cluster_ids, afdb_ids, save_dir)
+                args=(zip_filename, zf_cluster_ids, afdb_ids, scratch_dir)
             )
             results.append(result)
 
@@ -274,7 +275,7 @@ def build_single_parquet(
     print("Number of successful sequences:", seq_success_counter, flush=True)
     t3 = time.time()
     print("Extracted pdbs in", t3 - t2, "seconds", flush=True)
-    save_pdbs_to_parquet(save_dir, cluster_ids, parquet_id, metadata_lookup)
+    save_pdbs_to_parquet(save_dir, scratch_dir, cluster_ids, parquet_id, metadata_lookup)
     t4 = time.time()
     print("Saved parquet in", t4 - t3, "seconds", flush=True)
 
@@ -328,6 +329,7 @@ def create_foldseek_parquets(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
+    parser.add_argument("scratch_dir")
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
