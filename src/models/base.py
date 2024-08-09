@@ -11,6 +11,7 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
+from src.data.utils import get_seq_pos_from_positions
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,
@@ -291,6 +292,7 @@ class BaseFamilyLitModule(BaseLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         use_seq_pos: bool = False,
+        max_seq_pos: int = 2048,
     ):
         super().__init__(
             model,
@@ -307,6 +309,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.dataset_sample_counts = {}
         self.doc_hash_counts = {}
         self.use_seq_pos = use_seq_pos
+        self.max_seq_pos = max_seq_pos
 
     def encode_sequences(self, sequences):
         # TODO: add MSA / RAW document type token...
@@ -545,10 +548,19 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: encode sequence prompt and get sequence pos if necessary.
         input_ids = self.encode_sequences(sequence_prompt)
         if self.use_seq_pos:
-            raise NotImplementedError(
-                "Sequence position not yet supported for sampling"
+            positions = [list(range(len(s))) for s in sequence_prompt]
+            # c.f. src.data.utils. n.b. num_start_tokens has to be kept in sync
+            # TODO: stop hardcoding it!
+            seq_pos = get_seq_pos_from_positions(
+                input_ids,
+                positions,
+                pad_token_id=self.tokenizer.pad_token_id,
+                max_seq_pos=self.max_seq_pos,
+                num_start_tokens=2,
             )
-        encoded = self._sample_seqs(input_ids, num_sequences)
+        else:
+            seq_pos = None
+        encoded = self._sample_seqs(input_ids, num_sequences, input_seq_pos=seq_pos)
         return self.decode_tokens(encoded)
 
     def validation_step_esmfold(self, batch):

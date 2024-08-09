@@ -41,4 +41,5 @@ class MistralLitModule(BaseFamilyLitModule):
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
             use_seq_pos=use_seq_pos,
+            max_seq_pos=max_seq_pos,
         )
