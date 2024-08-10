@@ -221,7 +221,9 @@ def build_single_parquet(
 
     t1 = time.time()
     with open(seq_fail_path, "w") as fail_file:
-        for cluster_id in cluster_ids:
+        for ix, cluster_id in enumerate(cluster_ids):
+            if ix % 500 == 0:
+                print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
             members = cluster_dict[cluster_id]
             if len(members) >= minimum_cluster_size:
                 cluster_counter += 1
@@ -340,7 +342,10 @@ if __name__ == "__main__":
 
     print("Num cpus", os.cpu_count(), flush=True)
 
-    save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
+    if args.skip_af50:
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
+    else:
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
     af50_dict_pickle_path = os.path.join(save_dir, "af50_cluster_dict.pkl")
     af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"

@@ -565,6 +565,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 on_epoch=False,
             )
             self.log_ds_sample_counts(batch)
+
+            # TODO: verify that on_epoch skips missing batches
             if "ds_name" in batch:
                 per_dataset_accuracies = accuracy_from_outputs(
                     outputs,
@@ -576,8 +578,8 @@ class BaseFamilyLitModule(BaseLitModule):
                         f"train/{k}_acc": v.item()
                         for k, v in per_dataset_accuracies.items()
                     },
-                    on_step=True,
-                    on_epoch=False,
+                    on_step=False,
+                    on_epoch=True,
                 )
 
             if "doc_hash" in batch:
@@ -595,8 +597,8 @@ class BaseFamilyLitModule(BaseLitModule):
                         f"{k}_max_sampled_doc": max(v.values())
                         for k, v in self.doc_hash_counts.items()
                     },
-                    on_step=True,
-                    on_epoch=False,
+                    on_step=False,
+                    on_epoch=True,
                 )
             if "total_num_sequences" in batch:
                 self.log(
