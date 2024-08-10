@@ -22,11 +22,13 @@ class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
     data_path_pattern: Optional[str] = None
+    holdout_data_files: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
+    minimum_sequences: Optional[int] = None
     document_tag: str = "[RAW]"
 
 
@@ -55,11 +57,14 @@ class CustomDataCollator:
     def __call__(self, examples):
         has_ds_name = "ds_name" in examples[0]
         has_doc_hash = "doc_hash" in examples[0]
-        if has_ds_name or has_doc_hash:
+        has_msa_id = "msa_id" in examples[0]
+        if has_ds_name or has_doc_hash or has_msa_id:
             if has_ds_name:
                 ds_names = [example.pop("ds_name") for example in examples]
             if has_doc_hash:
                 doc_hashes = [example.pop("doc_hash") for example in examples]
+            if has_msa_id:
+                msa_ids = [example.pop("msa_id") for example in examples]
             batch = self.base_collator(examples)
             if has_ds_name:
                 ds_names_obj = StringObject()
@@ -69,6 +74,10 @@ class CustomDataCollator:
                 doc_hash_obj = StringObject()
                 doc_hash_obj.text = doc_hashes
                 batch["doc_hash"] = doc_hash_obj
+            if has_msa_id:
+                msa_id_obj = StringObject()
+                msa_id_obj.text = msa_ids
+                batch["msa_id"] = msa_id_obj
         else:
             batch = self.base_collator(examples)
         return batch
@@ -195,6 +204,7 @@ def load_protein_dataset(
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
         tokenized.data["ds_name"] = cfg.name
+        tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
         if include_doc_hashes:
             # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
@@ -213,6 +223,25 @@ def load_protein_dataset(
 
         return tokenized
 
+    def batched_preprocess_and_filter(batch):
+        batch_dict = {}
+        for example_text in batch["text"]:
+            example = {"text": example_text}
+            processed = preprocess_fasta(example).data
+            if (
+                cfg.minimum_sequences is None
+                or processed["total_num_sequences"] >= cfg.minimum_sequences
+            ):
+                for k, v in processed.items():
+                    if k not in batch_dict:
+                        batch_dict[k] = []
+                    batch_dict[k].append(v)
+        print(
+            len(batch["text"]),
+            len(batch_dict["ds_name"]) if "ds_name" in batch_dict else 0,
+        )
+        return batch_dict
+
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
         # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
@@ -223,6 +252,12 @@ def load_protein_dataset(
             data_files = [
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
+
+    if cfg.holdout_data_files is not None:
+        assert isinstance(cfg.holdout_data_files, list)
+        all_files = len(data_files)
+        data_files = [f for f in data_files if f not in cfg.holdout_data_files]
+        print("Excluding", all_files - len(data_files), "holdout files")
 
     assert isinstance(data_files, list)
     data_files = data_files * cfg.file_repeats
@@ -238,8 +273,12 @@ def load_protein_dataset(
             data_files=data_files,
             split=split,
             streaming=True,
-            ignore_verifications=True,
+            verification_mode="no_checks",
         )
+        try:
+            dataset = dataset.remove_columns(["__index_level_0__"])
+        except:
+            pass
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
@@ -250,8 +289,23 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    # TODO: possibly we could speed this up by batching...
-    dataset = dataset.map(preprocess_fasta, batched=False, remove_columns=["text"])
+    print("Verifying dataset content:")
+    for i, item in enumerate(dataset.take(3)):
+        print(f"  Item {i + 1}:")
+        for key, value in item.items():
+            print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
+        print()
+    # with batched map there is a massive delay before training actually starts - why?
+    # dataset = dataset.map(
+    #     batched_preprocess_and_filter,
+    #     batched=True,
+    #     remove_columns=["text"],
+    #     batch_size=2,
+    # )
+    # filter after map also seems to slow things down...
+    dataset = dataset.map(
+        preprocess_fasta, batched=False, remove_columns=["text"]
+    ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
 
     return dataset
 
