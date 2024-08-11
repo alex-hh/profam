@@ -26,7 +26,7 @@ for cluster, c_path in zip(["30-50", "50-70", "70-90"], [c_30_50, c_50_70, c_70_
                 matched["val_cluster_level"] = c_level
                 val_dfs.append(matched)
 val_df = pd.concat(val_dfs)
-val_df.to_csv("../data/ec/jsunn-y_care_EC_datasets/val_clustered_seqs_w_different_ec_nums.csv", index=False)
+val_df.to_csv("data/val/ec_val_clustered_seqs_w_different_ec_nums.csv", index=False)
 
 """
 We will be classifying 2 or 3 sequences from each val_cluster_id

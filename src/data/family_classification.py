@@ -119,7 +119,7 @@ def get_prompt_from_ec_num(
 def load_ec_cluster_classifier_dataset(
     tokenizer: PreTrainedTokenizerFast,
     fasta_dir: str = "../data/ec/ec_fastas",
-    val_df_path: str = "../data/ec/jsunn-y_care_EC_datasets/val_clustered_seqs_w_different_ec_nums.csv",
+    val_df_path: str = "data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
     max_tokens=10000,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,

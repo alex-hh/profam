@@ -156,7 +156,7 @@ class ProteinDataModule(LightningDataModule):
                 self.ec_cluster_class_dataset = load_ec_cluster_classifier_dataset(
                     tokenizer=self.tokenizer,
                     fasta_dir="../data/ec/ec_fastas",
-                    val_df_path="../data/ec/jsunn-y_care_EC_datasets/val_clustered_seqs_w_different_ec_nums.csv",
+                    val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
                     max_tokens=self.max_tokens,
                     use_seq_pos=self.use_seq_pos,
                     max_seq_pos=self.max_seq_pos,
