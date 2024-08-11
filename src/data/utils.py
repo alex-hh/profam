@@ -150,6 +150,8 @@ def load_protein_dataset(
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
         if use_seq_pos:
+            if "sequences" in example:
+                raise NotImplementedError()
             sequences = []
             positions = []
             for _, seq, pos in read_fasta_lines_with_positions(
@@ -167,15 +169,18 @@ def load_protein_dataset(
                 sequences = [sequences[i] for i in perm]
                 positions = [positions[i] for i in perm]
         else:
-            sequences = [
-                seq
-                for _, seq in read_fasta_lines(
-                    example["text"].split("\n"),
-                    keep_gaps=cfg.keep_gaps,
-                    keep_insertions=cfg.keep_insertions,
-                    to_upper=cfg.to_upper,
-                )
-            ]
+            if "sequences" in example:
+                sequences = example["sequences"]
+            else:
+                sequences = [
+                    seq
+                    for _, seq in read_fasta_lines(
+                        example["text"].split("\n"),
+                        keep_gaps=cfg.keep_gaps,
+                        keep_insertions=cfg.keep_insertions,
+                        to_upper=cfg.to_upper,
+                    )
+                ]
             if shuffle:
                 perm = np.random.permutation(len(sequences))
                 sequences = [sequences[i] for i in perm]
