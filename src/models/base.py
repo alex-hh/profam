@@ -528,7 +528,9 @@ class BaseFamilyLitModule(BaseLitModule):
         k_vals = [k for k in [1, 2, 5, 10] if k < len(target_vals)]
         for top_k in k_vals:
             top_k_acc = len(
-                set(np.argsort(lls)[::-1][:top_k]).intersection(set(np.where(target_vals)[0]))
+                set(np.argsort(lls)[::-1][:top_k]).intersection(
+                    set(np.where(target_vals)[0])
+                )
             ) / min(top_k, sum(target_vals))
             self.log(
                 f"val/top_{top_k}_acc_fam_classification",

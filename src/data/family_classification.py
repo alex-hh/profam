@@ -16,6 +16,7 @@ from src.data import fasta
 from src.data import utils as data_utils
 from src.data.proteingym import tokenize
 
+
 def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_pos):
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
     dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
@@ -39,6 +40,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_
         columns=columns,
     )
     return dataset
+
 
 def load_classifier_dataset(
     fasta_file_pattern: str,
@@ -87,12 +89,17 @@ def load_classifier_dataset(
             "completion_seqs": completion_seqs,
             "family_labels": family_labels,
             "ds_name": "ec_class",
-            "family_id": target_family_path.split("/")[-1].replace(".fasta", "").replace(".fa", ""),
+            "family_id": target_family_path.split("/")[-1]
+            .replace(".fasta", "")
+            .replace(".fa", ""),
         }
         dataset_list.append(family_dict)
 
-    dataset = family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_pos)
+    dataset = family_dataset_from_dict_list(
+        dataset_list, tokenizer, use_seq_pos, max_seq_pos
+    )
     return dataset
+
 
 def get_prompt_from_ec_num(
     ec_num: str,
@@ -103,17 +110,20 @@ def get_prompt_from_ec_num(
     ids, seqs = fasta.read_fasta(
         ec_fasta_path,
         keep_insertions=True,
-        keep_gaps=False, # currently no gaps in fasta: if this changes beware eval seqs are not aligned
-        to_upper=False
+        keep_gaps=False,  # currently no gaps in fasta: if this changes beware eval seqs are not aligned
+        to_upper=False,
     )
     ids = [id.split("|")[1] for id in ids]
-    assert set(ids).intersection(set(exclusion_ids)) # at least one of the eval seqs should be in the fam
-    assert set(ids) - set(exclusion_ids) # at least one of the eval seqs should NOT be in the fam
+    assert set(ids).intersection(
+        set(exclusion_ids)
+    )  # at least one of the eval seqs should be in the fam
+    assert set(ids) - set(
+        exclusion_ids
+    )  # at least one of the eval seqs should NOT be in the fam
     keep_idxs = [i for i, id in enumerate(ids) if id not in exclusion_ids]
     ids = [ids[i] for i in keep_idxs]
     seqs = [seqs[i] for i in keep_idxs]
     return ids, seqs
-
 
 
 def load_ec_cluster_classifier_dataset(
@@ -141,11 +151,11 @@ def load_ec_cluster_classifier_dataset(
         eval_ecs = c["EC number"].values
         for ec_num in eval_ecs:
             ids, prompt_seqs = get_prompt_from_ec_num(
-                ec_num,
-                fasta_dir=fasta_dir,
-                exclusion_ids=eval_ids
+                ec_num, fasta_dir=fasta_dir, exclusion_ids=eval_ids
             )
-            max_tokens_for_prompt = max_tokens - max([len(s) for s in completion_seqs]) - 2
+            max_tokens_for_prompt = (
+                max_tokens - max([len(s) for s in completion_seqs]) - 2
+            )
             prompt_seqs = data_utils.sample_to_max_tokens(
                 prompt_seqs, seed=seed, max_tokens=max_tokens_for_prompt
             )
@@ -155,16 +165,16 @@ def load_ec_cluster_classifier_dataset(
                 "completion_seqs": completion_seqs,
                 "family_labels": labels,
                 "family_id": ec_num,
-                "eval_cluster_level": c.val_cluster_level.values.min(), # eval seqs share this level of similarity
-                "eval_sim_min_max": c.val_cluster_min_max.values.min(), # min & max sim with any other EC sequence
-                "ds_name": "ec_cluster_class"
+                "eval_cluster_level": c.val_cluster_level.values.min(),  # eval seqs share this level of similarity
+                "eval_sim_min_max": c.val_cluster_min_max.values.min(),  # min & max sim with any other EC sequence
+                "ds_name": "ec_cluster_class",
             }
             dataset_list.append(family_dict)
-    dataset = family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_pos)
+    dataset = family_dataset_from_dict_list(
+        dataset_list, tokenizer, use_seq_pos, max_seq_pos
+    )
     return dataset
 
 
-
-
-if __name__=="__main__":
+if __name__ == "__main__":
     load_ec_cluster_classifier_dataset()
