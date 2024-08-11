@@ -55,31 +55,20 @@ class CustomDataCollator:
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
 
     def __call__(self, examples):
-        has_ds_name = "ds_name" in examples[0]
-        has_doc_hash = "doc_hash" in examples[0]
-        has_msa_id = "msa_id" in examples[0]
-        if has_ds_name or has_doc_hash or has_msa_id:
-            if has_ds_name:
-                ds_names = [example.pop("ds_name") for example in examples]
-            if has_doc_hash:
-                doc_hashes = [example.pop("doc_hash") for example in examples]
-            if has_msa_id:
-                msa_ids = [example.pop("msa_id") for example in examples]
-            batch = self.base_collator(examples)
-            if has_ds_name:
-                ds_names_obj = StringObject()
-                ds_names_obj.text = ds_names
-                batch["ds_name"] = ds_names_obj
-            if has_doc_hash:
-                doc_hash_obj = StringObject()
-                doc_hash_obj.text = doc_hashes
-                batch["doc_hash"] = doc_hash_obj
-            if has_msa_id:
-                msa_id_obj = StringObject()
-                msa_id_obj.text = msa_ids
-                batch["msa_id"] = msa_id_obj
-        else:
-            batch = self.base_collator(examples)
+        non_string_data = [
+            {k: v for k, v in e.items() if not isinstance(v, str)} for e in examples
+        ]
+        string_data = [
+            {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
+        ]
+        # string_data_keys = set([k for e in examples for k,v in e.items() if isinstance(v, str)])
+        string_data_keys = set(k for obs in string_data for k in obs.keys())
+        batch = self.base_collator(non_string_data)
+        for str_key in string_data_keys:
+            str_vals = [obs.get(str_key, "") for obs in string_data]
+            str_obj = StringObject()
+            str_obj.text = str_vals
+            batch[str_key] = str_obj
         return batch
 
 
