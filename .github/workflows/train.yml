@@ -36,8 +36,8 @@ jobs:
           data.max_tokens=2000 \
           data.gym_data_dir="tiny_data/ProteinGym" \
           data.evaluate_gym=true \
-          data.evaluate_ec_class: false \
-          data.evaluate_ec_cluster_class: false \
+          data.evaluate_ec_class=false \
+          data.evaluate_ec_cluster_class=false \
           logger=null_logger \
           'model.config.hidden_size=4' \
           'model.config.intermediate_size=4' \
