@@ -9,11 +9,12 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
+from torch import stack
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
-
+np.random.seed(42)  # is there a better way to do this?
 
 # TODO: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
@@ -55,31 +56,20 @@ class CustomDataCollator:
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
 
     def __call__(self, examples):
-        has_ds_name = "ds_name" in examples[0]
-        has_doc_hash = "doc_hash" in examples[0]
-        has_msa_id = "msa_id" in examples[0]
-        if has_ds_name or has_doc_hash or has_msa_id:
-            if has_ds_name:
-                ds_names = [example.pop("ds_name") for example in examples]
-            if has_doc_hash:
-                doc_hashes = [example.pop("doc_hash") for example in examples]
-            if has_msa_id:
-                msa_ids = [example.pop("msa_id") for example in examples]
-            batch = self.base_collator(examples)
-            if has_ds_name:
-                ds_names_obj = StringObject()
-                ds_names_obj.text = ds_names
-                batch["ds_name"] = ds_names_obj
-            if has_doc_hash:
-                doc_hash_obj = StringObject()
-                doc_hash_obj.text = doc_hashes
-                batch["doc_hash"] = doc_hash_obj
-            if has_msa_id:
-                msa_id_obj = StringObject()
-                msa_id_obj.text = msa_ids
-                batch["msa_id"] = msa_id_obj
-        else:
-            batch = self.base_collator(examples)
+        non_string_data = [
+            {k: v for k, v in e.items() if not isinstance(v, str)} for e in examples
+        ]
+        string_data = [
+            {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
+        ]
+        # string_data_keys = set([k for e in examples for k,v in e.items() if isinstance(v, str)])
+        string_data_keys = set(k for obs in string_data for k in obs.keys())
+        batch = self.base_collator(non_string_data)
+        for str_key in string_data_keys:
+            str_vals = [obs.get(str_key, "") for obs in string_data]
+            str_obj = StringObject()
+            str_obj.text = str_vals
+            batch[str_key] = str_obj
         return batch
 
 
@@ -133,6 +123,23 @@ def get_seq_pos_from_positions(
     seq_pos[:pad_start] = torch.tensor(flat_pos)
     return seq_pos
 
+def subsample_fasta_lines(lines, n_lines):
+    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
+    end_ix = start_ix[1:]
+    end_ix = np.append(end_ix, len(lines))
+    lines_per_seq = len(lines) // len(start_ix)
+    n_samples = n_lines // lines_per_seq
+    sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    starts = start_ix[sample_indices]
+    ends = end_ix[sample_indices]
+    assert len(start_ix) == len(end_ix)
+    sampled_lines = []
+    for start, end in zip(starts, ends):
+        assert lines[start][0] == ">"
+        assert lines[end-1][0] != ">"
+        sampled_lines.extend(lines[start:end])
+    return sampled_lines
+
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
@@ -143,13 +150,24 @@ def load_protein_dataset(
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        lines = example["text"].split("\n")
+        if not len(lines[-1]):
+            lines = lines[:-1]
+        # min 2 lines per seq, assume at least 10 tks per line
+        max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
+        if len(lines) > max_fasta_lines_to_preprocess:
+            lines = subsample_fasta_lines(
+                lines,
+                max_fasta_lines_to_preprocess
+            )
         if use_seq_pos:
             sequences = []
             positions = []
             for _, seq, pos in read_fasta_lines_with_positions(
-                example["text"].split("\n"),
+                lines,
                 keep_gaps=cfg.keep_gaps,
                 keep_insertions=cfg.keep_insertions,
                 to_upper=cfg.to_upper,
@@ -165,7 +183,7 @@ def load_protein_dataset(
             sequences = [
                 seq
                 for _, seq in read_fasta_lines(
-                    example["text"].split("\n"),
+                    lines,
                     keep_gaps=cfg.keep_gaps,
                     keep_insertions=cfg.keep_insertions,
                     to_upper=cfg.to_upper,
@@ -275,10 +293,6 @@ def load_protein_dataset(
             streaming=True,
             verification_mode="no_checks",
         )
-        try:
-            dataset = dataset.remove_columns(["__index_level_0__"])
-        except:
-            pass
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
@@ -335,3 +349,105 @@ def sample_to_max_tokens(
         sampled_sequences.append(seq)
         token_count += len(seq) + 1
     return sampled_sequences
+
+
+def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
+    if name == "bos":
+        return tokenizer.bos_token
+    elif name == "sep":
+        return tokenizer.sep_token
+    else:
+        pass
+
+
+def tokenize_msa(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    document_tag: Optional[str] = "[RAW]",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
+):
+    # TODO: fix tokenization. copying hf loader for now
+    concatenated_seqs = (
+        document_tag + tokenizer.bos_token + tokenizer.sep_token.join(sample["MSA"])
+    )  # No EOS token here because the target seq will be added
+    tokenized = tokenizer(
+        concatenated_seqs, return_tensors="pt", add_special_tokens=False
+    )
+    sample["input_ids"] = tokenized.input_ids[0]  # no extra dim
+    if use_seq_pos:
+        if any([any(c.islower() for c in s) for s in sample["MSA"]]):
+            raise ValueError("insertions not supported in seq pos calculation")
+        positions = [list(range(len(s))) for s in sample["MSA"]]
+        sample["seq_pos"] = get_seq_pos_from_positions(
+            sample["input_ids"],
+            positions,
+            pad_token_id=tokenizer.pad_token_id,
+            max_seq_pos=max_seq_pos,
+            num_start_tokens=2,
+            num_end_tokens=0,
+        )
+    return sample
+
+def tokenize_completions(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    bos_token="sep",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
+):
+    max_length = max(len(seq) for seq in sample["completion_seqs"])
+    completion_seqs = [
+        get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
+        for seq in sample["completion_seqs"]
+    ]
+    tokenized = tokenizer(
+        completion_seqs,
+        return_tensors="pt",
+        padding="max_length",  # todo handle the padding in the validation step
+        truncation=False,  # should be handled elsewhere
+        max_length=max_length + 2,  # bos_token and sep_token
+        add_special_tokens=False,
+    )
+    sample["completion_ids"] = tokenized.input_ids
+    if use_seq_pos:
+        completion_seq_pos = stack(
+            [
+                get_seq_pos_from_positions(
+                    sample["completion_ids"][i],
+                    [list(range(len(seq)))],
+                    pad_token_id=tokenizer.pad_token_id,
+                    max_seq_pos=max_seq_pos,
+                    num_start_tokens=1,
+                )
+                for i, seq in enumerate(sample["completion_seqs"])
+            ]
+        )
+        sample["completion_seq_pos"] = completion_seq_pos
+    return sample
+
+
+def tokenize(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    mutant_bos_token="sep",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
+    document_tag="[RAW]",
+):
+    sample = tokenize_msa(
+        sample,
+        tokenizer,
+        document_tag=document_tag,
+        use_seq_pos=use_seq_pos,
+        max_seq_pos=max_seq_pos,
+    )
+    if "completion_ids" not in sample:
+        sample = tokenize_completions(
+            sample,
+            tokenizer,
+            bos_token=mutant_bos_token,
+            use_seq_pos=use_seq_pos,
+            max_seq_pos=max_seq_pos,
+        )
+    return sample
