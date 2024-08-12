@@ -16,7 +16,7 @@ from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
-np.random.seed(42)  # is there a better way to do this?
+
 
 # TODO: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
@@ -129,18 +129,16 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
     end_ix = start_ix[1:]
     end_ix = np.append(end_ix, len(lines))
     lines_per_seq = len(lines) // len(start_ix)
-    n_samples = n_lines // lines_per_seq
+    n_samples = min(n_lines // lines_per_seq, len(start_ix))
     if shuffle:
         sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
     else:
         sample_indices = np.arange(n_samples)
     starts = start_ix[sample_indices]
     ends = end_ix[sample_indices]
-    assert len(start_ix) == len(end_ix)
     sampled_lines = []
     for start, end in zip(starts, ends):
-        assert lines[start][0] == ">"
-        assert lines[end-1][0] != ">"
+        assert lines[end - 1][0] != ">"
         sampled_lines.extend(lines[start:end])
     return sampled_lines
 
@@ -157,8 +155,6 @@ def load_protein_dataset(
     shuffle: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        # N.B. for stockholm format we need to check that sequences aren't split over
-        # multiple lines
         lines = example["text"].split("\n")
         if not len(lines[-1]):
             lines = lines[:-1]
@@ -168,7 +164,7 @@ def load_protein_dataset(
             lines = subsample_fasta_lines(
                 lines,
                 max_fasta_lines_to_preprocess,
-                shuffle=shuffle
+                shuffle=shuffle,
             )
         if use_seq_pos:
             sequences = []

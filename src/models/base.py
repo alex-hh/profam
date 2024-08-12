@@ -1,5 +1,6 @@
 import time
 from typing import Any, Dict, Optional
+import warnings
 
 import numpy as np
 import torch
@@ -552,56 +553,78 @@ class BaseFamilyLitModule(BaseLitModule):
         """
         if not hasattr(self, "family_likelihoods"):
             self.family_likelihoods = {}
+            self.batch_counter = 0
         val_ds_name = batch["ds_name"].text[0]
         if val_ds_name not in self.family_likelihoods:
             self.family_likelihoods[val_ds_name] = {}
-        for eval_seq_id, label in enumerate(batch["family_labels"][0].cpu().numpy()):
-            ll = lls[eval_seq_id]
-            if eval_seq_id not in self.family_likelihoods[val_ds_name]:
-                self.family_likelihoods[val_ds_name][eval_seq_id] = {}
-            if label == 1:
-                if 1 in self.family_likelihoods[val_ds_name][eval_seq_id]:  # 1 fam per seq
-                    bp = 1
-                self.family_likelihoods[val_ds_name][eval_seq_id][1] = ll
+        prompt_fam_id = batch["family_id"].text[0]
+        eval_fam_id = batch["eval_fam_ids"].text[0].split("|")
+        for eval_seq_ix, bin_label in enumerate(batch["family_labels"][0].cpu().numpy()):
+            if eval_fam_id[eval_seq_ix] == prompt_fam_id:
+                label = 1
             else:
-                if 0 not in self.family_likelihoods[val_ds_name][eval_seq_id]:
-                    self.family_likelihoods[val_ds_name][eval_seq_id][0] = []
-                self.family_likelihoods[val_ds_name][eval_seq_id][0].append(ll)
+                label = 0
+            if label != bin_label:
+                print("label scheme discrepancy")
+            ll = lls[eval_seq_ix]
+            if eval_seq_ix not in self.family_likelihoods[val_ds_name]:
+                self.family_likelihoods[val_ds_name][eval_seq_ix] = {}
+            if label == 1:
+                if 1 in self.family_likelihoods[val_ds_name][eval_seq_ix]:  # 1 fam per seq
+                    warnings.warn("Multiple families assigned for eval seq")
+                self.family_likelihoods[val_ds_name][eval_seq_ix][1] = ll
+            else:
+                if 0 not in self.family_likelihoods[val_ds_name][eval_seq_ix]:
+                    self.family_likelihoods[val_ds_name][eval_seq_ix][0] = []
+                self.family_likelihoods[val_ds_name][eval_seq_ix][0].append(ll)
+        self.batch_counter += 1
         if self.trainer.sanity_checking:
             self.family_likelihoods = {}
+            self.batch_counter = 0
 
 
     def on_validation_epoch_end(self):
+        """
+        Likelihood scores are accumulated across batches
+        at end of epoch multi-class metrics can be calcd
+        """
         super().on_validation_epoch_end()
         if self.trainer.sanity_checking:
             return
         if hasattr(self, "family_likelihoods"):
             ce_scores = []
             acc_scores = []
-            for eval_seq, lls in self.family_likelihoods.items():
-                # softmax likelihoods to get probability over families
-                labels = np.array([1] + [0] * len(lls[0]))
-                if 1 in lls:
-                    lls = [lls[1]] + lls[0]
-                    probs = np.exp(lls) / np.exp(lls).sum()
-                    # calculate cross entropy
-                    ce = -np.log(probs[labels == 1]).mean()
-                    ce_scores.append(ce)
-                    if np.argmax(probs) == 0:
-                        acc_scores.append(1)
+            for val_name in self.family_likelihoods:
+                for eval_seq, lls in self.family_likelihoods[val_name].items():
+                    # softmax likelihoods to get probability over families
+                    labels = np.array([1] + [0] * len(lls[0]))
+                    if 1 in lls:
+                        lls = np.array([lls[1]] + lls[0])
+                        lls = lls - lls.max()
+                        probs = np.exp(lls) / np.exp(lls).sum()
+                        # calculate cross entropy
+                        ce = -np.log(probs[labels == 1]).mean()
+                        ce_scores.append(ce)
+                        if np.argmax(probs) == 0:
+                            acc_scores.append(1)
+                        else:
+                            acc_scores.append(0)
                     else:
-                        acc_scores.append(0)
-                else:
-                    print(f"Warning: Eval seq has no positive family")
+                        warnings.warn(f"Warning: Eval seq has no positive family")
 
-            self.log(
-                "family_class_cr_ent", sum(ce_scores) / len(ce_scores), on_step=False
-            )
+                self.log(
+                    f"val/{val_name}_class_cr_ent",
+                    sum(ce_scores) / len(ce_scores),
+                    on_step=False
+                )
 
-            self.log(
-                "family_class_acc", sum(acc_scores) / len(acc_scores), on_step=False
-            )
-            self.family_likelihooods = {}
+                self.log(
+                    f"val/{val_name}_class_acc",
+                    sum(acc_scores) / len(acc_scores),
+                    on_step=False
+                )
+        self.family_likelihoods = {}
+        self.batch_counter = 0
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -661,6 +684,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     },
                     on_step=True,
                     on_epoch=False,
+                    batch_size=batch_size,
                 )
 
             if "doc_hash" in batch:
@@ -680,6 +704,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     },
                     on_step=True,
                     on_epoch=False,
+                    batch_size=batch_size,
                 )
             if "total_num_sequences" in batch:
                 self.log(

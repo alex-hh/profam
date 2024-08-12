@@ -78,7 +78,9 @@ def tokenize_pfam(
     )
 
     sample["family_labels"] = [1 if s == msa_name else 0 for s in eval_names]
+    assert sum(sample["family_labels"]) > 0 # at least one eval seq is in the fam
     sample["ds_name"] = "pfam"
+    sample["eval_fam_ids"] = "|".join(eval_names)
     return sample
 
 
@@ -87,7 +89,7 @@ def load_pfam_classification_dataset(
     keep_insertions,
     to_upper,
     keep_gaps,
-    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas/debug_subsample",
+    pfam_dir,
     max_tokens=10000,
     use_seq_pos=False,
     max_seq_pos: int = 1024,
@@ -99,6 +101,11 @@ def load_pfam_classification_dataset(
     eval_labels = []
 
     eval_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_test.fasta"))
+    prompt_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_train.fasta"))
+    assert len(eval_seq_paths) == len(prompt_seq_paths)
+    train_names = set([p.split("/")[-1].split("_train.")[0] for p in prompt_seq_paths])
+    test_names = set([p.split("/")[-1].split("_test.")[0] for p in eval_seq_paths])
+    assert train_names == test_names, "Pfam prompt and completion files do not match."
     max_eval_len = 0
     for eval_path in eval_seq_paths:
         eval_name = eval_path.split("/")[-1].split("_")[0]
@@ -119,7 +126,7 @@ def load_pfam_classification_dataset(
     max_msa_tokens = max_tokens - max_eval_len - 2
     if use_seq_pos:
         n_seqs, longest = tok_eval_seqs["completion_ids"].shape
-        completion_seq_pos = arange(-1, longest - 1).repeat(n_seqs, 1)
+        completion_seq_pos = arange(0, longest).repeat(n_seqs, 1)
         assert completion_seq_pos.shape == tok_eval_seqs["completion_ids"].shape
         completion_seq_pos[:, 0] = 0
         completion_seq_pos.clamp_(max=max_seq_pos)
@@ -152,7 +159,8 @@ def load_pfam_classification_dataset(
         num_proc=num_workers or None,
     )
 
-    columns = ["input_ids", "completion_ids", "family_labels", "ds_name", "family_id"]
+    columns = ["input_ids", "completion_ids", "eval_fam_ids",
+               "family_labels", "ds_name", "family_id"]
     if use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 

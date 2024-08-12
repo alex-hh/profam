@@ -11,13 +11,16 @@ tags: ["pfam", "mistral_tiny"]
 seed: 12345
 
 trainer:
-  val_check_interval: 3
+  val_check_interval: 50
+  target_tokens_per_batch: 256000
+  min_epochs: 1000
+  max_epochs: 10000
 
 data:
   _target_: src.data.hf_protein_datamodule.ProteinDataModule
-  batch_size: 40
+  batch_size: 20
   num_workers: 0
-  max_tokens: 4000
+  max_tokens: 5000
   data_dir: ../data
   val_dataset_name: interpro
   tokenizer_path: src/data/components/profam_tokenizer.json
@@ -33,11 +36,12 @@ data:
     pfam_domain:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: pfam_domain
-      data_path_pattern: pfam/parquets/Domain/*.parquet
-      is_parquet: true
+      data_path_pattern: "pfam/pfam_eval_splits/clustered_split_fastas_debug/*_train.fasta"
+      is_parquet: false
       keep_gaps: true
       to_upper: true
       keep_insertions: true
+      file_repeats: 100
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro
