@@ -79,8 +79,11 @@ def convert_sequence_with_positions(
     i.e. insertions have the same position as the previous match state.
 
     TODO: write test
+
+    N.B. currently there is ambiguity between position encoding for a gap then insert
+    and a match state. we require a binary mask to resolve.
     """
-    match_index = 0
+    match_index = 0  # 0 for inserts before first match state
     positions = []
     sequence = ""
     if not keep_gaps:
@@ -95,10 +98,11 @@ def convert_sequence_with_positions(
             # TODO: check for valid characters
             upper = aa.upper()
             if upper == aa or keep_insertions:
-                positions.append(match_index)
-                sequence += upper
+                # increment first so that insert corresponds to prev match state
                 if upper == aa and aa != ".":  # includes case where aa is "-"
                     match_index += 1
+                positions.append(match_index)
+                sequence += upper
         elif aa == "-":
             match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
 
