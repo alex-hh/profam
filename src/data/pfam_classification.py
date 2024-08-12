@@ -75,6 +75,7 @@ def tokenize_pfam(
 
 def load_pfam_classification_dataset(
     tokenizer,
+    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas",
     max_tokens=10000,
     use_seq_pos=False,
     max_seq_pos: int = 1024,
@@ -82,7 +83,6 @@ def load_pfam_classification_dataset(
     num_workers=4,
     max_eval_per_fam=4,
 ):
-    pfam_dir = "../data/pfam/pfam_eval_splits/clustered_split_fastas"
     combined_eval_seqs = []
     eval_labels = []
 

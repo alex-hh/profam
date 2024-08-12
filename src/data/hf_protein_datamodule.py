@@ -10,6 +10,7 @@ from src.data.family_classification import (
     load_classifier_dataset,
     load_ec_cluster_classifier_dataset,
 )
+from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -36,6 +37,7 @@ class ProteinDataModule(LightningDataModule):
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
         evaluate_ec_cluster_class: bool = True,
+        evaluate_pfam_class: bool = False,
         count_doc_hashes: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
@@ -54,6 +56,7 @@ class ProteinDataModule(LightningDataModule):
             self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
         self.evaluate_ec_cluster_class = evaluate_ec_cluster_class
+        self.evaluate_pfam_class = evaluate_pfam_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.use_seq_pos = use_seq_pos
@@ -161,7 +164,16 @@ class ProteinDataModule(LightningDataModule):
                     use_seq_pos=self.use_seq_pos,
                     max_seq_pos=self.max_seq_pos,
                 )
-
+            if self.evaluate_pfam_class:
+                self.pfam_class_dataset = load_pfam_classification_dataset(
+                    tokenizer=self.tokenizer,
+                    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas",
+                    max_tokens=self.max_tokens,
+                    use_seq_pos=self.use_seq_pos,
+                    max_seq_pos=self.max_seq_pos,
+                    num_workers=self.num_workers,
+                    max_eval_per_fam=4,
+                )
             self._is_setup = True
 
     def train_dataloader(self) -> list[DataLoader]:
