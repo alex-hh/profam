@@ -77,14 +77,6 @@ def make_zip_dictionary():
     return af2zip
 
 
-def generate_lock_file_name(directory):
-    now = datetime.datetime.now().isoformat()
-    hash_object = hashlib.md5(now.encode())
-    unique_hash = hash_object.hexdigest()
-    lock_file_name = f"{unique_hash}.lock"
-    return os.path.join(directory, lock_file_name)
-
-
 def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -135,7 +127,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
 
         for afdb_id in cluster_members:
-            pdb = os.path.join(scratch_dir, afdb_id, afdb_id + ".pdb")
+            pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id, afdb_id + ".pdb")
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
             is_foldseek_representative.append(metadata["is_foldseek_representative"])
@@ -178,7 +170,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
 
 def extract_pdbs(zip_filename, afdb_ids, save_dir):
     # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
-    print("Extracting pdbs", zip_filename, cluster_ids, afdb_ids, flush=True)
+    print("Extracting pdbs", zip_filename, afdb_ids, flush=True)
     t0 = time.time()
     successes = extract_multi_pdb_files(
          afdb_ids, zip_filename, save_dir,
