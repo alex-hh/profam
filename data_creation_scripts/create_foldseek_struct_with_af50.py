@@ -272,7 +272,7 @@ def build_single_parquet(
             success_count, fail_count = result.get()
             seq_success_counter += success_count
             seq_fail_counter += fail_count
-    print("\nProcessed", cluster_counter, "clusters")
+    print("\Clusters extracted:", cluster_counter, "clusters")
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
     t3 = time.time()
