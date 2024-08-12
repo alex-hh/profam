@@ -117,6 +117,7 @@ class BaseLitModule(LightningModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        print("Training step", flush=True)
         forward_kwargs = self.get_forward_kwargs(batch)
         outputs = self(
             input_ids=batch["input_ids"],
@@ -168,6 +169,7 @@ class BaseLitModule(LightningModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
+        print("Validation step", flush=True)
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs

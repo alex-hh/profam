@@ -29,10 +29,11 @@ jobs:
           model=mistral \
           trainer=cpu \
           trainer.max_epochs=2 \
+          trainer.num_vanity_val_steps=0 \
           data=example_data \
           data.data_dir=data \
           data.batch_size=2 \
-          data.num_workers=1 \
+          data.num_workers=0 \
           data.max_tokens=2000 \
           data.gym_data_dir="tiny_data/ProteinGym" \
           logger=null_logger \
