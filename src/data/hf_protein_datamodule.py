@@ -240,6 +240,16 @@ class ProteinDataModule(LightningDataModule):
                     shuffle=False,
                 )
             )
+
+        if self.evaluate_pfam_class:
+            loaders.append(
+                DataLoader(
+                    self.pfam_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
+            )
         return loaders
 
     def test_dataloader(self) -> list[DataLoader]:
