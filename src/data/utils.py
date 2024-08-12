@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import torch
 from datasets import Dataset, load_dataset
-from torch import stack
 from omegaconf.listconfig import ListConfig
+from torch import stack
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
@@ -122,6 +122,7 @@ def get_seq_pos_from_positions(
         pad_start = input_ids.shape[0]
     seq_pos[:pad_start] = torch.tensor(flat_pos)
     return seq_pos
+
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
     start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
