@@ -164,7 +164,7 @@ def load_protein_dataset(
             lines = subsample_fasta_lines(
                 lines,
                 max_fasta_lines_to_preprocess,
-                shuffle=shuffle
+                shuffle=shuffle,
             )
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
