@@ -11,11 +11,11 @@ import numpy as np
 import torch
 from datasets import Dataset, load_dataset
 from torch import stack
+from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
 
-np.random.seed(42)  # is there a better way to do this?
 
 # TODO: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
@@ -63,7 +63,6 @@ class CustomDataCollator:
         string_data = [
             {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
         ]
-        # string_data_keys = set([k for e in examples for k,v in e.items() if isinstance(v, str)])
         string_data_keys = set(k for obs in string_data for k in obs.keys())
         batch = self.base_collator(non_string_data)
         for str_key in string_data_keys:
@@ -124,14 +123,16 @@ def get_seq_pos_from_positions(
     seq_pos[:pad_start] = torch.tensor(flat_pos)
     return seq_pos
 
-
-def subsample_fasta_lines(lines, n_lines):
+def subsample_fasta_lines(lines, n_lines, shuffle=True):
     start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
     end_ix = start_ix[1:]
     end_ix = np.append(end_ix, len(lines))
     lines_per_seq = len(lines) // len(start_ix)
-    n_samples = n_lines // lines_per_seq
-    sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    n_samples = min(n_lines // lines_per_seq, len(start_ix))
+    if shuffle:
+        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    else:
+        sample_indices = np.arange(n_samples)
     starts = start_ix[sample_indices]
     ends = end_ix[sample_indices]
     sampled_lines = []
@@ -144,12 +145,13 @@ def subsample_fasta_lines(lines, n_lines):
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
-    max_tokens: int = 5000,
+    max_tokens: Optional[int] = 5000,
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+    shuffle: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         lines = example["text"].split("\n")
@@ -159,6 +161,8 @@ def load_protein_dataset(
         max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
         if len(lines) > max_fasta_lines_to_preprocess:
             lines = subsample_fasta_lines(lines, max_fasta_lines_to_preprocess)
+        # N.B. for stockholm format we need to check that sequences aren't split over
+        # multiple lines
         if use_seq_pos:
             sequences = []
             positions = []
@@ -172,9 +176,10 @@ def load_protein_dataset(
                 positions.append(pos)
 
             # TODO: seed explicitly?
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
-            positions = [positions[i] for i in perm]
+            if shuffle:
+                perm = np.random.permutation(len(sequences))
+                sequences = [sequences[i] for i in perm]
+                positions = [positions[i] for i in perm]
         else:
             sequences = [
                 seq
@@ -185,16 +190,20 @@ def load_protein_dataset(
                     to_upper=cfg.to_upper,
                 )
             ]
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
+            if shuffle:
+                perm = np.random.permutation(len(sequences))
+                sequences = [sequences[i] for i in perm]
 
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
+        if max_tokens is not None:
+            cumulative_lengths = list(
+                itertools.accumulate([len(s) + 1 for s in sequences])
+            )  # +1 for separator
+            insertion_point = bisect.bisect_left(
+                cumulative_lengths,
+                max_tokens - 2,
+            )  # -2 for doc start and end tokens
+        else:
+            insertion_point = len(sequences)
         concatenated_seqs = (
             cfg.document_tag
             + tokenizer.bos_token
@@ -210,10 +219,11 @@ def load_protein_dataset(
             padding="max_length",
             add_special_tokens=False,
         )
-        assert tokenized.input_ids.shape[1] <= max_tokens, (
-            tokenized.input_ids.shape[1],
-            max_tokens,
-        )
+        if max_tokens is not None:
+            assert tokenized.input_ids.shape[1] <= max_tokens, (
+                tokenized.input_ids.shape[1],
+                max_tokens,
+            )
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
@@ -268,7 +278,9 @@ def load_protein_dataset(
             ]
 
     if cfg.holdout_data_files is not None:
-        assert isinstance(cfg.holdout_data_files, list)
+        assert isinstance(cfg.holdout_data_files, list) or isinstance(
+            cfg.holdout_data_files, ListConfig
+        ), f"holdout files is {type(cfg.holdout_data_files)} not list"
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in cfg.holdout_data_files]
         print("Excluding", all_files - len(data_files), "holdout files")
