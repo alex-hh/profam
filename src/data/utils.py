@@ -167,7 +167,7 @@ def load_protein_dataset(
             sequences = []
             positions = []
             for seq in itertools.islice(
-                sequence_iterator, cfg.truncate_after_n_sequences or 1e8
+                sequence_iterator, cfg.truncate_after_n_sequences
             ):
                 seq, pos = convert_sequence_with_positions(
                     seq,
@@ -187,7 +187,7 @@ def load_protein_dataset(
             sequences = [
                 seq
                 for seq in itertools.islice(
-                    sequence_iterator, cfg.truncate_after_n_sequences or 1e8
+                    sequence_iterator, cfg.truncate_after_n_sequences
                 )
             ]  # necessary for fasta iterator...
             if shuffle:
