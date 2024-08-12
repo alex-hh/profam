@@ -85,6 +85,7 @@ def convert_sequence_with_positions(
     """
     match_index = 0  # 0 for inserts before first match state
     positions = []
+    is_match = []
     sequence = ""
     if not keep_gaps:
         assert keep_insertions, "If not keeping gaps should keep insertions"
@@ -101,13 +102,16 @@ def convert_sequence_with_positions(
                 # increment first so that insert corresponds to prev match state
                 if upper == aa and aa != ".":  # includes case where aa is "-"
                     match_index += 1
+                    is_match.append(True)
+                else:
+                    is_match.append(False)
                 positions.append(match_index)
                 sequence += upper
         elif aa == "-":
             match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
 
-    assert len(positions) == len(sequence)
-    return sequence, positions
+    assert len(positions) == len(sequence) and len(sequence) == len(is_match)
+    return sequence, positions, is_match
 
 
 def fasta_generator(

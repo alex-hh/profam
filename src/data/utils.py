@@ -169,7 +169,7 @@ def load_protein_dataset(
             for seq in itertools.islice(
                 sequence_iterator, cfg.truncate_after_n_sequences
             ):
-                seq, pos = convert_sequence_with_positions(
+                seq, pos, _ = convert_sequence_with_positions(
                     seq,
                     keep_gaps=cfg.keep_gaps,
                     keep_insertions=cfg.keep_insertions,
