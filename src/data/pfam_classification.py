@@ -53,7 +53,7 @@ def tokenize_pfam(
     assert len(set(msa_names)) == 1
     assert msa_name in msa_names
 
-    data_utils.sample_to_max_tokens(
+    msa_seqs = data_utils.sample_to_max_tokens(
         msa_seqs,
         seed=seed,
         keep_first=True,
@@ -152,7 +152,7 @@ def load_pfam_classification_dataset(
         num_proc=num_workers or None,
     )
 
-    columns = ["input_ids", "completion_ids", "family_labels", "ds_name"]
+    columns = ["input_ids", "completion_ids", "family_labels", "ds_name", "family_id"]
     if use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 

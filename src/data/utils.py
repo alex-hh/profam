@@ -14,7 +14,7 @@ from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
-
+np.random.seed(42)  # is there a better way to do this?
 
 # TODO: in future we might actually want standalone dataset class for
 # more flexible customisation (e.g. mapping uniprot ids via db)
@@ -123,6 +123,23 @@ def get_seq_pos_from_positions(
     seq_pos[:pad_start] = torch.tensor(flat_pos)
     return seq_pos
 
+def subsample_fasta_lines(lines, n_lines):
+    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
+    end_ix = start_ix[1:]
+    end_ix = np.append(end_ix, len(lines))
+    lines_per_seq = len(lines) // len(start_ix)
+    n_samples = n_lines // lines_per_seq
+    sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    starts = start_ix[sample_indices]
+    ends = end_ix[sample_indices]
+    assert len(start_ix) == len(end_ix)
+    sampled_lines = []
+    for start, end in zip(starts, ends):
+        assert lines[start][0] == ">"
+        assert lines[end-1][0] != ">"
+        sampled_lines.extend(lines[start:end])
+    return sampled_lines
+
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
@@ -133,13 +150,24 @@ def load_protein_dataset(
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        lines = example["text"].split("\n")
+        if not len(lines[-1]):
+            lines = lines[:-1]
+        # min 2 lines per seq, assume at least 10 tks per line
+        max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
+        if len(lines) > max_fasta_lines_to_preprocess:
+            lines = subsample_fasta_lines(
+                lines,
+                max_fasta_lines_to_preprocess
+            )
         if use_seq_pos:
             sequences = []
             positions = []
             for _, seq, pos in read_fasta_lines_with_positions(
-                example["text"].split("\n"),
+                lines,
                 keep_gaps=cfg.keep_gaps,
                 keep_insertions=cfg.keep_insertions,
                 to_upper=cfg.to_upper,
@@ -155,7 +183,7 @@ def load_protein_dataset(
             sequences = [
                 seq
                 for _, seq in read_fasta_lines(
-                    example["text"].split("\n"),
+                    lines,
                     keep_gaps=cfg.keep_gaps,
                     keep_insertions=cfg.keep_insertions,
                     to_upper=cfg.to_upper,

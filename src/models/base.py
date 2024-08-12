@@ -538,6 +538,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 on_step=False,
                 on_epoch=True,
             )
+        self.update_family_likelihoods(batch, lls)
         return torch.tensor(metric, device=self.device, dtype=torch.float32)
 
     def update_family_likelihoods(self, batch, lls):
@@ -546,26 +547,34 @@ class BaseFamilyLitModule(BaseLitModule):
         conditioned on a single family. This means
         we can re-use the KV cache across all seqs.
         For the multi-class objective we need to store
-        the liklihood of each seq conditioned on each
+        the likelihood of each seq conditioned on each
         family. lls from each batch are stored here
         """
         if not hasattr(self, "family_likelihoods"):
             self.family_likelihoods = {}
+        val_ds_name = batch["ds_name"].text[0]
+        if val_ds_name not in self.family_likelihoods:
+            self.family_likelihoods[val_ds_name] = {}
         for eval_seq_id, label in enumerate(batch["family_labels"][0].cpu().numpy()):
             ll = lls[eval_seq_id]
-            if eval_seq_id not in self.family_likelihoods:
-                self.family_likelihoods[eval_seq_id] = {}
+            if eval_seq_id not in self.family_likelihoods[val_ds_name]:
+                self.family_likelihoods[val_ds_name][eval_seq_id] = {}
             if label == 1:
-                if 1 in self.family_likelihoods[eval_seq_id]:  # 1 fam per seq
+                if 1 in self.family_likelihoods[val_ds_name][eval_seq_id]:  # 1 fam per seq
                     bp = 1
-                self.family_likelihoods[eval_seq_id][1] = ll
+                self.family_likelihoods[val_ds_name][eval_seq_id][1] = ll
             else:
-                if 0 not in self.family_likelihoods[eval_seq_id]:
-                    self.family_likelihoods[eval_seq_id][0] = []
-                self.family_likelihoods[eval_seq_id][0].append(ll)
+                if 0 not in self.family_likelihoods[val_ds_name][eval_seq_id]:
+                    self.family_likelihoods[val_ds_name][eval_seq_id][0] = []
+                self.family_likelihoods[val_ds_name][eval_seq_id][0].append(ll)
+        if self.trainer.sanity_checking:
+            self.family_likelihoods = {}
+
 
     def on_validation_epoch_end(self):
         super().on_validation_epoch_end()
+        if self.trainer.sanity_checking:
+            return
         if hasattr(self, "family_likelihoods"):
             ce_scores = []
             acc_scores = []
@@ -597,6 +606,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        batch_size = batch["input_ids"].shape[0]
         forward_kwargs = self.get_forward_kwargs(batch)
         outputs = self(
             input_ids=batch["input_ids"],
@@ -607,9 +617,13 @@ class BaseFamilyLitModule(BaseLitModule):
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
-            "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
+            "train/loss", loss, on_step=True, on_epoch=True,
+            prog_bar=True, batch_size=batch_size,
+        )
+        self.log(
+            "train/accuracy", accuracy, on_step=False, on_epoch=True,
+            prog_bar=True, batch_size=batch_size,
         )
         # https://huggingface.co/docs/transformers/perplexity
         # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round
@@ -620,6 +634,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 on_step=False,
                 on_epoch=True,
                 prog_bar=False,
+                batch_size=batch_size,
             )
             self.log(
                 "train/n_seqs",
@@ -630,6 +645,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 .item(),
                 on_step=True,
                 on_epoch=False,
+                batch_size=batch_size,
             )
             self.log_ds_sample_counts(batch)
             if "ds_name" in batch:
