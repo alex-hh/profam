@@ -52,7 +52,7 @@ multidict==6.0.5
 multiprocess==0.70.16
 networkx
 nodeenv==1.8.0
-numpy
+numpy==1.26.2
 omegaconf==2.3.0
 optuna==2.10.1
 packaging==24.0
