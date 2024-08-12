@@ -29,7 +29,6 @@ jobs:
           model=mistral \
           trainer=cpu \
           trainer.max_epochs=2 \
-          trainer.num_vanity_val_steps=0 \
           data=example_data \
           data.data_dir=data \
           data.batch_size=2 \
@@ -46,3 +45,4 @@ jobs:
           'data.dataset_cfgs.openfold_aligned.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
           'data.dataset_cfgs.openfold_raw.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
           'data.dataset_cfgs.ec.data_path_pattern="tiny_data/expasy_ec/*.fasta"'
+          +trainer.num_sanity_val_steps=0 \
