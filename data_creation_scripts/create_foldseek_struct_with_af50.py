@@ -78,9 +78,6 @@ def make_zip_dictionary():
 
 
 def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
     # Extract the specified PDB files
     zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
     successes = []
@@ -157,8 +154,8 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "is_af50_representative": is_af50_representative,
             }
         )
-        print("Deleting directory", os.path.join(scratch_dir, cluster_id), flush=True)
-        shutil.rmtree(os.path.join(scratch_dir, cluster_id))
+        print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
+        shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
@@ -239,13 +236,16 @@ def build_single_parquet(
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
     # Parallel extraction of pdb files"
+    output_dir = os.path.join(scratch_dir, str(parquet_id))
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = []
         for zip_filename, afdb_ids in pdb_lookup.items():
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
             result = pool.apply_async(
                 extract_pdbs,
-                args=(zip_filename, afdb_ids, os.path.join(scratch_dir, str(parquet_id)))
+                args=(zip_filename, afdb_ids, output_dir))
             )
             results.append(result)
 
