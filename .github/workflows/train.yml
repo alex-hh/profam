@@ -36,6 +36,8 @@ jobs:
           data.max_tokens=2000 \
           data.gym_data_dir="tiny_data/ProteinGym" \
           logger=null_logger \
+          +trainer.num_sanity_val_steps=0 \
+          trainer.val_check_interval=1.0 \
           'model.config.hidden_size=4' \
           'model.config.intermediate_size=4' \
           'model.config.num_attention_heads=1' \
@@ -45,4 +47,3 @@ jobs:
           'data.dataset_cfgs.openfold_aligned.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
           'data.dataset_cfgs.openfold_raw.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
           'data.dataset_cfgs.ec.data_path_pattern="tiny_data/expasy_ec/*.fasta"'
-          +trainer.num_sanity_val_steps=0 \

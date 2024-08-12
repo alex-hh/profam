@@ -116,6 +116,7 @@ class ProteinDataModule(LightningDataModule):
                 use_seq_pos=self.use_seq_pos,
                 max_seq_pos=self.max_seq_pos,
             )
+            print("val sample", next(iter(self.val_dataset)))
             self.test_dataset = load_protein_dataset(
                 self.dataset_cfgs[self.val_dataset_name],
                 self.tokenizer,
@@ -204,6 +205,7 @@ class ProteinDataModule(LightningDataModule):
                     shuffle=False,
                 )
             )
+        print("Loaded val loaders:", len(loaders))
         return loaders
 
     def test_dataloader(self) -> List[DataLoader]:
