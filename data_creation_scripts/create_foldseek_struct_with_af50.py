@@ -245,7 +245,7 @@ def build_single_parquet(
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
             result = pool.apply_async(
                 extract_pdbs,
-                args=(zip_filename, afdb_ids, output_dir))
+                args=(zip_filename, afdb_ids, output_dir)
             )
             results.append(result)
 
