@@ -241,8 +241,7 @@ def build_single_parquet(
     # Parallel extraction of pdb files"
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = []
-        for zip_filename, _ids in pdb_lookup.items():
-            afdb_ids = [x[1] for x in _ids]
+        for zip_filename, afdb_ids in pdb_lookup.items():
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
             result = pool.apply_async(
                 extract_pdbs,
