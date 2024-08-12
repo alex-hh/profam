@@ -117,7 +117,6 @@ class BaseLitModule(LightningModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        print("Training step", flush=True)
         forward_kwargs = self.get_forward_kwargs(batch)
         outputs = self(
             input_ids=batch["input_ids"],
@@ -169,7 +168,6 @@ class BaseLitModule(LightningModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
-        print("Validation step", flush=True)
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs
@@ -462,7 +460,6 @@ class BaseFamilyLitModule(BaseLitModule):
         on caching: it seems like, if we modify what is passed to attention forward, existing cache
         might just work. currently model/sampling loop probably passes just the next token.
         """
-        print("Gym validation step", flush=True)
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
         L_prompt = batch["input_ids"].shape[-1]
@@ -533,7 +530,6 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        print("Training step", flush=True)
         forward_kwargs = self.get_forward_kwargs(batch)
         outputs = self(
             input_ids=batch["input_ids"],
