@@ -13,7 +13,11 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
+from src.data.fasta import (
+    convert_sequence_with_positions,
+    read_fasta_lines,
+    read_fasta_lines_with_positions,
+)
 
 
 # TODO: in future we might actually want standalone dataset class for
@@ -150,18 +154,27 @@ def load_protein_dataset(
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
         if use_seq_pos:
-            if "sequences" in example:
-                raise NotImplementedError()
             sequences = []
             positions = []
-            for _, seq, pos in read_fasta_lines_with_positions(
-                example["text"].split("\n"),
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
-            ):
-                sequences.append(seq)
-                positions.append(pos)
+            if "sequences" in example:
+                for seq in example["sequences"]:
+                    seq, pos = convert_sequence_with_positions(
+                        seq,
+                        keep_gaps=cfg.keep_gaps,
+                        keep_insertions=cfg.keep_insertions,
+                        to_upper=cfg.to_upper,
+                    )
+                    sequences.append(seq)
+                    positions.append(pos)
+            else:
+                for _, seq, pos in read_fasta_lines_with_positions(
+                    example["text"].split("\n"),
+                    keep_gaps=cfg.keep_gaps,
+                    keep_insertions=cfg.keep_insertions,
+                    to_upper=cfg.to_upper,
+                ):
+                    sequences.append(seq)
+                    positions.append(pos)
 
             # TODO: seed explicitly?
             if shuffle:
