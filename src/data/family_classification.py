@@ -14,7 +14,7 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
-from src.data.proteingym import tokenize
+from src.data.utils import tokenize
 
 
 def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_pos):

@@ -167,7 +167,10 @@ class ProteinDataModule(LightningDataModule):
             if self.evaluate_pfam_class:
                 self.pfam_class_dataset = load_pfam_classification_dataset(
                     tokenizer=self.tokenizer,
-                    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas",
+                    keep_insertions=True,  # TODO: should be val config
+                    to_upper=True,  # TODO: should be val config
+                    keep_gaps=True,  # TODO: should be val config
+                    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas/debug_subsample",
                     max_tokens=self.max_tokens,
                     use_seq_pos=self.use_seq_pos,
                     max_seq_pos=self.max_seq_pos,

@@ -1,12 +1,12 @@
 # @package _global_
 defaults:
   - override /data: null
-  - override /model: llama_tiny
+  - override /model: mistral_tiny
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - _self_
 
-tags: ["pfam", "llama_tiny"]
+tags: ["pfam", "mistral_tiny"]
 
 seed: 12345
 
@@ -41,9 +41,9 @@ data:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro
       data_path_pattern: ../profam/data/example_data/interpro/protein-matching-*.fasta
-      keep_gaps: false
-      to_upper: false
-      keep_insertions: false
+      keep_gaps: true
+      to_upper: true
+      keep_insertions: true
   data_weights:
     pfam_domain: 1.0
     interpro: 0.0

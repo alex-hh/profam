@@ -469,7 +469,7 @@ class BaseFamilyLitModule(BaseLitModule):
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=(self.scoring_max_tokens - L_prompt) // L
+            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -503,7 +503,7 @@ class BaseFamilyLitModule(BaseLitModule):
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=(self.scoring_max_tokens - L_prompt) // L
+            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -513,14 +513,14 @@ class BaseFamilyLitModule(BaseLitModule):
         precision, recall, thresholds = precision_recall_curve(target_vals, lls)
         metric = auc(recall, precision)
         self.log(
-            "val/auprc_fam_classification",
+            f"val/{batch.get('ds_name').text[0]}_auprc_classification",
             metric,
             on_step=False,
             on_epoch=True,
         )
         au_roc = roc_auc_score(target_vals, lls)
         self.log(
-            "val/auroc_fam_classification",
+            f"val/{batch.get('ds_name').text[0]}_auroc_classification",
             au_roc,
             on_step=False,
             on_epoch=True,
@@ -533,7 +533,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 )
             ) / min(top_k, sum(target_vals))
             self.log(
-                f"val/top_{top_k}_acc_fam_classification",
+                f"val/{batch.get('ds_name').text[0]}_top_{top_k}_acc_classification",
                 top_k_acc,
                 on_step=False,
                 on_epoch=True,

@@ -12,5 +12,7 @@ config:
   num_hidden_layers: 6
   sliding_window: 1024
 
-scoring_max_tokens: 8000
+scoring_max_tokens: 64000
 use_kv_cache_for_scoring: True
+use_seq_pos: ${data.use_seq_pos}  # embed sequence relative position
+max_seq_pos: ${data.max_seq_pos}  # maximum sequence position

@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
+from torch import stack
 from datasets import Dataset, load_dataset
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
@@ -264,10 +265,6 @@ def load_protein_dataset(
             streaming=True,
             verification_mode="no_checks",
         )
-        try:
-            dataset = dataset.remove_columns(["__index_level_0__"])
-        except:
-            pass
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
@@ -324,3 +321,105 @@ def sample_to_max_tokens(
         sampled_sequences.append(seq)
         token_count += len(seq) + 1
     return sampled_sequences
+
+
+def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
+    if name == "bos":
+        return tokenizer.bos_token
+    elif name == "sep":
+        return tokenizer.sep_token
+    else:
+        pass
+
+
+def tokenize_msa(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    document_tag: Optional[str] = "[RAW]",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
+):
+    # TODO: fix tokenization. copying hf loader for now
+    concatenated_seqs = (
+        document_tag + tokenizer.bos_token + tokenizer.sep_token.join(sample["MSA"])
+    )  # No EOS token here because the target seq will be added
+    tokenized = tokenizer(
+        concatenated_seqs, return_tensors="pt", add_special_tokens=False
+    )
+    sample["input_ids"] = tokenized.input_ids[0]  # no extra dim
+    if use_seq_pos:
+        if any([any(c.islower() for c in s) for s in sample["MSA"]]):
+            raise ValueError("insertions not supported in seq pos calculation")
+        positions = [list(range(len(s))) for s in sample["MSA"]]
+        sample["seq_pos"] = get_seq_pos_from_positions(
+            sample["input_ids"],
+            positions,
+            pad_token_id=tokenizer.pad_token_id,
+            max_seq_pos=max_seq_pos,
+            num_start_tokens=2,
+            num_end_tokens=0,
+        )
+    return sample
+
+def tokenize_completions(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    bos_token="sep",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
+):
+    max_length = max(len(seq) for seq in sample["completion_seqs"])
+    completion_seqs = [
+        get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
+        for seq in sample["completion_seqs"]
+    ]
+    tokenized = tokenizer(
+        completion_seqs,
+        return_tensors="pt",
+        padding="max_length",  # todo handle the padding in the validation step
+        truncation=False,  # should be handled elsewhere
+        max_length=max_length + 2,  # bos_token and sep_token
+        add_special_tokens=False,
+    )
+    sample["completion_ids"] = tokenized.input_ids
+    if use_seq_pos:
+        completion_seq_pos = stack(
+            [
+                get_seq_pos_from_positions(
+                    sample["completion_ids"][i],
+                    [list(range(len(seq)))],
+                    pad_token_id=tokenizer.pad_token_id,
+                    max_seq_pos=max_seq_pos,
+                    num_start_tokens=1,
+                )
+                for i, seq in enumerate(sample["completion_seqs"])
+            ]
+        )
+        sample["completion_seq_pos"] = completion_seq_pos
+    return sample
+
+
+def tokenize(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    mutant_bos_token="sep",
+    use_seq_pos: bool = False,
+    max_seq_pos: int = 1024,
+    document_tag="[RAW]",
+):
+    sample = tokenize_msa(
+        sample,
+        tokenizer,
+        document_tag=document_tag,
+        use_seq_pos=use_seq_pos,
+        max_seq_pos=max_seq_pos,
+    )
+    if "completion_ids" not in sample:
+        sample = tokenize_completions(
+            sample,
+            tokenizer,
+            bos_token=mutant_bos_token,
+            use_seq_pos=use_seq_pos,
+            max_seq_pos=max_seq_pos,
+        )
+    return sample

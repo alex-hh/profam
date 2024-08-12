@@ -22,7 +22,7 @@ from datasets import Dataset
 from torch import arange
 
 from src.data import fasta
-from src.data.proteingym import tokenize, tokenize_completions
+from src.data.utils import tokenize, tokenize_completions
 import src.data.utils as data_utils
 
 
@@ -37,11 +37,19 @@ def tokenize_pfam(
     use_seq_pos,
     max_seq_pos,
     completion_seq_pos,
+    keep_insertions,
+    to_upper,
+    keep_gaps,
     seed=42,
 ):
     """"""
     msa_name = msa_path["msa_paths"].split("/")[-1].split("_")[0]
-    msa_names, msa_seqs = fasta.read_fasta(msa_path["msa_paths"])
+    msa_names, msa_seqs = fasta.read_fasta(
+        msa_path["msa_paths"],
+        keep_insertions=keep_insertions,
+        to_upper=to_upper,
+        keep_gaps=keep_gaps,
+    )
     assert len(set(msa_names)) == 1
     assert msa_name in msa_names
 
@@ -56,6 +64,7 @@ def tokenize_pfam(
     sample = {
         "MSA": msa_seqs,
         "completion_ids": tokenized_eval_seqs,
+        "family_id": msa_name,
     }
     if use_seq_pos:
         sample["completion_seq_pos"] = completion_seq_pos
@@ -75,7 +84,10 @@ def tokenize_pfam(
 
 def load_pfam_classification_dataset(
     tokenizer,
-    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas",
+    keep_insertions,
+    to_upper,
+    keep_gaps,
+    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas/debug_subsample",
     max_tokens=10000,
     use_seq_pos=False,
     max_seq_pos: int = 1024,
@@ -124,6 +136,9 @@ def load_pfam_classification_dataset(
         use_seq_pos=use_seq_pos,
         max_seq_pos=max_seq_pos,
         completion_seq_pos=completion_seq_pos,
+        keep_insertions=keep_insertions,
+        to_upper=to_upper,
+        keep_gaps=keep_gaps,
         seed=seed,
     )
 
