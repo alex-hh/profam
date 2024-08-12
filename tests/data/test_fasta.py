@@ -1,5 +1,6 @@
-import pytest
 import pandas as pd
+import pytest
+
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 
 
@@ -24,7 +25,10 @@ def test_match_state_positions(pfam_example_text):
     """Check that all sequences have same position ids in all match state positions."""
     sequences = list(
         read_fasta_sequences(
-            pfam_example_text.split("\n"), keep_gaps=True, keep_insertions=True, to_upper=False
+            pfam_example_text.split("\n"),
+            keep_gaps=True,
+            keep_insertions=True,
+            to_upper=False,
         )
     )
     _, positions, is_match = convert_sequence_with_positions(
@@ -37,5 +41,7 @@ def test_match_state_positions(pfam_example_text):
         _, positions, is_match = convert_sequence_with_positions(
             raw_seq, keep_gaps=True, keep_insertions=True, to_upper=True
         )
-        _match_positions = [pos for pos, is_match in zip(positions, is_match) if is_match]
+        _match_positions = [
+            pos for pos, is_match in zip(positions, is_match) if is_match
+        ]
         assert tuple(_match_positions) == tuple(match_positions)
