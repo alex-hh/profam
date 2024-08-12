@@ -35,6 +35,7 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
     minimum_sequences: Optional[int] = None
     document_tag: str = "[RAW]"
+    truncate_after_n_sequences: Optional[int] = None
 
 
 class StringObject:
@@ -166,7 +167,9 @@ def load_protein_dataset(
         if use_seq_pos:
             sequences = []
             positions = []
-            for seq in sequence_iterator:
+            for seq in itertools.islice(
+                sequence_iterator, cfg.truncate_after_n_sequences or 1e8
+            ):
                 seq, pos = convert_sequence_with_positions(
                     seq,
                     keep_gaps=cfg.keep_gaps,
@@ -182,7 +185,12 @@ def load_protein_dataset(
                 sequences = [sequences[i] for i in perm]
                 positions = [positions[i] for i in perm]
         else:
-            sequences = [seq for seq in sequence_iterator]  # necessary for fasta iterator...
+            sequences = [
+                seq
+                for seq in itertools.islice(
+                    sequence_iterator, cfg.truncate_after_n_sequences or 1e8
+                )
+            ]  # necessary for fasta iterator...
             if shuffle:
                 perm = np.random.permutation(len(sequences))
                 sequences = [sequences[i] for i in perm]
