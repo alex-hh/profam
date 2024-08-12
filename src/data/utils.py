@@ -15,7 +15,6 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 
 from src.data.fasta import (
     convert_sequence_with_positions,
-    read_fasta_lines,
     read_fasta_sequences,
 )
 
