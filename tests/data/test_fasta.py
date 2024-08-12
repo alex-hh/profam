@@ -45,3 +45,32 @@ def test_match_state_positions(pfam_example_text):
             pos for pos, is_match in zip(positions, is_match) if is_match
         ]
         assert tuple(_match_positions) == tuple(match_positions)
+
+
+class TestSequencePositions:
+    def test_raw_positions(self):
+        sequences = ["ABC", "DEFD", "GHIJMEKJF"]
+        positions = [[1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5, 6, 7, 8, 9]]
+        for seq, pos in zip(sequences, positions):
+            inferred_pos = convert_sequence_with_positions(
+                seq, keep_gaps=False, keep_insertions=True, to_upper=True
+            )[1]
+            assert tuple(inferred_pos) == tuple(pos)
+
+    def test_msa_positions_no_gaps(self):
+        sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
+        positions = [[0, 1, 3], [1, 2, 3], [1, 1, 1, 1, 2, 3, 4, 4, 7]]
+        for seq, pos in zip(sequences, positions):
+            inferred_pos = convert_sequence_with_positions(
+                seq, keep_gaps=False, keep_insertions=True, to_upper=True
+            )[1]
+            assert tuple(inferred_pos) == tuple(pos)
+
+    def test_msa_positions_with_gaps(self):
+        sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
+        positions = [[1, 2, 3], [1, 2, 3], [1, 2, 3, 4, 5, 6, 7]]
+        for seq, pos in zip(sequences, positions):
+            inferred_pos = convert_sequence_with_positions(
+                seq, keep_gaps=True, keep_insertions=False, to_upper=True
+            )[1]
+            assert tuple(inferred_pos) == tuple(pos)
