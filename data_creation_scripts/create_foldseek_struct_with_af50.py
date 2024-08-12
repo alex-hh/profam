@@ -38,7 +38,7 @@ from src.data.pdb import get_atom_coords_residuewise, load_structure
 lock_file = "directory.lock"
 
 
-def make_af50_dictionary(af50_path):
+def make_af50_dictionary(af50_path, clusters_to_include=None):
     line_counter = 0
     af50_dict = {}
     with open(af50_path, "r") as f:
@@ -50,9 +50,9 @@ def make_af50_dictionary(af50_path):
             clu_flag = int(line[2])  # 1
             # n.b. the 2s are duplicates of the other cluster dict
             # n.b. we don't include the representative in its own cluster atm
-            if clu_flag == 1:
+            if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
                 if rep_id not in af50_dict:
-                    af50_dict[rep_id] = []
+                        af50_dict[rep_id] = []
                 af50_dict[rep_id].append(entry_id)
             line_counter += 1
             if line_counter % 100000 == 0:
@@ -85,9 +85,7 @@ def generate_lock_file_name(directory):
     return os.path.join(directory, lock_file_name)
 
 
-def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
-    assert len(cluster_ids) == len(afdb_ids)
-    # Ensure the output folder exists
+def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -96,25 +94,16 @@ def extract_multi_pdb_files(cluster_ids, afdb_ids, zip_filename, output_folder):
     successes = []
     with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
         names = zip_ref.namelist()
-        for cluster_id, afdb_id in zip(cluster_ids, afdb_ids):
-            cluster_output_folder = os.path.join(output_folder, cluster_id, "pdbs")
-            if not os.path.exists(cluster_output_folder):
-                os.makedirs(cluster_output_folder, exist_ok=True)
-            lock_file = generate_lock_file_name(cluster_output_folder)
-            lock = FileLock(lock_file, timeout=10)
-
-            with lock:
-                if afdb_id + ".pdb" in names:
-                    if os.path.isdir(cluster_output_folder):
-                        print("Cluster output folder exists", cluster_output_folder, cluster_ids, afdb_ids)
-                    # TODO: print worker...
-                    assert not os.path.isfile(os.path.join(cluster_output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
-                    zip_ref.extract(afdb_id + ".pdb", cluster_output_folder)
-                    print(f"Extracted {afdb_id} from {zip_filename} to {cluster_output_folder}")
-                    successes.append(True)
-                else:
-                    print(f"{afdb_id} not found in {zip_filename}")
-                    successes.append(False)
+        for afdb_id in afdb_ids:
+            if afdb_id + ".pdb" in names:
+                # TODO: print worker...
+                assert not os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
+                zip_ref.extract(afdb_id + ".pdb", output_folder)
+                print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}")
+                successes.append(True)
+            else:
+                print(f"{afdb_id} not found in {zip_filename}")
+                successes.append(False)
     return successes
 
 
@@ -138,16 +127,15 @@ def make_cluster_dictionary(cluster_path):
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
     # Save the pdbs to parquet
     results = []
-    for cluster_id in clusters_to_save:
-        pdbs = glob.glob(os.path.join(scratch_dir, cluster_id, "pdbs/*.pdb"))
+    for cluster_id, cluster_members in clusters_to_save.items():
         sequences = []
         accessions = []
         is_foldseek_representative = []
         is_af50_representative = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
 
-        for pdb in pdbs:
-            afdb_id = os.path.splitext(os.path.basename(pdb))[0]
+        for afdb_id in cluster_members:
+            pdb = os.path.join(scratch_dir, afdb_id, afdb_id + ".pdb")
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
             is_foldseek_representative.append(metadata["is_foldseek_representative"])
@@ -188,12 +176,12 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
     return output_file
 
 
-def extract_pdbs(zip_filename, cluster_ids, afdb_ids, save_dir):
+def extract_pdbs(zip_filename, afdb_ids, save_dir):
     # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
     print("Extracting pdbs", zip_filename, cluster_ids, afdb_ids, flush=True)
     t0 = time.time()
     successes = extract_multi_pdb_files(
-        cluster_ids, afdb_ids, zip_filename, save_dir,
+         afdb_ids, zip_filename, save_dir,
     )
     t1 = time.time()
     print("Extracted", len(afdb_ids), "pdbs in", t1 - t0, "seconds", zip_filename, flush=True)
@@ -217,6 +205,7 @@ def build_single_parquet(
     seq_fail_path = save_dir + f"failed_sequences_{parquet_id}.txt"
 
     pdb_lookup = defaultdict(list)
+    cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
     metadata_lookup = dict()
 
     t1 = time.time()
@@ -230,20 +219,22 @@ def build_single_parquet(
 
                 for member in members:
                     zip_filename, afdb_id = af2zip[member]
-                    pdb_lookup[zip_filename].append((cluster_id, afdb_id))
+                    pdb_lookup[zip_filename].append(afdb_id)
                     metadata_lookup[afdb_id] = {
                         "cluster_id": cluster_id,
                         "accession": member,
                         "is_foldseek_representative": member == cluster_id,
                         "is_af50_representative": True,
                     }
+                    cluster_membership[cluster_id].append(afdb_id)
 
                     if not skip_af50 and member in af50_dict:
                         for af50_member in af50_dict[member]:
                             try:
                                 assert not af50_member == member
                                 zip_filename, afdb_id = af2zip[af50_member]
-                                pdb_lookup[zip_filename].append((cluster_id, afdb_id))
+                                pdb_lookup[zip_filename].append(afdb_id)
+                                cluster_membership[cluster_id].append(afdb_id)
                                 metadata_lookup[afdb_id] = {
                                     "cluster_id": cluster_id,
                                     "accession": member,
@@ -259,17 +250,16 @@ def build_single_parquet(
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = []
         for zip_filename, _ids in pdb_lookup.items():
-            print("Zip filename", zip_filename, "ids", _ids, flush=True)
-            zf_cluster_ids = [x[0] for x in _ids]
             afdb_ids = [x[1] for x in _ids]
+            print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
             result = pool.apply_async(
                 extract_pdbs,
-                args=(zip_filename, zf_cluster_ids, afdb_ids, scratch_dir)
+                args=(zip_filename, afdb_ids, os.path.join(scratch_dir, str(parquet_id)))
             )
             results.append(result)
 
         for result in results:
-            success_count, fail_count = result.get()
+            success_count, fail_count = result.get(timeout=100)
             seq_success_counter += success_count
             seq_fail_counter += fail_count
     print("\Clusters extracted:", cluster_counter, "clusters")
@@ -277,7 +267,7 @@ def build_single_parquet(
     print("Number of successful sequences:", seq_success_counter, flush=True)
     t3 = time.time()
     print("Extracted pdbs in", t3 - t2, "seconds", flush=True)
-    save_pdbs_to_parquet(save_dir, scratch_dir, cluster_ids, parquet_id, metadata_lookup)
+    save_pdbs_to_parquet(save_dir, scratch_dir, cluster_membership, parquet_id, metadata_lookup)
     t4 = time.time()
     print("Saved parquet in", t4 - t3, "seconds", flush=True)
 
