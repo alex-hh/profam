@@ -13,10 +13,7 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import (
-    convert_sequence_with_positions,
-    read_fasta_sequences,
-)
+from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 
 
 # TODO: in future we might actually want standalone dataset class for
