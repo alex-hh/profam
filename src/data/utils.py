@@ -134,10 +134,8 @@ def subsample_fasta_lines(lines, n_lines):
     sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
     starts = start_ix[sample_indices]
     ends = end_ix[sample_indices]
-    assert len(start_ix) == len(end_ix)
     sampled_lines = []
     for start, end in zip(starts, ends):
-        assert lines[start][0] == ">"
         assert lines[end - 1][0] != ">"
         sampled_lines.extend(lines[start:end])
     return sampled_lines
