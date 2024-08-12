@@ -161,7 +161,11 @@ def load_protein_dataset(
         # min 2 lines per seq, assume at least 10 tks per line
         max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
         if len(lines) > max_fasta_lines_to_preprocess:
-            lines = subsample_fasta_lines(lines, max_fasta_lines_to_preprocess)
+            lines = subsample_fasta_lines(
+                lines,
+                max_fasta_lines_to_preprocess,
+                shuffle=shuffle
+            )
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
         if use_seq_pos:
