@@ -16,7 +16,7 @@ from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFas
 from src.data.fasta import (
     convert_sequence_with_positions,
     read_fasta_lines,
-    read_fasta_lines_with_positions,
+    read_fasta_sequences,
 )
 
 
@@ -153,28 +153,28 @@ def load_protein_dataset(
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
+        if "sequences" in example:
+            sequence_iterator = example["sequences"]
+        else:
+            sequence_iterator = read_fasta_sequences(
+                example["text"].split("\n"),
+                # preserve original sequences before getting positions
+                keep_gaps=True,
+                keep_insertions=True,
+                to_upper=False,
+            )
         if use_seq_pos:
             sequences = []
             positions = []
-            if "sequences" in example:
-                for seq in example["sequences"]:
-                    seq, pos = convert_sequence_with_positions(
-                        seq,
-                        keep_gaps=cfg.keep_gaps,
-                        keep_insertions=cfg.keep_insertions,
-                        to_upper=cfg.to_upper,
-                    )
-                    sequences.append(seq)
-                    positions.append(pos)
-            else:
-                for _, seq, pos in read_fasta_lines_with_positions(
-                    example["text"].split("\n"),
+            for seq in sequence_iterator:
+                seq, pos = convert_sequence_with_positions(
+                    seq,
                     keep_gaps=cfg.keep_gaps,
                     keep_insertions=cfg.keep_insertions,
                     to_upper=cfg.to_upper,
-                ):
-                    sequences.append(seq)
-                    positions.append(pos)
+                )
+                sequences.append(seq)
+                positions.append(pos)
 
             # TODO: seed explicitly?
             if shuffle:
@@ -182,18 +182,7 @@ def load_protein_dataset(
                 sequences = [sequences[i] for i in perm]
                 positions = [positions[i] for i in perm]
         else:
-            if "sequences" in example:
-                sequences = example["sequences"]
-            else:
-                sequences = [
-                    seq
-                    for _, seq in read_fasta_lines(
-                        example["text"].split("\n"),
-                        keep_gaps=cfg.keep_gaps,
-                        keep_insertions=cfg.keep_insertions,
-                        to_upper=cfg.to_upper,
-                    )
-                ]
+            sequences = [seq for seq in sequence_iterator]  # necessary for fasta iterator...
             if shuffle:
                 perm = np.random.permutation(len(sequences))
                 sequences = [sequences[i] for i in perm]

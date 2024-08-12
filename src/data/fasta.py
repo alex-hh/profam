@@ -59,6 +59,18 @@ def read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False
     yield desc, parse(seq)
 
 
+def read_fasta_sequences(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
+    """
+    From esm
+    Works for fasta and a2m/a3m
+    """
+    iterator = read_fasta_lines(
+        lines, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
+    )
+    for _, seq in iterator:
+        yield seq
+
+
 def convert_sequence_with_positions(
     seq, keep_gaps=True, keep_insertions=True, to_upper=False
 ):
@@ -92,37 +104,6 @@ def convert_sequence_with_positions(
 
     assert len(positions) == len(sequence)
     return sequence, positions
-
-
-def read_fasta_lines_with_positions(
-    lines, keep_gaps=True, keep_insertions=True, to_upper=False
-):
-    seq = desc = None
-
-    for line in lines:
-        # Line may be empty if seq % file_line_width == 0
-        if len(line) > 0 and line[0] == ">":
-            if seq is not None:
-                seq, pos = convert_sequence_with_positions(
-                    seq,
-                    keep_gaps=keep_gaps,
-                    keep_insertions=keep_insertions,
-                    to_upper=to_upper,
-                )
-                yield desc, seq, pos
-            desc = line.strip()[1:]
-            seq = ""
-        else:
-            assert isinstance(seq, str)
-            seq += line.strip()
-    assert isinstance(seq, str) and isinstance(desc, str)
-    seq, pos = convert_sequence_with_positions(
-        seq,
-        keep_gaps=keep_gaps,
-        keep_insertions=keep_insertions,
-        to_upper=to_upper,
-    )
-    yield desc, seq, pos
 
 
 def fasta_generator(
