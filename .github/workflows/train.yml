@@ -25,7 +25,7 @@ jobs:
 # TODO: seed?
     - name: Test
       run: |
-        pytest -k "not slow"
+        pytest -k "not example"
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 python src/train.py \
