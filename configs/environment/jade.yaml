@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - override /trainer: ddp
+
+data:
+  num_workers: 2  # per gpu
+
+trainer:
+  precision: 32
+  devices: 8
+
+logger:
+  wandb:
+    mode: "offline"
+
+float32_matmul_precision: null
