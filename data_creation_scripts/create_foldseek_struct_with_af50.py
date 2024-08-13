@@ -31,7 +31,7 @@ import os
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 
 
-af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entry“Id-cluFlag-taxId.tsv"
+af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
 
 
 def make_af50_dictionary(clusters_to_include=None):
