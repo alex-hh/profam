@@ -14,8 +14,6 @@ building of single parquets, and parallelising across building of
 distinct parquets.
 """
 import argparse
-import datetime
-import hashlib
 import shutil
 from collections import defaultdict
 import multiprocessing
@@ -24,14 +22,12 @@ from biotite.structure.residues import get_residues
 import numpy as np
 import time
 import pickle
-import glob
 import os
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import zipfile
 import os
-from filelock import FileLock
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 
 
@@ -250,9 +246,10 @@ def build_single_parquet(
             results.append(result)
 
         for result in results:
-            success_count, fail_count = result.get(timeout=100)
+            success_count, fail_count = result.get()
             seq_success_counter += success_count
             seq_fail_counter += fail_count
+
     print("\Clusters extracted:", cluster_counter, "clusters")
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
