@@ -160,6 +160,10 @@ def load_protein_dataset(
         # multiple lines
         if "sequences" in example:
             sequence_iterator = example["sequences"]
+            max_sequences_to_preprocess = max_tokens // 10
+            if len(sequence_iterator) > max_sequences_to_preprocess:
+                selected_indices = np.random.choice(len(sequence_iterator), max_sequences_to_preprocess, replace=False)
+                sequence_iterator = [sequence_iterator[i] for i in selected_indices]
         else:
             lines = example["text"].split("\n")
             if not len(lines[-1]):
