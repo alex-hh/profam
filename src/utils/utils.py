@@ -2,6 +2,7 @@ import warnings
 from importlib.util import find_spec
 from typing import Any, Callable, Dict, Optional, Tuple
 
+import numpy as np
 from omegaconf import DictConfig
 
 from src.utils import pylogger, rich_utils
@@ -119,3 +120,16 @@ def get_metric_value(
     log.info(f"Retrieved metric value! <{metric_name}={metric_value}>")
 
     return metric_value
+
+
+def np_random(seed: Optional[int]) -> Any:
+    """Returns a numpy random number generator with a given seed.
+
+    :param seed: The seed value for the random number generator.
+    :return: A numpy random number generator.
+    """
+    if seed is not None:
+        rnd = np.random.default_rng(seed)
+    else:
+        # to maintain control by global seed
+        rnd = np.random

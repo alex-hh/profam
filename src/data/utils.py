@@ -14,6 +14,7 @@ from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
+from src.utils.utils import np_random
 
 
 # TODO: in future we might actually want standalone dataset class for
@@ -143,6 +144,46 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
     return sampled_lines
 
 
+def random_subsample(arr, n, seed: Optional[int] = None):
+    rnd = np_random(seed)
+    return rnd.choice(arr, n, replace=False)
+
+
+def sample_to_max_tokens(
+    sequences,
+    positions: Optional[List[int]] = None,
+    max_tokens: Optional[int] = None,
+    shuffle=True,
+    seed: Optional[int] = None,
+    drop_first: bool = False,
+):
+    rnd = np_random(seed)
+    # TODO: implement keep first, drop first
+    if drop_first:
+        sequences = sequences[1:]
+        if positions is not None:
+            positions = positions[1:]
+
+    if shuffle:
+        perm = rnd.permutation(len(sequences))
+        sequences = [sequences[i] for i in perm]
+
+    if max_tokens is not None:
+        cumulative_lengths = list(
+            itertools.accumulate([len(s) + 1 for s in sequences])
+        )  # +1 for separator
+        insertion_point = bisect.bisect_left(
+            cumulative_lengths,
+            max_tokens - 2,
+        )  # -2 for doc start and end tokens
+    else:
+        insertion_point = len(sequences)
+    if positions is None:
+        return sequences[:insertion_point]
+    else:
+        return sequences[:insertion_point], positions[:insertion_point]
+
+
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
@@ -162,11 +203,11 @@ def load_protein_dataset(
         if "sequences" in example:
             sequence_iterator = example["sequences"]
             max_sequences_to_preprocess = max_tokens // 10
-            if len(sequence_iterator) > max_sequences_to_preprocess:
-                selected_indices = np.random.choice(
-                    len(sequence_iterator), max_sequences_to_preprocess, replace=False
-                )
-                sequence_iterator = [sequence_iterator[i] for i in selected_indices]
+            # n.b. this also shuffles
+            sequence_iterator = random_subsample(
+                sequence_iterator,
+                max_sequences_to_preprocess,
+            )
         else:
             lines = example["text"].split("\n")
             if not len(lines[-1]):
@@ -343,38 +384,3 @@ def load_protein_dataset(
     ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
 
     return dataset
-
-
-def sample_to_max_tokens(
-    sequences,
-    positions: Optional[List[int]] = None,
-    max_tokens: Optional[int] = None,
-    shuffle=True,
-    seed: Optional[int] = None,
-    drop_first: bool = False,
-):
-    rng = np.random.default_rng(seed)
-    # TODO: implement keep first, drop first
-    if drop_first:
-        sequences = sequences[1:]
-        if positions is not None:
-            positions = positions[1:]
-
-    if shuffle:
-        perm = rng.permutation(len(sequences))
-        sequences = [sequences[i] for i in perm]
-
-    if max_tokens is not None:
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
-    else:
-        insertion_point = len(sequences)
-    if positions is None:
-        return sequences[:insertion_point]
-    else:
-        return sequences[:insertion_point], positions[:insertion_point]

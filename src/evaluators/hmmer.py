@@ -7,6 +7,7 @@ from scipy.stats import pearsonr
 
 from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
+from src.data.utils import random_subsample, sample_to_max_tokens
 from src.evaluators.alignment import MSANumeric, aa_letters_wgap
 from src.evaluators.base import SamplingEvaluator
 
@@ -46,6 +47,10 @@ class PFAMHMMERMixin:
         return hmm
 
     def build_prompt(self, protein_document: ProteinDocument):
+        sequences = random_subsample(
+            protein_document.sequences, self.max_tokens // 10, seed=self.seed
+        )
+        max_len = max([len(seq) for seq in sequences])
         sequences = []
         positions = []
         # TODO: subsample before convert sequence with positions.
@@ -58,7 +63,9 @@ class PFAMHMMERMixin:
             )
             sequences.append(seq)
             positions.append(pos)
-
+        sequences, positions = sample_to_max_tokens(
+            sequences, positions, self.max_tokens - max_len, seed=self.seed
+        )
         return sequences, positions
 
 
