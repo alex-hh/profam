@@ -173,20 +173,50 @@ def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
     return sum(successes), len(successes) - sum(successes)
 
 
-def build_single_parquet(
+def make_job_list(
     parquet_id,
-    cluster_ids,
-    af2zip,
     save_dir,
-    scratch_dir,
     minimum_cluster_size=1,
     skip_af50=False,
-    num_processes=None,
 ):
-    seq_fail_counter = 0
-    seq_success_counter = 0
+    cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
+    af2zip_pickle_path = os.path.join(save_dir, "af2zip.pkl")
+
+    if not os.path.exists(cluster_dict_pickle_path):
+        print("Creating foldseek dataset", flush=True)
+        cluster_dict = make_cluster_dictionary(args.cluster_path)
+        print("Number of clusters:", len(cluster_dict))
+        print("Saving cluster dictionary")
+        with open(save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
+            pickle.dump(cluster_dict, f)
+    else:
+        print("Loading cluster dictionary", flush=True)
+        with open(cluster_dict_pickle_path, "rb") as f:
+            cluster_dict = pickle.load(f)
+        print("Number of clusters:", len(cluster_dict))
+
+    if not os.path.exists(af2zip_pickle_path):
+        print("Creating af2zip dictionary", flush=True)
+        af2zip = make_zip_dictionary()
+        print("Saving af2zip dictionary")
+        with open(save_dir + "af2zip.pkl", "wb") as f:
+            pickle.dump(af2zip, f)
+    else:
+        print("Loading af2zip dictionary", flush=True)
+        with open(af2zip_pickle_path, "rb") as f:
+            af2zip = pickle.load(f)
+
+    # shuffle first so that we de-correlate cluster identities in parquet files
+    clusters = sorted(list(cluster_dict.keys()))  # need to sort to make deterministic
+    rng = np.random.default_rng(seed=42)
+    rng.shuffle(clusters)
+
+    parquet_size = 10000  # number of clusters to save in each parquet file
+    # What we want to do here is build a list of cluster ids to save within each parquet file.
+    clusters_to_save = [clusters[i:i + parquet_size] for i in range(0, len(clusters), parquet_size)]
+    cluster_ids = clusters_to_save[parquet_id]
+
     cluster_counter = 0
-    seq_fail_path = save_dir + f"failed_sequences_{parquet_id}.txt"
 
     if not skip_af50:
         af50_dict = make_af50_dictionary(clusters_to_include=cluster_ids)
@@ -196,45 +226,51 @@ def build_single_parquet(
     metadata_lookup = dict()
 
     t1 = time.time()
-    with open(seq_fail_path, "w") as fail_file:
-        for ix, cluster_id in enumerate(cluster_ids):
-            if ix % 500 == 0:
-                print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
-            members = cluster_dict[cluster_id]
-            if len(members) >= minimum_cluster_size:
-                cluster_counter += 1
+    for ix, cluster_id in enumerate(cluster_ids):
+        if ix % 500 == 0:
+            print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
+        members = cluster_dict[cluster_id]
+        if len(members) >= minimum_cluster_size:
+            cluster_counter += 1
 
-                for member in members:
-                    zip_filename, afdb_id = af2zip[member]
-                    pdb_lookup[zip_filename].append(afdb_id)
-                    metadata_lookup[afdb_id] = {
-                        "cluster_id": cluster_id,
-                        "accession": member,
-                        "is_foldseek_representative": member == cluster_id,
-                        "is_af50_representative": True,
-                    }
-                    cluster_membership[cluster_id].append(afdb_id)
+            for member in members:
+                zip_filename, afdb_id = af2zip[member]
+                pdb_lookup[zip_filename].append(afdb_id)
+                metadata_lookup[afdb_id] = {
+                    "cluster_id": cluster_id,
+                    "accession": member,
+                    "is_foldseek_representative": member == cluster_id,
+                    "is_af50_representative": True,
+                }
+                cluster_membership[cluster_id].append(afdb_id)
 
-                    if not skip_af50 and member in af50_dict:
-                        for af50_member in af50_dict[member]:
-                            try:
-                                assert not af50_member == member
-                                zip_filename, afdb_id = af2zip[af50_member]
-                                pdb_lookup[zip_filename].append(afdb_id)
-                                cluster_membership[cluster_id].append(afdb_id)
-                                metadata_lookup[afdb_id] = {
-                                    "cluster_id": cluster_id,
-                                    "accession": member,
-                                    "is_foldseek_representative": False,
-                                    "is_af50_representative": False,
-                                }
-                            except:
-                                print("Error looking up", af50_member)
+                if not skip_af50 and member in af50_dict:
+                    for af50_member in af50_dict[member]:
+                        try:
+                            assert not af50_member == member
+                            zip_filename, afdb_id = af2zip[af50_member]
+                            pdb_lookup[zip_filename].append(afdb_id)
+                            cluster_membership[cluster_id].append(afdb_id)
+                            metadata_lookup[afdb_id] = {
+                                "cluster_id": cluster_id,
+                                "accession": member,
+                                "is_foldseek_representative": False,
+                                "is_af50_representative": False,
+                            }
+                        except:
+                            print("Error looking up", af50_member)
 
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
     print("Number of zip files: ", len(pdb_lookup), flush=True)
-    # Parallel extraction of pdb files"
+    return pdb_lookup, metadata_lookup, cluster_membership
+
+
+def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes):
+    seq_fail_counter = 0
+    seq_success_counter = 0
+    # Parallel extraction of pdb files
+    t0 = time.time()
     output_dir = os.path.join(scratch_dir, str(parquet_id))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -253,63 +289,43 @@ def build_single_parquet(
             seq_success_counter += success_count
             seq_fail_counter += fail_count
 
-    print("\Clusters extracted:", cluster_counter, "clusters")
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
-    t3 = time.time()
-    print("Extracted pdbs in", t3 - t2, "seconds", flush=True)
-    save_pdbs_to_parquet(save_dir, scratch_dir, cluster_membership, parquet_id, metadata_lookup)
-    t4 = time.time()
-    print("Saved parquet in", t4 - t3, "seconds", flush=True)
+    t1 = time.time()
+    print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)
 
 
 def create_foldseek_parquets(
-    cluster_dict,
-    af2zip,
-    af50_dict,
     save_dir,
     scratch_dir,
     minimum_cluster_size=1,
-    verbose=False,
     skip_af50=False,
     parquet_ids=None,
     num_processes=None,
 ):
-    # shuffle first so that we de-correlate cluster identities in parquet files
-    clusters = list(cluster_dict.keys())
-    rng = np.random.default_rng(seed=42)
-    rng.shuffle(clusters)
-
-    parquet_size = 10000  # number of clusters to save in each parquet file
-    # What we want to do here is build a list of cluster ids to save within each parquet file.
-    clusters_to_save = [clusters[i:i + parquet_size] for i in range(0, len(clusters), parquet_size)]
     if parquet_ids is None:
-        # TODO: enable multiprocessing here
-        for parquet_ix, cluster_ids in enumerate(clusters_to_save):
-            build_single_parquet(
-                parquet_ix,
-                cluster_ids=cluster_ids,
-                af2zip=af2zip,
-                af50_dict=af50_dict,
-                save_dir=save_dir,
-                scratch_dir=scratch_dir,
-                minimum_cluster_size=minimum_cluster_size,
-                skip_af50=skip_af50,
-                num_processes=num_processes,
-            )
-    else:
-        for parquet_id in parquet_ids:
-            build_single_parquet(
-                parquet_id,
-                cluster_ids=clusters_to_save[parquet_id],
-                af2zip=af2zip,
-                af50_dict=af50_dict,
-                save_dir=save_dir,
-                scratch_dir=scratch_dir,
-                minimum_cluster_size=minimum_cluster_size,
-                skip_af50=skip_af50,
-                num_processes=num_processes,
-            )
+        # 2302908 clusterss
+        parquet_ids = range(231)
+    for parquet_id in parquet_ids:
+        pdb_lookup, metadata_lookup, cluster_membership = make_job_list(
+            parquet_id,
+            save_dir=save_dir,
+            minimum_cluster_size=minimum_cluster_size,
+            skip_af50=skip_af50,
+        )
+        extract_pdbs_for_parquet(
+            pdb_lookup=pdb_lookup,
+            scratch_dir=scratch_dir,
+            parquet_id=parquet_id,
+            num_processes=num_processes,
+        )
+        save_pdbs_to_parquet(
+            save_dir=save_dir,
+            scratch_dir=scratch_dir,
+            clusters_to_save=cluster_membership,
+            parquet_id=parquet_id,
+            metadata_lookup=metadata_lookup,
+        )
 
 
 if __name__ == "__main__":
@@ -327,25 +343,8 @@ if __name__ == "__main__":
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
-    cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
-    af2zip = make_zip_dictionary()
-
-    if not os.path.exists(cluster_dict_pickle_path):
-        print("Creating foldseek dataset", flush=True)
-        cluster_dict = make_cluster_dictionary(args.cluster_path)
-        print("Number of clusters:", len(cluster_dict))
-        print("Saving cluster dictionary")
-        with open(save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
-            pickle.dump(cluster_dict, f)
-    else:
-        print("Loading cluster dictionary", flush=True)
-        with open(cluster_dict_pickle_path, "rb") as f:
-            cluster_dict = pickle.load(f)
-        print("Number of clusters:", len(cluster_dict))
 
     create_foldseek_parquets(
-        cluster_dict=cluster_dict,
-        af2zip=af2zip,
         save_dir=save_dir,
         scratch_dir=args.scratch_dir,
         minimum_cluster_size=args.minimum_cluster_size,
