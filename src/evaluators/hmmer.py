@@ -18,11 +18,21 @@ class BaseHMMEREvaluator(SamplingEvaluator):
 
 class PFAMHMMERMixin:
     def __init__(
-        self, *args, seed: int = 52, pfam_hmm_dir="../data/pfam_hmms", **kwargs
+        self,
+        *args,
+        seed: int = 52,
+        pfam_hmm_dir="../data/pfam_hmms",
+        keep_gaps=False,
+        keep_insertions=True,
+        to_upper=True,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.pfam_hmm_dir = pfam_hmm_dir
         self.seed = seed
+        self.keep_gaps = keep_gaps
+        self.keep_insertions = keep_insertions
+        self.to_upper = to_upper
 
     def hmm_file_from_identifier(self, identifier: str):
         return os.path.join(self.pfam_hmm_dir, f"{identifier}.hmm")
@@ -34,7 +44,18 @@ class PFAMHMMERMixin:
         return hmm
 
     def build_prompt(self, protein_document: ProteinDocument):
-        raise NotImplementedError("to be implemented")
+        sequences = []
+        positions = []
+        for sequence in protein_document.sequences:
+            seq, pos = convert_sequence_with_positions(
+                sequence,
+                keep_gaps=self.keep_gaps,
+                keep_insertions=self.keep_insertions,
+                to_upper=self.to_upper,
+            )
+            sequences.append(seq)
+            positions.append(pos)
+        return sequences, positions
 
 
 class ProfileHMMEvaluator(BaseHMMEREvaluator):
@@ -74,6 +95,10 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
         }
 
 
+class PFAMProfileHMM(PFAMHMMERMixin, ProfileHMMEvaluator):
+    pass
+
+
 class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
 
     """First aligns generations to HMM, then computes statistics from alignment.
@@ -111,3 +136,7 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
             "pair_frequency_pearson": fij_correlation,
             "covariance_pearson": cov_correlation,
         }
+
+
+class PFAMHMMAlignmentStatistics(PFAMHMMERMixin, HMMAlignmentStatisticsEvaluator):
+    pass

@@ -543,17 +543,19 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         sequence_prompt: List[str],
         num_sequences,
+        position_indices: Optional[List[int]] = None,
         batch_size: int = 1,
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
         input_ids = self.encode_sequences(sequence_prompt)
         if self.use_seq_pos:
-            positions = [list(range(len(s))) for s in sequence_prompt]
+            if position_indices is None:
+                position_indices = [list(range(len(s))) for s in sequence_prompt]
             # c.f. src.data.utils. n.b. num_start_tokens has to be kept in sync
-            # TODO: stop hardcoding it!
+            # TODO: stop hardcoding it - maybe configure as part of model configuration? and data configuration?
             seq_pos = get_seq_pos_from_positions(
                 input_ids,
-                positions,
+                position_indices,
                 pad_token_id=self.tokenizer.pad_token_id,
                 max_seq_pos=self.max_seq_pos,
                 num_start_tokens=2,
