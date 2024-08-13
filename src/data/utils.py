@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
+from torch import stack
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
@@ -56,31 +57,19 @@ class CustomDataCollator:
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
 
     def __call__(self, examples):
-        has_ds_name = "ds_name" in examples[0]
-        has_doc_hash = "doc_hash" in examples[0]
-        has_msa_id = "msa_id" in examples[0]
-        if has_ds_name or has_doc_hash or has_msa_id:
-            if has_ds_name:
-                ds_names = [example.pop("ds_name") for example in examples]
-            if has_doc_hash:
-                doc_hashes = [example.pop("doc_hash") for example in examples]
-            if has_msa_id:
-                msa_ids = [example.pop("msa_id") for example in examples]
-            batch = self.base_collator(examples)
-            if has_ds_name:
-                ds_names_obj = StringObject()
-                ds_names_obj.text = ds_names
-                batch["ds_name"] = ds_names_obj
-            if has_doc_hash:
-                doc_hash_obj = StringObject()
-                doc_hash_obj.text = doc_hashes
-                batch["doc_hash"] = doc_hash_obj
-            if has_msa_id:
-                msa_id_obj = StringObject()
-                msa_id_obj.text = msa_ids
-                batch["msa_id"] = msa_id_obj
-        else:
-            batch = self.base_collator(examples)
+        non_string_data = [
+            {k: v for k, v in e.items() if not isinstance(v, str)} for e in examples
+        ]
+        string_data = [
+            {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
+        ]
+        string_data_keys = set(k for obs in string_data for k in obs.keys())
+        batch = self.base_collator(non_string_data)
+        for str_key in string_data_keys:
+            str_vals = [obs.get(str_key, "") for obs in string_data]
+            str_obj = StringObject()
+            str_obj.text = str_vals
+            batch[str_key] = str_obj
         return batch
 
 
@@ -135,6 +124,25 @@ def get_seq_pos_from_positions(
     return seq_pos
 
 
+def subsample_fasta_lines(lines, n_lines, shuffle=True):
+    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
+    end_ix = start_ix[1:]
+    end_ix = np.append(end_ix, len(lines))
+    lines_per_seq = len(lines) // len(start_ix)
+    n_samples = min(n_lines // lines_per_seq, len(start_ix))
+    if shuffle:
+        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    else:
+        sample_indices = np.arange(n_samples)
+    starts = start_ix[sample_indices]
+    ends = end_ix[sample_indices]
+    sampled_lines = []
+    for start, end in zip(starts, ends):
+        assert lines[end - 1][0] != ">"
+        sampled_lines.extend(lines[start:end])
+    return sampled_lines
+
+
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
@@ -147,13 +155,24 @@ def load_protein_dataset(
     shuffle: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        lines = example["text"].split("\n")
+        if not len(lines[-1]):
+            lines = lines[:-1]
+        # min 2 lines per seq, assume at least 10 tks per line
+        max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
+        if len(lines) > max_fasta_lines_to_preprocess:
+            lines = subsample_fasta_lines(
+                lines,
+                max_fasta_lines_to_preprocess,
+                shuffle=shuffle,
+            )
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
         if use_seq_pos:
             sequences = []
             positions = []
             for _, seq, pos in read_fasta_lines_with_positions(
-                example["text"].split("\n"),
+                lines,
                 keep_gaps=cfg.keep_gaps,
                 keep_insertions=cfg.keep_insertions,
                 to_upper=cfg.to_upper,
@@ -170,7 +189,7 @@ def load_protein_dataset(
             sequences = [
                 seq
                 for _, seq in read_fasta_lines(
-                    example["text"].split("\n"),
+                    lines,
                     keep_gaps=cfg.keep_gaps,
                     keep_insertions=cfg.keep_insertions,
                     to_upper=cfg.to_upper,
@@ -287,10 +306,6 @@ def load_protein_dataset(
             streaming=True,
             verification_mode="no_checks",
         )
-        columns_to_drop = [
-            c for c in dataset.column_names if c not in ["text", "sequences"]
-        ]
-        dataset = dataset.remove_columns(columns_to_drop)
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
