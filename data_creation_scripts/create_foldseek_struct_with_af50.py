@@ -118,7 +118,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
 
         for afdb_id in cluster_members:
-            pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id, afdb_id + ".pdb")
+            pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
             is_foldseek_representative.append(metadata["is_foldseek_representative"])
