@@ -7,7 +7,14 @@ from src.data.objects import ProteinDocument
 from src.models.base import BaseFamilyLitModule
 
 
+# class MultipleEvaluator:
+
+
+
 class SamplingEvaluator:
+    def __init__(self, name: str):
+        self.name = name
+
     def evaluate_samples(
         self, protein_document: ProteinDocument, samples: List[str]
     ) -> Dict[str, float]:
@@ -16,13 +23,18 @@ class SamplingEvaluator:
     def build_prompt(self, protein_document: ProteinDocument) -> List[str]:
         raise NotImplementedError("should be implemented on child class")
 
+    def run_sampling(self, model, protein_document, num_samples):
+        prompt = self.build_prompt(protein_document)
+        samples = model.sample_seqs(prompt, num_samples)
+        return samples
+
     def __call__(
         self,
         model: BaseFamilyLitModule,
         protein_document: ProteinDocument,
         num_samples: int,
     ):
-        samples = model.sample_seqs(protein_document, num_samples)
+        samples = self.run_sampling(model, protein_document, num_samples)
         return self.evaluate_samples(protein_document, samples)
 
 
