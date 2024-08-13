@@ -14,7 +14,7 @@ from omegaconf.listconfig import ListConfig
 from torch import stack
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
+from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 
 
 # TODO: in future we might actually want standalone dataset class for
@@ -32,6 +32,7 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
     minimum_sequences: Optional[int] = None
     document_tag: str = "[RAW]"
+    truncate_after_n_sequences: Optional[int] = None
 
 
 class StringObject:
@@ -155,28 +156,43 @@ def load_protein_dataset(
     shuffle: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        lines = example["text"].split("\n")
-        if not len(lines[-1]):
-            lines = lines[:-1]
-        # min 2 lines per seq, assume at least 10 tks per line
-        max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
-        if len(lines) > max_fasta_lines_to_preprocess:
-            lines = subsample_fasta_lines(
-                lines,
-                max_fasta_lines_to_preprocess,
-                shuffle=shuffle,
-            )
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
+        if "sequences" in example:
+            sequence_iterator = example["sequences"]
+        else:
+            lines = example["text"].split("\n")
+            if not len(lines[-1]):
+                lines = lines[:-1]
+            # min 2 lines per seq, assume at least 10 tks per line
+            max_fasta_lines_to_preprocess = (
+                max_tokens // 5
+            )  # upper bound on lines to proc.
+            if len(lines) > max_fasta_lines_to_preprocess:
+                lines = subsample_fasta_lines(
+                    lines,
+                    max_fasta_lines_to_preprocess,
+                    shuffle=shuffle,
+                )
+            sequence_iterator = read_fasta_sequences(
+                lines,
+                # preserve original sequences before getting positions
+                keep_gaps=True if use_seq_pos else cfg.keep_gaps,
+                keep_insertions=True if use_seq_pos else cfg.keep_insertions,
+                to_upper=False if use_seq_pos else cfg.to_upper,
+            )
         if use_seq_pos:
             sequences = []
             positions = []
-            for _, seq, pos in read_fasta_lines_with_positions(
-                lines,
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
+            for seq in itertools.islice(
+                sequence_iterator, cfg.truncate_after_n_sequences
             ):
+                seq, pos, _ = convert_sequence_with_positions(
+                    seq,
+                    keep_gaps=cfg.keep_gaps,
+                    keep_insertions=cfg.keep_insertions,
+                    to_upper=cfg.to_upper,
+                )
                 sequences.append(seq)
                 positions.append(pos)
 
@@ -188,13 +204,10 @@ def load_protein_dataset(
         else:
             sequences = [
                 seq
-                for _, seq in read_fasta_lines(
-                    lines,
-                    keep_gaps=cfg.keep_gaps,
-                    keep_insertions=cfg.keep_insertions,
-                    to_upper=cfg.to_upper,
+                for seq in itertools.islice(
+                    sequence_iterator, cfg.truncate_after_n_sequences
                 )
-            ]
+            ]  # necessary for fasta iterator...
             if shuffle:
                 perm = np.random.permutation(len(sequences))
                 sequences = [sequences[i] for i in perm]
