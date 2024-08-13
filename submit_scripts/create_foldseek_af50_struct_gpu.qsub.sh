@@ -16,3 +16,4 @@ python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_D
 date
 
 # n.b. if i want to restart parallel - start from 10
+rm -rf /scratch0/$USER/$JOB_ID

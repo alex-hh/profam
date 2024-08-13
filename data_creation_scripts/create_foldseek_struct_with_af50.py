@@ -82,7 +82,7 @@ def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
                 # TODO: print worker...
                 assert not os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
                 zip_ref.extract(afdb_id + ".pdb", output_folder)
-                print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}")
+                print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}", os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")))
                 successes.append(True)
             else:
                 print(f"{afdb_id} not found in {zip_filename}")
@@ -148,8 +148,9 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "is_af50_representative": is_af50_representative,
             }
         )
-        print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
-        shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
+
+    print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
+    shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
