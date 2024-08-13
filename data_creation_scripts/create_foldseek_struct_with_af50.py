@@ -51,8 +51,6 @@ def make_af50_dictionary(clusters_to_include=None):
                         af50_dict[rep_id] = []
                 af50_dict[rep_id].append(entry_id)
             line_counter += 1
-            if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for af50 cluster dictionary")
     return af50_dict
 
 
@@ -219,6 +217,7 @@ def make_job_list(
     cluster_counter = 0
 
     if not skip_af50:
+        print("Making af50 dictionary", flush=True)
         af50_dict = make_af50_dictionary(clusters_to_include=cluster_ids)
 
     pdb_lookup = defaultdict(list)
