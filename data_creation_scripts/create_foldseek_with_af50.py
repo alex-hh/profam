@@ -92,8 +92,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
     seq_fail_path = save_dir + "failed_sequences.txt"
 
     # shuffle first so that we de-correlate cluster identities in parquet files
-    # TODO: seed this
-    clusters = list(cluster_dict.keys())
+    clusters = sorted(list(cluster_dict.keys()))  # n.b. i didn't sort when i first ran - possibly non-deterministic
     rng = np.random.default_rng(seed=42)
     rng.shuffle(clusters)
 
