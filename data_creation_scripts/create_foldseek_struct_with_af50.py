@@ -48,7 +48,7 @@ def make_af50_dictionary(clusters_to_include=None):
             # n.b. we don't include the representative in its own cluster atm
             if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
                 if rep_id not in af50_dict:
-                        af50_dict[rep_id] = []
+                    af50_dict[rep_id] = []
                 af50_dict[rep_id].append(entry_id)
             line_counter += 1
     return af50_dict
@@ -179,6 +179,7 @@ def make_job_list(
 ):
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
     af2zip_pickle_path = os.path.join(save_dir, "af2zip.pkl")
+    af50_dict_pickle_path = os.path.join(save_dir, "af50_cluster_dict.pkl")
 
     if not os.path.exists(cluster_dict_pickle_path):
         print("Creating foldseek dataset", flush=True)
@@ -217,8 +218,15 @@ def make_job_list(
     cluster_counter = 0
 
     if not skip_af50:
-        print("Making af50 dictionary", flush=True)
-        af50_dict = make_af50_dictionary(clusters_to_include=cluster_ids)
+        # we build full dictionary for easier saving and loading
+        if not os.path.exists(af50_dict_pickle_path):
+            print("Making af50 dictionary", flush=True)
+            af50_dict = make_af50_dictionary()
+            with open(af50_dict_pickle_path, "wb") as f:
+                pickle.dump(af50_dict, f)
+        else:
+            with open(af50_dict_pickle_path, "rb") as f:
+                af50_dict = pickle.load(f)
 
     pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
@@ -348,5 +356,6 @@ if __name__ == "__main__":
         scratch_dir=args.scratch_dir,
         minimum_cluster_size=args.minimum_cluster_size,
         parquet_ids=args.parquet_ids,
+        skip_af50=args.skip_af50,
         num_processes=os.cpu_count(),
     )
