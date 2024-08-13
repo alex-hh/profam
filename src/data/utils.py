@@ -165,7 +165,9 @@ def load_protein_dataset(
             if not len(lines[-1]):
                 lines = lines[:-1]
             # min 2 lines per seq, assume at least 10 tks per line
-            max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
+            max_fasta_lines_to_preprocess = (
+                max_tokens // 5
+            )  # upper bound on lines to proc.
             if len(lines) > max_fasta_lines_to_preprocess:
                 lines = subsample_fasta_lines(
                     lines,
