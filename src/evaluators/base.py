@@ -6,9 +6,7 @@ import numpy as np
 from src.data.objects import ProteinDocument
 from src.models.base import BaseFamilyLitModule
 
-
 # class MultipleEvaluator:
-
 
 
 class SamplingEvaluator:

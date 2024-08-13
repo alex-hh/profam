@@ -1,10 +1,12 @@
 import os
 from typing import Dict, List
+
 import pandas as pd
+
 from src import constants
-from src.evaluators.base import SamplingEvaluator
 from src.data import fasta
 from src.data.objects import ProteinDocument
+from src.evaluators.base import SamplingEvaluator
 
 
 class BaseEvaluatorPipeline:
@@ -25,7 +27,7 @@ class BaseEvaluatorPipeline:
     ):
         self.pipeline_id = pipeline_id
         self.pipeline_directory = os.path.join(
-            benchmark_directory or constants.BENCHMARK_ARTIFACTS_BASEDIR,
+            benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
         )
         self.load_results()
@@ -144,7 +146,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         if rerun_evaluator or not self.has_result(
             self.evaluator.name, instance_id, model_id
         ):
-            metrics = self.evaluator.evaluate_samples(protein_document, generated_sequences)
+            metrics = self.evaluator.evaluate_samples(
+                protein_document, generated_sequences
+            )
             metrics.update(self.get_instance_summary(instance_id))
             metrics["model_id"] = model_id
             metrics["target_id"] = instance_id
@@ -171,17 +175,19 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         for instance_id in instance_ids:
             protein_document = self.load_protein_document(instance_id)
             if rerun or not self.has_generations(instance_id, model_name):
-                print(
-                    f"Running generations for target: {instance_id}"
+                print(f"Running generations for target: {instance_id}")
+                outputs_dir = os.path.join(
+                    self.pipeline_directory, instance_id, model_name
                 )
-                outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
                 os.makedirs(outputs_dir, exist_ok=True)
-                generated_sequences = self.evaluator.run_sampling(model, protein_document, self.num_generations)
-                self.save_generations(generated_sequences, instance_id, model_name, outputs_dir)
+                generated_sequences = self.evaluator.run_sampling(
+                    model, protein_document, self.num_generations
+                )
+                self.save_generations(
+                    generated_sequences, instance_id, model_name, outputs_dir
+                )
 
-    def run_evaluation(
-        self, model_name: str, rerun: bool = False
-    ):
+    def run_evaluation(self, model_name: str, rerun: bool = False):
         instance_ids = self.instance_ids()
         print(f"Running evaluation `{self.evaluator.name}` for model `{model_name}`")
         for instance_id in instance_ids:

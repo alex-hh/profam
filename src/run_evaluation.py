@@ -32,7 +32,9 @@ def run(cfg: DictConfig) -> None:
     evaluator = hydra.utils.instantiate(cfg.evaluator)
     pipeline = hydra.utils.instantiate(cfg.pipeline, evaluator=evaluator)
     model = hydra.utils.instantiate(cfg.pretrained_model)
-    pipeline.run(model, rerun_model=cfg.rerun_model, rerun_evaluator=cfg.rerun_evaluator)
+    pipeline.run(
+        model, rerun_model=cfg.rerun_model, rerun_evaluator=cfg.rerun_evaluator
+    )
     # for hydra multirun memory management issues:
     gc.collect()
     torch.cuda.empty_cache()
