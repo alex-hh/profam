@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 
@@ -22,7 +22,6 @@ class SamplingEvaluatorCallback:
         self.num_samples = num_samples
 
     def on_train_epoch_end(self, trainer, model):
-        # TODO: move esmfold to device?
         if trainer.is_global_zero:
             # Q: how does logging work across ranks? if i log only from rank 0, what happens?
             all_metrics = defaultdict(list)

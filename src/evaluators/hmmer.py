@@ -3,9 +3,10 @@ import pyhmmer
 from scipy.stats import pearsonr
 
 from src.evaluators.alignment import MSANumeric, aa_letters_wgap
+from src.evaluators.base import SamplingEvaluator
 
 
-class ProfileHMMEvaluator:
+class ProfileHMMEvaluator(SamplingEvaluator):
     """
     The parameters control 'reporting' and 'inclusion' thresholds, which determine attributes of hits.
 
@@ -43,14 +44,14 @@ class ProfileHMMEvaluator:
         }
 
 
-class HMMAlignmentStatisticsEvaluator:
+class HMMAlignmentStatisticsEvaluator(SamplingEvaluator):
 
     """First aligns generations to HMM, then computes statistics from alignment.
 
     Statistics are compared with those computed from a reference MSA.
     """
 
-    def __init__(self, hmm_file, reference_msa, E=1000):
+    def __init__(self, hmm_file, reference_msa):
         with pyhmmer.plan7.HMMFile(hmm_file) as hmm_f:
             self.hmm = hmm_f.read()
         self.reference_msa = reference_msa

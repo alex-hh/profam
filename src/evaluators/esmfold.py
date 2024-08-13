@@ -44,7 +44,7 @@ def load_residues(pdb_file):
 class ESMFoldSamplingEvaluator(SamplingEvaluator):
     # TODO: run on single device in multi-gpu setting? or figure out how to distribute?
     # TODO: support caching structure predictions for prompt.
-    def __init__(self, name, device):
+    def __init__(self, device):
         self.model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").eval()
         self.model.esm = self.model.esm.half()
         self.model = self.model.to("cpu")
