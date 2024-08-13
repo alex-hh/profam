@@ -11,7 +11,6 @@ import numpy as np
 import torch
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
-from torch import stack
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
