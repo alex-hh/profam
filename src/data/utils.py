@@ -156,24 +156,24 @@ def load_protein_dataset(
     shuffle: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        lines = example["text"].split("\n")
-        if not len(lines[-1]):
-            lines = lines[:-1]
-        # min 2 lines per seq, assume at least 10 tks per line
-        max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
-        if len(lines) > max_fasta_lines_to_preprocess:
-            lines = subsample_fasta_lines(
-                lines,
-                max_fasta_lines_to_preprocess,
-                shuffle=shuffle,
-            )
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
         if "sequences" in example:
             sequence_iterator = example["sequences"]
         else:
+            lines = example["text"].split("\n")
+            if not len(lines[-1]):
+                lines = lines[:-1]
+            # min 2 lines per seq, assume at least 10 tks per line
+            max_fasta_lines_to_preprocess = max_tokens // 5  # upper bound on lines to proc.
+            if len(lines) > max_fasta_lines_to_preprocess:
+                lines = subsample_fasta_lines(
+                    lines,
+                    max_fasta_lines_to_preprocess,
+                    shuffle=shuffle,
+                )
             sequence_iterator = read_fasta_sequences(
-                example["text"].split("\n"),
+                lines,
                 # preserve original sequences before getting positions
                 keep_gaps=True if use_seq_pos else cfg.keep_gaps,
                 keep_insertions=True if use_seq_pos else cfg.keep_insertions,
