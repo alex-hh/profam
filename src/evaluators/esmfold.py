@@ -1,10 +1,12 @@
 import io
+from typing import List
 
 import numpy as np
 from Bio.PDB import PDBParser
 from Bio.SVDSuperimposer import SVDSuperimposer
 from transformers import AutoTokenizer, EsmForProteinFolding
 
+from src.data.objects import ProteinDocument
 from src.evaluators.base import SamplingEvaluator
 
 
@@ -51,10 +53,14 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
 
-    def evaluate_samples(self, sequence_prompt, samples):
-        # TODO: add average best TM score or similar
+    def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
+        # TODO: add average best TM score or similar to structures in document.
         prompt_plddts = []
         self.model = self.model.to(self.device)
+        assert protein_document.prompt_indices is not None  # set during build prompt
+        sequence_prompt = [
+            protein_document.sequences[i] for i in protein_document.prompt_indices
+        ]
         for seq in sequence_prompt:
             out = self.model.infer(seq)
             # pdb_str = self.model.output_to_pdb(out)[0]

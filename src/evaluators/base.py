@@ -1,16 +1,29 @@
 from collections import defaultdict
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 
+from src.data.objects import ProteinDocument
+from src.models.base import BaseFamilyLitModule
+
 
 class SamplingEvaluator:
-    def evaluate_samples(self, sequence_prompt, samples):
+    def evaluate_samples(
+        self, protein_document: ProteinDocument, samples: List[str]
+    ) -> Dict[str, float]:
         raise NotImplementedError("should be implemented on child class")
 
-    def __call__(self, model, sequence_prompt, num_samples):
-        samples = model.sample_seqs(sequence_prompt, num_samples)
-        return self.evaluate_samples(sequence_prompt, samples)
+    def build_prompt(self, protein_document: ProteinDocument) -> List[str]:
+        raise NotImplementedError("should be implemented on child class")
+
+    def __call__(
+        self,
+        model: BaseFamilyLitModule,
+        protein_document: ProteinDocument,
+        num_samples: int,
+    ):
+        samples = model.sample_seqs(protein_document, num_samples)
+        return self.evaluate_samples(protein_document, samples)
 
 
 class SamplingEvaluatorCallback:

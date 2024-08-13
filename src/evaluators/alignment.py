@@ -6,11 +6,12 @@ References:
 
 posssibly superseded by covar
 """
+import string
+
 import numpy as np
 import torch
-import string
-from src.data import fasta
 
+from src.data import fasta
 
 aa_letters = [
     "A",

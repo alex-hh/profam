@@ -1,6 +1,7 @@
-import numpy as np
-from typing import List, Optional
 from dataclasses import dataclass
+from typing import List, Optional
+
+import numpy as np
 
 
 # want to be consistent with fields in parquet files so we can load from there
@@ -12,3 +13,4 @@ class ProteinDocument:
     sequences: List[str]
     accessions: List[str]
     backbone_coords: Optional[np.ndarray]
+    prompt_indices: Optional[List[int]]
