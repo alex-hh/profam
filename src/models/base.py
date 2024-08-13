@@ -449,6 +449,87 @@ class BaseFamilyLitModule(BaseLitModule):
                 completion_seq_pos=completion_seq_pos,
             )
 
+    def _sample_seqs(
+        self,
+        input_ids,
+        num_sequences,
+        batch_size: int = 1,
+        max_length: int = 8192,  # maximum length of inputs plus completions
+        input_seq_pos: Optional[torch.LongTensor] = None,
+        include_prompt_in_output: bool = False,
+        greedy: bool = False,
+        temperature: Optional[float] = None,
+    ):
+        # TODO: pass attention mask, pad_token_id to avoid the following warning:
+        # The attention mask and the pad token id were not set. As a consequence, you may
+        # observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+        # TODO: add temperature kwarg
+        # TODO: add min length kwarg
+        # TODO: check whether model spontaneously adds the SEP token
+
+        assert (
+            input_ids.shape[0] == 1
+        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+        assert input_ids.ndim == 2  # b, L
+        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
+        all_outputs = []
+        for batch_start in range(0, num_sequences, batch_size):
+            num_return_sequences = min(batch_size, num_sequences - batch_start)
+            forward_kwargs = (
+                {"seq_pos": input_seq_pos.expand(num_return_sequences, -1)}
+                if self.use_seq_pos
+                else {}
+            )
+            # TemperatureLogitsWarper
+            # TODO: migrate to model.sample
+            outputs = self.model.generate(
+                input_ids=input_ids,
+                num_return_sequences=num_return_sequences,
+                return_dict_in_generate=False,
+                max_length=max_length,
+                do_sample=not greedy,
+                temperature=temperature,
+                **forward_kwargs,
+            )
+            if not include_prompt_in_output:
+                outputs = outputs[:, input_ids.shape[1] :]
+            all_outputs.append(outputs)
+        max_output_length = max([o.shape[1] for o in all_outputs])
+        # TODO: poss just return a list instead of the padded tensor
+        # TODO: does padding include eos (sep)? seems no?
+        padded_outputs = torch.full(
+            (num_sequences, max_output_length), self.tokenizer.pad_token_id
+        )
+        for i, o in enumerate(all_outputs):
+            padded_outputs[i, : o.shape[1]] = o
+        return padded_outputs
+
+    def sample_seqs(
+        self,
+        sequence_prompt: List[str],
+        num_sequences,
+        position_indices: Optional[List[int]] = None,
+        batch_size: int = 1,
+    ):
+        # TODO: encode sequence prompt and get sequence pos if necessary.
+        input_ids = self.encode_sequences(sequence_prompt)
+        if self.use_seq_pos:
+            if position_indices is None:
+                position_indices = [list(range(len(s))) for s in sequence_prompt]
+            # c.f. src.data.utils. n.b. num_start_tokens has to be kept in sync
+            # TODO: stop hardcoding it - maybe configure as part of model configuration? and data configuration?
+            seq_pos = get_seq_pos_from_positions(
+                input_ids,
+                position_indices,
+                pad_token_id=self.tokenizer.pad_token_id,
+                max_seq_pos=self.max_seq_pos,
+                num_start_tokens=2,
+            )
+        else:
+            seq_pos = None
+        encoded = self._sample_seqs(input_ids, num_sequences, input_seq_pos=seq_pos)
+        return self.decode_tokens(encoded)
+
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
     ) -> torch.Tensor:
