@@ -8,6 +8,7 @@ posssibly superseded by covar
 """
 import numpy as np
 import torch
+import string
 from src.data import fasta
 
 
