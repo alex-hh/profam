@@ -161,9 +161,9 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
     return output_file
 
 
-def extract_pdbs(zip_filename, afdb_ids, save_dir):
+def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
     # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
-    print("Extracting pdbs", zip_filename, afdb_ids, flush=True)
+    print("Extracting pdbs", zip_filename, afdb_ids, "cluster index", zip_index, flush=True)
     t0 = time.time()
     successes = extract_multi_pdb_files(
          afdb_ids, zip_filename, save_dir,
@@ -231,17 +231,18 @@ def build_single_parquet(
 
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
+    print("Number of zip files: ", len(pdb_lookup), flush=True)
     # Parallel extraction of pdb files"
     output_dir = os.path.join(scratch_dir, str(parquet_id))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     with multiprocessing.Pool(processes=num_processes) as pool:
         results = []
-        for zip_filename, afdb_ids in pdb_lookup.items():
+        for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
             result = pool.apply_async(
                 extract_pdbs,
-                args=(zip_filename, afdb_ids, output_dir)
+                args=(zip_filename, afdb_ids, output_dir, zip_index)
             )
             results.append(result)
 
