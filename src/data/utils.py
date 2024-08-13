@@ -11,7 +11,6 @@ import numpy as np
 import torch
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
-from torch import stack
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
@@ -197,12 +196,10 @@ def load_protein_dataset(
                 )
                 sequences.append(seq)
                 positions.append(pos)
+            sequences, positions = sample_to_max_tokens(
+                sequences, positions=positions, max_tokens=max_tokens, shuffle=shuffle
+            )
 
-            # TODO: seed explicitly?
-            if shuffle:
-                perm = np.random.permutation(len(sequences))
-                sequences = [sequences[i] for i in perm]
-                positions = [positions[i] for i in perm]
         else:
             sequences = [
                 seq
@@ -210,24 +207,14 @@ def load_protein_dataset(
                     sequence_iterator, cfg.truncate_after_n_sequences
                 )
             ]  # necessary for fasta iterator...
-            if shuffle:
-                perm = np.random.permutation(len(sequences))
-                sequences = [sequences[i] for i in perm]
+            sequences = sample_to_max_tokens(
+                sequences, max_tokens=max_tokens, shuffle=shuffle
+            )
 
-        if max_tokens is not None:
-            cumulative_lengths = list(
-                itertools.accumulate([len(s) + 1 for s in sequences])
-            )  # +1 for separator
-            insertion_point = bisect.bisect_left(
-                cumulative_lengths,
-                max_tokens - 2,
-            )  # -2 for doc start and end tokens
-        else:
-            insertion_point = len(sequences)
         concatenated_seqs = (
             cfg.document_tag
             + tokenizer.bos_token
-            + tokenizer.sep_token.join(sequences[:insertion_point])
+            + tokenizer.sep_token.join(sequences)
             + tokenizer.sep_token
         )
         tokenized = tokenizer(
@@ -258,7 +245,7 @@ def load_protein_dataset(
         if use_seq_pos:
             seq_pos = get_seq_pos_from_positions(
                 tokenized.input_ids,
-                positions[:insertion_point],
+                positions,
                 pad_token_id=tokenizer.pad_token_id,
                 max_seq_pos=max_seq_pos,
                 num_start_tokens=2,
@@ -354,26 +341,34 @@ def load_protein_dataset(
 
 def sample_to_max_tokens(
     sequences,
-    seed: int = None,
-    keep_first: bool = False,
+    positions: Optional[List[int]] = None,
+    max_tokens: Optional[int] = None,
+    shuffle=True,
+    seed: Optional[int] = None,
     drop_first: bool = False,
-    max_tokens: int = 5000,
 ):
     rng = np.random.default_rng(seed)
-    if keep_first:
-        # TODO: might want to allow it to be shuffled
-        assert not drop_first
-        sampled_sequences = [sequences[0]]
-        token_count = len(sampled_sequences[0]) + 2  # bos and eos
-    else:
-        sampled_sequences = []
-        token_count = 2
+    # TODO: implement keep first, drop first
+    if drop_first:
+        sequences = sequences[1:]
+        if positions is not None:
+            positions = positions[1:]
 
-    shuffled_sequences = sequences[1:] if drop_first or keep_first else sequences
-    rng.shuffle(shuffled_sequences)
-    for seq in shuffled_sequences:
-        if token_count + len(seq) + 1 > max_tokens:
-            break
-        sampled_sequences.append(seq)
-        token_count += len(seq) + 1
-    return sampled_sequences
+    if shuffle:
+        perm = rng.permutation(len(sequences))
+        sequences = [sequences[i] for i in perm]
+
+    if max_tokens is not None:
+        cumulative_lengths = list(
+            itertools.accumulate([len(s) + 1 for s in sequences])
+        )  # +1 for separator
+        insertion_point = bisect.bisect_left(
+            cumulative_lengths,
+            max_tokens - 2,
+        )  # -2 for doc start and end tokens
+    else:
+        insertion_point = len(sequences)
+    if positions is None:
+        return sequences[:insertion_point]
+    else:
+        return sequences[:insertion_point], positions[:insertion_point]

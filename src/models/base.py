@@ -565,12 +565,6 @@ class BaseFamilyLitModule(BaseLitModule):
         encoded = self._sample_seqs(input_ids, num_sequences, input_seq_pos=seq_pos)
         return self.decode_tokens(encoded)
 
-    def validation_step_esmfold(self, batch):
-        # TODO: batch should prob contain a wt / representative sequence to which we compare
-        samples = self.sample_seqs(batch["input_ids"])
-        # TODO: process this correctly
-        input_sequences = self.tokenizer.decode(batch["input_ids"])
-
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
     ) -> torch.Tensor:

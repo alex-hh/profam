@@ -20,6 +20,7 @@ class PFAMHMMERMixin:
     def __init__(
         self,
         *args,
+        max_tokens: int = 8192,
         seed: int = 52,
         pfam_hmm_dir="../data/pfam_hmms",
         keep_gaps=False,
@@ -33,6 +34,7 @@ class PFAMHMMERMixin:
         self.keep_gaps = keep_gaps
         self.keep_insertions = keep_insertions
         self.to_upper = to_upper
+        self.max_tokens = max_tokens
 
     def hmm_file_from_identifier(self, identifier: str):
         return os.path.join(self.pfam_hmm_dir, f"{identifier}.hmm")
@@ -46,6 +48,7 @@ class PFAMHMMERMixin:
     def build_prompt(self, protein_document: ProteinDocument):
         sequences = []
         positions = []
+        # TODO: subsample before convert sequence with positions.
         for sequence in protein_document.sequences:
             seq, pos = convert_sequence_with_positions(
                 sequence,
@@ -55,6 +58,7 @@ class PFAMHMMERMixin:
             )
             sequences.append(seq)
             positions.append(pos)
+
         return sequences, positions
 
 

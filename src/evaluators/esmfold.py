@@ -46,12 +46,17 @@ def load_residues(pdb_file):
 class ESMFoldSamplingEvaluator(SamplingEvaluator):
     # TODO: run on single device in multi-gpu setting? or figure out how to distribute?
     # TODO: support caching structure predictions for prompt.
-    def __init__(self, device):
+    def __init__(self, device, max_tokens: int):
         self.model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").eval()
         self.model.esm = self.model.esm.half()
         self.model = self.model.to("cpu")
         self.device = device
+        self.max_tokens = max_tokens  # includes prompt...
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+
+    def build_prompt(self, protein_document: ProteinDocument):
+        # TODO: we're going to need to subsample to max tokens
+        pass
 
     def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
         # TODO: add average best TM score or similar to structures in document.
