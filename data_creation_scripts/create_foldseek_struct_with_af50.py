@@ -31,10 +31,10 @@ import os
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 
 
-lock_file = "directory.lock"
+af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entry“Id-cluFlag-taxId.tsv"
 
 
-def make_af50_dictionary(af50_path, clusters_to_include=None):
+def make_af50_dictionary(clusters_to_include=None):
     line_counter = 0
     af50_dict = {}
     with open(af50_path, "r") as f:
@@ -177,7 +177,6 @@ def build_single_parquet(
     parquet_id,
     cluster_ids,
     af2zip,
-    af50_dict,
     save_dir,
     scratch_dir,
     minimum_cluster_size=1,
@@ -188,6 +187,9 @@ def build_single_parquet(
     seq_success_counter = 0
     cluster_counter = 0
     seq_fail_path = save_dir + f"failed_sequences_{parquet_id}.txt"
+
+    if not skip_af50:
+        af50_dict = make_af50_dictionary(clusters_to_include=cluster_ids)
 
     pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
@@ -326,8 +328,6 @@ if __name__ == "__main__":
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
-    af50_dict_pickle_path = os.path.join(save_dir, "af50_cluster_dict.pkl")
-    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
     af2zip = make_zip_dictionary()
 
     if not os.path.exists(cluster_dict_pickle_path):
@@ -343,18 +343,9 @@ if __name__ == "__main__":
             cluster_dict = pickle.load(f)
         print("Number of clusters:", len(cluster_dict))
 
-    if not os.path.exists(af50_dict_pickle_path):
-        af50_dict = make_af50_dictionary(af50_path)
-        with open(af50_dict_pickle_path, "wb") as f:
-            pickle.dump(af50_dict, f)
-    else:
-        with open(af50_dict_pickle_path, "rb") as f:
-            af50_dict = pickle.load(f)
-
     create_foldseek_parquets(
         cluster_dict=cluster_dict,
         af2zip=af2zip,
-        af50_dict=af50_dict,
         save_dir=save_dir,
         scratch_dir=args.scratch_dir,
         minimum_cluster_size=args.minimum_cluster_size,
