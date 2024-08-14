@@ -194,8 +194,6 @@ def load_protein_dataset(
     split="train",
     padding="max_length",
     include_doc_hashes: bool = False,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
     remove_text: bool = True,
     shuffle: bool = True,
 ) -> Dataset:
@@ -227,11 +225,11 @@ def load_protein_dataset(
             sequence_iterator = read_fasta_sequences(
                 lines,
                 # preserve original sequences before getting positions
-                keep_gaps=True if use_seq_pos else cfg.keep_gaps,
-                keep_insertions=True if use_seq_pos else cfg.keep_insertions,
-                to_upper=False if use_seq_pos else cfg.to_upper,
+                keep_gaps=True if tokenizer.use_seq_pos else cfg.keep_gaps,
+                keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
+                to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
             )
-        if use_seq_pos:
+        if tokenizer.use_seq_pos:
             sequences = []
             positions = []
             for seq in itertools.islice(
@@ -263,7 +261,7 @@ def load_protein_dataset(
         # TODO: use profam tokenizer to handle this.
         tokenized = tokenizer.encode_sequences(
             sequences,
-            positions=positions if use_seq_pos else None,
+            positions=positions if tokenizer.use_seq_pos else None,
             document_type=cfg.document_tag,
             padding=padding,
             max_length=max_tokens,

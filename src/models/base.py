@@ -17,6 +17,7 @@ from src.models.utils import (
     accuracy_from_outputs,
     log_likelihood_from_outputs,
 )
+from src.utils.tokenizers import ProFamTokenizer
 
 
 def calc_grad_norm(params):
@@ -283,7 +284,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def __init__(
         self,
         model,
-        tokenizer: PreTrainedTokenizerFast,
+        tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
@@ -513,22 +514,13 @@ class BaseFamilyLitModule(BaseLitModule):
         batch_size: int = 1,
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
-        input_ids = self.tokenizer.encode_sequences(sequence_prompt)
-        if self.use_seq_pos:
-            if position_indices is None:
-                position_indices = [list(range(len(s))) for s in sequence_prompt]
-            # c.f. src.data.utils. n.b. num_start_tokens has to be kept in sync
-            # TODO: stop hardcoding it - maybe configure as part of model configuration? and data configuration?
-            seq_pos = get_seq_pos_from_positions(
-                input_ids,
-                position_indices,
-                pad_token_id=self.tokenizer.pad_token_id,
-                max_seq_pos=self.max_seq_pos,
-                num_start_tokens=2,
-            )
-        else:
-            seq_pos = None
-        encoded = self._sample_seqs(input_ids, num_sequences, input_seq_pos=seq_pos)
+        tokenized = self.tokenizer.encode_sequences(
+            sequence_prompt, positions=position_indices
+        )
+        seq_pos = tokenized.data.get("seq_pos", None)
+        encoded = self._sample_seqs(
+            tokenized.input_ids, num_sequences, input_seq_pos=seq_pos
+        )
         return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(

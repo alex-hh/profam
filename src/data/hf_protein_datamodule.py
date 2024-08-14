@@ -33,8 +33,6 @@ class ProteinDataModule(LightningDataModule):
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
         count_doc_hashes: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 1024,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -51,8 +49,6 @@ class ProteinDataModule(LightningDataModule):
         self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
-        self.use_seq_pos = use_seq_pos
-        self.max_seq_pos = max_seq_pos  # max embed index for relative position
         self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.count_doc_hashes = count_doc_hashes
@@ -71,8 +67,6 @@ class ProteinDataModule(LightningDataModule):
                         self.max_tokens,
                         data_dir=self.data_dir,
                         include_doc_hashes=self.count_doc_hashes,
-                        use_seq_pos=self.use_seq_pos,
-                        max_seq_pos=self.max_seq_pos,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
@@ -104,16 +98,12 @@ class ProteinDataModule(LightningDataModule):
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
-                use_seq_pos=self.use_seq_pos,
-                max_seq_pos=self.max_seq_pos,
             )
             self.test_dataset = load_protein_dataset(
                 self.dataset_cfgs[self.val_dataset_name],
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
-                use_seq_pos=self.use_seq_pos,
-                max_seq_pos=self.max_seq_pos,
             )
             if self.evaluate_gym:
                 assert self.gym_dms_ids is not None
@@ -124,8 +114,6 @@ class ProteinDataModule(LightningDataModule):
                     max_mutated_sequences=self.max_gym_sequences,
                     gym_data_dir=self.gym_data_dir,
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                     keep_gaps=self.keep_gym_gaps,
                     num_proc=self.num_workers,
                 )
@@ -135,8 +123,6 @@ class ProteinDataModule(LightningDataModule):
                     "data/example_data/expasy_ec/*.fasta",
                     self.tokenizer,
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                 )
 
             self._is_setup = True

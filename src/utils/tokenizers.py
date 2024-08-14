@@ -16,7 +16,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     def __init__(
         self,
         *args,
-        add_final_sep: bool = True,
         add_bos_token: bool = True,
         add_document_type_token: bool = True,
         use_seq_pos: bool = False,
@@ -25,7 +24,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
-        self.add_final_sep = add_final_sep
         self.add_document_type_token = add_document_type_token
         self.num_start_tokens = int(self.add_bos_token) + int(
             self.add_document_type_token
@@ -40,10 +38,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         document_type="[RAW]",
         padding="longest",
         max_length: Optional[int] = None,
+        add_final_sep: bool = True,
     ):
         # TODO: add MSA / RAW document type token...
         concatenated_seqs = self.sep_token.join(sequences)
-        if self.add_final_sep:
+        if add_final_sep:
             concatenated_seqs += self.sep_token
         if self.add_bos_token:
             concatenated_seqs = self.bos_token + concatenated_seqs
@@ -68,12 +67,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 self.max_tokens,
             )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        assert tokenized.input_ids.ndim == 1
         if self.use_seq_pos:
             if positions is None:
                 log.warning(
                     "Using seq_pos but positions not provided. Using default positions."
                 )
-                positions = [range(1, len(seq) + 1) for seq in sequences]
+                # +1 to match convert_sequence_with_positions
+                # get_seq_pos_from_positions adds another offset
+                positions = [list(range(1, len(seq) + 1)) for seq in sequences]
             seq_pos = get_seq_pos_from_positions(
                 tokenized.input_ids,
                 positions,
