@@ -22,14 +22,20 @@ data:
   num_workers: 7
   max_tokens: 5000
   data_dir: ../data
-  val_dataset_name: interpro
   tokenizer_path: src/data/components/profam_tokenizer.json
   evaluate_gym: True
   evaluate_ec_class: True
   evaluate_ec_cluster_class: True
   evaluate_pfam_class: True
+  val_dataset_names:
+    - interpro
+    - gym_msas
+    - ted_s50
   count_doc_hashes: True # count the num times each document gets sampled
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "CALM1_HUMAN_Weile_2017", "DYR_ECOLI_Thompson_2019", "DLG4_RAT_McLaughlin_2012", "REV_HV1H2_Fernandes_2016", "TAT_HV1BR_Fernandes_2016", "RL40A_YEAST_Roscoe_2013", "P53_HUMAN_Giacomelli_2018_WT_Nutlin"]
+  gym_data_dir: ../data/ProteinGym
+  max_gym_sequences: 100
+  keep_gym_gaps: True
   use_seq_pos: true
   max_seq_pos: 4098
   dataset_cfgs:
@@ -42,6 +48,7 @@ data:
       to_upper: true
       keep_insertions: true
       file_repeats: 2
+      document_tag: "[MSA]"
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro
@@ -49,17 +56,27 @@ data:
       keep_gaps: true
       to_upper: true
       keep_insertions: true
+      document_tag: "[RAW]"
     gym_msas:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: gym_msas
-      data_path_pattern: ProteinGym/DMS_msa_files/*.a2m
+      data_path_pattern: "ProteinGym/DMS_msa_files/*2023*.a2m"
       keep_gaps: true
       to_upper: true
       keep_insertions: true
+      document_tag: "[MSA]"
+    ted_s50:
+      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      name: ted_s50
+      data_path_pattern: "ted/ted_s50_by_sfam/*11*S50_rep_seq.fasta"
+      is_parquet: false
+      keep_gaps: true
+      to_upper: true
+      keep_insertions: true
+      document_tag: "[RAW]"
+
   data_weights:
     pfam_domain: 1.0
-    interpro: 0.0
-    gym_msas: 0.0
 logger:
   wandb:
     tags: ${tags}

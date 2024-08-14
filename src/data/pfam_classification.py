@@ -24,6 +24,7 @@ from torch import arange
 from src.data import fasta
 from src.data.utils import tokenize, tokenize_completions
 import src.data.utils as data_utils
+from src.data.family_classification import family_columns
 
 
 
@@ -159,8 +160,7 @@ def load_pfam_classification_dataset(
         num_proc=num_workers or None,
     )
 
-    columns = ["input_ids", "completion_ids", "eval_fam_ids",
-               "family_labels", "ds_name", "family_id"]
+    columns = family_columns
     if use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
