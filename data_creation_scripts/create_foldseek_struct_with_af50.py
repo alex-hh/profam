@@ -242,7 +242,7 @@ def make_job_list(
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
         members = cluster_dict[cluster_id]
-        if len(members) >= minimum_foldseek_cluster_size:  # TODO: fix for af50 inclusion
+        if len(members) >= minimum_foldseek_cluster_size:
             cluster_counter += 1
 
             for member in members:
