@@ -35,6 +35,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             concatenated_seqs = self.bos_token + concatenated_seqs
         if document_type is not None:
             concatenated_seqs = document_type + concatenated_seqs
+        else:
+            assert (
+                not self.add_document_type_token
+            ), "Document type token expected but not provided"
         tokenized = self.tokenizer(
             concatenated_seqs,
             truncation=False,  # shouldnt be necessary: bisection should handle

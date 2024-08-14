@@ -1,0 +1,11 @@
+_target_: src.utils.tokenizers.ProfamTokenizer
+tokenizer_file: tokenizer_path
+unk_token: "[UNK]"
+pad_token: "[PAD]"
+bos_token: "[start-of-document]"
+sep_token: "[SEP]"
+mask_token: "[MASK]"
+add_special_tokens: True
+add_final_sep: True
+add_bos_token: True
+add_document_type_token: True
