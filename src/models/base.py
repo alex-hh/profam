@@ -11,7 +11,6 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
-from src.data.utils import get_seq_pos_from_positions
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,

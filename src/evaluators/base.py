@@ -23,10 +23,12 @@ class SamplingEvaluator:
             return {"sequences": prompt, "num_samples": num_samples}
         elif isinstance(prompt, tuple) and isinstance(prompt[0], list):
             return {
-                "input_ids": prompt[0],
+                "sequences": prompt[0],
                 "position_indices": prompt[1],
                 "num_samples": num_samples,
             }
+        else:
+            raise ValueError("Prompt should be a list of strings or a tuple of lists")
 
     def run_sampling(self, model, protein_document, num_samples):
         prompt = self.build_prompt(protein_document)
