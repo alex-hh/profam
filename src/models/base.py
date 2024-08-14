@@ -519,7 +519,10 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         seq_pos = tokenized.data.get("seq_pos", None)
         encoded = self._sample_seqs(
-            tokenized.input_ids, num_sequences, input_seq_pos=seq_pos
+            tokenized.input_ids,
+            num_sequences,
+            input_seq_pos=seq_pos,
+            batch_size=batch_size,
         )
         return self.tokenizer.decode_tokens(encoded)
 
