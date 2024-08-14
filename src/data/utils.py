@@ -135,5 +135,5 @@ def sample_to_max_tokens(
         return sequences[:insertion_point]
     else:
         return sequences[:insertion_point], [
-            arr[:insertion_point] for arr in extra_arrays
+            arr[:insertion_point] if arr is not None else None for arr in extra_arrays
         ]
