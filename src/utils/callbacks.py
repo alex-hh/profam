@@ -23,7 +23,7 @@ class EpochTimerCallback(Callback):
 
     def on_train_epoch_end(self, trainer, pl_module):
         self._t1_epoch = time.time()
-        self.log(
+        pl_module.log(
             "train/epoch_time",
             self._t1_epoch - self._t0_epoch,
             on_step=False,
@@ -36,7 +36,7 @@ class EpochTimerCallback(Callback):
 
     def on_validation_epoch_end(self, trainer, pl_module):
         self._val_t1_epoch = time.time()
-        self.log(
+        pl_module.log(
             "val/epoch_time",
             self._val_t1_epoch - self._val_t0_epoch,
             on_step=False,
