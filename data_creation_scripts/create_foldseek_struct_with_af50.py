@@ -81,7 +81,7 @@ def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
             for afdb_id in afdb_ids:
                 if afdb_id + ".pdb" in names:
                     # TODO: print worker...
-                    assert not os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
+                    assert not os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename}, {afdb_ids}"
                     zip_ref.extract(afdb_id + ".pdb", output_folder)
                     print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}", os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")))
                     successes.append(True)
@@ -179,7 +179,7 @@ def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
 def make_job_list(
     parquet_id,
     save_dir,
-    minimum_cluster_size=1,
+    minimum_foldseek_cluster_size=1,
     skip_af50=False,
 ):
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
@@ -242,7 +242,7 @@ def make_job_list(
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
         members = cluster_dict[cluster_id]
-        if len(members) >= minimum_cluster_size:
+        if len(members) >= minimum_foldseek_cluster_size:  # TODO: fix for af50 inclusion
             cluster_counter += 1
 
             for member in members:
@@ -344,7 +344,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
     parser.add_argument("scratch_dir")
-    parser.add_argument("--minimum_cluster_size", type=int, default=1)
+    parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
     args = parser.parse_args()
@@ -352,14 +352,14 @@ if __name__ == "__main__":
     print("Num cpus", os.cpu_count(), flush=True)
 
     if args.skip_af50:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct_example/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
 
     create_foldseek_parquets(
         save_dir=save_dir,
         scratch_dir=args.scratch_dir,
-        minimum_cluster_size=args.minimum_cluster_size,
+        minimum_foldseek_cluster_size=args.minimum_foldseek_cluster_size,
         parquet_ids=args.parquet_ids,
         skip_af50=args.skip_af50,
         num_processes=os.cpu_count(),
