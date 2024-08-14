@@ -4,6 +4,10 @@ from transformers import PreTrainedTokenizerFast
 
 
 class ProFamTokenizer(PreTrainedTokenizerFast):
+    """TODO: handle position encoding on here as well.
+    (to make this really efficient we'd have to hack underlying rust code i think...)
+    """
+
     def __init__(
         self,
         *args,

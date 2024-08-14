@@ -20,7 +20,7 @@ class ProteinDataModule(LightningDataModule):
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
-        tokenizer_path: str,
+        tokenizer: ProFamTokenizer,
         data_dir: str,
         val_dataset_name: str,
         batch_size: int = 8,
@@ -53,17 +53,7 @@ class ProteinDataModule(LightningDataModule):
         self.gym_dms_ids = gym_dms_ids
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos  # max embed index for relative position
-        self.tokenizer_path = tokenizer_path
-        # TODO: properly assign other special tokens
-        self.tokenizer = ProFamTokenizer(
-            tokenizer_file=tokenizer_path,
-            unk_token="[UNK]",
-            pad_token="[PAD]",
-            bos_token="[start-of-document]",
-            sep_token="[SEP]",
-            mask_token="[MASK]",
-            add_special_tokens=True,
-        )
+        self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.count_doc_hashes = count_doc_hashes
         self._is_setup = False
