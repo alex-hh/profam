@@ -85,11 +85,11 @@ def preprocess_protein_data(
     if "sequences" in example:
         sequence_iterator = example["sequences"]
         max_sequences_to_preprocess = cfg.max_tokens // 10
-        if len(sequence_iterator) > max_sequences_to_preprocess:
-            selected_indices = np.random.choice(
-                len(sequence_iterator), max_sequences_to_preprocess, replace=False
-            )
-            sequence_iterator = [sequence_iterator[i] for i in selected_indices]
+        # n.b. this also shuffles
+        sequence_iterator = random_subsample(
+            sequence_iterator,
+            max_sequences_to_preprocess,
+        )
     else:
         lines = example["text"].split("\n")
         if not len(lines[-1]):
@@ -123,7 +123,6 @@ def preprocess_protein_data(
             )
             sequences.append(seq)
             positions.append(pos)
-
     else:
         sequences = [
             seq
@@ -141,7 +140,6 @@ def preprocess_protein_data(
         max_tokens=cfg.max_tokens,
         shuffle=cfg.shuffle,
     )
-
     tokenized = _tokenize_protein_data(
         sequences,
         cfg=cfg,
