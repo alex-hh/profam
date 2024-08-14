@@ -1,6 +1,7 @@
 #!/bin/bash
 #$ -l tmem=88G
 #$ -l gpu=true
+#$ -l hostname='bubba*'
 #$ -l h_rt=123:55:30
 #$ -S /bin/bash
 #$ -N foldseekF
