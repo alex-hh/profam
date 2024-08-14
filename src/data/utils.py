@@ -167,6 +167,8 @@ def sample_to_max_tokens(
     if shuffle:
         perm = rnd.permutation(len(sequences))
         sequences = [sequences[i] for i in perm]
+        if positions is not None:
+            positions = [positions[i] for i in perm]
 
     if max_tokens is not None:
         cumulative_lengths = list(
