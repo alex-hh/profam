@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import torch
 from datasets import Dataset, load_dataset
+from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
@@ -126,14 +127,17 @@ def get_seq_pos_from_positions(
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: PreTrainedTokenizerFast,
-    max_tokens: int = 5000,
+    max_tokens: Optional[int] = 5000,
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
     use_seq_pos: bool = False,
     max_seq_pos: int = 1024,
+    shuffle: bool = True,
 ) -> Dataset:
     def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        # N.B. for stockholm format we need to check that sequences aren't split over
+        # multiple lines
         if use_seq_pos:
             sequences = []
             positions = []
@@ -147,9 +151,10 @@ def load_protein_dataset(
                 positions.append(pos)
 
             # TODO: seed explicitly?
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
-            positions = [positions[i] for i in perm]
+            if shuffle:
+                perm = np.random.permutation(len(sequences))
+                sequences = [sequences[i] for i in perm]
+                positions = [positions[i] for i in perm]
         else:
             sequences = [
                 seq
@@ -160,16 +165,20 @@ def load_protein_dataset(
                     to_upper=cfg.to_upper,
                 )
             ]
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
+            if shuffle:
+                perm = np.random.permutation(len(sequences))
+                sequences = [sequences[i] for i in perm]
 
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
+        if max_tokens is not None:
+            cumulative_lengths = list(
+                itertools.accumulate([len(s) + 1 for s in sequences])
+            )  # +1 for separator
+            insertion_point = bisect.bisect_left(
+                cumulative_lengths,
+                max_tokens - 2,
+            )  # -2 for doc start and end tokens
+        else:
+            insertion_point = len(sequences)
         concatenated_seqs = (
             cfg.document_tag
             + tokenizer.bos_token
@@ -185,10 +194,11 @@ def load_protein_dataset(
             padding="max_length",
             add_special_tokens=False,
         )
-        assert tokenized.input_ids.shape[1] <= max_tokens, (
-            tokenized.input_ids.shape[1],
-            max_tokens,
-        )
+        if max_tokens is not None:
+            assert tokenized.input_ids.shape[1] <= max_tokens, (
+                tokenized.input_ids.shape[1],
+                max_tokens,
+            )
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
@@ -243,7 +253,9 @@ def load_protein_dataset(
             ]
 
     if cfg.holdout_data_files is not None:
-        assert isinstance(cfg.holdout_data_files, list)
+        assert isinstance(cfg.holdout_data_files, list) or isinstance(
+            cfg.holdout_data_files, ListConfig
+        ), f"holdout files is {type(cfg.holdout_data_files)} not list"
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in cfg.holdout_data_files]
         print("Excluding", all_files - len(data_files), "holdout files")
@@ -264,10 +276,10 @@ def load_protein_dataset(
             streaming=True,
             verification_mode="no_checks",
         )
-        try:
-            dataset = dataset.remove_columns(["__index_level_0__"])
-        except:
-            pass
+        columns_to_drop = [
+            c for c in dataset.column_names if c not in ["text", "sequences"]
+        ]
+        dataset = dataset.remove_columns(columns_to_drop)
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
