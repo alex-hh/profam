@@ -167,8 +167,12 @@ class BaseLitModule(LightningModule):
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
+        ds_name = (
+            batch["ds_name"][0]
+            if isinstance(batch["ds_name"], list)
+            else batch["ds_name"].text[0]
+        )
         # we check whether we are in proteingym loader by looking at keys in batch
-        ds_name = batch["ds_name"].text[0]
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs
