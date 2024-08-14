@@ -121,7 +121,8 @@ class ProteinDataModule(LightningDataModule):
                     data_dir=self.data_dir,
                     use_seq_pos=self.use_seq_pos,
                     max_seq_pos=self.max_seq_pos,
-                ) for v_ds_name in self.val_dataset_names
+                )
+                for v_ds_name in self.val_dataset_names
             ]
             self.test_dataset = load_protein_dataset(
                 self.dataset_cfgs[self.val_dataset_names[0]],
@@ -199,7 +200,8 @@ class ProteinDataModule(LightningDataModule):
                 collate_fn=self.collator,
                 shuffle=False,
                 num_workers=self.num_workers,
-            ) for val_ds in self.val_datasets
+            )
+            for val_ds in self.val_datasets
         ]
         if self.evaluate_gym:
             loaders.append(
