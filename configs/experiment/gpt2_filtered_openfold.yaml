@@ -34,7 +34,8 @@ data:
   num_workers: 8
   max_tokens: 4000
   data_dir: ../data
-  val_dataset_name: interpro
+  val_dataset_names:
+    - interpro
   tokenizer_path: src/data/components/profam_tokenizer.json
   evaluate_gym: True
   gym_data_dir: ../data/ProteinGym

@@ -167,6 +167,11 @@ class BaseLitModule(LightningModule):
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
+        ds_name = (
+            batch["ds_name"][0]
+            if isinstance(batch["ds_name"], list)
+            else batch["ds_name"].text[0]
+        )
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -184,17 +189,48 @@ class BaseLitModule(LightningModule):
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
-        self.log("val/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False)
+        self.log(
+            f"val/{ds_name}/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
+        if dataloader_idx == 0:
+            # log the loss again with generic name for the sake of model checkpointing
+            self.log(
+                f"val/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=True,
+            )
+
+        self.log(
+            f"val/{ds_name}/accuracy",
+            accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
         # n.b. this might be biased for batch size > 1
         self.log(
-            "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+            f"val/{ds_name}/ppl",
+            torch.exp(loss),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
         )
         return loss
 
     def test_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
+        ds_name = batch["ds_name"].text[0]
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -209,13 +245,29 @@ class BaseLitModule(LightningModule):
             )
         loss = outputs.loss
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
-        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
+        self.log(
+            f"test/{ds_name}/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
         # n.b. this might be biased for batch size > 1
         self.log(
-            "test/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+            f"test/{ds_name}/ppl",
+            torch.exp(loss),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
         )
         self.log(
-            "test/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False
+            f"test/{ds_name}/accuracy",
+            accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
         )
         return loss
 
@@ -274,7 +326,12 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=True
+            "gym/spearman",
+            spearman_corr,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
         )
 
 

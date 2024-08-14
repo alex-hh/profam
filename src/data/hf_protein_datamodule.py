@@ -25,7 +25,7 @@ class ProteinDataModule(LightningDataModule):
         data_weights: Dict[str, float],
         tokenizer_path: str,
         data_dir: str,
-        val_dataset_name: str,
+        val_dataset_names: List[str],
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -46,7 +46,7 @@ class ProteinDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.data_dir = data_dir
-        self.val_dataset_name = val_dataset_name
+        self.val_dataset_names = val_dataset_names
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.keep_gym_gaps = keep_gym_gaps
@@ -78,7 +78,7 @@ class ProteinDataModule(LightningDataModule):
             train_datasets = []
             train_data_weights = []
             for data_key, dataset_config in self.dataset_cfgs.items():
-                if data_key != self.val_dataset_name:
+                if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
                         dataset_config,
                         self.tokenizer,
@@ -113,16 +113,19 @@ class ProteinDataModule(LightningDataModule):
             # n.b. set_epoch is required in order for shuffling to be correctly randomised
             # - this is handled by ShuffleCallback
             self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
-            self.val_dataset = load_protein_dataset(
-                self.dataset_cfgs[self.val_dataset_name],
-                self.tokenizer,
-                self.max_tokens,
-                data_dir=self.data_dir,
-                use_seq_pos=self.use_seq_pos,
-                max_seq_pos=self.max_seq_pos,
-            )
+            self.val_datasets = [
+                load_protein_dataset(
+                    self.dataset_cfgs[v_ds_name],
+                    self.tokenizer,
+                    self.max_tokens,
+                    data_dir=self.data_dir,
+                    use_seq_pos=self.use_seq_pos,
+                    max_seq_pos=self.max_seq_pos,
+                )
+                for v_ds_name in self.val_dataset_names
+            ]
             self.test_dataset = load_protein_dataset(
-                self.dataset_cfgs[self.val_dataset_name],
+                self.dataset_cfgs[self.val_dataset_names[0]],
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
@@ -192,12 +195,13 @@ class ProteinDataModule(LightningDataModule):
     def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
-                self.val_dataset,
+                val_ds,
                 batch_size=self.batch_size,
                 collate_fn=self.collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )
+            for val_ds in self.val_datasets
         ]
         if self.evaluate_gym:
             loaders.append(
