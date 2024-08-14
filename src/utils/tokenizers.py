@@ -2,17 +2,34 @@ from transformers import PreTrainedTokenizerFast
 
 
 class ProFamTokenizer(PreTrainedTokenizerFast):
-    def encode_sequences(self, sequences):
+    def __init__(
+        self,
+        *args,
+        num_start_tokens=2,
+        add_final_sep: bool = True,
+        add_bos_token: bool = True,
+        **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.num_start_tokens = num_start_tokens
+        self.add_bos_token = add_bos_token
+        self.add_final_sep = add_final_sep
+
+    def encode_sequences(self, sequences, document_type="[RAW]", padding="longest"):
         # TODO: add MSA / RAW document type token...
-        concatenated_seqs = (
-            self.bos_token + self.sep_token.join(sequences) + self.sep_token
-        )
+        concatenated_seqs = self.sep_token.join(sequences)
+        if self.add_final_sep:
+            concatenated_seqs += self.sep_token
+        if self.add_bos_token:
+            concatenated_seqs = self.bos_token + concatenated_seqs
+        if document_type is not None:
+            concatenated_seqs = document_type + concatenated_seqs
         tokenized = self.tokenizer(
             concatenated_seqs,
             truncation=False,  # shouldnt be necessary: bisection should handle
             return_tensors="pt",
             # padding="longest",
-            padding="longest",
+            padding=padding,
             add_special_tokens=False,
         )
         return tokenized.input_ids
