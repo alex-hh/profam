@@ -311,38 +311,6 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
 
-    def encode_sequences(self, sequences):
-        # TODO: add MSA / RAW document type token...
-        concatenated_seqs = (
-            self.tokenizer.bos_token
-            + self.tokenizer.sep_token.join(sequences)
-            + self.tokenizer.sep_token
-        )
-        tokenized = self.tokenizer(
-            concatenated_seqs,
-            truncation=False,  # shouldnt be necessary: bisection should handle
-            return_tensors="pt",
-            # padding="longest",
-            padding="longest",
-            add_special_tokens=False,
-        )
-        return tokenized.input_ids
-
-    def decode_tokens(self, tokens):
-        # TODO: some kind of assertion on shape
-        assert tokens.ndim == 2 and tokens.shape[0] == 1
-        if tokens[:, -1] == self.tokenizer.sep_token_id:
-            tokens = tokens[:, :-1]
-        # TODO: use batch_decode for batches
-        dec = self.tokenizer.decode(tokens.squeeze(0))
-        return [
-            s.replace("[RAW]", "")
-            .replace("[MSA]", "")
-            .replace("[start-of-document]", "")
-            .replace("[end-of-document]", "")
-            for s in dec.replace(" ", "").split("[SEP]")
-        ]
-
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
@@ -547,7 +515,7 @@ class BaseFamilyLitModule(BaseLitModule):
         batch_size: int = 1,
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
-        input_ids = self.encode_sequences(sequence_prompt)
+        input_ids = self.tokenizer.encode_sequences(sequence_prompt)
         if self.use_seq_pos:
             if position_indices is None:
                 position_indices = [list(range(len(s))) for s in sequence_prompt]
@@ -563,7 +531,7 @@ class BaseFamilyLitModule(BaseLitModule):
         else:
             seq_pos = None
         encoded = self._sample_seqs(input_ids, num_sequences, input_seq_pos=seq_pos)
-        return self.decode_tokens(encoded)
+        return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]

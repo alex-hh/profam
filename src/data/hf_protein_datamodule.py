@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
 from src.data.proteingym import load_gym_dataset
@@ -13,6 +12,7 @@ from src.data.utils import (
     ProteinDatasetConfig,
     load_protein_dataset,
 )
+from src.utils.tokenizers import ProFamTokenizer
 
 
 class ProteinDataModule(LightningDataModule):
@@ -55,7 +55,7 @@ class ProteinDataModule(LightningDataModule):
         self.max_seq_pos = max_seq_pos  # max embed index for relative position
         self.tokenizer_path = tokenizer_path
         # TODO: properly assign other special tokens
-        self.tokenizer = PreTrainedTokenizerFast(
+        self.tokenizer = ProFamTokenizer(
             tokenizer_file=tokenizer_path,
             unk_token="[UNK]",
             pad_token="[PAD]",
