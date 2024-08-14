@@ -75,18 +75,22 @@ def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
     # Extract the specified PDB files
     zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
     successes = []
-    with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
-        names = zip_ref.namelist()
-        for afdb_id in afdb_ids:
-            if afdb_id + ".pdb" in names:
-                # TODO: print worker...
-                assert not os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
-                zip_ref.extract(afdb_id + ".pdb", output_folder)
-                print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}", os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")))
-                successes.append(True)
-            else:
-                print(f"{afdb_id} not found in {zip_filename}")
-                successes.append(False)
+    try:
+        with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
+            names = zip_ref.namelist()
+            for afdb_id in afdb_ids:
+                if afdb_id + ".pdb" in names:
+                    # TODO: print worker...
+                    assert not os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")), f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename} {cluster_ids}, {afdb_ids}"
+                    zip_ref.extract(afdb_id + ".pdb", output_folder)
+                    print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}", os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")))
+                    successes.append(True)
+                else:
+                    print(f"{afdb_id} not found in {zip_filename}")
+                    successes.append(False)
+    except Exception as e:
+        print(f"Error extracting {zip_filename} {afdb_ids} {e}")
+        successes = [False] * len(afdb_ids)
     return successes
 
 
