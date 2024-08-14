@@ -19,7 +19,7 @@ trainer:
 data:
   _target_: src.data.hf_protein_datamodule.ProteinDataModule
   batch_size: 7
-  num_workers: 7
+  num_workers: 3
   max_tokens: 5000
   data_dir: ../data
   tokenizer_path: src/data/components/profam_tokenizer.json

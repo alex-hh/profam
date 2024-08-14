@@ -583,7 +583,11 @@ class BaseFamilyLitModule(BaseLitModule):
                 on_step=False,
                 on_epoch=True,
             )
-        self.update_family_likelihoods(batch, lls)
+        if batch["ds_name"].text[0] in ['pfam']:
+            # only do this for evals where the eval seqs remain the same across
+            # batches and we consider the likelihood of each eval seq conditioned
+            # on different family 'prompts'
+            self.update_family_likelihoods(batch, lls)
         return torch.tensor(metric, device=self.device, dtype=torch.float32)
 
     def update_family_likelihoods(self, batch, lls):
@@ -644,6 +648,21 @@ class BaseFamilyLitModule(BaseLitModule):
                     labels = np.array([1] + [0] * len(lls[0]))
                     if 1 in lls:
                         lls = np.array([lls[1]] + lls[0])
+                        self.log(
+                            f"val/{val_name}_mean_ll_across_fam_prompts",
+                            lls.mean(),
+                            on_step=False,
+                            add_dataloader_idx=False,
+
+                        )
+                        lls = np.array([lls[1]] + lls[0])
+                        self.log(
+                            f"val/{val_name}_variance_ll_across_fam_prompts",
+                            np.var(lls),
+                            on_step=False,
+                            add_dataloader_idx=False,
+
+                        )
                         lls = lls - lls.max()
                         probs = np.exp(lls) / np.exp(lls).sum()
                         # calculate cross entropy
