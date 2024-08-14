@@ -3,11 +3,11 @@ import itertools
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from transformers import PreTrainedTokenizerFast
 
 from src.data.dataclasses import ProteinDatasetConfig
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
-from src.data.utils import get_seq_pos_from_positions, sample_to_max_tokens
+from src.data.utils import sample_to_max_tokens
+from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
 
@@ -38,47 +38,22 @@ def random_subsample(arr, n, seed: Optional[int] = None):
 def _tokenize_protein_data(
     sequences: List[str],
     cfg: ProteinDatasetConfig,
-    tokenizer,
+    tokenizer: ProFamTokenizer,
     positions: Optional[List[List[int]]] = None,
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
 ):
-    # TODO: configure num_start_tokens (property of tokenizer perhaps? maybe we make a profam tokenizer class)
-    concatenated_seqs = (
-        cfg.document_tag
-        + tokenizer.bos_token
-        + tokenizer.sep_token.join(sequences)
-        + tokenizer.sep_token
-    )
-    tokenized = tokenizer(
-        concatenated_seqs,
-        truncation=False,  # shouldnt be necessary: bisection should handle
-        max_length=cfg.max_tokens,
-        return_tensors="pt",
-        # padding="longest",
+    tokenized = tokenizer.encode_sequences(
+        sequences,
+        positions=positions,
+        document_type=cfg.document_type,
         padding="max_length",
-        add_special_tokens=False,
+        max_length=cfg.max_tokens,
+        add_final_sep=True,
     )
-    if cfg.max_tokens is not None:
-        assert tokenized.input_ids.shape[1] <= cfg.max_tokens, (
-            tokenized.input_ids.shape[1],
-            cfg.max_tokens,
-        )
-
-    tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
     # tokenized.input_ids is flat now
     tokenized.data["ds_name"] = cfg.name
     tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
-
-    if positions is not None:
-        seq_pos = get_seq_pos_from_positions(
-            tokenized.input_ids,
-            positions,
-            pad_token_id=tokenizer.pad_token_id,
-            max_seq_pos=cfg.max_seq_pos,
-            num_start_tokens=2,
-        )
-        tokenized.data["seq_pos"] = seq_pos
 
     if coords is not None:
         # TODO: if cfg.load_structure is True maybe create null coords?
@@ -91,7 +66,7 @@ def _tokenize_protein_data(
 def _subsample_and_tokenize_protein_data(
     sequence_iterator,
     cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
 ):
@@ -141,7 +116,7 @@ def _subsample_and_tokenize_protein_data(
 def preprocess_fasta_data(
     example: Dict[str, Any],
     cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     lines = example["text"].split("\n")
     if not len(lines[-1]):
@@ -193,7 +168,7 @@ def backbone_coords_from_example(example):
 def preprocess_parquet_data(
     example: Dict[str, Any],
     cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     sequence_iterator = example["sequences"]
     max_sequences_to_preprocess = cfg.max_tokens // 10
@@ -220,7 +195,7 @@ def preprocess_parquet_data(
 def preprocess_protein_data(
     example: Dict[str, Any],
     cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     # N.B. for stockholm format we need to check that sequences aren't split over
     # multiple lines

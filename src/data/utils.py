@@ -1,13 +1,8 @@
-import bisect
-import glob
-import itertools
-import os
-import random
 from typing import Any, List, Optional
 
 import numpy as np
 import torch
-from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+from transformers import DataCollatorForLanguageModeling
 
 
 class StringObject:

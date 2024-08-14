@@ -2,18 +2,22 @@ import glob
 import os
 import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from datasets import interleave_datasets, load_dataset
+from datasets import Dataset, interleave_datasets, load_dataset
 from lightning import LightningDataModule
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import DataLoader
-from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import load_classifier_dataset
 from src.data.preprocessing import preprocess_protein_data
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import CustomDataCollator
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
+from src.utils.tokenizers import ProFamTokenizer
 
 
 # TODO: in future we might actually want standalone dataset class for
@@ -34,35 +38,27 @@ class ProteinDatasetConfig:
     truncate_after_n_sequences: Optional[int] = None
     # global arguments that will get overridden in load_protein_dataset
     max_tokens: Optional[int] = 5000
-    use_seq_pos: bool = False
-    max_seq_pos: int = 1024
     shuffle: bool = (True,)
     include_doc_hashes: bool = False
 
     def set_global_args(
         self,
         max_tokens: int,
-        use_seq_pos: bool,
-        max_seq_pos: int,
         shuffle: bool,
         include_doc_hashes: bool,
     ):
         self.max_tokens = max_tokens
-        self.use_seq_pos = use_seq_pos
-        self.max_seq_pos = max_seq_pos
         self.shuffle = shuffle
         self.include_doc_hashes = include_doc_hashes
 
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     max_tokens: Optional[int] = 5000,
     data_dir="../data",
     split="train",
     include_doc_hashes: bool = False,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
     shuffle: bool = True,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
@@ -78,8 +74,6 @@ def load_protein_dataset(
 
     cfg.set_global_args(
         max_tokens=max_tokens,
-        use_seq_pos=use_seq_pos,
-        max_seq_pos=max_seq_pos,
         shuffle=shuffle,
         include_doc_hashes=include_doc_hashes,
     )
@@ -140,7 +134,7 @@ class ProteinDataModule(LightningDataModule):
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
-        tokenizer_path: str,
+        tokenizer: ProFamTokenizer,
         data_dir: str,
         val_dataset_name: str,
         batch_size: int = 8,
@@ -153,8 +147,6 @@ class ProteinDataModule(LightningDataModule):
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
         count_doc_hashes: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 1024,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -171,18 +163,7 @@ class ProteinDataModule(LightningDataModule):
         self.evaluate_ec_class = evaluate_ec_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
-        self.use_seq_pos = use_seq_pos
-        self.max_seq_pos = max_seq_pos  # max embed index for relative position
-        self.tokenizer_path = tokenizer_path
-        self.tokenizer = PreTrainedTokenizerFast(
-            tokenizer_file=tokenizer_path,
-            unk_token="[UNK]",
-            pad_token="[PAD]",
-            bos_token="[start-of-document]",
-            sep_token="[SEP]",
-            mask_token="[MASK]",
-            add_special_tokens=True,
-        )
+        self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         self.count_doc_hashes = count_doc_hashes
         self._is_setup = False
@@ -200,8 +181,6 @@ class ProteinDataModule(LightningDataModule):
                         self.max_tokens,
                         data_dir=self.data_dir,
                         include_doc_hashes=self.count_doc_hashes,
-                        use_seq_pos=self.use_seq_pos,
-                        max_seq_pos=self.max_seq_pos,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
@@ -233,16 +212,12 @@ class ProteinDataModule(LightningDataModule):
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
-                use_seq_pos=self.use_seq_pos,
-                max_seq_pos=self.max_seq_pos,
             )
             self.test_dataset = load_protein_dataset(
                 self.dataset_cfgs[self.val_dataset_name],
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
-                use_seq_pos=self.use_seq_pos,
-                max_seq_pos=self.max_seq_pos,
             )
             if self.evaluate_gym:
                 assert self.gym_dms_ids is not None
@@ -253,8 +228,6 @@ class ProteinDataModule(LightningDataModule):
                     max_mutated_sequences=self.max_gym_sequences,
                     gym_data_dir=self.gym_data_dir,
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                     keep_gaps=self.keep_gym_gaps,
                     num_proc=self.num_workers,
                 )
@@ -264,8 +237,6 @@ class ProteinDataModule(LightningDataModule):
                     "data/example_data/expasy_ec/*.fasta",
                     self.tokenizer,
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                 )
 
             self._is_setup = True

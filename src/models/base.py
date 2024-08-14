@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -16,6 +16,7 @@ from src.models.utils import (
     accuracy_from_outputs,
     log_likelihood_from_outputs,
 )
+from src.utils.tokenizers import ProFamTokenizer
 
 
 def calc_grad_norm(params):
@@ -282,7 +283,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def __init__(
         self,
         model,
-        tokenizer: PreTrainedTokenizerFast,
+        tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
@@ -290,7 +291,6 @@ class BaseFamilyLitModule(BaseLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
-        use_seq_pos: bool = False,
     ):
         super().__init__(
             model,
@@ -306,7 +306,8 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.dataset_sample_counts = {}
         self.doc_hash_counts = {}
-        self.use_seq_pos = use_seq_pos
+        self.use_seq_pos = self.tokenizer.use_seq_pos
+        self.max_seq_pos = self.tokenizer.max_seq_pos
 
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
@@ -512,23 +513,17 @@ class BaseFamilyLitModule(BaseLitModule):
         batch_size: int = 1,
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
-        input_ids = self.encode_sequences(sequence_prompt)
-        if self.use_seq_pos:
-            if position_indices is None:
-                position_indices = [list(range(len(s))) for s in sequence_prompt]
-            # c.f. src.data.utils. n.b. num_start_tokens has to be kept in sync
-            # TODO: stop hardcoding it - maybe configure as part of model configuration? and data configuration?
-            seq_pos = get_seq_pos_from_positions(
-                input_ids,
-                position_indices,
-                pad_token_id=self.tokenizer.pad_token_id,
-                max_seq_pos=self.max_seq_pos,
-                num_start_tokens=2,
-            )
-        else:
-            seq_pos = None
-        encoded = self._sample_seqs(input_ids, num_sequences, input_seq_pos=seq_pos)
-        return self.decode_tokens(encoded)
+        tokenized = self.tokenizer.encode_sequences(
+            sequence_prompt, positions=position_indices
+        )
+        seq_pos = tokenized.data.get("seq_pos", None)
+        encoded = self._sample_seqs(
+            tokenized.input_ids,
+            num_sequences,
+            input_seq_pos=seq_pos,
+            batch_size=batch_size,
+        )
+        return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]

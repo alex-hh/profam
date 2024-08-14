@@ -10,21 +10,19 @@ from functools import partial
 
 import pandas as pd
 from datasets import Dataset
-from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
 from src.data.proteingym import tokenize
+from src.utils.tokenizers import ProFamTokenizer
 
 
 def load_classifier_dataset(
     fasta_file_pattern,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     max_tokens=10000,
     max_seqs_to_predict=10,
     num_decoys_per_target=5,
-    use_seq_pos=False,
-    max_seq_pos: int = 1024,
     seed=42,
 ):
     paths = sorted(glob.glob(fasta_file_pattern))
@@ -73,15 +71,13 @@ def load_classifier_dataset(
             tokenize,
             tokenizer=tokenizer,
             mutant_bos_token="sep",  # todo check this
-            use_seq_pos=use_seq_pos,
-            max_seq_pos=max_seq_pos,
             document_tag="[RAW]",
         ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
     )
     columns = ["input_ids", "completion_ids", "family_labels"]
-    if use_seq_pos:
+    if tokenizer.use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
     dataset.set_format(

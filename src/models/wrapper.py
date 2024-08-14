@@ -2,7 +2,26 @@ from typing import Callable, List, Optional
 
 import torch
 from torch import nn
+from transformers.generation.utils import GenerationMixin
 from transformers.modeling_utils import PreTrainedModel
+
+
+# TODO: unify with below?
+class WrappedHFModel(PreTrainedModel):
+    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+        # main place this gets called is in sample loop:
+        # https://github.com/huggingface/transformers/blob/e7f4ace0929600606424efd4cd91947bd567d323/src/transformers/generation/utils.py#L2413
+        # we're going to assume that the prompt ends with a separator token
+        assert "seq_pos" in kwargs
+        inputs = super().prepare_inputs_for_generation(input_ids, **kwargs)
+        if input_ids.shape[-1] != kwargs["seq_pos"].shape[-1]:
+            # we have incremented input ids but not seq pos
+            assert input_ids.shape[-1] == kwargs["seq_pos"].shape[-1] + 1
+            # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
+            prev_seq_pos = kwargs["seq_pos"][:, -1]
+            seq_pos = torch.cat([prev_seq_pos, prev_seq_pos + 1], dim=-1)
+            inputs["seq_pos"] = seq_pos
+        return inputs
 
 
 class TransformerWithSequencePositionEmbeddings(nn.Module):
@@ -21,7 +40,7 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         require_seq_pos: bool = True,
     ):
         super().__init__()
-        self.model = model
+        self.model = WrappedHFModel(model)
         self.token_embedder = token_embedder
         self.use_seq_pos = use_seq_pos
         self.require_seq_pos = require_seq_pos
