@@ -8,6 +8,7 @@ from transformers import PreTrainedTokenizerFast
 from src.data.dataclasses import ProteinDatasetConfig
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 from src.data.utils import get_seq_pos_from_positions, sample_to_max_tokens
+from src.utils.utils import np_random
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -179,6 +180,7 @@ def preprocess_parquet_data(
         sequence_iterator,
         max_sequences_to_preprocess,
     )
+    raise NotImplementedError("Need to implement the rest of this function")
     # TODO: load coords if available.
     return _subsample_and_tokenize_protein_data(
         sequence_iterator,
