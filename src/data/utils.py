@@ -260,6 +260,7 @@ def load_protein_dataset(
                 sequences, max_tokens=max_tokens, shuffle=shuffle
             )
 
+        # TODO: use profam tokenizer to handle this.
         concatenated_seqs = (
             cfg.document_tag
             + tokenizer.bos_token

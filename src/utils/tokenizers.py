@@ -1,3 +1,5 @@
+from typing import Optional
+
 from transformers import PreTrainedTokenizerFast
 
 
@@ -5,17 +7,26 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     def __init__(
         self,
         *args,
-        num_start_tokens=2,
         add_final_sep: bool = True,
         add_bos_token: bool = True,
+        add_document_type_token: bool = True,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self.num_start_tokens = num_start_tokens
         self.add_bos_token = add_bos_token
         self.add_final_sep = add_final_sep
+        self.add_document_type_token = add_document_type_token
+        self.num_start_tokens = int(self.add_bos_token) + int(
+            self.add_document_type_token
+        )
 
-    def encode_sequences(self, sequences, document_type="[RAW]", padding="longest"):
+    def encode_sequences(
+        self,
+        sequences,
+        document_type="[RAW]",
+        padding="longest",
+        max_length: Optional[int] = None,
+    ):
         # TODO: add MSA / RAW document type token...
         concatenated_seqs = self.sep_token.join(sequences)
         if self.add_final_sep:
@@ -31,6 +42,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             # padding="longest",
             padding=padding,
             add_special_tokens=False,
+            max_length=max_length,
         )
         return tokenized.input_ids
 
