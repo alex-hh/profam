@@ -1,6 +1,11 @@
-from typing import Optional
+from typing import List, Optional
 
 from transformers import PreTrainedTokenizerFast
+
+from src.data.utils import get_seq_pos_from_positions
+from src.utils import RankedLogger
+
+log = RankedLogger(__name__, rank_zero_only=True)
 
 
 class ProFamTokenizer(PreTrainedTokenizerFast):
@@ -14,6 +19,8 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_final_sep: bool = True,
         add_bos_token: bool = True,
         add_document_type_token: bool = True,
+        use_seq_pos: bool = False,
+        max_seq_pos: int = 1024,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -23,10 +30,13 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.num_start_tokens = int(self.add_bos_token) + int(
             self.add_document_type_token
         )
+        self.use_seq_pos = use_seq_pos
+        self.max_seq_pos = max_seq_pos
 
     def encode_sequences(
         self,
         sequences,
+        positions: Optional[List[int]] = None,
         document_type="[RAW]",
         padding="longest",
         max_length: Optional[int] = None,
@@ -52,7 +62,29 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             add_special_tokens=False,
             max_length=max_length,
         )
-        return tokenized.input_ids
+        if self.max_tokens is not None:
+            assert tokenized.input_ids.shape[1] <= self.max_tokens, (
+                tokenized.input_ids.shape[1],
+                self.max_tokens,
+            )
+        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        if self.use_seq_pos:
+            if positions is None:
+                log.warning(
+                    "Using seq_pos but positions not provided. Using default positions."
+                )
+                positions = [range(1, len(seq) + 1) for seq in sequences]
+            seq_pos = get_seq_pos_from_positions(
+                tokenized.input_ids,
+                positions,
+                pad_token_id=self.pad_token_id,
+                max_seq_pos=self.max_seq_pos,
+                num_start_tokens=self.num_start_tokens,
+            )
+            tokenized.data["seq_pos"] = seq_pos
+        # TODO: maybe return tokenized rather than just input ids.
+        # then we can add position encoding to tokenized.data
+        return tokenized
 
     def decode_tokens(self, tokens):
         # TODO: some kind of assertion on shape

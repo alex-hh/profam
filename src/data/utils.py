@@ -261,28 +261,14 @@ def load_protein_dataset(
             )
 
         # TODO: use profam tokenizer to handle this.
-        concatenated_seqs = (
-            cfg.document_tag
-            + tokenizer.bos_token
-            + tokenizer.sep_token.join(sequences)
-            + tokenizer.sep_token
-        )
-        tokenized = tokenizer(
-            concatenated_seqs,
-            truncation=False,  # shouldnt be necessary: bisection should handle
-            max_length=max_tokens if padding == "max_length" else None,
-            return_tensors="pt",
-            # padding="longest",
+        tokenized = tokenizer.encode_sequences(
+            sequences,
+            positions=positions if use_seq_pos else None,
+            document_type=cfg.document_tag,
             padding=padding,
-            add_special_tokens=False,
+            max_length=max_tokens,
         )
-        if max_tokens is not None:
-            assert tokenized.input_ids.shape[1] <= max_tokens, (
-                tokenized.input_ids.shape[1],
-                max_tokens,
-            )
 
-        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
         tokenized.data["ds_name"] = cfg.name
         tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
@@ -291,16 +277,6 @@ def load_protein_dataset(
             tokenized.data["doc_hash"] = hashlib.md5(
                 example["text"][:512].encode()
             ).hexdigest()
-
-        if use_seq_pos:
-            seq_pos = get_seq_pos_from_positions(
-                tokenized.input_ids,
-                positions,
-                pad_token_id=tokenizer.pad_token_id,
-                max_seq_pos=max_seq_pos,
-                num_start_tokens=2,
-            )
-            tokenized.data["seq_pos"] = seq_pos
 
         return tokenized
 

@@ -291,8 +291,6 @@ class BaseFamilyLitModule(BaseLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
     ):
         super().__init__(
             model,
@@ -308,8 +306,8 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.dataset_sample_counts = {}
         self.doc_hash_counts = {}
-        self.use_seq_pos = use_seq_pos
-        self.max_seq_pos = max_seq_pos
+        self.use_seq_pos = self.tokenizer.use_seq_pos
+        self.max_seq_pos = self.tokenizer.max_seq_pos
 
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}

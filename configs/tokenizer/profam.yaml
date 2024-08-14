@@ -9,3 +9,5 @@ add_special_tokens: True
 add_final_sep: True
 add_bos_token: True
 add_document_type_token: True
+use_seq_pos: False
+max_seq_pos: 1024

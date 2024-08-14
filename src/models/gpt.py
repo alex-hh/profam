@@ -43,19 +43,17 @@ class GPT2LitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
     ) -> None:
         model = GPT2LMHeadModel(config)
         if (
-            use_seq_pos
+            tokenizer.use_seq_pos
         ):  # commenting out to check computation of inputs embeds is working
             model = TransformerWithSequencePositionEmbeddings(
                 model,
                 model.transformer.wte,
                 embedding_dim=config.hidden_size,
-                use_seq_pos=use_seq_pos,
-                max_seq_pos=max_seq_pos,
+                use_seq_pos=tokenizer.use_seq_pos,
+                max_seq_pos=tokenizer.max_seq_pos,
             )
         super().__init__(
             model,
@@ -67,6 +65,4 @@ class GPT2LitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
-            use_seq_pos=use_seq_pos,
-            max_seq_pos=max_seq_pos,
         )

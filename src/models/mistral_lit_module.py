@@ -18,17 +18,15 @@ class MistralLitModule(BaseFamilyLitModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
     ) -> None:
         model = MistralForCausalLM(config)
-        if use_seq_pos:
+        if tokenizer.use_seq_pos:
             model = TransformerWithSequencePositionEmbeddings(
                 model,
                 model.model.embed_tokens,
                 embedding_dim=config.hidden_size,
-                use_seq_pos=use_seq_pos,
-                max_seq_pos=max_seq_pos,
+                use_seq_pos=tokenizer.use_seq_pos,
+                max_seq_pos=tokenizer.max_seq_pos,
             )
         super().__init__(
             model,
@@ -40,6 +38,4 @@ class MistralLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
-            use_seq_pos=use_seq_pos,
-            max_seq_pos=max_seq_pos,
         )

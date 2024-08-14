@@ -43,8 +43,6 @@ class LlamaLitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
     ) -> None:
         """
         From the paper:
@@ -55,14 +53,14 @@ class LlamaLitModule(BaseFamilyLitModule):
         """
         model = LlamaForCausalLM(config)
         if (
-            use_seq_pos
+            tokenizer.use_seq_pos
         ):  # commenting out to check computation of inputs embeds is working
             model = TransformerWithSequencePositionEmbeddings(
                 model,
                 model.model.embed_tokens,
                 embedding_dim=config.hidden_size,
-                use_seq_pos=use_seq_pos,
-                max_seq_pos=max_seq_pos,
+                use_seq_pos=tokenizer.use_seq_pos,
+                max_seq_pos=tokenizer.max_seq_pos,
             )
         super().__init__(
             model,
@@ -74,6 +72,4 @@ class LlamaLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
-            use_seq_pos=use_seq_pos,
-            max_seq_pos=max_seq_pos,
         )
