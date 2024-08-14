@@ -139,7 +139,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             sequences.append(seq)
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
-            # os.remove(pdb)
+            os.remove(pdb)
 
         # TODO: save representative?
         results.append(
@@ -216,10 +216,11 @@ def make_job_list(
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     filtered_clusters = sorted([cluster for cluster in cluster_dict.keys() if len(cluster_dict[cluster]) >= minimum_foldseek_cluster_size])
+    print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(filtered_clusters))
     rng = np.random.default_rng(seed=42)
     rng.shuffle(filtered_clusters)
 
-    parquet_size = 250  # number of clusters to save in each parquet file
+    parquet_size = 250 if skip_af50 else 100  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [filtered_clusters[i:i + parquet_size] for i in range(0, len(filtered_clusters), parquet_size)]
     cluster_ids = clusters_to_save[parquet_id]
