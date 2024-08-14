@@ -197,6 +197,17 @@ class BaseLitModule(LightningModule):
             prog_bar=False,
             add_dataloader_idx=False,
         )
+        if dataloader_idx == 0:
+            # log the loss again with generic name for the sake of model checkpointing
+            self.log(
+                f"val/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=True,
+            )
+
         self.log(
             f"val/{ds_name}/accuracy",
             accuracy,
