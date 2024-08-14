@@ -133,3 +133,4 @@ def np_random(seed: Optional[int]) -> Any:
     else:
         # to maintain control by global seed
         rnd = np.random
+    return rnd
