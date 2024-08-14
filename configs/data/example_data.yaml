@@ -15,6 +15,7 @@ data_dir: data
 tokenizer_path: src/data/components/profam_tokenizer.json
 evaluate_gym: true
 evaluate_ec_class: false
+evaluate_ec_cluster_class: true
 val_dataset_name: interpro
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 max_gym_sequences: null
