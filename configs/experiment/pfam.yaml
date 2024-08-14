@@ -1,32 +1,32 @@
 # @package _global_
 defaults:
   - override /data: null
-  - override /model: mistral_tiny
+  - override /model: llama_tiny
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - _self_
 
-tags: ["pfam", "mistral_tiny"]
+tags: ["pfam", "llama_tiny"]
 
 seed: 12345
 
 trainer:
-  val_check_interval: 50
+  val_check_interval: 2000
   target_tokens_per_batch: 256000
   min_epochs: 1000
   max_epochs: 10000
 
 data:
   _target_: src.data.hf_protein_datamodule.ProteinDataModule
-  batch_size: 20
-  num_workers: 0
+  batch_size: 7
+  num_workers: 7
   max_tokens: 5000
   data_dir: ../data
   val_dataset_name: interpro
   tokenizer_path: src/data/components/profam_tokenizer.json
-  evaluate_gym: False
-  evaluate_ec_class: False
-  evaluate_ec_cluster_class: False
+  evaluate_gym: True
+  evaluate_ec_class: True
+  evaluate_ec_cluster_class: True
   evaluate_pfam_class: True
   count_doc_hashes: True # count the num times each document gets sampled
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "CALM1_HUMAN_Weile_2017", "DYR_ECOLI_Thompson_2019", "DLG4_RAT_McLaughlin_2012", "REV_HV1H2_Fernandes_2016", "TAT_HV1BR_Fernandes_2016", "RL40A_YEAST_Roscoe_2013", "P53_HUMAN_Giacomelli_2018_WT_Nutlin"]
@@ -36,22 +36,30 @@ data:
     pfam_domain:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: pfam_domain
-      data_path_pattern: "pfam/pfam_eval_splits/clustered_split_fastas_debug/*_train.fasta"
-      is_parquet: false
+      data_path_pattern: "pfam/parquets/Domain/*.parquet"
+      is_parquet: true
       keep_gaps: true
       to_upper: true
       keep_insertions: true
-      file_repeats: 100
+      file_repeats: 2
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro
-      data_path_pattern: ../profam/data/example_data/interpro/protein-matching-*.fasta
+      data_path_pattern: "../profam/data/example_data/interpro/protein-matching-*.fasta"
+      keep_gaps: true
+      to_upper: true
+      keep_insertions: true
+    gym_msas:
+      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      name: gym_msas
+      data_path_pattern: ProteinGym/DMS_msa_files/*.a2m
       keep_gaps: true
       to_upper: true
       keep_insertions: true
   data_weights:
     pfam_domain: 1.0
     interpro: 0.0
+    gym_msas: 0.0
 logger:
   wandb:
     tags: ${tags}

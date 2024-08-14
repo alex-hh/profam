@@ -706,6 +706,15 @@ class BaseFamilyLitModule(BaseLitModule):
                     on_epoch=False,
                     batch_size=batch_size,
                 )
+                self.log_dict(
+                    {
+                        f"{k}_min_sampled_doc": min(v.values())
+                        for k, v in self.doc_hash_counts.items()
+                    },
+                    on_step=True,
+                    on_epoch=False,
+                    batch_size=batch_size,
+                )
             if "total_num_sequences" in batch:
                 self.log(
                     "train/total_num_sequences",
