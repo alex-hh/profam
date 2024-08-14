@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.data.utils import backbone_coords_from_example
 
 
 @pytest.fixture
@@ -13,29 +14,16 @@ def foldseek_example():
 
 
 def test_foldseek_backbone_loading(foldseek_example):
-    ns = foldseek_example["N"]
-    cas = foldseek_example["CA"]
-    cs = foldseek_example["C"]
-    oxys = foldseek_example["O"]
-    for ix, (seq, n, ca, c, o, acc) in enumerate(
-        zip(
-            foldseek_example["sequences"],
-            ns,
-            cas,
-            cs,
-            oxys,
-            foldseek_example["accessions"],
-        )
+    backbone_coords = backbone_coords_from_example(foldseek_example)
+    for seq, acc, recons_coords in zip(
+        foldseek_example["sequences"],
+        foldseek_example["accessions"],
+        backbone_coords,
     ):
         pdbfile = "data/example_data/foldseek_struct/0/AF-{}-F1-model_v4.pdb".format(
             acc, acc
         )
         structure = load_structure(pdbfile, chain="A")
         coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)
-        recons_coords = np.zeros_like(coords)
-        recons_coords[:, 0] = n.reshape(-1, 3)
-        recons_coords[:, 1] = ca.reshape(-1, 3)
-        recons_coords[:, 2] = c.reshape(-1, 3)
-        recons_coords[:, 3] = o.reshape(-1, 3)
         assert np.allclose(coords, recons_coords)
         assert len(coords) == len(seq)
