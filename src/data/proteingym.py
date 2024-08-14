@@ -82,7 +82,8 @@ def build_gym_df(
         max_mutated_sequences=max_mutated_sequences,
         gym_data_dir=gym_data_dir,
     )
-    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs"]]
+    df["ds_name"] = "gym"
+    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs", "ds_name"]]
 
 
 def load_gym_dataset(
@@ -130,7 +131,7 @@ def load_gym_dataset(
         num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-    columns = ["input_ids", "completion_ids", "DMS_scores"]
+    columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
     if use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
