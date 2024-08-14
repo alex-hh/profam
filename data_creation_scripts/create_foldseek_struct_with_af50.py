@@ -18,7 +18,7 @@ import shutil
 from collections import defaultdict
 import multiprocessing
 from biotite.sequence import ProteinSequence
-from biotite.structure.residues import get_residues
+from biotite.structure.residues import get_residues, get_residue_starts
 import numpy as np
 import time
 import pickle
@@ -120,6 +120,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         is_foldseek_representative = []
         is_af50_representative = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
+        all_b_factors = []
 
         for afdb_id in cluster_members:
             pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
@@ -127,16 +128,18 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             accessions.append(metadata["accession"])
             is_foldseek_representative.append(metadata["is_foldseek_representative"])
             is_af50_representative.append(metadata["is_af50_representative"])
-            structure = load_structure(pdb, chain="A")
+            structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
             residue_identities = get_residues(structure)[1]
+            b_factors = structure.b_factor[get_residue_starts(structure)]
             seq = "".join(
                 [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
             )
+            all_b_factors.append(b_factors)
             sequences.append(seq)
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
-            os.remove(pdb)
+            # os.remove(pdb)
 
         # TODO: save representative?
         results.append(
@@ -147,6 +150,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "CA": all_coords["CA"],
                 "C": all_coords["C"],
                 "O": all_coords["O"],
+                "plddts": all_b_factors,
                 "accessions": accessions,
                 "is_foldseek_representative": is_foldseek_representative,
                 "is_af50_representative": is_af50_representative,
@@ -211,13 +215,13 @@ def make_job_list(
             af2zip = pickle.load(f)
 
     # shuffle first so that we de-correlate cluster identities in parquet files
-    clusters = sorted(list(cluster_dict.keys()))  # need to sort to make deterministic
+    filtered_clusters = sorted([cluster for cluster in cluster_dict.keys() if len(cluster_dict[cluster]) >= minimum_foldseek_cluster_size])
     rng = np.random.default_rng(seed=42)
-    rng.shuffle(clusters)
+    rng.shuffle(filtered_clusters)
 
-    parquet_size = 10000  # number of clusters to save in each parquet file
+    parquet_size = 250  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
-    clusters_to_save = [clusters[i:i + parquet_size] for i in range(0, len(clusters), parquet_size)]
+    clusters_to_save = [filtered_clusters[i:i + parquet_size] for i in range(0, len(filtered_clusters), parquet_size)]
     cluster_ids = clusters_to_save[parquet_id]
 
     cluster_counter = 0
@@ -310,7 +314,7 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
 def create_foldseek_parquets(
     save_dir,
     scratch_dir,
-    minimum_cluster_size=1,
+    minimum_foldseek_cluster_size=1,
     skip_af50=False,
     parquet_ids=None,
     num_processes=None,
@@ -322,7 +326,7 @@ def create_foldseek_parquets(
         pdb_lookup, metadata_lookup, cluster_membership = make_job_list(
             parquet_id,
             save_dir=save_dir,
-            minimum_cluster_size=minimum_cluster_size,
+            minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
             skip_af50=skip_af50,
         )
         extract_pdbs_for_parquet(
