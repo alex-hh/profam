@@ -134,3 +134,24 @@ def np_random(seed: Optional[int]) -> Any:
         # to maintain control by global seed
         rnd = np.random
     return rnd
+
+
+def nested_getattr(obj, attr_path, default=None):
+    """
+    Retrieve a nested attribute value from an object given a dot-separated path.
+
+    Parameters:
+    - obj: The object from which to retrieve the attribute.
+    - attr_path: A string representing the dot-separated path to the nested attribute.
+    - default: The default value to return if the attribute is not found.
+
+    Returns:
+    The value of the nested attribute or the default value if not found.
+    """
+    attributes = attr_path.split(".")
+    try:
+        for attr in attributes:
+            obj = getattr(obj, attr)
+        return obj
+    except AttributeError:
+        return default

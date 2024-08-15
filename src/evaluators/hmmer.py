@@ -68,7 +68,7 @@ class PFAMHMMERMixin:
         positions = []
         # TODO: subsample before convert sequence with positions.
         for sequence in protein_document.sequences:
-            seq, pos = convert_sequence_with_positions(
+            seq, pos, _ = convert_sequence_with_positions(
                 sequence,
                 keep_gaps=self.keep_gaps,
                 keep_insertions=self.keep_insertions,

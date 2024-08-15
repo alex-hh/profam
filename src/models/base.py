@@ -553,7 +553,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def sample_seqs(
         self,
         sequence_prompt: List[str],
-        num_sequences,
+        num_samples,
         position_indices: Optional[List[int]] = None,
         batch_size: int = 1,
     ):
@@ -562,10 +562,13 @@ class BaseFamilyLitModule(BaseLitModule):
             sequence_prompt, positions=position_indices
         )
         print("Tokenized data:", tokenized.data)
-        seq_pos = tokenized.data.get("seq_pos", None)
+        if "seq_pos" in tokenized.data:
+            seq_pos = tokenized.data["seq_pos"].unsqueeze(0)
+        else:
+            seq_pos = None
         encoded = self._sample_seqs(
-            tokenized.input_ids,
-            num_sequences,
+            tokenized.input_ids.unsqueeze(0),
+            num_samples,
             input_seq_pos=seq_pos,
             batch_size=batch_size,
         )

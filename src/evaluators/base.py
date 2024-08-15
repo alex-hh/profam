@@ -20,10 +20,10 @@ class SamplingEvaluator:
 
     def build_inputs_from_prompt(self, prompt, num_samples: int):
         if isinstance(prompt, list) and isinstance(prompt[0], str):
-            return {"sequences": prompt, "num_samples": num_samples}
+            return {"sequence_prompt": prompt, "num_samples": num_samples}
         elif isinstance(prompt, tuple) and isinstance(prompt[0], list):
             return {
-                "sequences": prompt[0],
+                "sequence_prompt": prompt[0],
                 "position_indices": prompt[1],
                 "num_samples": num_samples,
             }

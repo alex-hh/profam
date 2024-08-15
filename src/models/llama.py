@@ -3,10 +3,7 @@ from typing import Optional
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
-from src.models.wrapper import (
-    TransformerWithSequencePositionEmbeddings,
-    WrappedHFGeneratorMixin,
-)
+from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
@@ -34,7 +31,9 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         )
 
 
-class WrappedLlamaForCausalLM(WrappedHFGeneratorMixin, LlamaForCausalLM):
+class WrappedLlamaForCausalLM(
+    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
+):
     pass
 
 
@@ -61,10 +60,9 @@ class LlamaLitModule(BaseFamilyLitModule):
         if (
             tokenizer.use_seq_pos
         ):  # commenting out to check computation of inputs embeds is working
-            model = WrappedLlamaForCausalLM(config)
-            model = TransformerWithSequencePositionEmbeddings(
-                model,
-                model.model.embed_tokens,
+            model = WrappedLlamaForCausalLM(
+                config,
+                token_embedder="model.embed_tokens",
                 embedding_dim=config.hidden_size,
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,

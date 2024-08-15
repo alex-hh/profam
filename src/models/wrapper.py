@@ -1,13 +1,35 @@
-from typing import Callable, List, Optional
+from typing import List, Optional
 
 import torch
 from torch import nn
-from transformers.modeling_utils import PreTrainedModel
+
+from src.utils.utils import nested_getattr
 
 
-class WrappedHFGeneratorMixin:
+class WrappedHFModelWithPositionEmbeddingsMixin:
+    """Wrap a pre-trained model to add sequence-relative position embeddings.
+
+    (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
+    """
+
     # This is a mixin for models that require seq pos input during generation
     # using the mixin allows the use of standard generation code
+    def __init__(
+        self,
+        config,
+        token_embedder: str,
+        embedding_dim: int,
+        use_seq_pos: bool = False,
+        max_seq_pos: int = 2048,
+        require_seq_pos: bool = True,
+    ):
+        super().__init__(config)
+        self.use_seq_pos = use_seq_pos
+        self.token_embedder = nested_getattr(self, token_embedder)
+        self.require_seq_pos = require_seq_pos
+        self.max_seq_pos = max_seq_pos
+        if self.use_seq_pos:
+            self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
 
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
@@ -24,32 +46,6 @@ class WrappedHFGeneratorMixin:
             seq_pos = torch.cat([prev_seq_pos, prev_seq_pos + 1], dim=-1)
             inputs["seq_pos"] = seq_pos
         return inputs
-
-
-class TransformerWithSequencePositionEmbeddings(nn.Module):
-    """Wrap a pre-trained model to add sequence-relative position embeddings.
-
-    (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
-    """
-
-    def __init__(
-        self,
-        model: PreTrainedModel,
-        token_embedder: Callable,
-        embedding_dim: int,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
-        require_seq_pos: bool = True,
-    ):
-        super().__init__()
-        # dynamically create a class inheriting from the model class and the mixin
-        self.model = model
-        self.token_embedder = token_embedder
-        self.use_seq_pos = use_seq_pos
-        self.require_seq_pos = require_seq_pos
-        self.max_seq_pos = max_seq_pos
-        if self.use_seq_pos:
-            self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
 
     def embed_inputs(
         self,
@@ -98,7 +94,7 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
         inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos)
-        return self.model(
+        return super.forward(
             input_ids=None,
             attention_mask=attention_mask,
             position_ids=position_ids,
