@@ -3,7 +3,10 @@ import pandas as pd
 import random
 
 """
-load all of the pfams that are in th:data
+clustered splits from:
+console.cloud.google.com/storage/browser/brain-genomics-public/research/proteins/pfam
+referrenced in:
+https://www.nature.com/articles/s41587-021-01179-w#Sec4
 """
 
 def make_pfam_select_fam(pfam_select_fam_path):

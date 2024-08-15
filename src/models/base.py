@@ -371,7 +371,6 @@ class BaseFamilyLitModule(BaseLitModule):
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
-
     def trim_mini_batch(self, batch):
         """
         trim to first padding token in mini-batch
@@ -379,20 +378,11 @@ class BaseFamilyLitModule(BaseLitModule):
         """
         pad_tok = self.tokenizer.vocab["[PAD]"]
         mask = batch != pad_tok
-        indices = torch.arange(
-            batch.shape[-1],
-            device=batch.device
-        ).expand(batch.shape)
+        indices = torch.arange(batch.shape[-1], device=batch.device).expand(batch.shape)
         # Set indices with padding to 0
-        indices = torch.where(
-            mask,
-            indices,
-            torch.tensor(0, device=batch.device)
-        )
+        indices = torch.where(mask, indices, torch.tensor(0, device=batch.device))
         max_non_pad_index_per_seq = torch.max(indices, dim=-1).values
-        return batch[..., :max_non_pad_index_per_seq.max() + 1]
-
-
+        return batch[..., : max_non_pad_index_per_seq.max() + 1]
 
     def _score_seqs_kv_cache(
         self,
