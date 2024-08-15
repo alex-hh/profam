@@ -1,4 +1,5 @@
 """
+Create foldseek database.
 We'll probably still load cluster_dict into memory. But the db will allow us to directly load all zipfiles / ids for a cluster.
 """
 import argparse
@@ -83,9 +84,10 @@ def make_cluster_db(
     engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
     Base.metadata.create_all(engine)
 
-    session = sessionmaker(bind=engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
     print("Creating foldseek dataset", flush=True)
-    cluster_dict = make_cluster_dictionary(args.cluster_path)
+    cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     print("Number of clusters:", len(cluster_dict))
     af2zip = make_zip_dictionary()
     af50_dict = make_af50_dictionary()
@@ -139,10 +141,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
-    parser.add_argument("--skip_af50", action="store_true")
     args = parser.parse_args()
 
-    make_cluster_db(
-        minimum_foldseek_cluster_size=args.minimum_foldseek_cluster_size,
-        skip_af50=args.skip_af50,
-    )
+    make_cluster_db(minimum_foldseek_cluster_size=args.minimum_foldseek_cluster_size)

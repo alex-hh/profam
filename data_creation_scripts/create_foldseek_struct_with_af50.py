@@ -29,47 +29,29 @@ import pyarrow.parquet as pq
 import zipfile
 import os
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+from sqlalchemy import create_engine, Column, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 
+Base = declarative_base()
 af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
+# Create engine to connect to the database
+engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
+
+# Create a session
+Session = sessionmaker(bind=engine)
+session = Session()
 
 
-def make_af50_dictionary(clusters_to_include=None):
-    line_counter = 0
-    af50_dict = {}
-    with open(af50_path, "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            rep_id = line[0]
-            entry_id = line[1]
-            # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
-            clu_flag = int(line[2])  # 1
-            # n.b. the 2s are duplicates of the other cluster dict
-            # n.b. we don't include the representative in its own cluster atm
-            if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
-                if rep_id not in af50_dict:
-                    af50_dict[rep_id] = []
-                af50_dict[rep_id].append(entry_id)
-            line_counter += 1
-    return af50_dict
-
-
-def make_zip_dictionary():
-    line_counter = 0
-    af2zip = {}
-    with open("/SAN/bioinf/afdb_domain/zipmaker/zip_index", "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            afdb_id = line[0]
-            uniprot_id = afdb_id.split("-")[1]
-            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4"
-            zip_file = line[2]
-            af2zip[uniprot_id] = zip_file
-
-            line_counter += 1
-            if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for zip file dictionary")
-    return af2zip
+class Protein(Base):
+    __tablename__ = 'protein_metadata'
+    uniprot_id = Column(String, primary_key=True, nullable=False)
+    foldseek_cluster_id = Column(String, nullable=False)
+    af50_cluster_id = Column(String, nullable=False)
+    # is_foldseek_representative = Column(Boolean, default=False)  # these can be inferred by comparing foldseek_cluster_id and uniprot_id
+    # is_af50_representative = Column(Boolean, default=False)
+    zip_filename = Column(String, nullable=False)
 
 
 def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
@@ -187,9 +169,8 @@ def make_job_list(
     minimum_foldseek_cluster_size=1,
     skip_af50=False,
 ):
+    # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
-    af2zip_pickle_path = os.path.join(save_dir, "af2zip.pkl")
-    af50_dict_pickle_path = os.path.join(save_dir, "af50_cluster_dict.pkl")
 
     if not os.path.exists(cluster_dict_pickle_path):
         print("Creating foldseek dataset", flush=True)
@@ -211,34 +192,12 @@ def make_job_list(
     rng = np.random.default_rng(seed=42)
     rng.shuffle(cluster_ids)
 
-    if not os.path.exists(af2zip_pickle_path):
-        print("Creating af2zip dictionary", flush=True)
-        af2zip = make_zip_dictionary()
-        print("Saving af2zip dictionary")
-        with open(save_dir + "af2zip.pkl", "wb") as f:
-            pickle.dump(af2zip, f)
-    else:
-        print("Loading af2zip dictionary", flush=True)
-        with open(af2zip_pickle_path, "rb") as f:
-            af2zip = pickle.load(f)
-
     parquet_size = 250 if skip_af50 else 100  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
     cluster_ids = clusters_to_save[parquet_id]
 
     cluster_counter = 0
-
-    if not skip_af50:
-        # we build full dictionary for easier saving and loading
-        if not os.path.exists(af50_dict_pickle_path):
-            print("Making af50 dictionary", flush=True)
-            af50_dict = make_af50_dictionary()
-            with open(af50_dict_pickle_path, "wb") as f:
-                pickle.dump(af50_dict, f)
-        else:
-            with open(af50_dict_pickle_path, "rb") as f:
-                af50_dict = pickle.load(f)
 
     pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
@@ -253,7 +212,8 @@ def make_job_list(
             cluster_counter += 1
 
             for member in members:
-                zip_filename = af2zip[member]
+                record = session.query(Protein).get(member)
+                zip_filename = record.zip_filename
                 afdb_id = f"AF-{member}-F1-model_v4"
                 pdb_lookup[zip_filename].append(afdb_id)
                 metadata_lookup[afdb_id] = {
@@ -264,11 +224,11 @@ def make_job_list(
                 }
                 cluster_membership[cluster_id].append(afdb_id)
 
-                if not skip_af50 and member in af50_dict:
-                    for af50_member in af50_dict[member]:
-                        try:
-                            assert not af50_member == member
-                            zip_filename = af2zip[af50_member]
+                if not skip_af50 and record.af50_cluster_id == member:  # this is the af50 representative
+                    af50_members = session.query(Protein).filter_by(af50_cluster_id=member).all()
+                    for af50_member in af50_members:
+                        if af50_member.uniprot_id != member:
+                            zip_filename = af50_member.zip_filename
                             afdb_id = f"AF-{af50_member}-F1-model_v4"
                             pdb_lookup[zip_filename].append(afdb_id)
                             cluster_membership[cluster_id].append(afdb_id)
@@ -278,8 +238,6 @@ def make_job_list(
                                 "is_foldseek_representative": False,
                                 "is_af50_representative": False,
                             }
-                        except:
-                            print("Error looking up", af50_member)
 
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
