@@ -1,9 +1,12 @@
+import os
 import time
 from typing import Any, Dict, List, Optional
 
+import hydra
 import numpy as np
 import torch
 import tqdm
+from hydra import compose, initialize_config_dir
 from lightning import LightningModule
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
@@ -11,6 +14,7 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
+from src.constants import BASEDIR
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,
@@ -28,6 +32,23 @@ def calc_grad_norm(params):
     )
 
     return grad_norm
+
+
+def load_checkpoint(checkpoint_dir):
+    with initialize_config_dir(
+        config_dir=os.path.join(BASEDIR, checkpoint_dir, ".hydra")
+    ):
+        cfg = compose(config_name="config")
+        tokenizer = hydra.utils.instantiate(cfg.tokenizer)
+        print(OmegaConf.to_yaml(cfg))
+        model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
+        # TODO: check callback config
+        checkpoint = torch.load(
+            os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt"),
+            map_location="cpu",
+        )["state_dict"]
+        model.load_state_dict(checkpoint)
+    return model
 
 
 class BaseLitModule(LightningModule):

@@ -20,6 +20,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_document_type_token: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
+        max_tokens: Optional[int] = 5000,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -30,6 +31,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         )
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
+        self.max_tokens = max_tokens
 
     def encode_sequences(
         self,

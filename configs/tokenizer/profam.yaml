@@ -11,3 +11,4 @@ add_bos_token: True
 add_document_type_token: True
 use_seq_pos: False
 max_seq_pos: 1024
+max_tokens: ${data.max_tokens}

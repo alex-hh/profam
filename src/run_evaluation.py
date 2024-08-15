@@ -26,8 +26,6 @@ def run(cfg: DictConfig) -> None:
         f"Running validation {cfg.validation.name} on generator {cfg.generator.name}"
         f" on data from pipeline {cfg.pipeline.pipeline_id}"
     )
-    # get fsspec filesystem based on environment variables
-    fs = get_fs()
     # instantiate evaluator
     evaluator = hydra.utils.instantiate(cfg.evaluator)
     pipeline = hydra.utils.instantiate(cfg.pipeline, evaluator=evaluator)
