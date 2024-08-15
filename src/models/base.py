@@ -561,6 +561,7 @@ class BaseFamilyLitModule(BaseLitModule):
         tokenized = self.tokenizer.encode_sequences(
             sequence_prompt, positions=position_indices
         )
+        print("Tokenized data:", tokenized.data)
         seq_pos = tokenized.data.get("seq_pos", None)
         encoded = self._sample_seqs(
             tokenized.input_ids,

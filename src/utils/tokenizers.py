@@ -32,6 +32,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
+        print(f"Tokenizer: seq pos {self.use_seq_pos}, max seq pos {self.max_seq_pos}")
 
     def encode_sequences(
         self,
