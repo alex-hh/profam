@@ -12,6 +12,8 @@ number of files if we use these rather than pdb files.)
 For parallelisation, there are two options: parallelising within
 building of single parquets, and parallelising across building of
 distinct parquets.
+
+TODO: switch to sqllitedict - https://github.com/piskvorky/sqlitedict
 """
 import argparse
 import shutil
@@ -356,8 +358,11 @@ if __name__ == "__main__":
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
+    parser.add_argument("--num_processes", type=int, default=None)
     args = parser.parse_args()
 
+    if args.num_processes is None:
+        args.num_processes = os.cpu_count()
     print("Num cpus", os.cpu_count(), flush=True)
 
     if args.skip_af50:
@@ -371,5 +376,5 @@ if __name__ == "__main__":
         minimum_foldseek_cluster_size=args.minimum_foldseek_cluster_size,
         parquet_ids=args.parquet_ids,
         skip_af50=args.skip_af50,
-        num_processes=os.cpu_count(),
+        num_processes=args.num_processes,
     )
