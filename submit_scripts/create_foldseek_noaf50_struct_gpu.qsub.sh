@@ -1,5 +1,4 @@
 #!/bin/bash
-#$ -l tmem=88G
 #$ -l gpu=true
 #$ -l h_rt=123:55:30
 #$ -S /bin/bash
