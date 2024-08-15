@@ -62,8 +62,9 @@ def make_zip_dictionary():
             line = line.strip().split("\t")
             afdb_id = line[0]
             uniprot_id = afdb_id.split("-")[1]
+            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4"
             zip_file = line[2]
-            af2zip[uniprot_id] = (zip_file, afdb_id)
+            af2zip[uniprot_id] = zip_file
 
             line_counter += 1
             if line_counter % 100000 == 0:
@@ -203,6 +204,13 @@ def make_job_list(
             cluster_dict = pickle.load(f)
         print("Number of clusters:", len(cluster_dict))
 
+    # shuffle first so that we de-correlate cluster identities in parquet files
+    cluster_dict = {k: v for k, v in cluster_dict.items() if len(v) >= minimum_foldseek_cluster_size}
+    cluster_ids = list(cluster_dict.keys())
+    print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(cluster_dict.keys()))
+    rng = np.random.default_rng(seed=42)
+    rng.shuffle(cluster_ids)
+
     if not os.path.exists(af2zip_pickle_path):
         print("Creating af2zip dictionary", flush=True)
         af2zip = make_zip_dictionary()
@@ -214,15 +222,9 @@ def make_job_list(
         with open(af2zip_pickle_path, "rb") as f:
             af2zip = pickle.load(f)
 
-    # shuffle first so that we de-correlate cluster identities in parquet files
-    filtered_clusters = sorted([cluster for cluster in cluster_dict.keys() if len(cluster_dict[cluster]) >= minimum_foldseek_cluster_size])
-    print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(filtered_clusters))
-    rng = np.random.default_rng(seed=42)
-    rng.shuffle(filtered_clusters)
-
     parquet_size = 250 if skip_af50 else 100  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
-    clusters_to_save = [filtered_clusters[i:i + parquet_size] for i in range(0, len(filtered_clusters), parquet_size)]
+    clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
     cluster_ids = clusters_to_save[parquet_id]
 
     cluster_counter = 0
@@ -251,7 +253,8 @@ def make_job_list(
             cluster_counter += 1
 
             for member in members:
-                zip_filename, afdb_id = af2zip[member]
+                zip_filename = af2zip[member]
+                afdb_id = f"AF-{member}-F1-model_v4"
                 pdb_lookup[zip_filename].append(afdb_id)
                 metadata_lookup[afdb_id] = {
                     "cluster_id": cluster_id,
@@ -265,7 +268,8 @@ def make_job_list(
                     for af50_member in af50_dict[member]:
                         try:
                             assert not af50_member == member
-                            zip_filename, afdb_id = af2zip[af50_member]
+                            zip_filename = af2zip[af50_member]
+                            afdb_id = f"AF-{af50_member}-F1-model_v4"
                             pdb_lookup[zip_filename].append(afdb_id)
                             cluster_membership[cluster_id].append(afdb_id)
                             metadata_lookup[afdb_id] = {
