@@ -3,7 +3,10 @@ from typing import Optional
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
-from src.models.wrapper import TransformerWithSequencePositionEmbeddings
+from src.models.wrapper import (
+    TransformerWithSequencePositionEmbeddings,
+    WrappedHFGeneratorMixin,
+)
 
 
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
@@ -31,6 +34,10 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         )
 
 
+class WrappedLlamaForCausalLM(WrappedHFGeneratorMixin, LlamaForCausalLM):
+    pass
+
+
 class LlamaLitModule(BaseFamilyLitModule):
     def __init__(
         self,
@@ -51,10 +58,10 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        model = LlamaForCausalLM(config)
         if (
             tokenizer.use_seq_pos
         ):  # commenting out to check computation of inputs embeds is working
+            model = WrappedLlamaForCausalLM(config)
             model = TransformerWithSequencePositionEmbeddings(
                 model,
                 model.model.embed_tokens,
@@ -62,6 +69,8 @@ class LlamaLitModule(BaseFamilyLitModule):
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
             )
+        else:
+            model = LlamaForCausalLM(config)
         super().__init__(
             model,
             tokenizer,

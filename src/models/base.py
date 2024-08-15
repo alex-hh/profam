@@ -8,6 +8,7 @@ import torch
 import tqdm
 from hydra import compose, initialize_config_dir
 from lightning import LightningModule
+from omegaconf import OmegaConf
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
@@ -39,8 +40,31 @@ def load_checkpoint(checkpoint_dir):
         config_dir=os.path.join(BASEDIR, checkpoint_dir, ".hydra")
     ):
         cfg = compose(config_name="config")
-        tokenizer = hydra.utils.instantiate(cfg.tokenizer)
-        print(OmegaConf.to_yaml(cfg))
+        if "tokenizer" in cfg:
+            tokenizer = hydra.utils.instantiate(cfg.tokenizer)
+        else:
+            # old config
+            from src.utils.tokenizers import ProFamTokenizer
+
+            tokenizer = ProFamTokenizer(
+                tokenizer_file=cfg.data.tokenizer_path,
+                unk_token="[UNK]",
+                pad_token="[PAD]",
+                sep_token="[SEP]",
+                mask_token="[MASK]",
+                bos_token="[start-of-document]",
+                add_special_tokens=True,
+                add_final_sep=True,
+                add_bos_token=True,
+                add_document_type_token=True,
+                use_seq_pos=cfg.data.use_seq_pos,
+                max_seq_pos=cfg.data.max_seq_pos,
+                max_tokens=cfg.data.max_tokens,
+            )
+            del cfg.model.use_seq_pos
+            del cfg.model.max_seq_pos
+
+        print(OmegaConf.to_yaml(cfg.model))
         model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
         # TODO: check callback config
         checkpoint = torch.load(

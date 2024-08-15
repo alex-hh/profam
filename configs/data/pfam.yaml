@@ -22,5 +22,3 @@ evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
 count_doc_hashes: True # count the num times each document gets sampled
-use_seq_pos: True  # embed sequence relative position
-max_seq_pos: 2048  # maximum sequence position

@@ -2,12 +2,14 @@ from typing import Callable, List, Optional
 
 import torch
 from torch import nn
-from transformers.generation.utils import GenerationMixin
 from transformers.modeling_utils import PreTrainedModel
 
 
-# TODO: unify with below?
-class WrappedHFModel(PreTrainedModel):
+class WrappedHFGeneratorMixin:
+    # This is a mixin for models that require seq pos input during generation
+    # using the mixin allows the use of standard generation code
+
+    # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         # main place this gets called is in sample loop:
         # https://github.com/huggingface/transformers/blob/e7f4ace0929600606424efd4cd91947bd567d323/src/transformers/generation/utils.py#L2413
@@ -40,7 +42,8 @@ class TransformerWithSequencePositionEmbeddings(nn.Module):
         require_seq_pos: bool = True,
     ):
         super().__init__()
-        self.model = WrappedHFModel(model)
+        # dynamically create a class inheriting from the model class and the mixin
+        self.model = model
         self.token_embedder = token_embedder
         self.use_seq_pos = use_seq_pos
         self.require_seq_pos = require_seq_pos
