@@ -1,6 +1,7 @@
 """
 Loads PDB files for the foldseek clusters and
-converts them into parquet files. The parquet files contain sequences
+converts them into parquet files. The parquet files contain sequences,
+foldmason MSTA alignments (both aa and 3di),
 as well as backbone coordinates (N, Ca, C, O).
 
 N.B. this is slow and will require optimisation/parallelisation:
@@ -31,6 +32,8 @@ import pyarrow.parquet as pq
 import zipfile
 import os
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+import tempfile
+import subprocess
 
 
 af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
@@ -113,6 +116,21 @@ def make_cluster_dictionary(cluster_path):
                 print("Processed", line_counter, "lines for cluster dictionary")
     return cluster_dict
 
+def run_foldmason(input_dir, output_dir, tmp_dir):
+    cmd = [
+        "foldmason", "easy-msa",
+        input_dir,
+        os.path.join(output_dir, "result"),
+        tmp_dir
+    ]
+    
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(f"FoldMason stdout: {result.stdout}")
+    except subprocess.CalledProcessError as e:
+        print(f"FoldMason execution failed: {e}")
+        print(f"FoldMason stderr: {e.stderr}")
+        raise
 
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
     # Save the pdbs to parquet
@@ -120,29 +138,47 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
     for cluster_id, cluster_members in clusters_to_save.items():
         sequences = []
         accessions = []
+        msta_aa = []
+        msta_3di = []
         is_foldseek_representative = []
         is_af50_representative = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
         all_b_factors = []
 
-        for afdb_id in cluster_members:
-            pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
-            metadata = metadata_lookup[afdb_id]
-            accessions.append(metadata["accession"])
-            is_foldseek_representative.append(metadata["is_foldseek_representative"])
-            is_af50_representative.append(metadata["is_af50_representative"])
-            structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
-            coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
-            residue_identities = get_residues(structure)[1]
-            b_factors = structure.b_factor[get_residue_starts(structure)]
-            seq = "".join(
-                [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
-            )
-            all_b_factors.append(b_factors)
-            sequences.append(seq)
-            for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
-                all_coords[atom_name].append(coords[:, ix, :].flatten())
-            os.remove(pdb)
+        with tempfile.TemporaryDirectory() as cluster_tmp_dir:
+            for afdb_id in cluster_members:
+                pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
+                metadata = metadata_lookup[afdb_id]
+                accessions.append(metadata["accession"])
+                is_foldseek_representative.append(metadata["is_foldseek_representative"])
+                is_af50_representative.append(metadata["is_af50_representative"])
+                structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
+                coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
+                residue_identities = get_residues(structure)[1]
+                b_factors = structure.b_factor[get_residue_starts(structure)]
+                seq = "".join(
+                    [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
+                )
+                all_b_factors.append(b_factors)
+                sequences.append(seq)
+                for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
+                    all_coords[atom_name].append(coords[:, ix, :].flatten())
+                
+                # Copy PDB file to the temporary cluster directory
+                shutil.copy(pdb, os.path.join(cluster_tmp_dir, f"{afdb_id}.pdb"))
+
+                os.remove(pdb)
+            
+            # Run FoldMason on the cluster
+            with tempfile.TemporaryDirectory() as foldmason_tmp_dir:
+                run_foldmason(cluster_tmp_dir, foldmason_tmp_dir, foldmason_tmp_dir)
+                
+                # Read AA and 3Di alignments
+                with open(os.path.join(foldmason_tmp_dir, "result_aa.fa"), "r") as f:
+                    msta_aa = f.read().split(">")[1:]  # Skip the first empty element
+                with open(os.path.join(foldmason_tmp_dir, "result_3di.fa"), "r") as f:
+                    msta_3di = f.read().split(">")[1:]  # Skip the first empty element
+
 
         # TODO: save representative?
         results.append(
@@ -157,6 +193,8 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "accessions": accessions,
                 "is_foldseek_representative": is_foldseek_representative,
                 "is_af50_representative": is_af50_representative,
+                "msta_aa": msta_aa,
+                "msta_3di": msta_3di,
             }
         )
 
