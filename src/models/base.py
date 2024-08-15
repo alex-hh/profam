@@ -168,12 +168,12 @@ class BaseLitModule(LightningModule):
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        # we check whether we are in proteingym loader by looking at keys in batch
         ds_name = (
             batch["ds_name"][0]
             if isinstance(batch["ds_name"], list)
             else batch["ds_name"].text[0]
         )
+        # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs
@@ -397,31 +397,31 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
+        assert input_ids.ndim == 2
+        assert input_ids.shape[0] == 1
+        assert completion_ids.ndim == 3
+        assert completion_ids.shape[0] == 1
+
         all_lls = []
         forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
-        L = completion_ids.shape[-1]
+
         for batch_start in tqdm.tqdm(
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
         ):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
-            this_input_ids = completion_ids[
-                :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # b_mut, L
+            this_input_ids = completion_ids[0, batch_start : batch_start + batch_size]
             # remove unnecessary padding:
             this_input_ids = self.trim_mini_batch(this_input_ids)
+            L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
             if self.use_seq_pos:
                 this_seq_pos = completion_seq_pos[
-                    :, batch_start : batch_start + batch_size
-                ].reshape(
-                    -1, L
-                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+                    0, batch_start : batch_start + batch_size, :L_mini_batch
+                ]
                 forward_kwargs["seq_pos"] = this_seq_pos
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
