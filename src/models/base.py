@@ -196,6 +196,18 @@ class BaseLitModule(LightningModule):
             prog_bar=False,
             add_dataloader_idx=False,
         )
+        # log loss with generic name to avoid errors with checkpoint monitoring
+        # otherwise we have to explicitly set the name of the val-loss dataset
+        if dataloader_idx==0:
+            self.log(
+                f"val/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=True,
+            )
+
         self.log(
             f"val/{ds_name}/accuracy",
             accuracy,
@@ -256,6 +268,7 @@ class BaseLitModule(LightningModule):
             on_step=False,
             on_epoch=True,
             prog_bar=False,
+            add_dataloader_idx=False,
         )
         return loss
 
@@ -562,6 +575,7 @@ class BaseFamilyLitModule(BaseLitModule):
             metric,
             on_step=False,
             on_epoch=True,
+            add_dataloader_idx=False,
         )
         au_roc = roc_auc_score(target_vals, lls)
         self.log(
@@ -569,6 +583,7 @@ class BaseFamilyLitModule(BaseLitModule):
             au_roc,
             on_step=False,
             on_epoch=True,
+            add_dataloader_idx=False,
         )
         k_vals = [k for k in [1, 2, 5, 10] if k < len(target_vals)]
         for top_k in k_vals:
@@ -582,6 +597,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 top_k_acc,
                 on_step=False,
                 on_epoch=True,
+                add_dataloader_idx=False,
             )
         if batch["ds_name"].text[0] in ['pfam']:
             # only do this for evals where the eval seqs remain the same across
@@ -647,24 +663,23 @@ class BaseFamilyLitModule(BaseLitModule):
                     # softmax likelihoods to get probability over families
                     labels = np.array([1] + [0] * len(lls[0]))
                     if 1 in lls:
-                        lls = np.array([lls[1]] + lls[0])
+                        lls_arr = np.array([lls[1]] + lls[0])
                         self.log(
                             f"val/{val_name}_mean_ll_across_fam_prompts",
-                            lls.mean(),
+                            lls_arr.mean(),
                             on_step=False,
                             add_dataloader_idx=False,
 
                         )
-                        lls = np.array([lls[1]] + lls[0])
                         self.log(
                             f"val/{val_name}_variance_ll_across_fam_prompts",
-                            np.var(lls),
+                            np.var(lls_arr),
                             on_step=False,
                             add_dataloader_idx=False,
 
                         )
-                        lls = lls - lls.max()
-                        probs = np.exp(lls) / np.exp(lls).sum()
+                        lls_arr = lls_arr - lls_arr.max()
+                        probs = np.exp(lls_arr) / np.exp(lls_arr).sum()
                         # calculate cross entropy
                         ce = -np.log(probs[labels == 1]).mean()
                         ce_scores.append(ce)
@@ -678,13 +693,16 @@ class BaseFamilyLitModule(BaseLitModule):
                 self.log(
                     f"val/{val_name}_class_cr_ent",
                     sum(ce_scores) / len(ce_scores),
-                    on_step=False
+                    on_step=False,
+                    add_dataloader_idx=False,
+                    
                 )
 
                 self.log(
                     f"val/{val_name}_class_acc",
                     sum(acc_scores) / len(acc_scores),
-                    on_step=False
+                    on_step=False,
+                    add_dataloader_idx=False,
                 )
         self.family_likelihoods = {}
         self.batch_counter = 0

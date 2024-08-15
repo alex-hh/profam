@@ -125,12 +125,15 @@ def load_pfam_classification_dataset(
         bos_token="sep",
     )
     max_msa_tokens = max_tokens - max_eval_len - 2
+    assert (tok_eval_seqs["completion_ids"][:, 0] == tokenizer.vocab['[SEP]']).all()
     if use_seq_pos:
         n_seqs, longest = tok_eval_seqs["completion_ids"].shape
-        completion_seq_pos = arange(0, longest).repeat(n_seqs, 1)
+        # first token is always [SEP], last token before padding is [SEP]
+        completion_seq_pos = arange(1, longest + 1).repeat(n_seqs, 1)
         assert completion_seq_pos.shape == tok_eval_seqs["completion_ids"].shape
         completion_seq_pos[:, 0] = 0
-        completion_seq_pos.clamp_(max=max_seq_pos)
+        # first AA now has position 2, first [SEP] has position 0
+        completion_seq_pos.clamp_(max=max_seq_pos - 1)
     tokenized_eval_seqs = tok_eval_seqs["completion_ids"]
     # tokenized_eval_seqs = tokenize_eval_seqs(tokenizer, combined_eval_seqs, use_seq_pos, max_seq_pos)
     msa_paths = sorted(glob.glob(f"{pfam_dir}/*_train.fasta"))
