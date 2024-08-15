@@ -12,8 +12,6 @@ number of files if we use these rather than pdb files.)
 For parallelisation, there are two options: parallelising within
 building of single parquets, and parallelising across building of
 distinct parquets.
-
-TODO: switch to sqllitedict - https://github.com/piskvorky/sqlitedict
 """
 import argparse
 import shutil
@@ -276,7 +274,7 @@ def make_job_list(
                             cluster_membership[cluster_id].append(afdb_id)
                             metadata_lookup[afdb_id] = {
                                 "cluster_id": cluster_id,
-                                "accession": member,
+                                "accession": af50_member,
                                 "is_foldseek_representative": False,
                                 "is_af50_representative": False,
                             }
