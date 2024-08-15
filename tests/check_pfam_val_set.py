@@ -1,10 +1,13 @@
-import os
-import pandas as pd
 import glob
+import os
+
+import pandas as pd
 
 from src.data.fasta import read_fasta_lines
 
-fasta_dir = "/mnt/disk2/cath_plm/data/pfam/pfam_eval_splits/clustered_split_fastas_debug"
+fasta_dir = (
+    "/mnt/disk2/cath_plm/data/pfam/pfam_eval_splits/clustered_split_fastas_debug"
+)
 
 prompts = sorted(glob.glob(f"{fasta_dir}/*_train.fasta"))
 completions = sorted(glob.glob(f"{fasta_dir}/*_test.fasta"))
@@ -14,7 +17,7 @@ all_c = []
 all_p = []
 
 for p, c in zip(prompts, completions):
-    assert(p.split("/")[-1].split("_")[0] == c.split("/")[-1].split("_")[0])
+    assert p.split("/")[-1].split("_")[0] == c.split("/")[-1].split("_")[0]
     with open(p, "r") as f:
         prompt = f.read()
     with open(c, "r") as f:
@@ -59,4 +62,4 @@ print(f"n prompt files: {len(prompts)}")
 assert set(p_seqs).intersection(set(c_seqs)) == set()
 
 
-bp=1
+bp = 1

@@ -1,6 +1,6 @@
 import time
-from typing import Any, Dict, Optional
 import warnings
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -169,9 +169,11 @@ class BaseLitModule(LightningModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
-        ds_name = batch['ds_name'][0] if isinstance(
-            batch['ds_name'], list
-        ) else batch["ds_name"].text[0]
+        ds_name = (
+            batch["ds_name"][0]
+            if isinstance(batch["ds_name"], list)
+            else batch["ds_name"].text[0]
+        )
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs
@@ -198,7 +200,7 @@ class BaseLitModule(LightningModule):
         )
         # log loss with generic name to avoid errors with checkpoint monitoring
         # otherwise we have to explicitly set the name of the val-loss dataset
-        if dataloader_idx==0:
+        if dataloader_idx == 0:
             self.log(
                 f"val/loss",
                 loss,
@@ -599,7 +601,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 on_epoch=True,
                 add_dataloader_idx=False,
             )
-        if batch["ds_name"].text[0] in ['pfam']:
+        if batch["ds_name"].text[0] in ["pfam"]:
             # only do this for evals where the eval seqs remain the same across
             # batches and we consider the likelihood of each eval seq conditioned
             # on different family 'prompts'
@@ -623,7 +625,9 @@ class BaseFamilyLitModule(BaseLitModule):
             self.family_likelihoods[val_ds_name] = {}
         prompt_fam_id = batch["family_id"].text[0]
         eval_fam_id = batch["eval_fam_ids"].text[0].split("|")
-        for eval_seq_ix, bin_label in enumerate(batch["family_labels"][0].cpu().numpy()):
+        for eval_seq_ix, bin_label in enumerate(
+            batch["family_labels"][0].cpu().numpy()
+        ):
             if eval_fam_id[eval_seq_ix] == prompt_fam_id:
                 label = 1
             else:
@@ -634,7 +638,9 @@ class BaseFamilyLitModule(BaseLitModule):
             if eval_seq_ix not in self.family_likelihoods[val_ds_name]:
                 self.family_likelihoods[val_ds_name][eval_seq_ix] = {}
             if label == 1:
-                if 1 in self.family_likelihoods[val_ds_name][eval_seq_ix]:  # 1 fam per seq
+                if (
+                    1 in self.family_likelihoods[val_ds_name][eval_seq_ix]
+                ):  # 1 fam per seq
                     warnings.warn("Multiple families assigned for eval seq")
                 self.family_likelihoods[val_ds_name][eval_seq_ix][1] = ll
             else:
@@ -645,7 +651,6 @@ class BaseFamilyLitModule(BaseLitModule):
         if self.trainer.sanity_checking:
             self.family_likelihoods = {}
             self.batch_counter = 0
-
 
     def on_validation_epoch_end(self):
         """
@@ -669,14 +674,12 @@ class BaseFamilyLitModule(BaseLitModule):
                             lls_arr.mean(),
                             on_step=False,
                             add_dataloader_idx=False,
-
                         )
                         self.log(
                             f"val/{val_name}_variance_ll_across_fam_prompts",
                             np.var(lls_arr),
                             on_step=False,
                             add_dataloader_idx=False,
-
                         )
                         lls_arr = lls_arr - lls_arr.max()
                         probs = np.exp(lls_arr) / np.exp(lls_arr).sum()
@@ -695,7 +698,6 @@ class BaseFamilyLitModule(BaseLitModule):
                     sum(ce_scores) / len(ce_scores),
                     on_step=False,
                     add_dataloader_idx=False,
-                    
                 )
 
                 self.log(
@@ -722,12 +724,20 @@ class BaseFamilyLitModule(BaseLitModule):
         # labels have -100 at padding positions due to collater
         accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
         self.log(
-            "train/loss", loss, on_step=True, on_epoch=True,
-            prog_bar=True, batch_size=batch_size,
+            "train/loss",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=batch_size,
         )
         self.log(
-            "train/accuracy", accuracy, on_step=False, on_epoch=True,
-            prog_bar=True, batch_size=batch_size,
+            "train/accuracy",
+            accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=batch_size,
         )
         # https://huggingface.co/docs/transformers/perplexity
         # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round

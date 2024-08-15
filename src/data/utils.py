@@ -4,15 +4,15 @@ import hashlib
 import itertools
 import os
 import random
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-import warnings
 
 import numpy as np
 import torch
-from torch import stack
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
+from torch import stack
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
@@ -421,6 +421,7 @@ def tokenize_msa(
             num_end_tokens=0,
         )
     return sample
+
 
 def tokenize_completions(
     sample,

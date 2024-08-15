@@ -21,12 +21,10 @@ from functools import partial
 from datasets import Dataset
 from torch import arange
 
-from src.data import fasta
-from src.data.utils import tokenize, tokenize_completions
 import src.data.utils as data_utils
+from src.data import fasta
 from src.data.family_classification import family_columns
-
-
+from src.data.utils import tokenize, tokenize_completions
 
 
 def tokenize_pfam(
@@ -79,7 +77,7 @@ def tokenize_pfam(
     )
 
     sample["family_labels"] = [1 if s == msa_name else 0 for s in eval_names]
-    assert sum(sample["family_labels"]) > 0 # at least one eval seq is in the fam
+    assert sum(sample["family_labels"]) > 0  # at least one eval seq is in the fam
     sample["ds_name"] = "pfam"
     sample["eval_fam_ids"] = "|".join(eval_names)
     return sample
@@ -125,7 +123,7 @@ def load_pfam_classification_dataset(
         bos_token="sep",
     )
     max_msa_tokens = max_tokens - max_eval_len - 2
-    assert (tok_eval_seqs["completion_ids"][:, 0] == tokenizer.vocab['[SEP]']).all()
+    assert (tok_eval_seqs["completion_ids"][:, 0] == tokenizer.vocab["[SEP]"]).all()
     if use_seq_pos:
         n_seqs, longest = tok_eval_seqs["completion_ids"].shape
         # first token is always [SEP], last token before padding is [SEP]

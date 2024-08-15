@@ -15,9 +15,9 @@ from src.data.utils import (
     ProteinDatasetConfig,
     get_seq_pos_from_positions,
     load_protein_dataset,
-    tokenize_msa,
     tokenize,
     tokenize_completions,
+    tokenize_msa,
 )
 
 

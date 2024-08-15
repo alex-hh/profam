@@ -17,13 +17,14 @@ from src.data import utils as data_utils
 from src.data.utils import tokenize
 
 family_columns = [
-        "input_ids",
-        "completion_ids",
-        "family_labels",
-        "ds_name",
-        "family_id",
-        "eval_fam_ids",
-    ]
+    "input_ids",
+    "completion_ids",
+    "family_labels",
+    "ds_name",
+    "family_id",
+    "eval_fam_ids",
+]
+
 
 def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_pos):
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
@@ -67,7 +68,9 @@ def load_classifier_dataset(
     for target_family_path in paths:
         # Load sequences from the target family
         _, seqs = fasta.read_fasta(target_family_path)
-        target_fam_id = target_family_path.split("/")[-1].replace(".fasta", "").replace(".fa", "")
+        target_fam_id = (
+            target_family_path.split("/")[-1].replace(".fasta", "").replace(".fa", "")
+        )
         target_family_seqs = seqs.copy()
         n_targ_seqs = min(len(target_family_seqs) // 2, max_seqs_to_predict)
         n_targ_seqs = min(n_targ_seqs, len(target_family_seqs))
@@ -77,7 +80,11 @@ def load_classifier_dataset(
         target_fam_ids = [target_fam_id] * len(target_seqs)
         decoy_fam_ids = []
         for decoy_family_path in paths:
-            fam_id = decoy_family_path.split("/")[-1].replace(".fasta", "").replace(".fa", "")
+            fam_id = (
+                decoy_family_path.split("/")[-1]
+                .replace(".fasta", "")
+                .replace(".fa", "")
+            )
             if decoy_family_path == target_family_path:
                 continue
             # Load sequences from the decoy family
