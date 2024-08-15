@@ -371,18 +371,20 @@ class BaseFamilyLitModule(BaseLitModule):
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
-    def trim_mini_batch(self, batch):
+    def trim_eval_batch(self, seqs_ids):
         """
         trim to first padding token in mini-batch
         (if batch-size is 1: avoid padding entirely)
         """
         pad_tok = self.tokenizer.vocab["[PAD]"]
-        mask = batch != pad_tok
-        indices = torch.arange(batch.shape[-1], device=batch.device).expand(batch.shape)
+        mask = seqs_ids != pad_tok
+        indices = torch.arange(seqs_ids.shape[-1], device=seqs_ids.device).expand(
+            seqs_ids.shape
+        )
         # Set indices with padding to 0
-        indices = torch.where(mask, indices, torch.tensor(0, device=batch.device))
+        indices = torch.where(mask, indices, torch.tensor(0, device=seqs_ids.device))
         max_non_pad_index_per_seq = torch.max(indices, dim=-1).values
-        return batch[..., : max_non_pad_index_per_seq.max() + 1]
+        return seqs_ids[..., : max_non_pad_index_per_seq.max() + 1]
 
     def _score_seqs_kv_cache(
         self,
@@ -415,7 +417,7 @@ class BaseFamilyLitModule(BaseLitModule):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
             this_input_ids = completion_ids[0, batch_start : batch_start + batch_size]
             # remove unnecessary padding:
-            this_input_ids = self.trim_mini_batch(this_input_ids)
+            this_input_ids = self.trim_eval_batch(this_input_ids)
             L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
             if self.use_seq_pos:
