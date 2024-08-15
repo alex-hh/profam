@@ -5,6 +5,11 @@ which contains:
 - input_ids (prompt tokens)
 - completion_ids (tokens of seqs to predict)
 - family_labels (binary in-family or not)
+- sequence_positions (if True)
+- eval_fam_ids, str of all eval family ids:
+            PF00167.18|PF00112.12|PF... this is not necessary but is used for debugging
+- family_id, str of the family id for the prompt
+
 
 for pfam we evaluate likelihood of sequence
 conditioning on prompts from different families
