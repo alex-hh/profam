@@ -174,6 +174,7 @@ class BaseLitModule(LightningModule):
             else batch["ds_name"].text[0]
         )
         # we check whether we are in proteingym loader by looking at keys in batch
+        ds_name = batch["ds_name"].text[0]
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
             return outputs
