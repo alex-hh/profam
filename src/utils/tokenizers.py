@@ -21,7 +21,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
@@ -54,7 +54,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert (
                 not self.add_document_type_token
             ), "Document type token expected but not provided"
-        tokenized = self.tokenizer(
+        tokenized = self(
             concatenated_seqs,
             truncation=False,  # shouldnt be necessary: bisection should handle
             return_tensors="pt",

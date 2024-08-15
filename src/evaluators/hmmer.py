@@ -1,4 +1,5 @@
 import os
+import subprocess
 from typing import List
 
 import numpy as np
@@ -18,12 +19,15 @@ class BaseHMMEREvaluator(SamplingEvaluator):
 
 
 class PFAMHMMERMixin:
+    """Given the full PFAM HMM database, use hmmfetch to extract specific models."""
+
     def __init__(
         self,
         *args,
         max_tokens: int = 8192,
         seed: int = 52,
-        pfam_hmm_dir="../data/pfam_hmms",
+        pfam_hmm_dir="../data/pfam/hmms",
+        pfam_database="../data/pfam/Pfam-A.hmm",
         keep_gaps=False,
         keep_insertions=True,
         to_upper=True,
@@ -36,9 +40,18 @@ class PFAMHMMERMixin:
         self.keep_insertions = keep_insertions
         self.to_upper = to_upper
         self.max_tokens = max_tokens
+        self.pfam_database = pfam_database
+
+    def extract_hmm(self, identifier, hmm_file):
+        subprocess.run("hmmfetch", self.pfam_database, identifier, stdout=hmm_file)
 
     def hmm_file_from_identifier(self, identifier: str):
-        return os.path.join(self.pfam_hmm_dir, f"{identifier}.hmm")
+        # other option would be to never build separate hmm files:
+        # hmmfetch pfam_db.hmm HMM_NAME | hmmsearch - sequence_db.fasta > search_results.txt
+        hmm_file = os.path.join(self.pfam_hmm_dir, f"{identifier}.hmm")
+        if not os.path.isfile(hmm_file):
+            self.extract_hmm(identifier, hmm_file)
+        return hmm_file
 
     def load_hmm(self, protein_document: ProteinDocument):
         hmm_file = self.hmm_file_from_identifier(protein_document.identifier)
