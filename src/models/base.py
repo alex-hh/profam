@@ -69,7 +69,6 @@ def load_checkpoint(checkpoint_dir):
             del cfg.model.max_seq_pos
 
         print(OmegaConf.to_yaml(cfg.model))
-        model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
         # TODO: check callback config
         checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
         checkpoint = torch.load(
@@ -81,6 +80,8 @@ def load_checkpoint(checkpoint_dir):
             checkpoint = {
                 k.replace("model.model.", "model."): v for k, v in checkpoint.items()
             }
+
+        model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
         model.load_state_dict(checkpoint)
     return model
 

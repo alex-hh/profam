@@ -47,6 +47,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             prev_seq_pos = kwargs["seq_pos"][:, -1]
             seq_pos = torch.cat([prev_seq_pos, prev_seq_pos + 1], dim=-1)
             inputs["seq_pos"] = seq_pos
+        else:
+            inputs["seq_pos"] = kwargs["seq_pos"]
         return inputs
 
     def embed_inputs(
@@ -96,7 +98,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
         inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos)
-        return super.forward(
+        return super().forward(
             input_ids=None,
             attention_mask=attention_mask,
             position_ids=position_ids,
