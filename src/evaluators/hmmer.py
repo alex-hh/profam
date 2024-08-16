@@ -180,8 +180,8 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
         self,
         name,
         is_pre_aligned: bool = False,
-        num_reference: int = 10000,
-        seed: Optional[int] = None,
+        num_reference: int = 5000,
+        seed: int = 52,
         **kwargs,
     ):
         super().__init__(name, seed=seed, **kwargs)
