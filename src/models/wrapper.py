@@ -42,10 +42,18 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         inputs = super().prepare_inputs_for_generation(input_ids, **kwargs)
         if input_ids.shape[-1] != kwargs["seq_pos"].shape[-1]:
             # we have incremented input ids but not seq pos
-            assert input_ids.shape[-1] == kwargs["seq_pos"].shape[-1] + 1
+            increment = input_ids.shape[-1] - kwargs["seq_pos"].shape[-1]
+            assert (
+                inputs["input_ids"].shape[-1] == 1
+            )  # we have sliced out the last token
+            # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
             # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
-            prev_seq_pos = kwargs["seq_pos"][:, -1]
-            seq_pos = torch.cat([prev_seq_pos, prev_seq_pos + 1], dim=-1)
+            # we need to slice out all previously considered sequence positions - at what point does this occur for input ids?
+            # we need to be very careful about caching - inputs embeds is hopefully not being passed to the outer model? but if it is we
+            # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
+            # frustratingly slicing of input ids is done on the super prepare inputs for generation
+            prev_seq_pos = kwargs["seq_pos"][:, -1:]
+            seq_pos = prev_seq_pos + increment
             inputs["seq_pos"] = seq_pos
         else:
             inputs["seq_pos"] = kwargs["seq_pos"]
