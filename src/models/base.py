@@ -539,6 +539,9 @@ class BaseFamilyLitModule(BaseLitModule):
             )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
+            # N.B. we need to be careful about generationconfig -- in particular eos token id
+            # if we want to generate multiple sequences in a single family: we either need to restore eos token id
+            # or we just do a batched generation like we do here. latter is more explicit.
             outputs = self.model.generate(
                 input_ids=input_ids,
                 num_return_sequences=num_return_sequences,
@@ -546,6 +549,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 max_length=max_length,
                 do_sample=not greedy,
                 temperature=temperature,
+                # https://huggingface.co/docs/transformers/en/generation_strategies
+                eos_token_id=self.tokenizer.sep_token_id,  # override default eos token id
                 **forward_kwargs,
             )
             if not include_prompt_in_output:
