@@ -8,7 +8,6 @@ from src.data.utils import backbone_coords_from_example
 
 @pytest.fixture
 def foldseek_df():
-    """Fixture to load the sample MSA data."""
     df = pd.read_parquet("data/example_data/foldseek_struct/0.parquet")
     return df
 
