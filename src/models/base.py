@@ -580,7 +580,6 @@ class BaseFamilyLitModule(BaseLitModule):
         tokenized = self.tokenizer.encode_sequences(
             sequence_prompt, positions=position_indices
         )
-        print("Tokenized data:", tokenized.data)
         if "seq_pos" in tokenized.data:
             seq_pos = tokenized.data["seq_pos"].unsqueeze(0)
         else:

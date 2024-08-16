@@ -6,6 +6,7 @@ from Bio.PDB import PDBParser
 from Bio.SVDSuperimposer import SVDSuperimposer
 from tmtools import tm_align
 from transformers import AutoTokenizer, EsmForProteinFolding
+from transformers.models.esm.openfold_utils import atom14_to_atom37
 from transformers.models.esm.openfold_utils.residue_constants import atom_order
 
 from src.data.objects import ProteinDocument
@@ -61,15 +62,26 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         max_tokens: int = 8192,
         seed: int = 52,
         prompt_plddt: bool = True,
+        keep_gaps: bool = False,
+        keep_insertions: bool = True,
+        to_upper: bool = True,
+        half_precision: bool = False,
     ):
         super().__init__(name, seed=seed)
         self.model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").eval()
-        self.model.esm = self.model.esm.half()
+        self.model.esm = self.model.esm
         self.model = self.model.to("cpu")
         self.device = device
         self.max_tokens = max_tokens  # includes prompt...
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
         self.prompt_plddt = prompt_plddt
+        self.keep_gaps = keep_gaps
+        self.keep_insertions = keep_insertions
+        self.to_upper = to_upper
+        self.half_precision = half_precision
+        if self.half_precision:
+            print("Using half precision")
+            self.model = self.model.half()
 
     def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
         # TODO: add average best TM score or similar to structures in document.
@@ -79,25 +91,23 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         reference_cas = []
         ref_sequences, _ = self.build_prompt(protein_document)
         ca_index = atom_order["CA"]
-        print("Ca index", ca_index)
         for seq in ref_sequences:
             out = self.model.infer(seq)
-            print(out.positions.shape)
+            final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
             # pdb_str = self.model.output_to_pdb(out)[0]
             prompt_plddts.append(np.mean(out.plddt.cpu().numpy()))
-            reference_cas.append(out.positions[..., ca_index, :].cpu().numpy())
+            reference_cas.append(final_atom_positions[0,...,ca_index,:].cpu().numpy())
 
         sample_plddts = []
         all_tm_scores = []
         for seq in samples:
             out = self.model.infer(seq)
             # pdb_str = self.model.output_to_pdb(out)[0]
-            sample_ca = out.positions[..., ca_index, :].cpu().numpy()
+            final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
+            sample_ca = final_atom_positions[0,...,ca_index,:].cpu().numpy()
             sample_plddts.append(np.mean(out.plddt.cpu().numpy()))
             tm_scores = []
             for ref_seq, ref_ca in zip(ref_sequences, reference_cas):
-                # sample_ca = out["structure_module"]["final_atom_positions"].to(self.device)
-                # sample_ca, rms = _superimpose_np(ref_ca, sample_ca)
                 tm_scores.append(calc_tm_score(ref_ca, sample_ca, ref_seq, seq))
             all_tm_scores.append(tm_scores)
 

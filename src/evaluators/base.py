@@ -67,9 +67,6 @@ class SamplingEvaluator:
         ]
         return reference_sequences
 
-    def build_prompt(self, protein_document: ProteinDocument):
-        raise NotImplementedError("should be implemented on child class")
-
     def build_inputs_from_prompt(self, prompt, num_samples: int):
         if isinstance(prompt, list) and isinstance(prompt[0], str):
             return {"sequence_prompt": prompt, "num_samples": num_samples}

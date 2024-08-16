@@ -146,7 +146,7 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
 
 def random_subsample(arr, n, seed: Optional[int] = None):
     rnd = np_random(seed)
-    return rnd.choice(arr, n, replace=False)
+    return rnd.choice(arr, min(n, len(arr)), replace=False)
 
 
 def sample_to_max_tokens(
