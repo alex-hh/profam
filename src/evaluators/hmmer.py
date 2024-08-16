@@ -8,9 +8,7 @@ import numpy as np
 import pyhmmer
 from scipy.stats import pearsonr
 
-from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
-from src.data.utils import random_subsample, sample_to_max_tokens
 from src.evaluators.alignment import MSANumeric, aa_letters_wgap
 from src.evaluators.base import SamplingEvaluator
 
@@ -70,28 +68,6 @@ class PFAMHMMERMixin:
         with pyhmmer.plan7.HMMFile(hmm_file) as hmm_f:
             hmm = hmm_f.read()
         return hmm
-
-    def build_prompt(self, protein_document: ProteinDocument):
-        sequences = random_subsample(
-            protein_document.sequences, self.max_tokens // 10, seed=self.seed
-        )
-        max_len = max([len(seq) for seq in sequences])
-        sequences = []
-        positions = []
-        # TODO: subsample before convert sequence with positions.
-        for sequence in protein_document.sequences:
-            seq, pos, _ = convert_sequence_with_positions(
-                sequence,
-                keep_gaps=self.keep_gaps,
-                keep_insertions=self.keep_insertions,
-                to_upper=self.to_upper,
-            )
-            sequences.append(seq)
-            positions.append(pos)
-        sequences, positions = sample_to_max_tokens(
-            sequences, positions, self.max_tokens - max_len, seed=self.seed
-        )
-        return sequences, positions
 
 
 class ProfileHMMEvaluator(BaseHMMEREvaluator):

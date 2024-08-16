@@ -1,2 +1,5 @@
-_target_: src.evaluators.esmfold.ESMfoldEvaluator
+_target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
 device: "cuda:0"  # TODO: check this works in distributed.
+max_tokens: 8192
+seed: 52
+name: esmfold

@@ -4,6 +4,7 @@ import numpy as np
 
 from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
+from src.data.utils import random_subsample, sample_to_max_tokens
 from src.models.base import BaseFamilyLitModule
 
 # class MultipleEvaluator:
@@ -18,6 +19,28 @@ class SamplingEvaluator:
         self, protein_document: ProteinDocument, samples: List[str]
     ) -> Dict[str, float]:
         raise NotImplementedError("should be implemented on child class")
+
+    def build_prompt(self, protein_document: ProteinDocument):
+        sequences = random_subsample(
+            protein_document.sequences, self.max_tokens // 10, seed=self.seed
+        )
+        max_len = max([len(seq) for seq in sequences])
+        sequences = []
+        positions = []
+        # TODO: subsample before convert sequence with positions.
+        for sequence in protein_document.sequences:
+            seq, pos, _ = convert_sequence_with_positions(
+                sequence,
+                keep_gaps=self.keep_gaps,
+                keep_insertions=self.keep_insertions,
+                to_upper=self.to_upper,
+            )
+            sequences.append(seq)
+            positions.append(pos)
+        sequences, positions = sample_to_max_tokens(
+            sequences, positions, self.max_tokens - max_len, seed=self.seed
+        )
+        return sequences, positions
 
     def sample_document(
         self,
