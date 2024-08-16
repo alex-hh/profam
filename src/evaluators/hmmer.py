@@ -101,16 +101,16 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
     def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
         hmm = self.load_hmm(protein_document)
         # TODO: we want to not return ordered...
+        names = [f"seq{i}".encode() for i in range(len(samples))]
         sequences = [
-            pyhmmer.easel.DigitalSequence(self.alphabet, name=f"seq{i}", sequence=seq)
+            pyhmmer.easel.TextSequence(name=f"seq{i}".encode(), sequence=seq).digitize(self.alphabet)
             for i, seq in enumerate(samples)
         ]
-        hits = pyhmmer.hmmsearch(hmm, sequences, E=self.E, incE=self.E)
-        hits.sort(by="seqidx")
-        evalues = []
-        for hit in hits.reported():
-            print(hit.evalue, hit.score, hit.name)
-            evalues.append(hit.evalue)
+        hits = next(pyhmmer.hmmsearch(hmm, sequences, E=self.E, incE=self.E))
+        evalues = {}
+        for hit in hits.reported:
+            evalues[hit.name] = hit.evalue
+        evalues = [evalues[name] for name in names]  # not actually necessary here since we take average but poss helpful
         return {
             "evalue": np.mean(evalues),
             "hit_percentage": (

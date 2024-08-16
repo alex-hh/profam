@@ -97,17 +97,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         dec = self.batch_decode(tokens)
         decoded_sequences = []
 
-        for seq in dec:
+        for seq_of_seqs in dec:
             # we're trusting that [PAD] tokens are put in the correct place.
-            decoded_sequences.append(
-                [
-                    s.replace("[RAW]", "")
-                    .replace("[MSA]", "")
-                    .replace("[start-of-document]", "")
-                    .replace("[end-of-document]", "")
-                    for s in seq.replace(" ", "").replace("[PAD]", "").split("[SEP]")
-                ]
-            )
+            decoded_seq_of_seqs = []
+            for seq in seq_of_seqs.replace(" ", "").replace("[PAD]", "").split("[SEP]"):
+                processed_seq = seq.replace("[RAW]", "").replace("[MSA]", "").replace("[start-of-document]", "").replace("[end-of-document]", "")
+                if processed_seq:
+                    decoded_seq_of_seqs.append(processed_seq)
+            assert decoded_seq_of_seqs, "Empty sequence"
+            decoded_sequences.append(decoded_seq_of_seqs)
         if all(len(seq) == 1 for seq in decoded_sequences):
             decoded_sequences = [seq[0] for seq in decoded_sequences]
         return decoded_sequences
