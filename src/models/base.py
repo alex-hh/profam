@@ -1,4 +1,5 @@
 import os
+import pickle
 import time
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,7 @@ from src.models.utils import (
     accuracy_from_outputs,
     log_likelihood_from_outputs,
 )
+from src.models.wrapper import TransformerWithSequencePositionEmbeddings
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -41,9 +43,11 @@ def load_checkpoint(checkpoint_dir):
     ):
         cfg = compose(config_name="config")
         if "tokenizer" in cfg:
+            old_config = False
             tokenizer = hydra.utils.instantiate(cfg.tokenizer)
         else:
             # old config
+            old_config = True
             from src.utils.tokenizers import ProFamTokenizer
 
             tokenizer = ProFamTokenizer(
@@ -72,7 +76,11 @@ def load_checkpoint(checkpoint_dir):
             checkpoint_path,
             map_location="cpu",
         )["state_dict"]
-        # TODO: we'll have to convert keys and change model class if using an old-style checkpoint.
+        if old_config and tokenizer.use_seq_pos:
+            # TODO: we'll have to convert keys and change model class if using an old-style checkpoint.
+            checkpoint = {
+                k.replace("model.model.", "model."): v for k, v in checkpoint.items()
+            }
         model.load_state_dict(checkpoint)
     return model
 
