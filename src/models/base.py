@@ -567,6 +567,9 @@ class BaseFamilyLitModule(BaseLitModule):
         num_samples,
         position_indices: Optional[List[int]] = None,
         batch_size: int = 1,
+        include_prompt_in_output: bool = False,
+        greedy: bool = False,
+        temperature: Optional[float] = None,
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
         tokenized = self.tokenizer.encode_sequences(
@@ -582,7 +585,11 @@ class BaseFamilyLitModule(BaseLitModule):
             num_samples,
             input_seq_pos=seq_pos,
             batch_size=batch_size,
+            include_prompt_in_output=include_prompt_in_output,
+            greedy=greedy,
+            temperature=temperature,
         )
+        # print("samples shape", encoded.shape)
         return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(

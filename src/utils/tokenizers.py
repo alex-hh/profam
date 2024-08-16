@@ -93,15 +93,19 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
 
     def decode_tokens(self, tokens):
         # TODO: some kind of assertion on shape
-        assert tokens.ndim == 2 and tokens.shape[0] == 1
-        if tokens[:, -1] == self.sep_token_id:
-            tokens = tokens[:, :-1]
-        # TODO: use batch_decode for batches
-        dec = self.decode(tokens.squeeze(0))
-        return [
-            s.replace("[RAW]", "")
-            .replace("[MSA]", "")
-            .replace("[start-of-document]", "")
-            .replace("[end-of-document]", "")
-            for s in dec.replace(" ", "").split("[SEP]")
-        ]
+        assert tokens.ndim == 2
+        dec = self.batch_decode(tokens)
+        decoded_sequences = []
+        for seq in dec:
+            decoded_sequences.append(
+                [
+                    s.replace("[RAW]", "")
+                    .replace("[MSA]", "")
+                    .replace("[start-of-document]", "")
+                    .replace("[end-of-document]", "")
+                    for s in seq.replace(" ", "").split("[SEP]")
+                ]
+            )
+        if all(len(seq) == 1 for seq in decoded_sequences):
+            decoded_sequences = [seq[0] for seq in decoded_sequences]
+        return decoded_sequences

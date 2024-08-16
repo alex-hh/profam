@@ -30,10 +30,12 @@ class SamplingEvaluator:
         else:
             raise ValueError("Prompt should be a list of strings or a tuple of lists")
 
-    def run_sampling(self, model, protein_document, num_samples):
+    def run_sampling(self, model, protein_document, num_samples, **model_kwargs):
         prompt = self.build_prompt(protein_document)
         inputs = self.build_inputs_from_prompt(prompt, num_samples)
-        samples = model.sample_seqs(**inputs)
+        samples = model.sample_seqs(
+            **inputs, **model_kwargs
+        )  # TODO: figure out how to configure model_kwargs
         return samples
 
     def __call__(
