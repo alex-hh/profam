@@ -1,5 +1,6 @@
 import itertools
 import os
+import re
 import subprocess
 from typing import List, Optional
 
@@ -203,7 +204,7 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
             ]
             msa = pyhmmer.hmmalign(hmm, sequences, trim=True, all_consensus_cols=True)
             # TODO: identify match cols...
-            sequences = [seq for seq in msa.alignment]
+            sequences = [re.sub(r"[a-z\.]", "", seq) for seq in msa.alignment]
             if any(["." in seq for seq in sequences]):
                 raise ValueError("Insert present in alignment: todo - debug")
             print("Aligned sequences", [len(s) for s in sequences], sequences)
@@ -231,6 +232,10 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
         minimum_distances = np.mean(minimum_distances)
 
         sampled_msa = MSANumeric.from_sequences(sequences, aa_letters_wgap)
+        num_gaps = np.mean([sum([aa == "-" for aa in seq]) for seq in sequences])
+        num_gaps_ref = np.mean(
+            [sum([aa == "-" for aa in seq]) for seq in reference_sequences]
+        )
 
         reference_msa = MSANumeric.from_sequences(reference_sequences, aa_letters_wgap)
         sampled_f = sampled_msa.frequencies().flatten()
@@ -249,6 +254,8 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
             "covariance_pearson": cov_correlation,
             "diversity": diversity,
             "minimum_distances": minimum_distances,
+            "num_gaps": num_gaps,
+            "num_gaps_ref": num_gaps_ref,
         }
 
 

@@ -36,9 +36,9 @@ class SamplingEvaluator:
         reference_sequences = [
             convert_sequence_with_positions(
                 protein_document.sequences[i],
-                keep_gaps=False,
-                keep_insertions=True,
-                to_upper=True,
+                keep_gaps=keep_gaps,
+                keep_insertions=keep_insertions,
+                to_upper=to_upper,
             )[0]
             for i in reference_sequence_indices
         ]
