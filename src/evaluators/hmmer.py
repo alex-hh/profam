@@ -13,6 +13,17 @@ from src.evaluators.alignment import MSANumeric, aa_letters_wgap
 from src.evaluators.base import SamplingEvaluator
 
 
+def hamming_distance(seq_a, seq_b, ignore_gaps=False):
+    assert len(seq_a) == len(
+        seq_b
+    ), f"Sequences must be the same length but are {len(seq_a)} and {len(seq_b)}"
+    if ignore_gaps:
+        d = sum([a != b for (a, b) in zip(seq_a, seq_b) if a != "-" and b != "-"])
+    else:
+        d = sum([a != b for (a, b) in zip(seq_a, seq_b)])
+    return d
+
+
 class BaseHMMEREvaluator(SamplingEvaluator):
     def load_hmm(self, protein_document: ProteinDocument):
         raise NotImplementedError("should be implemented on child class")
@@ -33,9 +44,8 @@ class PFAMHMMERMixin:
         to_upper=True,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, seed=seed, **kwargs)
         self.pfam_hmm_dir = pfam_hmm_dir
-        self.seed = seed
         self.keep_gaps = keep_gaps
         self.keep_insertions = keep_insertions
         self.to_upper = to_upper
@@ -136,20 +146,66 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
     Statistics are compared with those computed from a reference MSA.
     """
 
+    def __init__(
+        self,
+        *args,
+        is_pre_aligned: bool = False,
+        num_reference: int = 10000,
+        seed: Optional[int] = None,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+        self.is_pre_aligned = is_pre_aligned
+        self.alphabet = pyhmmer.easel.Alphabet.amino()
+        self.num_reference = num_reference
+        self.seed = seed
+
     def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
         # TODO: add uniqueness, diversity hamming distance-based metrics
-        sequences = [
-            pyhmmer.easel.DigitalSequence(self.alphabet, name=f"seq{i}", sequence=seq)
-            for i, seq in enumerate(samples)
+        if self.is_pre_aligned:
+            sequences = samples
+        else:
+            sequences = [
+                pyhmmer.easel.DigitalSequence(
+                    self.alphabet, name=f"seq{i}", sequence=seq
+                )
+                for i, seq in enumerate(samples)
+            ]
+            msa = pyhmmer.hmmalign(
+                self.hmm, sequences, trim=True, all_consensus_cols=True
+            )
+            sequences = [seq for _, seq in msa.alignment]
+
+        rng = np.random.default_rng(self.seed)
+        reference_sequence_indices = rng.choice(
+            len(protein_document.sequences),
+            min(self.num_reference, len(protein_document.sequences)),
+            replace=False,
+        )
+        reference_sequences = [
+            protein_document.sequences[i] for i in reference_sequence_indices
         ]
-        msa = pyhmmer.hmmalign(self.hmm, sequences, trim=True, all_consensus_cols=True)
-        sequences = [seq for _, seq in msa.alignment]
+
+        diversity = [
+            hamming_distance(seq_1, seq_2)
+            for (seq_1, seq_2) in itertools.combinations(sequences, 2)
+        ]
+        distances = [
+            [hamming_distance(seq, ref) for ref in reference_sequences]
+            for seq in sequences
+        ]
+        minimum_distances = np.mean(
+            [min(distances_to_refs) for distances_to_refs in distances]
+        )
+        diversity = np.mean(diversity)
+        minimum_distances = np.mean(minimum_distances)
+
         sampled_msa = MSANumeric.from_sequences(sequences, aa_letters_wgap)
         reference_sequences = [
             convert_sequence_with_positions(
                 seq, keep_gaps=True, keep_insertions=False, to_upper=False
             )[0]
-            for seq in protein_document.sequences
+            for seq in reference_sequences
         ]
         reference_msa = MSANumeric.from_sequences(reference_sequences, aa_letters_wgap)
         sampled_f = sampled_msa.frequencies().flatten()
@@ -166,6 +222,8 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
             "frequency_pearson": f_correlation,
             "pair_frequency_pearson": fij_correlation,
             "covariance_pearson": cov_correlation,
+            "diversity": diversity,
+            "minimum_distances": minimum_distances,
         }
 
 

@@ -193,7 +193,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             try:
                 self.run_evaluator_on_instance(
                     model_name,
-                    protein_document,
+                    instance_id=instance_id,
+                    protein_document=protein_document,
                     rerun_evaluator=rerun,
                 )
             except Exception as e:
@@ -225,4 +226,4 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         self.run_sampling(model, model_name, rerun=rerun_model)
 
         # 2. evaluate the intermediate outputs with each validation
-        self.run_evaluation(model.name, rerun=rerun_evaluator)
+        self.run_evaluation(model_name, rerun=rerun_evaluator)

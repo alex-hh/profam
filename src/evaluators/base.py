@@ -7,8 +7,9 @@ from src.models.base import BaseFamilyLitModule
 
 
 class SamplingEvaluator:
-    def __init__(self, name: str):
+    def __init__(self, name: str, seed: int = 52):
         self.name = name
+        self.seed = seed
 
     def evaluate_samples(
         self, protein_document: ProteinDocument, samples: List[str]
