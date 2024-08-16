@@ -410,8 +410,8 @@ def tokenize_msa(
     sample["input_ids"] = tokenized.input_ids[0]  # no extra dim
     if use_seq_pos:
         if any([any(c.islower() for c in s) for s in sample["MSA"]]):
-            raise ValueError("insertions not supported in seq pos calculation")
-        positions = [list(range(len(s))) for s in sample["MSA"]]
+            raise NotImplementedError("insertions not supported in seq pos calculation")
+        positions = [list(range(1, len(s) + 1)) for s in sample["MSA"]]
         sample["seq_pos"] = get_seq_pos_from_positions(
             sample["input_ids"],
             positions,
@@ -445,11 +445,13 @@ def tokenize_completions(
     )
     sample["completion_ids"] = tokenized.input_ids
     if use_seq_pos:
+        # +1 to match convert_sequence_with_positions
+        # get_seq_pos_from_positions adds another offset
         completion_seq_pos = stack(
             [
                 get_seq_pos_from_positions(
                     sample["completion_ids"][i],
-                    [list(range(len(seq)))],
+                    [list(range(1, len(seq) + 1))],
                     pad_token_id=tokenizer.pad_token_id,
                     max_seq_pos=max_seq_pos,
                     num_start_tokens=1,
@@ -477,6 +479,7 @@ def tokenize(
         max_seq_pos=max_seq_pos,
     )
     if "completion_ids" not in sample:
+        # pfam family classification datasets add pre-computed completions_ids
         sample = tokenize_completions(
             sample,
             tokenizer,
