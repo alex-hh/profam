@@ -21,6 +21,7 @@ all seqs against one msa at a time
 """
 
 import glob
+import warnings
 from functools import partial
 
 from datasets import Dataset
@@ -101,6 +102,9 @@ def load_pfam_classification_dataset(
     num_workers=4,
     max_eval_per_fam=4,
 ):
+    if use_seq_pos and keep_insertions:
+        warnings.warn("Position embeddings will be incorrect with keep_insertions=True")
+
     combined_eval_seqs = []
     eval_labels = []
 
