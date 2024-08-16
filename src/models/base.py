@@ -67,10 +67,12 @@ def load_checkpoint(checkpoint_dir):
         print(OmegaConf.to_yaml(cfg.model))
         model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
         # TODO: check callback config
+        checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
         checkpoint = torch.load(
-            os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt"),
+            checkpoint_path,
             map_location="cpu",
         )["state_dict"]
+        # TODO: we'll have to convert keys and change model class if using an old-style checkpoint.
         model.load_state_dict(checkpoint)
     return model
 
