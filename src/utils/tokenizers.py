@@ -101,7 +101,12 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             # we're trusting that [PAD] tokens are put in the correct place.
             decoded_seq_of_seqs = []
             for seq in seq_of_seqs.replace(" ", "").replace("[PAD]", "").split("[SEP]"):
-                processed_seq = seq.replace("[RAW]", "").replace("[MSA]", "").replace("[start-of-document]", "").replace("[end-of-document]", "")
+                processed_seq = (
+                    seq.replace("[RAW]", "")
+                    .replace("[MSA]", "")
+                    .replace("[start-of-document]", "")
+                    .replace("[end-of-document]", "")
+                )
                 if processed_seq:
                     decoded_seq_of_seqs.append(processed_seq)
             assert decoded_seq_of_seqs, "Empty sequence"

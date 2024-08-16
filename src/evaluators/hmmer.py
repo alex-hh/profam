@@ -103,14 +103,18 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
         # TODO: we want to not return ordered...
         names = [f"seq{i}".encode() for i in range(len(samples))]
         sequences = [
-            pyhmmer.easel.TextSequence(name=f"seq{i}".encode(), sequence=seq).digitize(self.alphabet)
+            pyhmmer.easel.TextSequence(name=f"seq{i}".encode(), sequence=seq).digitize(
+                self.alphabet
+            )
             for i, seq in enumerate(samples)
         ]
         hits = next(pyhmmer.hmmsearch(hmm, sequences, E=self.E, incE=self.E))
         evalues = {}
         for hit in hits.reported:
             evalues[hit.name] = hit.evalue
-        evalues = [evalues[name] for name in names]  # not actually necessary here since we take average but poss helpful
+        evalues = [
+            evalues[name] for name in names
+        ]  # not actually necessary here since we take average but poss helpful
         return {
             "evalue": np.mean(evalues),
             "hit_percentage": (
@@ -123,6 +127,7 @@ class PFAMProfileHMM(PFAMHMMERMixin, ProfileHMMEvaluator):
     pass
 
 
+# TODO: write evaluator for pre-aligned sequences
 class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
 
     """First aligns generations to HMM, then computes statistics from alignment.
@@ -131,6 +136,7 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
     """
 
     def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
+        # TODO: add uniqueness, diversity hamming distance-based metrics
         sequences = [
             pyhmmer.easel.DigitalSequence(self.alphabet, name=f"seq{i}", sequence=seq)
             for i, seq in enumerate(samples)
