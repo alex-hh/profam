@@ -1,6 +1,7 @@
+import itertools
 import os
 import subprocess
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import pyhmmer
@@ -34,7 +35,7 @@ class PFAMHMMERMixin:
 
     def __init__(
         self,
-        *args,
+        name,
         max_tokens: int = 8192,
         seed: int = 52,
         pfam_hmm_dir="../data/pfam/hmms",
@@ -44,7 +45,7 @@ class PFAMHMMERMixin:
         to_upper=True,
         **kwargs,
     ):
-        super().__init__(*args, seed=seed, **kwargs)
+        super().__init__(name, seed=seed, **kwargs)
         self.pfam_hmm_dir = pfam_hmm_dir
         self.keep_gaps = keep_gaps
         self.keep_insertions = keep_insertions
@@ -103,11 +104,19 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
 
     # TODO: write msa statistics evaluator via hmmalign
     # Any additional arguments passed to the hmmsearch function will be passed transparently to the Pipeline to be created. For instance, to run a hmmsearch using a bitscore cutoffs of 5 instead of the default E-value cutoff, use:
-    def __init__(self, *args, E=1000, hit_threshold_for_metrics=0.001, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        name,
+        E=1000,
+        num_reference: int = 1000,
+        hit_threshold_for_metrics=0.001,
+        **kwargs,
+    ):
+        super().__init__(name, **kwargs)
         self.E = E  # E-value cutoff (large values are more permissive. we want to include everything.)
         self.alphabet = pyhmmer.easel.Alphabet.amino()
         self.hit_threshold_for_metrics = hit_threshold_for_metrics
+        self.num_reference = num_reference
 
     def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
         hmm = self.load_hmm(protein_document)
@@ -119,6 +128,19 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
             )
             for i, seq in enumerate(samples)
         ]
+        reference_sequences = self.sample_document(
+            protein_document,
+            self.num_reference,
+            keep_gaps=False,
+            keep_insertions=True,
+            to_upper=True,
+        )
+        reference_sequences = [
+            pyhmmer.easel.TextSequence(
+                name=f"ref_seq{i}".encode(), sequence=seq
+            ).digitize(self.alphabet)
+            for i, seq in enumerate(reference_sequences)
+        ]
         hits = next(pyhmmer.hmmsearch(hmm, sequences, E=self.E, incE=self.E))
         evalues = {}
         for hit in hits.reported:
@@ -126,8 +148,15 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
         evalues = [
             evalues[name] for name in names
         ]  # not actually necessary here since we take average but poss helpful
+
+        reference_hits = next(
+            pyhmmer.hmmsearch(hmm, reference_sequences, E=self.E, incE=self.E)
+        )
+        assert len(reference_hits) == len(reference_sequences)
+        ref_evalue = np.mean([hit.evalue for hit in reference_hits.reported])
         return {
             "evalue": np.mean(evalues),
+            "ref_evalue": ref_evalue,
             "hit_percentage": (
                 np.array(evalues) < self.hit_threshold_for_metrics
             ).mean(),
@@ -148,13 +177,13 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
 
     def __init__(
         self,
-        *args,
+        name,
         is_pre_aligned: bool = False,
         num_reference: int = 10000,
         seed: Optional[int] = None,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(name, seed=seed, **kwargs)
         self.is_pre_aligned = is_pre_aligned
         self.alphabet = pyhmmer.easel.Alphabet.amino()
         self.num_reference = num_reference
@@ -165,26 +194,27 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
         if self.is_pre_aligned:
             sequences = samples
         else:
+            hmm = self.load_hmm(protein_document)
             sequences = [
-                pyhmmer.easel.DigitalSequence(
-                    self.alphabet, name=f"seq{i}", sequence=seq
-                )
+                pyhmmer.easel.TextSequence(
+                    name=f"seq{i}".encode(), sequence=seq
+                ).digitize(self.alphabet)
                 for i, seq in enumerate(samples)
             ]
-            msa = pyhmmer.hmmalign(
-                self.hmm, sequences, trim=True, all_consensus_cols=True
-            )
-            sequences = [seq for _, seq in msa.alignment]
+            msa = pyhmmer.hmmalign(hmm, sequences, trim=True, all_consensus_cols=True)
+            # TODO: identify match cols...
+            sequences = [seq for seq in msa.alignment]
+            if any(["." in seq for seq in sequences]):
+                raise ValueError("Insert present in alignment: todo - debug")
+            print("Aligned sequences", [len(s) for s in sequences], sequences)
 
-        rng = np.random.default_rng(self.seed)
-        reference_sequence_indices = rng.choice(
-            len(protein_document.sequences),
-            min(self.num_reference, len(protein_document.sequences)),
-            replace=False,
+        reference_sequences = self.sample_document(
+            protein_document,
+            self.num_reference,
+            keep_gaps=True,
+            keep_insertions=False,
+            to_upper=True,
         )
-        reference_sequences = [
-            protein_document.sequences[i] for i in reference_sequence_indices
-        ]
 
         diversity = [
             hamming_distance(seq_1, seq_2)
@@ -201,12 +231,7 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
         minimum_distances = np.mean(minimum_distances)
 
         sampled_msa = MSANumeric.from_sequences(sequences, aa_letters_wgap)
-        reference_sequences = [
-            convert_sequence_with_positions(
-                seq, keep_gaps=True, keep_insertions=False, to_upper=False
-            )[0]
-            for seq in reference_sequences
-        ]
+
         reference_msa = MSANumeric.from_sequences(reference_sequences, aa_letters_wgap)
         sampled_f = sampled_msa.frequencies().flatten()
         sampled_fij = sampled_msa.pair_frequencies().flatten()

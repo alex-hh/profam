@@ -1,5 +1,8 @@
 from typing import Dict, List
 
+import numpy as np
+
+from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
 from src.models.base import BaseFamilyLitModule
 
@@ -15,6 +18,31 @@ class SamplingEvaluator:
         self, protein_document: ProteinDocument, samples: List[str]
     ) -> Dict[str, float]:
         raise NotImplementedError("should be implemented on child class")
+
+    def sample_document(
+        self,
+        protein_document: ProteinDocument,
+        num_samples: int,
+        keep_gaps: bool = False,
+        keep_insertions: bool = True,
+        to_upper: bool = True,
+    ):
+        rng = np.random.default_rng(self.seed)
+        reference_sequence_indices = rng.choice(
+            len(protein_document.sequences),
+            min(num_samples, len(protein_document.sequences)),
+            replace=False,
+        )
+        reference_sequences = [
+            convert_sequence_with_positions(
+                protein_document.sequences[i],
+                keep_gaps=False,
+                keep_insertions=True,
+                to_upper=True,
+            )[0]
+            for i in reference_sequence_indices
+        ]
+        return reference_sequences
 
     def build_prompt(self, protein_document: ProteinDocument):
         raise NotImplementedError("should be implemented on child class")
