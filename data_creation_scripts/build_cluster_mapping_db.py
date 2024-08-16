@@ -103,7 +103,7 @@ def make_cluster_db(
                 entry = {
                     "foldseek_cluster_id": cluster_id,
                     "af50_cluster_id": member,
-                    "accession": member,
+                    "uniprot_id": member,
                     "zip_filename": zip_filename,
                 }
                 entry = Protein(**entry)
@@ -117,7 +117,7 @@ def make_cluster_db(
                             entry = {
                                 "foldseek_cluster_id": cluster_id,
                                 "af50_cluster_id": member,
-                                "accession": af50_member,
+                                "uniprot_id": af50_member,
                                 "zip_filename": zip_filename,
                             }
                             entry = Protein(**entry)
