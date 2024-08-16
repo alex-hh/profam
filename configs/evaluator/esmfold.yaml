@@ -1,0 +1,2 @@
+_target_: src.evaluators.esmfold.ESMfoldEvaluator
+device: "cuda:0"  # TODO: check this works in distributed.

@@ -1,0 +1,7 @@
+_target_: src.evaluators.hmmer.HMMAlignmentStatisticsEvaluator
+seed: 52
+pfam_hmm_dir: "../data/pfam_hmms"
+keep_gaps: False
+keep_insertions: True
+to_upper: True
+name: "hmm_msa_stats"
