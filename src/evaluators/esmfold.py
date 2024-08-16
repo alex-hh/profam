@@ -115,5 +115,5 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         return {
             "prompt_plddt": np.mean(prompt_plddts),
             "sample_plddt": np.mean(sample_plddts),
-            "min_tm_score": np.mena([min(tm_scores) for tm_scores in all_tm_scores]),
+            "min_tm_score": np.mean([min(tm_scores) for tm_scores in all_tm_scores]),
         }
