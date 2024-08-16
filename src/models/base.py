@@ -517,6 +517,11 @@ class BaseFamilyLitModule(BaseLitModule):
         greedy: bool = False,
         temperature: Optional[float] = None,
     ):
+        """
+        Conditionally independent sequence generation: sequences are generated independently of each other
+        given the prompt. Once sep token is generated, the sequence is considered complete.
+        (i.e. we don't generate a sequence of sequences directly).
+        """
         # TODO: pass attention mask, pad_token_id to avoid the following warning:
         # The attention mask and the pad token id were not set. As a consequence, you may
         # observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
