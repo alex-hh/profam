@@ -1,4 +1,0 @@
-_target_: src.pipelines.pfam.PfamGenerationsPipeline
-evaluation_parquet: pfam/combined_parquets/Family_95000795_101711374.parquet
-evaluation_accessions_file: null
-parquet_index: null

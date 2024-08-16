@@ -33,7 +33,7 @@ class PFAMHMMERMixin:
         to_upper=True,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(*args, **kwargs)
         self.pfam_hmm_dir = pfam_hmm_dir
         self.seed = seed
         self.keep_gaps = keep_gaps
@@ -93,7 +93,8 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
 
     # TODO: write msa statistics evaluator via hmmalign
     # Any additional arguments passed to the hmmsearch function will be passed transparently to the Pipeline to be created. For instance, to run a hmmsearch using a bitscore cutoffs of 5 instead of the default E-value cutoff, use:
-    def __init__(self, E=1000, hit_threshold_for_metrics=0.001):
+    def __init__(self, *args, E=1000, hit_threshold_for_metrics=0.001, **kwargs):
+        super().__init__(*args, **kwargs)
         self.E = E  # E-value cutoff (large values are more permissive. we want to include everything.)
         self.alphabet = pyhmmer.easel.Alphabet.amino()
         self.hit_threshold_for_metrics = hit_threshold_for_metrics

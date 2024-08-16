@@ -42,10 +42,10 @@ class BaseEvaluatorPipeline:
             self.results_df = pd.read_csv(results_path)
         else:
             self.results_df = pd.DataFrame(
-                columns=["validation_id", "model_id", "target_id"]
+                columns=["validation_id", "model_id", "instance_id"]
             )
         self.results_df.set_index(
-            ["validation_id", "model_id", "target_id"], inplace=True
+            ["validation_id", "model_id", "instance_id"], inplace=True
         )
 
     def has_result(self, validation_id: str, instance_id: str, model_id: str) -> bool:
@@ -60,7 +60,7 @@ class BaseEvaluatorPipeline:
         result: Dict[str, float],
     ) -> None:
         """Add a result to the results dataframe."""
-        # drop any existing result for this target, validation, model combo
+        # drop any existing result for this instance, validation, model combo
         # then concatenate a new row to the df
         self.results_df.drop(
             index=(validation_id, model_id, instance_id), inplace=True, errors="ignore"
@@ -69,7 +69,7 @@ class BaseEvaluatorPipeline:
             [
                 self.results_df,
                 pd.DataFrame([result]).set_index(
-                    ["validation_id", "model_id", "target_id"]
+                    ["validation_id", "model_id", "instance_id"]
                 ),
             ]
         )
@@ -117,9 +117,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             benchmark_directory=benchmark_directory,
         )
 
-    def has_generations(self, target_id: str, model_id: str) -> bool:
+    def has_generations(self, instance_id: str, model_id: str) -> bool:
         output_path = os.path.join(
-            self.form_outputs_path(target_id, model_id), "sequences.fa"
+            self.pipeline_directory, instance_id, model_id, "sequences.fa"
         )
         retval = os.path.isfile(output_path)
         return retval
@@ -151,21 +151,19 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             )
             metrics.update(self.get_instance_summary(instance_id))
             metrics["model_id"] = model_id
-            metrics["target_id"] = instance_id
+            metrics["instance_id"] = instance_id
             metrics["validation_id"] = self.evaluator.name
             self.add_result(self.evaluator.name, instance_id, model_id, metrics)
 
-    def save_generations(
-        self, sequences: List[str], target_id: str, model_id: str, outputs_dir: str
-    ) -> None:
+    def save_generations(self, sequences: List[str], outputs_dir: str) -> None:
         fasta.output_fasta(
             [f"seq{i}" for i in range(len(sequences))],
             sequences,
             os.path.join(outputs_dir, "sequences.fa"),
         )
 
-    def load_generations(self, target_id: str, model_id: str) -> List[str]:
-        outputs_dir = self.form_outputs_path(target_id, model_id)
+    def load_generations(self, instance_id: str, model_id: str) -> List[str]:
+        outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_id)
         fasta_file = os.path.join(outputs_dir, "sequences.fa")
         _, sequences = fasta.read_fasta(fasta_file)
         return sequences
@@ -175,7 +173,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         for instance_id in instance_ids:
             protein_document = self.load_protein_document(instance_id)
             if rerun or not self.has_generations(instance_id, model_name):
-                print(f"Running generations for target: {instance_id}")
+                print(f"Running generations for instance: {instance_id}")
                 outputs_dir = os.path.join(
                     self.pipeline_directory, instance_id, model_name
                 )
@@ -183,9 +181,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 generated_sequences = self.evaluator.run_sampling(
                     model, protein_document, self.num_generations
                 )
-                self.save_generations(
-                    generated_sequences, instance_id, model_name, outputs_dir
-                )
+                self.save_generations(generated_sequences, outputs_dir)
 
     def run_evaluation(self, model_name: str, rerun: bool = False):
         instance_ids = self.instance_ids()
@@ -218,6 +214,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     def run(
         self,
         model,
+        model_name,
         rerun_model: bool = False,
         rerun_evaluator: bool = False,
     ):
@@ -225,7 +222,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         # TODO: instead of looping twice we could just loop once and evaluate as we go...
         # TODO: handle storing of outputs on evaluator side possibly?
         # 1. produce intermediate outputs (e.g. generated sequences) by running model on inputs
-        self.run_sampling(model, rerun=rerun_model)
+        self.run_sampling(model, model_name, rerun=rerun_model)
 
         # 2. evaluate the intermediate outputs with each validation
         self.run_evaluation(model.name, rerun=rerun_evaluator)
