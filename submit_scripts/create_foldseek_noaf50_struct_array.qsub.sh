@@ -1,9 +1,9 @@
 #!/bin/bash
-#$ -l tmem=10G
-#$ -l h_vmem=10G
+#$ -l tmem=6G
+#$ -l h_vmem=6G
 #$ -l h_rt=5:55:30
 #$ -S /bin/bash
-#$ -t 1
+#$ -t 1,
 #$ -N foldseekF
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd ~/profam
