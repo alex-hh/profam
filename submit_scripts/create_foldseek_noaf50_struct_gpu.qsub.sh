@@ -8,7 +8,7 @@
 #$ -j y
 date
 # conda activate venvPF
-# SCRATCH_DIR=/scratch0/$USER/$JOB_ID
+SCRATCH_DIR=/scratch0/$USER/$JOB_ID
 mkdir -p ${SCRATCH_DIR}/data
 source ~/source_files/afenv.source
 python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --skip_af50 --minimum_cluster_size 10
