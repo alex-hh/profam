@@ -2,11 +2,17 @@
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import rootutils
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
+
+
+@pytest.fixture
+def pfam_fasta_text():
+    return pd.read_parquet("data/example_data/pfam/Domain_60429258_61033370.parquet").iloc[0]["text"]
 
 
 @pytest.fixture(scope="package")

@@ -43,6 +43,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
     ):
+        """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
         concatenated_seqs = self.sep_token.join(sequences)
         if add_final_sep:
