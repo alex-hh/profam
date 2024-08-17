@@ -2,7 +2,7 @@ import itertools
 import os
 import re
 import subprocess
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import pyhmmer
@@ -25,7 +25,7 @@ def hamming_distance(seq_a, seq_b, ignore_gaps=False):
 
 
 class BaseHMMEREvaluator(SamplingEvaluator):
-    def load_hmm(self, protein_document: ProteinDocument):
+    def load_hmm(self, identifier: str):
         raise NotImplementedError("should be implemented on child class")
 
 
@@ -63,8 +63,8 @@ class PFAMHMMERMixin:
             self.extract_hmm(identifier, hmm_file)
         return hmm_file
 
-    def load_hmm(self, protein_document: ProteinDocument):
-        hmm_file = self.hmm_file_from_identifier(protein_document.identifier)
+    def load_hmm(self, identifier: str):
+        hmm_file = self.hmm_file_from_identifier(identifier)
         with pyhmmer.plan7.HMMFile(hmm_file) as hmm_f:
             hmm = hmm_f.read()
         return hmm
@@ -96,7 +96,7 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
         self.num_reference = num_reference
 
     def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
-        hmm = self.load_hmm(protein_document)
+        hmm = self.load_hmm(protein_document.identifier)
         # TODO: we want to not return ordered...
         names = [f"seq{i}".encode() for i in range(len(samples))]
         sequences = [
@@ -171,7 +171,7 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
         if self.is_pre_aligned:
             sequences = samples
         else:
-            hmm = self.load_hmm(protein_document)
+            hmm = self.load_hmm(protein_document.identifier)
             sequences = [
                 pyhmmer.easel.TextSequence(
                     name=f"seq{i}".encode(), sequence=seq
