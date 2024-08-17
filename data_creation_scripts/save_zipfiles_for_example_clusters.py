@@ -187,7 +187,7 @@ def create_foldseek_parquets(
             skip_af50=skip_af50,
         )
         for zip_filename in pdb_lookup.keys():
-            shutil.copyfile(os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename + ".zip"), "/SAN/orengolab/cath_plm/ProFam/data/afdb_domain/zipfiles")
+            shutil.copyfile(os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename + ".zip"), "/SAN/orengolab/cath_plm/ProFam/data/afdb_domain/zipfiles/" + zip_filename + ".zip")
 
 
 if __name__ == "__main__":

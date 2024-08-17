@@ -73,16 +73,6 @@ def make_zip_dictionary(accessions_to_include=None):
     return af2zip
 
 
-class Protein(Base):
-    __tablename__ = 'protein_metadata'
-    uniprot_id = Column(String, primary_key=True, nullable=False)
-    foldseek_cluster_id = Column(String, nullable=False)
-    af50_cluster_id = Column(String, nullable=False)
-    # is_foldseek_representative = Column(Boolean, default=False)  # these can be inferred by comparing foldseek_cluster_id and uniprot_id
-    # is_af50_representative = Column(Boolean, default=False)
-    zip_filename = Column(String, nullable=False)
-
-
 def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
     # Extract the specified PDB files
     zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
@@ -228,7 +218,7 @@ def make_job_list(
 
     cluster_counter = 0
 
-    all_accessions = [member_id for member_id in cluster_dict[cluster_id] for cluster_id in cluster_ids]
+    all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
     if not skip_af50:
         af50_dict = make_af50_dictionary(clusters_to_include=all_accessions)
         all_accessions = all_accessions + [cluster_id for cluster_members in af50_dict.values() for cluster_id in cluster_members]
