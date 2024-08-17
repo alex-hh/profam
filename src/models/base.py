@@ -526,11 +526,14 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: check whether model spontaneously adds the SEP token
         generation_kwargs = {}
         if fixed_length is not None:
-            generation_kwargs["min_length"] = fixed_length
-            generation_kwargs["max_length"] = fixed_length
+            if max_length is not None:
+                assert input_ids.shape[1] + fixed_length <= max_length
+            generation_kwargs["min_new_tokens"] = fixed_length
+            generation_kwargs["max_new_tokens"] = fixed_length
             generation_kwargs["eos_token_id"] = None
         else:
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
+            generation_kwargs["max_length"] = max_length
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -553,7 +556,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids=input_ids,
                 num_return_sequences=num_return_sequences,
                 return_dict_in_generate=False,
-                max_length=max_length,
                 do_sample=not greedy,
                 temperature=temperature,
                 # https://huggingface.co/docs/transformers/en/generation_strategies
