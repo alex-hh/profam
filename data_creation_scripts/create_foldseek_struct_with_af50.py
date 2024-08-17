@@ -29,19 +29,48 @@ import pyarrow.parquet as pq
 import zipfile
 import os
 from src.data.pdb import get_atom_coords_residuewise, load_structure
-from sqlalchemy import create_engine, Column, String
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 
 
-Base = declarative_base()
 af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
-# Create engine to connect to the database
-engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
 
-# Create a session
-Session = sessionmaker(bind=engine)
-session = Session()
+
+def make_af50_dictionary(clusters_to_include=None):
+    line_counter = 0
+    af50_dict = {}
+    with open(af50_path, "r") as f:
+        for line in f:
+            line = line.strip().split("\t")
+            rep_id = line[0]
+            entry_id = line[1]
+            # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
+            clu_flag = int(line[2])  # 1
+            # n.b. the 2s are duplicates of the other cluster dict
+            # n.b. we don't include the representative in its own cluster atm
+            if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
+                if rep_id not in af50_dict:
+                    af50_dict[rep_id] = []
+                af50_dict[rep_id].append(entry_id)
+            line_counter += 1
+    return af50_dict
+
+
+def make_zip_dictionary(accessions_to_include=None):
+    line_counter = 0
+    af2zip = {}
+    with open("/SAN/bioinf/afdb_domain/zipmaker/zip_index", "r") as f:
+        for line in f:
+            line = line.strip().split("\t")
+            afdb_id = line[0]
+            uniprot_id = afdb_id.split("-")[1]
+            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4"
+            zip_file = line[2]
+            if accessions_to_include is None or uniprot_id in accessions_to_include:
+                af2zip[uniprot_id] = zip_file
+
+            line_counter += 1
+            if line_counter % 100000 == 0:
+                print("Processed", line_counter, "lines for zip file dictionary")
+    return af2zip
 
 
 class Protein(Base):
@@ -199,6 +228,13 @@ def make_job_list(
 
     cluster_counter = 0
 
+    all_accessions = [member_id for member_id in cluster_dict[cluster_id] for cluster_id in cluster_ids]
+    if not skip_af50:
+        af50_dict = make_af50_dictionary(clusters_to_include=all_accessions)
+        all_accessions = all_accessions + [cluster_id for cluster_members in af50_dict.values() for cluster_id in cluster_members]
+
+    af2zip = make_zip_dictionary(all_accessions)
+
     pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
     metadata_lookup = dict()
@@ -212,8 +248,7 @@ def make_job_list(
             cluster_counter += 1
 
             for member in members:
-                record = session.query(Protein).get(member)
-                zip_filename = record.zip_filename
+                zip_filename = af2zip[member]
                 afdb_id = f"AF-{member}-F1-model_v4"
                 pdb_lookup[zip_filename].append(afdb_id)
                 metadata_lookup[afdb_id] = {
@@ -224,11 +259,11 @@ def make_job_list(
                 }
                 cluster_membership[cluster_id].append(afdb_id)
 
-                if not skip_af50 and record.af50_cluster_id == member:  # this is the af50 representative
-                    af50_members = session.query(Protein).filter_by(af50_cluster_id=member).all()
+                if not skip_af50:  # this is the af50 representative
+                    af50_members = af50_dict.get(member, [])
                     for af50_member in af50_members:
                         if af50_member.uniprot_id != member:
-                            zip_filename = af50_member.zip_filename
+                            zip_filename = af2zip[af50_member]
                             afdb_id = f"AF-{af50_member}-F1-model_v4"
                             pdb_lookup[zip_filename].append(afdb_id)
                             cluster_membership[cluster_id].append(afdb_id)
