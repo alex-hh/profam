@@ -21,8 +21,10 @@ def test_foldseek_backbone_loading(foldseek_df):
             foldseek_example["accessions"],
             backbone_coords,
         ):
-            pdbfile = "data/example_data/foldseek_struct/0/AF-{}-F1-model_v4.pdb".format(
-                acc, acc
+            pdbfile = (
+                "data/example_data/foldseek_struct/0/AF-{}-F1-model_v4.pdb".format(
+                    acc, acc
+                )
             )
             structure = load_structure(pdbfile, chain="A")
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)
