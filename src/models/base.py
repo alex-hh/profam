@@ -509,6 +509,7 @@ class BaseFamilyLitModule(BaseLitModule):
         max_length: int = 8192,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
         include_prompt_in_output: bool = False,
+        fixed_length: Optional[int] = None,
         greedy: bool = False,
         temperature: Optional[float] = None,
     ):
@@ -523,7 +524,13 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
-
+        generation_kwargs = {}
+        if fixed_length is not None:
+            generation_kwargs["min_length"] = fixed_length
+            generation_kwargs["max_length"] = fixed_length
+            generation_kwargs["eos_token_id"] = None
+        else:
+            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -550,7 +557,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 do_sample=not greedy,
                 temperature=temperature,
                 # https://huggingface.co/docs/transformers/en/generation_strategies
-                eos_token_id=self.tokenizer.sep_token_id,  # override default eos token id
+                **generation_kwargs,
                 **forward_kwargs,
             )
             if not include_prompt_in_output:
@@ -574,6 +581,7 @@ class BaseFamilyLitModule(BaseLitModule):
         batch_size: int = 1,
         include_prompt_in_output: bool = False,
         greedy: bool = False,
+        fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
         temperature: Optional[float] = None,
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
@@ -591,6 +599,7 @@ class BaseFamilyLitModule(BaseLitModule):
             batch_size=batch_size,
             include_prompt_in_output=include_prompt_in_output,
             greedy=greedy,
+            fixed_length=fixed_length,
             temperature=temperature,
         )
         # print("samples shape", encoded.shape)
