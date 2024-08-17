@@ -69,7 +69,7 @@ def make_zip_dictionary(accessions_to_include=None):
 
             line_counter += 1
             if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for zip file dictionary")
+                print("Processed", line_counter, "lines for zip file dictionary", flush=True)
     return af2zip
 
 
@@ -88,10 +88,10 @@ def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
                     print(f"Extracted {afdb_id} from {zip_filename} to {output_folder}", os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb")))
                     successes.append(True)
                 else:
-                    print(f"{afdb_id} not found in {zip_filename}")
+                    print(f"{afdb_id} not found in {zip_filename}", flush=True)
                     successes.append(False)
     except Exception as e:
-        print(f"Error extracting {zip_filename} {afdb_ids} {e}")
+        print(f"Error extracting {zip_filename} {afdb_ids} {e}", flush=True)
         successes = [False] * len(afdb_ids)
     return successes
 
@@ -109,7 +109,7 @@ def make_cluster_dictionary(cluster_path):
             cluster_dict[rep_id].append(entry_id)
             line_counter += 1
             if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for cluster dictionary")
+                print("Processed", line_counter, "lines for cluster dictionary", flush=True)
     return cluster_dict
 
 
@@ -202,12 +202,12 @@ def make_job_list(
         print("Loading cluster dictionary", flush=True)
         with open(cluster_dict_pickle_path, "rb") as f:
             cluster_dict = pickle.load(f)
-        print("Number of clusters:", len(cluster_dict))
+        print("Number of clusters:", len(cluster_dict), flush=True)
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     cluster_dict = {k: v for k, v in cluster_dict.items() if len(v) >= minimum_foldseek_cluster_size}
     cluster_ids = list(cluster_dict.keys())
-    print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(cluster_dict.keys()))
+    print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(cluster_dict.keys()), flush=True)
     rng = np.random.default_rng(seed=42)
     rng.shuffle(cluster_ids)
 
