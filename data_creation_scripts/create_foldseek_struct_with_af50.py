@@ -173,11 +173,11 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             with tempfile.TemporaryDirectory() as foldmason_tmp_dir:
                 run_foldmason(cluster_tmp_dir, foldmason_tmp_dir, foldmason_tmp_dir)
                 
-                # Read AA and 3Di alignments
+                # Read AA and 3Di alignments, skip the accessions
                 with open(os.path.join(foldmason_tmp_dir, "result_aa.fa"), "r") as f:
-                    msta_aa = f.read().split(">")[1:]  # Skip the first empty element
+                    msta_aa = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
                 with open(os.path.join(foldmason_tmp_dir, "result_3di.fa"), "r") as f:
-                    msta_3di = f.read().split(">")[1:]  # Skip the first empty element
+                    msta_3di = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
 
 
         # TODO: save representative?
