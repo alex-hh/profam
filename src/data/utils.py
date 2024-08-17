@@ -23,7 +23,9 @@ class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
     data_path_pattern: Optional[str] = None
-    holdout_data_files: Optional[str] = None
+    holdout_data_files: Optional[List[str]] = None
+    holdout_identifiers: Optional[List[str]] = None
+    identifier_col: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
@@ -250,6 +252,8 @@ def load_protein_dataset(
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
+        if cfg.identifier_col is not None:
+            tokenized.data["identifier"] = example[cfg.identifier_col]
         tokenized.data["ds_name"] = cfg.name
         tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
         if include_doc_hashes:
@@ -326,6 +330,9 @@ def load_protein_dataset(
         )
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
+        assert (
+            cfg.holdout_identifiers is None
+        ), "For loading from fasta use holdout accessions"
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -348,9 +355,20 @@ def load_protein_dataset(
     #     batch_size=2,
     # )
     # filter after map also seems to slow things down...
+    def filter_example(example):
+        filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
+        # TODO: we need to be very careful with this!
+        filter_identifier = (
+            cfg.holdout_data_files is None
+            or example["identifier"] not in cfg.holdout_data_files
+        )
+        return filter_num_seqs and filter_identifier
+
     dataset = dataset.map(
-        preprocess_fasta, batched=False, remove_columns=["text"]
-    ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
+        preprocess_fasta,
+        batched=False,
+        remove_columns=["text"],
+    ).filter(filter_example)
 
     return dataset
 
