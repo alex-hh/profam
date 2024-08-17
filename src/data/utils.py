@@ -355,12 +355,17 @@ def load_protein_dataset(
     #     batch_size=2,
     # )
     # filter after map also seems to slow things down...
+    if cfg.holdout_identifiers:
+        assert (
+            cfg.identifier_col is not None
+        ), "Need identifier column for identifier holdout"
+
     def filter_example(example):
         filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
         # TODO: we need to be very careful with this!
         filter_identifier = (
             cfg.holdout_data_files is None
-            or example["identifier"] not in cfg.holdout_data_files
+            or example["identifier"] not in cfg.holdout_identifiers
         )
         return filter_num_seqs and filter_identifier
 
