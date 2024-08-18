@@ -4,3 +4,4 @@ max_tokens: 8192
 seed: 52
 name: esmfold
 half_precision: False
+num_samples: 100

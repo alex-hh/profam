@@ -6,6 +6,7 @@ keep_gaps: False
 keep_insertions: True
 to_upper: True
 num_reference: 5000
+num_samples: 3000
 max_tokens: 8192
 is_pre_aligned: False
 name: "pfam_msa_statistics"  # n
