@@ -1,4 +1,3 @@
 _target_: src.models.base.load_checkpoint
 checkpoint_dir: outputs/pfam_train_seqpos
 name: llama_tiny_pfam_seqpos
-model: llama_tiny

@@ -1,5 +1,6 @@
 **/__pycache__/
 **/*.pyc
+benchmark_results/
 logs/
 .idea/
 *.DS_Store
