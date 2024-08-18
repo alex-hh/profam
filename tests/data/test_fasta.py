@@ -70,7 +70,11 @@ class TestSequencePositions:
         positions = [[0, 1, 3], [1, 2, 3], [1, 1, 1, 1, 2, 3, 4, 4, 7]]
         for seq, pos in zip(sequences, positions):
             inferred_pos = convert_sequence_with_positions(
-                seq, keep_gaps=False, keep_insertions=True, to_upper=True, use_msa_pos=True
+                seq,
+                keep_gaps=False,
+                keep_insertions=True,
+                to_upper=True,
+                use_msa_pos=True,
             )[1]
             assert tuple(inferred_pos) == tuple(pos)
 

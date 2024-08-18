@@ -16,8 +16,6 @@ import os
 import re
 from contextlib import contextmanager
 
-import pandas as pd
-
 
 @contextmanager
 def gzread(filename, encoding=None):
@@ -126,8 +124,12 @@ def convert_sequence_with_positions(
             if use_msa_pos:
                 match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
 
-    assert len(positions) == len(sequence), f"positions length {len(positions)} != sequence length {len(sequence)}"
-    assert len(sequence) == len(is_match), f"sequenc length {len(sequence)} != is_match length {len(is_match)}"
+    assert len(positions) == len(
+        sequence
+    ), f"positions length {len(positions)} != sequence length {len(sequence)}"
+    assert len(sequence) == len(
+        is_match
+    ), f"sequenc length {len(sequence)} != is_match length {len(is_match)}"
     return sequence, positions, is_match
 
 
