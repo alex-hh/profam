@@ -83,7 +83,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             print("Using half precision")
             self.model = self.model.half()
 
-    def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
+    def _evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
         # TODO: add average best TM score or similar to structures in document.
         # https://github.com/blt2114/twisted_diffusion_sampler/blob/968f77111b44e9c711b64e650c41745498ba470d/protein_exp/experiments/inference_se3_diffusion.py#L392
         prompt_plddts = []
@@ -96,7 +96,9 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
             # pdb_str = self.model.output_to_pdb(out)[0]
             prompt_plddts.append(np.mean(out.plddt.cpu().numpy()))
-            reference_cas.append(final_atom_positions[0,...,ca_index,:].cpu().numpy())
+            reference_cas.append(
+                final_atom_positions[0, ..., ca_index, :].cpu().numpy()
+            )
 
         sample_plddts = []
         all_tm_scores = []
@@ -104,7 +106,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             out = self.model.infer(seq)
             # pdb_str = self.model.output_to_pdb(out)[0]
             final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
-            sample_ca = final_atom_positions[0,...,ca_index,:].cpu().numpy()
+            sample_ca = final_atom_positions[0, ..., ca_index, :].cpu().numpy()
             sample_plddts.append(np.mean(out.plddt.cpu().numpy()))
             tm_scores = []
             for ref_seq, ref_ca in zip(ref_sequences, reference_cas):

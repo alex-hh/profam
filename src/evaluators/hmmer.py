@@ -95,7 +95,7 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
         self.hit_threshold_for_metrics = hit_threshold_for_metrics
         self.num_reference = num_reference
 
-    def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
+    def _evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
         hmm = self.load_hmm(protein_document.identifier)
         # TODO: we want to not return ordered...
         names = [f"seq{i}".encode() for i in range(len(samples))]

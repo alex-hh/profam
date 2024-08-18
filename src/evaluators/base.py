@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -11,11 +11,23 @@ from src.models.base import BaseFamilyLitModule
 
 
 class SamplingEvaluator:
-    def __init__(self, name: str, seed: int = 52):
+    def __init__(self, name: str, seed: int = 52, num_samples: Optional[int] = None):
         self.name = name
         self.seed = seed
+        self.num_samples = num_samples
 
     def evaluate_samples(
+        self,
+        protein_document: ProteinDocument,
+        samples: List[str],
+        num_samples: Optional[int] = None,
+    ) -> Dict[str, float]:
+        if num_samples is not None and len(samples) != num_samples:
+            assert len(samples) >= num_samples, f"Need at least {num_samples} samples"
+            samples = samples[:num_samples]  # assuming samples are unsorted
+        return self._evaluate_samples(protein_document, samples)
+
+    def _evaluate_samples(
         self, protein_document: ProteinDocument, samples: List[str]
     ) -> Dict[str, float]:
         raise NotImplementedError("should be implemented on child class")
@@ -79,7 +91,18 @@ class SamplingEvaluator:
         else:
             raise ValueError("Prompt should be a list of strings or a tuple of lists")
 
-    def run_sampling(self, model, protein_document, num_samples, **model_kwargs):
+    def run_sampling(
+        self, model, protein_document, num_samples: Optional[int] = None, **model_kwargs
+    ):
+        num_samples = num_samples or self.num_samples
+        assert num_samples is not None, "num_samples should be provided"
+        if (
+            self.num_samples is not None
+            and num_samples is not None
+            and num_samples != self.num_samples
+        ):
+            print("Warning: self.num_samples overriden by num_samples")
+
         prompt = self.build_prompt(protein_document)
         inputs = self.build_inputs_from_prompt(prompt, num_samples)
         samples = model.sample_seqs(

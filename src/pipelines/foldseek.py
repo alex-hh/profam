@@ -28,7 +28,7 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
             **kwargs,
         )
         self.load_structure = load_structure
-    
+
     def instance_ids(self):
         return self.evaluation_accessions
 

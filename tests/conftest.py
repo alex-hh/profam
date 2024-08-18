@@ -12,7 +12,9 @@ from omegaconf import DictConfig, open_dict
 
 @pytest.fixture
 def pfam_fasta_text():
-    return pd.read_parquet("data/example_data/pfam/Domain_60429258_61033370.parquet").iloc[0]["text"]
+    return pd.read_parquet(
+        "data/example_data/pfam/Domain_60429258_61033370.parquet"
+    ).iloc[0]["text"]
 
 
 @pytest.fixture(scope="package")

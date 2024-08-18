@@ -1,7 +1,8 @@
 import pytest
-from src.utils.tokenizers import ProFamTokenizer
+
 from src.data.fasta import read_fasta_sequences
 from src.data.utils import sample_to_max_tokens
+from src.utils.tokenizers import ProFamTokenizer
 
 
 @pytest.fixture
@@ -33,9 +34,13 @@ def test_encode_decode(tokenizer, pfam_fasta_text):
         keep_insertions=True,
         to_upper=True,
     )
-    sequences = sample_to_max_tokens(list(sequence_iterator), max_tokens=tokenizer.max_tokens)
+    sequences = sample_to_max_tokens(
+        list(sequence_iterator), max_tokens=tokenizer.max_tokens
+    )
     # n.b. encode_sequences encodes as a sequence of sequences
     encoded = tokenizer.encode_sequences(sequences).input_ids
-    decoded = tokenizer.decode_tokens(encoded.unsqueeze(0))[0]  # decode_tokens returns a list of lists
+    decoded = tokenizer.decode_tokens(encoded.unsqueeze(0))[
+        0
+    ]  # decode_tokens returns a list of lists
     for input_seq, decoded_seq in zip(sequences, decoded):
         assert input_seq == decoded_seq
