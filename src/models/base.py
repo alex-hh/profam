@@ -43,6 +43,7 @@ class BaseLitModule(LightningModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
+        ignore_gaps_in_loss: bool = False,
     ) -> None:
         super().__init__()
         self.model = model
@@ -126,7 +127,12 @@ class BaseLitModule(LightningModule):
         )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
@@ -183,7 +189,12 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         self.log("val/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False)
         # n.b. this might be biased for batch size > 1
@@ -208,7 +219,12 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
         # n.b. this might be biased for batch size > 1
         self.log(
@@ -539,7 +555,12 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
@@ -570,6 +591,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     outputs,
                     batch["input_ids"],
                     dataset_names=batch["ds_name"].text,
+                    ignore_toekn_ids=[self.tokenizer.convert_tokens_to_ids("-")],
                 )
                 self.log_dict(
                     {
