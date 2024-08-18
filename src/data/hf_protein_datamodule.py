@@ -56,7 +56,7 @@ class ProteinDataModule(LightningDataModule):
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer = tokenizer
-        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        self.collator = CustomDataCollator(self.tokenizer, mlm=False, ignore_gaps=ignore_gaps)
         self.count_doc_hashes = count_doc_hashes
         self._is_setup = False
 
