@@ -170,15 +170,15 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 os.remove(pdb)
             
             # Run FoldMason on the cluster
-            with tempfile.TemporaryDirectory() as foldmason_tmp_dir:
-                run_foldmason(cluster_tmp_dir, foldmason_tmp_dir, foldmason_tmp_dir)
-                
-                # Read AA and 3Di alignments, skip the accessions
-                with open(os.path.join(foldmason_tmp_dir, "result_aa.fa"), "r") as f:
-                    msta_aa = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
-                with open(os.path.join(foldmason_tmp_dir, "result_3di.fa"), "r") as f:
-                    msta_3di = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
+            if args.run_foldmason:
+                with tempfile.TemporaryDirectory() as foldmason_tmp_dir:
+                    run_foldmason(cluster_tmp_dir, foldmason_tmp_dir, foldmason_tmp_dir)
 
+                    # Read AA and 3Di alignments, skip the accessions
+                    with open(os.path.join(foldmason_tmp_dir, "result_aa.fa"), "r") as f:
+                        msta_aa = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
+                    with open(os.path.join(foldmason_tmp_dir, "result_3di.fa"), "r") as f:
+                        msta_3di = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
 
         # TODO: save representative?
         results.append(
@@ -396,6 +396,7 @@ if __name__ == "__main__":
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
+    parser.add_argument("--run_foldmason", action="store_true")
     parser.add_argument("--num_processes", type=int, default=None)
     args = parser.parse_args()
 
