@@ -29,6 +29,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import zipfile
 import os
+from src.data.fasta import read_fasta
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 import tempfile
 import subprocess
@@ -115,20 +116,20 @@ def make_cluster_dictionary(cluster_path):
                 print("Processed", line_counter, "lines for cluster dictionary", flush=True)
     return cluster_dict
 
-def run_foldmason(input_dir, output_dir, tmp_dir):
+def run_foldmason(filelist, output_dir, tmp_dir):
     cmd = [
         "foldmason", "easy-msa",
-        input_dir,
+        filelist,
         os.path.join(output_dir, "result"),
         tmp_dir
     ]
     
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"FoldMason stdout: {result.stdout}")
+        print(f"FoldMason stdout: {result.stdout}", flush=True)
     except subprocess.CalledProcessError as e:
-        print(f"FoldMason execution failed: {e}")
-        print(f"FoldMason stderr: {e.stderr}")
+        print(f"FoldMason execution failed: {e}", flush=True)
+        print(f"FoldMason stderr: {e.stderr}", flush=True)
         raise
 
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
@@ -143,43 +144,40 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         is_af50_representative = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
         all_b_factors = []
+        cluster_filelist = []
 
-        with tempfile.TemporaryDirectory() as cluster_tmp_dir:
-            for afdb_id in cluster_members:
-                pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
-                metadata = metadata_lookup[afdb_id]
-                accessions.append(metadata["accession"])
-                is_foldseek_representative.append(metadata["is_foldseek_representative"])
-                is_af50_representative.append(metadata["is_af50_representative"])
-                structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
-                coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
-                residue_identities = get_residues(structure)[1]
-                b_factors = structure.b_factor[get_residue_starts(structure)]
-                seq = "".join(
-                    [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
-                )
-                all_b_factors.append(b_factors)
-                sequences.append(seq)
-                for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
-                    all_coords[atom_name].append(coords[:, ix, :].flatten())
-                
-                # Copy PDB file to the temporary cluster directory
-                shutil.copy(pdb, os.path.join(cluster_tmp_dir, f"{afdb_id}.pdb"))
+        for afdb_id in cluster_members:
+            pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
+            cluster_filelist.append(pdb)
+            metadata = metadata_lookup[afdb_id]
+            accessions.append(metadata["accession"])
+            is_foldseek_representative.append(metadata["is_foldseek_representative"])
+            is_af50_representative.append(metadata["is_af50_representative"])
+            structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
+            coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
+            residue_identities = get_residues(structure)[1]
+            b_factors = structure.b_factor[get_residue_starts(structure)]
+            seq = "".join(
+                [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
+            )
+            all_b_factors.append(b_factors)
+            sequences.append(seq)
+            for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
+                all_coords[atom_name].append(coords[:, ix, :].flatten())
 
-                os.remove(pdb)
+            # os.remove(pdb)
             
-            # Run FoldMason on the cluster
-            if args.run_foldmason:
-                with tempfile.TemporaryDirectory() as foldmason_tmp_dir:
-                    run_foldmason(cluster_tmp_dir, foldmason_tmp_dir, foldmason_tmp_dir)
+        # Run FoldMason on the cluster
+        if args.run_foldmason:
+            # TODO: check that this preserves order.
+            foldmason_outdir = os.path.join(scratch_dir, str(parquet_id), cluster_id)
+            run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
 
-                    # Read AA and 3Di alignments, skip the accessions
-                    with open(os.path.join(foldmason_tmp_dir, "result_aa.fa"), "r") as f:
-                        msta_aa = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
-                    with open(os.path.join(foldmason_tmp_dir, "result_3di.fa"), "r") as f:
-                        msta_3di = [seq.split("\n", 1)[1] for seq in f.read().split(">")[1:]]  # Skip the first empty element and accessions
+            # Read AA and 3Di alignments, skip the accessions
+            labels, msta_seqs = read_fasta(os.path.join(foldmason_outdir, "result_aa.fa"))
+            labels, msta_3di = read_fasta(os.path.join(foldmason_outdir, "result_3di.fa"))
 
-        # TODO: save representative?
+    # TODO: save representative?
         results.append(
             {
                 "sequences": sequences,
@@ -192,13 +190,13 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "accessions": accessions,
                 "is_foldseek_representative": is_foldseek_representative,
                 "is_af50_representative": is_af50_representative,
-                "msta_aa": msta_aa,
+                "msta_aa": msta_seqs,
                 "msta_3di": msta_3di,
             }
         )
 
-    print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
-    shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
+    # print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
+    # shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
@@ -388,7 +386,7 @@ if __name__ == "__main__":
     print("Num cpus", os.cpu_count(), flush=True)
 
     if args.skip_af50:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct_example/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
 
