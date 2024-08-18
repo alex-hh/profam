@@ -5,7 +5,10 @@ from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
-from src.data.family_classification import load_classifier_dataset
+from src.data.family_classification import (
+    load_classifier_dataset,
+    load_ec_cluster_classifier_dataset,
+)
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -22,7 +25,7 @@ class ProteinDataModule(LightningDataModule):
         data_weights: Dict[str, float],
         tokenizer: ProFamTokenizer,
         data_dir: str,
-        val_dataset_name: str,
+        val_dataset_names: List[str],
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -32,7 +35,9 @@ class ProteinDataModule(LightningDataModule):
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
+        evaluate_ec_cluster_class: bool = True,
         count_doc_hashes: bool = True,
+        ignore_gaps: bool = False,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -40,13 +45,14 @@ class ProteinDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.data_dir = data_dir
-        self.val_dataset_name = val_dataset_name
+        self.val_dataset_names = val_dataset_names
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.keep_gym_gaps = keep_gym_gaps
         if self.evaluate_gym:
             self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
+        self.evaluate_ec_cluster_class = evaluate_ec_cluster_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer = tokenizer
@@ -60,7 +66,7 @@ class ProteinDataModule(LightningDataModule):
             train_datasets = []
             train_data_weights = []
             for data_key, dataset_config in self.dataset_cfgs.items():
-                if data_key != self.val_dataset_name:
+                if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
                         dataset_config,
                         self.tokenizer,
@@ -93,14 +99,19 @@ class ProteinDataModule(LightningDataModule):
             # n.b. set_epoch is required in order for shuffling to be correctly randomised
             # - this is handled by ShuffleCallback
             self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
-            self.val_dataset = load_protein_dataset(
-                self.dataset_cfgs[self.val_dataset_name],
-                self.tokenizer,
-                self.max_tokens,
-                data_dir=self.data_dir,
-            )
+            self.val_datasets = [
+                load_protein_dataset(
+                    self.dataset_cfgs[v_ds_name],
+                    self.tokenizer,
+                    self.max_tokens,
+                    data_dir=self.data_dir,
+                    use_seq_pos=self.use_seq_pos,
+                    max_seq_pos=self.max_seq_pos,
+                )
+                for v_ds_name in self.val_dataset_names
+            ]
             self.test_dataset = load_protein_dataset(
-                self.dataset_cfgs[self.val_dataset_name],
+                self.dataset_cfgs[self.val_dataset_names[0]],
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
@@ -123,6 +134,15 @@ class ProteinDataModule(LightningDataModule):
                     "data/example_data/expasy_ec/*.fasta",
                     self.tokenizer,
                     max_tokens=self.max_tokens,
+                )
+            if self.evaluate_ec_cluster_class:
+                self.ec_cluster_class_dataset = load_ec_cluster_classifier_dataset(
+                    tokenizer=self.tokenizer,
+                    fasta_dir="../data/ec/ec_fastas",
+                    val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
+                    max_tokens=self.max_tokens,
+                    use_seq_pos=self.use_seq_pos,
+                    max_seq_pos=self.max_seq_pos,
                 )
 
             self._is_setup = True
@@ -155,12 +175,13 @@ class ProteinDataModule(LightningDataModule):
     def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
-                self.val_dataset,
+                val_ds,
                 batch_size=self.batch_size,
                 collate_fn=self.collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )
+            for val_ds in self.val_datasets
         ]
         if self.evaluate_gym:
             loaders.append(
@@ -176,6 +197,16 @@ class ProteinDataModule(LightningDataModule):
             loaders.append(
                 DataLoader(
                     self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
+            )
+
+        if self.evaluate_ec_cluster_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_cluster_class_dataset,
                     batch_size=1,
                     collate_fn=self.collator,
                     shuffle=False,

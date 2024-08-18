@@ -26,7 +26,8 @@ dataset_cfgs:
 batch_size: 22
 max_tokens: 8192
 data_dir: ../data
-val_dataset_name: foldseek_val
+val_dataset_names:
+  - foldseek_val
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 evaluate_gym: True
 evaluate_ec_class: false
