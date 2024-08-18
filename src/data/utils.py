@@ -144,6 +144,20 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
     return sampled_lines
 
 
+def np_random(seed: Optional[int]) -> Any:
+    """Returns a numpy random number generator with a given seed.
+
+    :param seed: The seed value for the random number generator.
+    :return: A numpy random number generator.
+    """
+    if seed is not None:
+        rnd = np.random.default_rng(seed)
+    else:
+        # to maintain control by global seed
+        rnd = np.random
+    return rnd
+
+
 def random_subsample(arr, n, seed: Optional[int] = None):
     rnd = np_random(seed)
     return rnd.choice(arr, min(n, len(arr)), replace=False)
