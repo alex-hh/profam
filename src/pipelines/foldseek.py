@@ -3,6 +3,7 @@ from typing import Dict
 import pandas as pd
 
 from src.data.objects import ProteinDocument
+from src.data.preprocessing import backbone_coords_from_example
 from src.pipelines.mixins import ParquetMixin
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
@@ -15,7 +16,6 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
         evaluation_accessions_file: str = None,
         parquet_index: str = None,
         evaluation_accessions: list = None,
-        load_structure: bool = False,
         **kwargs
     ):
         super().__init__(
@@ -27,7 +27,6 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
             parquet_index=parquet_index,
             **kwargs,
         )
-        self.load_structure = load_structure
 
     def instance_ids(self):
         return self.evaluation_accessions
@@ -37,10 +36,9 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
 
     def load_protein_document(self, instance_id: str):
         protein_example = self.get_protein_example(instance_id)
-        if self.load_structure:
-            raise NotImplementedError()
         return ProteinDocument(
             identifier=instance_id,
             sequences=protein_example["sequences"],
             accessions=protein_example.get("accessions", None),
+            backbone_coords=backbone_coords_from_example(protein_example),
         )
