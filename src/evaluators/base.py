@@ -5,7 +5,6 @@ import numpy as np
 from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
 from src.data.utils import random_subsample, sample_to_max_tokens
-from src.models.base import BaseFamilyLitModule
 
 # class MultipleEvaluator:
 
@@ -112,7 +111,7 @@ class SamplingEvaluator:
 
     def __call__(
         self,
-        model: BaseFamilyLitModule,
+        model,
         protein_document: ProteinDocument,
         num_samples: int,
     ):

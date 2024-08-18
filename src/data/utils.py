@@ -14,7 +14,6 @@ from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
-from src.utils.utils import np_random
 
 
 # TODO: in future we might actually want standalone dataset class for
