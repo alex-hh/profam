@@ -206,10 +206,12 @@ def make_job_list(
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     cluster_dict = {k: v for k, v in cluster_dict.items() if len(v) >= minimum_foldseek_cluster_size}
-    cluster_ids = list(cluster_dict.keys())
+    cluster_ids = sorted(list(cluster_dict.keys()))
+    # 442338 clusters with >= 10 members
     print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(cluster_dict.keys()), flush=True)
     rng = np.random.default_rng(seed=42)
     rng.shuffle(cluster_ids)
+    print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
 
     parquet_size = 250 if skip_af50 else 100  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.

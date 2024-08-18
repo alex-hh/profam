@@ -1,12 +1,13 @@
 #!/bin/bash
-#$ -l tmem=6G
-#$ -l h_vmem=6G
-#$ -l h_rt=5:55:30
+#$ -l tmem=5G
+#$ -l h_vmem=5G
+#$ -l h_rt=25:55:30
 #$ -S /bin/bash
-#$ -t 1,
+#$ -t 1-1800  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100
 #$ -N foldseekF
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd ~/profam
+#$ -tc 100
 #$ -j y
 date
 # conda activate venvPF
