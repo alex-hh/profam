@@ -18,7 +18,7 @@ def main(args):
     )
     for accession in accessions:
         print("Extracting HMM for", accession)
-        evaluator.extract_hmm(accession, f"{args.output_dir}/{accession}.hmm")
+        evaluator.extract_hmm(accession, f"{args.pfam_hmm_dir}/{accession}.hmm")
 
 
 if __name__ == "__main__":
@@ -27,11 +27,6 @@ if __name__ == "__main__":
         "accession_list_file",
         type=str,
         help="File with list of PFAM accessions to extract",
-    )
-    parser.add_argument(
-        "output_dir",
-        type=str,
-        help="Output directory to save HMM files",
     )
     parser.add_argument("--identifier_col", type=str, default=None)
     parser.add_argument(
