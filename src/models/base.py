@@ -126,7 +126,12 @@ class BaseLitModule(LightningModule):
         )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
@@ -188,7 +193,12 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log(
             f"val/{ds_name}/loss",
             loss,
@@ -244,7 +254,12 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log(
             f"test/{ds_name}/loss",
             loss,
@@ -609,7 +624,12 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
@@ -640,6 +660,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     outputs,
                     batch["input_ids"],
                     dataset_names=batch["ds_name"].text,
+                    ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
                 )
                 self.log_dict(
                     {

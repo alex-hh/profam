@@ -53,8 +53,10 @@ class CustomDataCollator:
     tensors with seq_len dimension, eg. dataset names
     """
 
-    def __init__(self, tokenizer, mlm=False):
+    def __init__(self, tokenizer, mlm=False, ignore_gaps: bool = False):
+        self.tokenizer = tokenizer
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
+        self.ignore_gaps = ignore_gaps
 
     def __call__(self, examples):
         non_string_data = [
@@ -65,6 +67,10 @@ class CustomDataCollator:
         ]
         string_data_keys = set(k for obs in string_data for k in obs.keys())
         batch = self.base_collator(non_string_data)
+        if self.ignore_gaps:
+            batch["labels"] = batch["labels"][
+                batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")
+            ] = -100
         for str_key in string_data_keys:
             str_vals = [obs.get(str_key, "") for obs in string_data]
             str_obj = StringObject()

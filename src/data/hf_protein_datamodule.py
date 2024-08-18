@@ -39,6 +39,7 @@ class ProteinDataModule(LightningDataModule):
         count_doc_hashes: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
+        ignore_gaps: bool = False,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -68,7 +69,9 @@ class ProteinDataModule(LightningDataModule):
             mask_token="[MASK]",
             add_special_tokens=True,
         )
-        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        self.collator = CustomDataCollator(
+            self.tokenizer, mlm=False, ignore_gaps=ignore_gaps
+        )
         self.count_doc_hashes = count_doc_hashes
         self._is_setup = False
 
