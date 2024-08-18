@@ -660,7 +660,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     outputs,
                     batch["input_ids"],
                     dataset_names=batch["ds_name"].text,
-                    ignore_toekn_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+                    ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
                 )
                 self.log_dict(
                     {
