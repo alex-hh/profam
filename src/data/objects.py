@@ -14,6 +14,7 @@ class ProteinDocument:
     identifier: str
     sequences: List[str]
     accessions: List[str]
+    plddts: Optional[List[float]] = None
     backbone_coords: Optional[np.ndarray] = None
     prompt_indices: Optional[
         List[int]

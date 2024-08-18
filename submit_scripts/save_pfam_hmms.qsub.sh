@@ -3,7 +3,7 @@
 #$ -l h_vmem=6G
 #$ -l h_rt=03:55:30
 #$ -S /bin/bash
-#$ -N foldseekF
+#$ -N save_pfam_hmms
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd ~/profam
 #$ -j y

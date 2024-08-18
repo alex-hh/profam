@@ -66,6 +66,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         keep_insertions: bool = True,
         to_upper: bool = True,
         half_precision: bool = False,
+        use_precomputed_reference_structures: bool = True,
     ):
         super().__init__(name, seed=seed)
         self.model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").eval()
@@ -79,6 +80,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.keep_insertions = keep_insertions
         self.to_upper = to_upper
         self.half_precision = half_precision
+        self.use_precomputed_reference_structures = use_precomputed_reference_structures
         if self.half_precision:
             print("Using half precision")
             self.model = self.model.half()
@@ -89,16 +91,24 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         prompt_plddts = []
         self.model = self.model.to(self.device)
         reference_cas = []
-        ref_sequences, _ = self.build_prompt(protein_document)
         ca_index = atom_order["CA"]
-        for seq in ref_sequences:
-            out = self.model.infer(seq)
-            final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
-            # pdb_str = self.model.output_to_pdb(out)[0]
-            prompt_plddts.append(np.mean(out.plddt.cpu().numpy()))
-            reference_cas.append(
-                final_atom_positions[0, ..., ca_index, :].cpu().numpy()
-            )
+        if (
+            not self.use_precomputed_reference_structures
+            or protein_document.backbone_coords is None
+        ):
+            ref_sequences, _ = self.build_prompt(protein_document)
+            for seq in ref_sequences:
+                out = self.model.infer(seq)
+                final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
+                # pdb_str = self.model.output_to_pdb(out)[0]
+                prompt_plddts.append(np.mean(out.plddt.cpu().numpy()))
+                reference_cas.append(
+                    final_atom_positions[0, ..., ca_index, :].cpu().numpy()
+                )
+        else:
+            reference_cas = [
+                coords[:, 1, :] for coords in protein_document.backbone_coords
+            ]
 
         sample_plddts = []
         all_tm_scores = []
