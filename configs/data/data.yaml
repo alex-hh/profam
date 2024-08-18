@@ -28,3 +28,4 @@ gym_data_dir: ../data/ProteinGym
 count_doc_hashes: True # count the num times each document gets sampled
 use_seq_pos: True  # embed sequence relative position
 max_seq_pos: 2048  # maximum sequence position
+ignore_gaps: false

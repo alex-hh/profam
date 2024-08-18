@@ -43,7 +43,6 @@ class BaseLitModule(LightningModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
-        ignore_gaps_in_loss: bool = False,
     ) -> None:
         super().__init__()
         self.model = model
