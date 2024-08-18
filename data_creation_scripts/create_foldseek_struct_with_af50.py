@@ -117,12 +117,7 @@ def make_cluster_dictionary(cluster_path):
     return cluster_dict
 
 def run_foldmason(filelist, output_dir, tmp_dir):
-    cmd = [
-        "foldmason", "easy-msa",
-        filelist,
-        os.path.join(output_dir, "result"),
-        tmp_dir
-    ]
+    cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
     
     try:
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -138,8 +133,6 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
     for cluster_id, cluster_members in clusters_to_save.items():
         sequences = []
         accessions = []
-        msta_aa = []
-        msta_3di = []
         is_foldseek_representative = []
         is_af50_representative = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
@@ -171,11 +164,16 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         if args.run_foldmason:
             # TODO: check that this preserves order.
             foldmason_outdir = os.path.join(scratch_dir, str(parquet_id), cluster_id)
+            os.makedirs(foldmason_outdir, exist_ok=True)
             run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
 
             # Read AA and 3Di alignments, skip the accessions
             labels, msta_seqs = read_fasta(os.path.join(foldmason_outdir, "result_aa.fa"))
-            labels, msta_3di = read_fasta(os.path.join(foldmason_outdir, "result_3di.fa"))
+            perm = [labels.index(afdb_id) for afdb_id in cluster_members]
+            msta_seqs = [msta_seqs[ix] for ix in perm]
+            struct_labels, msta_3di = read_fasta(os.path.join(foldmason_outdir, "result_3di.fa"))
+            assert labels == struct_labels
+            msta_3di = [msta_3di[ix] for ix in perm]
 
     # TODO: save representative?
         results.append(
@@ -266,6 +264,8 @@ def make_job_list(
     pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
     metadata_lookup = dict()
+
+    print("Building lookup", flush=True)
 
     t1 = time.time()
     for ix, cluster_id in enumerate(cluster_ids):
