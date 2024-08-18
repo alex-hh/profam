@@ -41,4 +41,5 @@ if __name__ == "__main__":
         default="../data/pfam/Pfam-A.hmm",
         help="PFAM database file",
     )
-
+    args = parser.parse_args()
+    main(args)
