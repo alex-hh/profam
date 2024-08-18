@@ -121,7 +121,7 @@ def get_prompt_from_ec_num(
 
 
 def load_ec_cluster_classifier_dataset(
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     fasta_dir: str = "../data/ec/ec_fastas",
     val_df_path: str = "data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
     max_tokens=10000,

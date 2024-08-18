@@ -17,7 +17,7 @@ from src.data.utils import (
     get_seq_pos_from_positions,
     load_protein_dataset,
 )
-from src.utils import ProFamTokenizer
+from src.utils.tokenizers import ProFamTokenizer
 
 
 def tokenize_msa(
