@@ -3,8 +3,14 @@ from src.evaluators.hmmer import PFAMProfileHMM
 
 
 def main(args):
-    with open(args.accession_list_file, "r") as f:
-        accessions = [line.strip() for line in f]
+    if args.accession_list_file.endswith(".parquet"):
+        import pandas as pd
+        assert args.identifier_col is not None
+        df = pd.read_parquet(args.accession_list_file)
+        accessions = df[args.identifier_col].tolist()
+    else:
+        with open(args.accession_list_file, "r") as f:
+            accessions = [line.strip() for line in f]
     evaluator = PFAMProfileHMM(
         "pfam",
         pfam_hmm_dir=args.pfam_hmm_dir,
@@ -27,6 +33,7 @@ if __name__ == "__main__":
         type=str,
         help="Output directory to save HMM files",
     )
+    parser.add_argument("--identifier_col", type=str, default=None)
     parser.add_argument(
         "--pfam_hmm_dir",
         type=str,
