@@ -32,6 +32,7 @@ class ProteinDatasetConfig:
     minimum_sequences: Optional[int] = None
     document_tag: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
+    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
 
 
 class StringObject:
@@ -203,6 +204,7 @@ def load_protein_dataset(
                     keep_gaps=cfg.keep_gaps,
                     keep_insertions=cfg.keep_insertions,
                     to_upper=cfg.to_upper,
+                    use_msa_pos=cfg.use_msa_pos,
                 )
                 sequences.append(seq)
                 positions.append(pos)
