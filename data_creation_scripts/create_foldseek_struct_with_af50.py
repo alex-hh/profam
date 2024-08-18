@@ -350,7 +350,7 @@ if __name__ == "__main__":
     print("Num cpus", os.cpu_count(), flush=True)
 
     if args.skip_af50:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct_example/"
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
 
