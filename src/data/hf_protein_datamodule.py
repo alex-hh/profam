@@ -105,8 +105,6 @@ class ProteinDataModule(LightningDataModule):
                     self.tokenizer,
                     self.max_tokens,
                     data_dir=self.data_dir,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                 )
                 for v_ds_name in self.val_dataset_names
             ]
@@ -141,8 +139,6 @@ class ProteinDataModule(LightningDataModule):
                     fasta_dir="../data/ec/ec_fastas",
                     val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                 )
 
             self._is_setup = True
