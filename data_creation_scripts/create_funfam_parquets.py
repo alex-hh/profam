@@ -2,7 +2,7 @@ import os
 import argparse
 import glob
 import json
-
+import gc
 import numpy as np
 import pandas as pd
 import pyarrow as pa
@@ -34,7 +34,7 @@ def calculate_list_size(string_list):
     return total_bytes
 
 def main(task_index, num_tasks, output_dir):
-    parquet_compression_factor = 5
+    parquet_compression_factor = 3
     target_parquet_size_mb = 100
     list_size_mb = target_parquet_size_mb * parquet_compression_factor
     base_dir = "/SAN/orengolab/cath_alphafold/funfams_scans_2024/funfams"
@@ -87,6 +87,7 @@ def main(task_index, num_tasks, output_dir):
             parquet_index += 1
             fname_2_fam_id[parquet_name] = fam_ids
             fam_ids = []
+            gc.collect()
     if len(data):
         parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(2)}.parquet'
         output_file = os.path.join(output_dir, parquet_name)

@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=16G
-#$ -l h_vmem=16G
+#$ -l tmem=32G
+#$ -l h_vmem=32G
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
 #$ -N create_funfam_parquets
