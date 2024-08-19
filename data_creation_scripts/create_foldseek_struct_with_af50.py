@@ -1,6 +1,7 @@
 """
 Loads PDB files for the foldseek clusters and
-converts them into parquet files. The parquet files contain sequences
+converts them into parquet files. The parquet files contain sequences,
+foldmason MSTA alignments (both aa and 3di),
 as well as backbone coordinates (N, Ca, C, O).
 
 N.B. this is slow and will require optimisation/parallelisation:
@@ -28,7 +29,10 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import zipfile
 import os
+from src.data.fasta import read_fasta
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+import tempfile
+import subprocess
 
 
 af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
@@ -113,6 +117,16 @@ def make_cluster_dictionary(cluster_path):
                 print("Processed", line_counter, "lines for cluster dictionary", flush=True)
     return cluster_dict
 
+def run_foldmason(filelist, output_dir, tmp_dir):
+    cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
+    
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(f"FoldMason stdout: {result.stdout}", flush=True)
+    except subprocess.CalledProcessError as e:
+        print(f"FoldMason execution failed: {e}", flush=True)
+        print(f"FoldMason stderr: {e.stderr}", flush=True)
+        raise
 
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
     # Save the pdbs to parquet
@@ -124,9 +138,11 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         is_af50_representative = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
         all_b_factors = []
+        cluster_filelist = []
 
         for afdb_id in cluster_members:
             pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
+            cluster_filelist.append(pdb)
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
             is_foldseek_representative.append(metadata["is_foldseek_representative"])
@@ -142,9 +158,25 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             sequences.append(seq)
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
-            os.remove(pdb)
 
-        # TODO: save representative?
+            # os.remove(pdb)
+            
+        # Run FoldMason on the cluster
+        if args.run_foldmason:
+            # TODO: check that this preserves order.
+            foldmason_outdir = os.path.join(scratch_dir, str(parquet_id), cluster_id)
+            os.makedirs(foldmason_outdir, exist_ok=True)
+            run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
+
+            # Read AA and 3Di alignments, skip the accessions
+            labels, msta_seqs = read_fasta(os.path.join(foldmason_outdir, "result_aa.fa"))
+            perm = [labels.index(afdb_id) for afdb_id in cluster_members]
+            msta_seqs = [msta_seqs[ix] for ix in perm]
+            struct_labels, msta_3di = read_fasta(os.path.join(foldmason_outdir, "result_3di.fa"))
+            assert labels == struct_labels
+            msta_3di = [msta_3di[ix] for ix in perm]
+
+    # TODO: save representative?
         results.append(
             {
                 "sequences": sequences,
@@ -157,11 +189,13 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "accessions": accessions,
                 "is_foldseek_representative": is_foldseek_representative,
                 "is_af50_representative": is_af50_representative,
+                "msta_aa": msta_seqs,
+                "msta_3di": msta_3di,
             }
         )
 
-    print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
-    shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
+    # print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
+    # shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
@@ -231,6 +265,8 @@ def make_job_list(
     pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
     metadata_lookup = dict()
+
+    print("Building lookup", flush=True)
 
     t1 = time.time()
     for ix, cluster_id in enumerate(cluster_ids):
@@ -342,6 +378,7 @@ if __name__ == "__main__":
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
+    parser.add_argument("--run_foldmason", action="store_true")
     parser.add_argument("--num_processes", type=int, default=None)
     args = parser.parse_args()
 
