@@ -1,12 +1,20 @@
 import torch
+
 from src.models.utils import log_likelihood_from_outputs
 
 
 def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     model = default_model_noseqpos.eval()
-    full_input_ids = torch.cat([proteingym_batch["input_ids"], proteingym_batch["completion_ids"][:, 0]], dim=1)
-    completion_start_ix = proteingym_batch["input_ids"].shape[1] + 1  # skip the SEP token
-    assert full_input_ids[..., completion_start_ix - 1] == default_model.tokenizer.sep_token_id
+    full_input_ids = torch.cat(
+        [proteingym_batch["input_ids"], proteingym_batch["completion_ids"][:, 0]], dim=1
+    )
+    completion_start_ix = (
+        proteingym_batch["input_ids"].shape[1] + 1
+    )  # skip the SEP token
+    assert (
+        full_input_ids[..., completion_start_ix - 1]
+        == model.tokenizer.sep_token_id
+    )
     past_key_values = None
     with torch.no_grad():
         outputs = model(full_input_ids, use_cache=False)
@@ -14,13 +22,16 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
         log_likelihood_v1 = log_likelihood_from_outputs(
             outputs, full_input_ids, start_ix=completion_start_ix
         )
-    
 
     # next run forward pass, caching the kv states
     # input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
     past_key_values = None
     with torch.no_grad():
-        outputs = model(proteingym_batch["input_ids"], past_key_values=past_key_values, use_cache=True)
+        outputs = model(
+            proteingym_batch["input_ids"],
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
         past_key_values = outputs.past_key_values
 
     # # assert len(past_key_values) == config.num_hidden_layers
@@ -32,11 +43,13 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     #     config.hidden_size // config.num_attention_heads,
     # )
 
-    # the 0 index is the first mutated sequence
+    # the 0 index is the first mutated sequence
     print(proteingym_batch["completion_ids"][:, 0].shape)
     with torch.no_grad():
         outputs = model(
-            proteingym_batch["completion_ids"][:, 0], past_key_values=past_key_values, use_cache=True
+            proteingym_batch["completion_ids"][:, 0],
+            past_key_values=past_key_values,
+            use_cache=True,
         )
     logits_v2 = outputs.logits
     log_likelihood_v2 = log_likelihood_from_outputs(
@@ -54,8 +67,6 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     #         input_seq_pos=proteingym_batch.get("input_seq_pos", None),
     #         completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
     #     )
-    
-    
 
 
 def test_kv_cache_with_seqpos(default_model):

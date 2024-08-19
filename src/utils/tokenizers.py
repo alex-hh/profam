@@ -86,6 +86,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 pad_token_id=self.pad_token_id,
                 max_seq_pos=self.max_seq_pos,
                 num_start_tokens=self.num_start_tokens,
+                num_end_tokens=int(add_final_sep),
             )
             tokenized.data["seq_pos"] = seq_pos
         # TODO: maybe return tokenized rather than just input ids.

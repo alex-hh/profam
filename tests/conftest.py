@@ -19,11 +19,12 @@ from src.data.utils import (
     ProteinDatasetConfig,
     load_protein_dataset,
 )
+from src.utils.tokenizers import ProFamTokenizer
 
 
 @pytest.fixture()
-def profam_tokenizer():
-    tokenizer = PreTrainedTokenizerFast(
+def profam_tokenizer_seqpos():
+    tokenizer = ProFamTokenizer(
         tokenizer_file=os.path.join(
             BASEDIR, "src/data/components/profam_tokenizer.json"
         ),
@@ -33,46 +34,65 @@ def profam_tokenizer():
         sep_token="[SEP]",
         mask_token="[MASK]",
         add_special_tokens=True,
+        use_seq_pos=True,
+        max_seq_pos=2048,
+        max_tokens=8192,
     )
     return tokenizer
 
 
 @pytest.fixture()
-def default_model_noseqpos(profam_tokenizer):
+def profam_tokenizer_noseqpos():
+    tokenizer = ProFamTokenizer(
+        tokenizer_file=os.path.join(
+            BASEDIR, "src/data/components/profam_tokenizer.json"
+        ),
+        unk_token="[UNK]",
+        pad_token="[PAD]",
+        bos_token="[start-of-document]",
+        sep_token="[SEP]",
+        mask_token="[MASK]",
+        add_special_tokens=True,
+        use_seq_pos=False,
+        max_seq_pos=2048,
+        max_tokens=8192,
+    )
+    return tokenizer
+
+
+@pytest.fixture()
+def default_model_noseqpos(profam_tokenizer_noseqpos):
+    # otherwise could do this via overrides...
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
-            overrides=["data.use_seq_pos=False"],
         )
-    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
 
 
 @pytest.fixture()
-def default_model_seqpos(profam_tokenizer):
+def default_model_seqpos(profam_tokenizer_seqpos):
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
-            overrides=["data.use_seq_pos=True"],
         )
-    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_seqpos)
 
 
 @pytest.fixture()
-def proteingym_batch(profam_tokenizer):
+def proteingym_batch(profam_tokenizer_seqpos):
     data = load_gym_dataset(
         dms_ids=["BLAT_ECOLX_Jacquier_2013"],
-        tokenizer=profam_tokenizer,
+        tokenizer=profam_tokenizer_seqpos,
         gym_data_dir="data/example_data/proteingym",
-        max_tokens=profam_tokenizer.max_tokens,
-        use_seq_pos=True,
-        max_seq_pos=2048,
+        max_tokens=profam_tokenizer_seqpos.max_tokens,
         keep_gaps=False,
         num_proc=None,
     )
     datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = CustomDataCollator(tokenizer=profam_tokenizer_seqpos, mlm=False)
     return collator([datapoint])
 
 
