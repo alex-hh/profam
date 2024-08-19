@@ -19,7 +19,7 @@ def create_parquet_map(pfam_parquet_dir, mapping_path):
         df = pd.read_parquet(parquet_file)
         for i, row in df.iterrows():
             fam_id = row["pfam_acc"]
-            size_mb = sys.getsizeof(row["text"]) * 1024 * 1024
+            size_mb = sys.getsizeof(row["text"]) / 1024 / 1024
             fname = os.path.basename(parquet_file)
             df_rows.append({"pfam_acc": fam_id, "size_mb": size_mb, "parquet_file": fname})
     df = pd.DataFrame(df_rows)
