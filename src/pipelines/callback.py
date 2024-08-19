@@ -10,7 +10,9 @@ class EvaluationPipelineCallback:
 
     def __init__(self, pipeline, evaluator, num_samples):
         self.pipeline = pipeline
-        assert not self.pipeline.save_to_file, "Pipeline should not save to file during callback"
+        assert (
+            not self.pipeline.save_to_file
+        ), "Pipeline should not save to file during callback"
         self.evaluator = evaluator
         self.num_samples = num_samples
 

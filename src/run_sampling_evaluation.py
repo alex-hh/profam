@@ -54,6 +54,7 @@ def run(cfg: DictConfig) -> None:
         evaluator=evaluator,
         rerun_model=cfg.rerun_model,
         rerun_evaluator=cfg.rerun_evaluator,
+        sampling_kwargs=cfg.pretrained_model.sampling_evaluator_kwargs,
     )
     # for hydra multirun memory management issues:
     gc.collect()

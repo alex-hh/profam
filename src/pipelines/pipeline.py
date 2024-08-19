@@ -170,7 +170,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         _, sequences = fasta.read_fasta(fasta_file)
         return sequences
 
-    def run_sampling(self, model, model_name, evaluator, rerun: bool = False):
+    def run_sampling(self, model, model_name, evaluator, rerun: bool = False, **kwargs):
         instance_ids = self.instance_ids()
         for instance_id in instance_ids:
             protein_document = self.load_protein_document(instance_id)
@@ -183,7 +183,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
                 generated_sequences = evaluator.run_sampling(
-                    model, protein_document, self.num_generations
+                    model, protein_document, self.num_generations, **kwargs
                 )
                 self.save_generations(generated_sequences, outputs_dir)
 
@@ -226,12 +226,15 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         evaluator: SamplingEvaluator,
         rerun_model: bool = False,
         rerun_evaluator: bool = False,
+        sampling_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Run the validation pipeline for a given model and set of validations."""
         # TODO: instead of looping twice we could just loop once and evaluate as we go...
         # TODO: handle storing of outputs on evaluator side possibly?
         # 1. produce intermediate outputs (e.g. generated sequences) by running model on inputs
-        self.run_sampling(model, model_name, evaluator, rerun=rerun_model)
+        self.run_sampling(
+            model, model_name, evaluator, rerun=rerun_model, **sampling_kwargs
+        )
 
         # 2. evaluate the intermediate outputs with each validation
         self.run_evaluation(model_name, evaluator, rerun=rerun_evaluator)
