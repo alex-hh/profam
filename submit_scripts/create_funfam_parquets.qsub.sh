@@ -31,5 +31,5 @@ if [ "$SGE_TASK_ID" -eq 1 ]; then
     echo "##### start #####" > $SAVE_SOURCE_PATH
     cat "$0" >> $SAVE_SOURCE_PATH
     echo "##### Python script #####" >> $SAVE_SOURCE_PATH
-    cat "${ROOT_DIR}/create_funfam_parquets.py" >> $SAVE_SOURCE_PATH
+    cat "${ROOT_DIR}/data_creation_scripts/create_funfam_parquets.py" >> $SAVE_SOURCE_PATH
 fi
