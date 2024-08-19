@@ -1,13 +1,15 @@
 from collections import defaultdict
 from typing import List
 
+import numpy as np
+
 
 class EvaluationPipelineCallback:
 
     sequence_prompts: List[List[str]]
 
-    def __init__(self, evaluator, num_samples):
-        self.evaluator = evaluator
+    def __init__(self, pipeline, num_samples):
+        self.pipeline = pipeline
         self.num_samples = num_samples
 
     def on_train_epoch_end(self, trainer, model):

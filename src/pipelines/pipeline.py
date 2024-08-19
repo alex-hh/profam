@@ -105,12 +105,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
     def __init__(
         self,
-        evaluator: SamplingEvaluator,
         num_generations: int,
         pipeline_id: str,
         benchmark_directory: str = None,
     ):
-        self.evaluator = evaluator
         self.num_generations = num_generations
         super().__init__(
             pipeline_id,
@@ -139,23 +137,22 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         self,
         model_id: str,
         instance_id: str,
+        evaluator: SamplingEvaluator,
         protein_document: ProteinDocument,
         rerun_evaluator: bool = False,
     ) -> None:
         generated_sequences = self.load_generations(instance_id, model_id)
         if rerun_evaluator or not self.has_result(
-            self.evaluator.name, instance_id, model_id
+            evaluator.name, instance_id, model_id
         ):
-            metrics = self.evaluator.evaluate_samples(
-                protein_document, generated_sequences
-            )
+            metrics = evaluator.evaluate_samples(protein_document, generated_sequences)
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
             print(f"Instance {instance_id} metrics: {metrics_str}")
             metrics.update(self.get_instance_summary(instance_id))
             metrics["model_id"] = model_id
             metrics["instance_id"] = instance_id
-            metrics["validation_id"] = self.evaluator.name
-            self.add_result(self.evaluator.name, instance_id, model_id, metrics)
+            metrics["validation_id"] = evaluator.name
+            self.add_result(evaluator.name, instance_id, model_id, metrics)
 
     def save_generations(self, sequences: List[str], outputs_dir: str) -> None:
         fasta.output_fasta(
@@ -170,7 +167,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         _, sequences = fasta.read_fasta(fasta_file)
         return sequences
 
-    def run_sampling(self, model, model_name, rerun: bool = False):
+    def run_sampling(self, model, model_name, evaluator, rerun: bool = False):
         instance_ids = self.instance_ids()
         for instance_id in instance_ids:
             protein_document = self.load_protein_document(instance_id)
@@ -180,14 +177,17 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     self.pipeline_directory, instance_id, model_name
                 )
                 os.makedirs(outputs_dir, exist_ok=True)
-                generated_sequences = self.evaluator.run_sampling(
+                # TODO: it's a bit awkward that this is a method on evaluator...
+                generated_sequences = evaluator.run_sampling(
                     model, protein_document, self.num_generations
                 )
                 self.save_generations(generated_sequences, outputs_dir)
 
-    def run_evaluation(self, model_name: str, rerun: bool = False):
+    def run_evaluation(
+        self, model_name: str, evaluator: SamplingEvaluator, rerun: bool = False
+    ):
         instance_ids = self.instance_ids()
-        print(f"Running evaluation `{self.evaluator.name}` for model `{model_name}`")
+        print(f"Running evaluation `{evaluator.name}` for model `{model_name}`")
         for instance_id in instance_ids:
             print(f"Running instance `{instance_id}`")
             protein_document = self.load_protein_document(instance_id)
@@ -196,6 +196,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 self.run_evaluator_on_instance(
                     model_name,
                     instance_id=instance_id,
+                    evaluator=evaluator,
                     protein_document=protein_document,
                     rerun_evaluator=rerun,
                 )
@@ -205,11 +206,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
         # TODO format to limit decimal places
         print(self.results_df)
-        combo_results = self.results_df.loc[(self.evaluator.name, model_name)]
+        combo_results = self.results_df.loc[(evaluator.name, model_name)]
         avg_metrics = combo_results.mean()
         avg_metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in avg_metrics.items()])
         print(
-            f"Validation `{self.evaluator.name}` model {model_name} average metrics: {avg_metrics_str} ({len(combo_results)} instances)"
+            f"Validation `{evaluator.name}` model {model_name} average metrics: {avg_metrics_str} ({len(combo_results)} instances)"
         )
 
         self.save_results()
@@ -218,6 +219,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         self,
         model,
         model_name,
+        evaluator: SamplingEvaluator,
         rerun_model: bool = False,
         rerun_evaluator: bool = False,
     ):
@@ -225,7 +227,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         # TODO: instead of looping twice we could just loop once and evaluate as we go...
         # TODO: handle storing of outputs on evaluator side possibly?
         # 1. produce intermediate outputs (e.g. generated sequences) by running model on inputs
-        self.run_sampling(model, model_name, rerun=rerun_model)
+        self.run_sampling(model, model_name, evaluator, rerun=rerun_model)
 
         # 2. evaluate the intermediate outputs with each validation
-        self.run_evaluation(model_name, rerun=rerun_evaluator)
+        self.run_evaluation(model_name, evaluator, rerun=rerun_evaluator)

@@ -46,11 +46,12 @@ def run(cfg: DictConfig) -> None:
         f" on data from pipeline {cfg.pipeline.pipeline_id}"
     )
     evaluator = hydra.utils.instantiate(cfg.evaluator)
-    pipeline = hydra.utils.instantiate(cfg.pipeline, evaluator=evaluator)
+    pipeline = hydra.utils.instantiate(cfg.pipeline)
     model = hydra.utils.instantiate(cfg.pretrained_model)
     pipeline.run(
         model,
         cfg.pretrained_model.name,
+        evaluator=evaluator,
         rerun_model=cfg.rerun_model,
         rerun_evaluator=cfg.rerun_evaluator,
     )
