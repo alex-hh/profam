@@ -11,16 +11,13 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     completion_start_ix = (
         proteingym_batch["input_ids"].shape[1] + 1
     )  # skip the SEP token
-    assert (
-        full_input_ids[..., completion_start_ix - 1]
-        == model.tokenizer.sep_token_id
-    )
+    assert full_input_ids[..., completion_start_ix - 1] == model.tokenizer.sep_token_id
     past_key_values = None
     with torch.no_grad():
         outputs = model(full_input_ids, use_cache=False)
         logits_v1 = outputs.logits
         log_likelihood_v1 = log_likelihood_from_outputs(
-            outputs, full_input_ids, start_ix=completion_start_ix
+            outputs, full_input_ids, start_ix=completion_start_ix-1
         )
 
     # next run forward pass, caching the kv states
@@ -69,5 +66,5 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     #     )
 
 
-def test_kv_cache_with_seqpos(default_model):
+def test_kv_cache_with_seqpos(default_model_seqpos):
     pass
