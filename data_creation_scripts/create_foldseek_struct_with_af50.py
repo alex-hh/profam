@@ -159,7 +159,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
 
-            # os.remove(pdb)
+            os.remove(pdb)
             
         # Run FoldMason on the cluster
         if args.run_foldmason:
@@ -194,8 +194,8 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             }
         )
 
-    # print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
-    # shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
+    print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
+    shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
@@ -387,7 +387,7 @@ if __name__ == "__main__":
     print("Num cpus", os.cpu_count(), flush=True)
 
     if args.skip_af50:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct_example/"
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
 
