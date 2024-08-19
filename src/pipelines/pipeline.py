@@ -149,6 +149,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             metrics = self.evaluator.evaluate_samples(
                 protein_document, generated_sequences
             )
+            metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
+            print(f"Instance {instance_id} metrics: {metrics_str}")
             metrics.update(self.get_instance_summary(instance_id))
             metrics["model_id"] = model_id
             metrics["instance_id"] = instance_id

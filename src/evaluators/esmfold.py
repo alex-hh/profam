@@ -1,5 +1,5 @@
 import io
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from Bio.PDB import PDBParser
@@ -59,6 +59,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self,
         name,
         device,
+        num_samples: Optional[int] = None,
         max_tokens: int = 8192,
         seed: int = 52,
         prompt_plddt: bool = True,
@@ -68,7 +69,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
     ):
-        super().__init__(name, seed=seed)
+        super().__init__(name, seed=seed, num_samples=num_samples)
         self.model = EsmForProteinFolding.from_pretrained("facebook/esmfold_v1").eval()
         self.model.esm = self.model.esm
         self.model = self.model.to("cpu")
