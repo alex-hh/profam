@@ -1,12 +1,111 @@
 """This file prepares config fixtures for other tests."""
 
+import os
 from pathlib import Path
 
+import hydra
 import pytest
 import rootutils
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
+from transformers import PreTrainedTokenizerFast
+
+from src.constants import BASEDIR
+from src.data.proteingym import load_gym_dataset
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
+
+
+@pytest.fixture()
+def profam_tokenizer():
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_file=os.path.join(
+            BASEDIR, "src/data/components/profam_tokenizer.json"
+        ),
+        unk_token="[UNK]",
+        pad_token="[PAD]",
+        bos_token="[start-of-document]",
+        sep_token="[SEP]",
+        mask_token="[MASK]",
+        add_special_tokens=True,
+    )
+    return tokenizer
+
+
+@pytest.fixture()
+def default_model(profam_tokenizer):
+    with initialize(config_path="../configs", version_base="1.3"):
+        cfg = compose(config_name="train.yaml", return_hydra_config=True, overrides=[])
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
+
+
+@pytest.fixture()
+def proteingym_batch(profam_tokenizer):
+    data = load_gym_dataset(
+        dms_ids=["BLAT_ECOLX_Jacquier_2013"],
+        tokenizer=profam_tokenizer,
+        gym_data_dir="data/example_data/proteingym",
+        max_tokens=profam_tokenizer.max_tokens,
+        use_seq_pos=True,
+        max_seq_pos=2048,
+        keep_gaps=False,
+        num_proc=None,
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    return collator([datapoint])
+
+
+@pytest.fixture()
+def pfam_batch(profam_tokenizer):
+    cfg = ProteinDatasetConfig(
+        name="pfam",
+        keep_gaps=False,
+        data_path_pattern="pfam/Domain_60429258_61033370.parquet",
+        keep_insertions=True,
+        to_upper=True,
+        is_parquet=True,
+    )
+    data = load_protein_dataset(
+        cfg,
+        tokenizer=profam_tokenizer,
+        max_tokens=5000,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        use_seq_pos=True,
+        max_seq_pos=2048,
+        shuffle=False,
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    return collator([datapoint])
+
+
+@pytest.fixture()
+def foldseek_batch():
+    cfg = ProteinDatasetConfig(
+        name="foldseek",
+        keep_gaps=False,
+        data_path_pattern="foldseek_struct/3.parquet",
+        keep_insertions=True,
+        to_upper=True,
+        is_parquet=True,
+    )
+    data = load_protein_dataset(
+        cfg,
+        tokenizer=profam_tokenizer,
+        max_tokens=5000,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        use_seq_pos=True,
+        max_seq_pos=2048,
+        shuffle=False,
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    return collator([datapoint])
 
 
 @pytest.fixture(scope="package")
