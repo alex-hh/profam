@@ -31,14 +31,10 @@ import zipfile
 import os
 from src.data.fasta import read_fasta
 from src.data.pdb import get_atom_coords_residuewise, load_structure
-import tempfile
 import subprocess
 
 
-af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
-
-
-def make_af50_dictionary(clusters_to_include=None):
+def make_af50_dictionary(af50_path, clusters_to_include=None):
     line_counter = 0
     af50_dict = {}
     with open(af50_path, "r") as f:
@@ -58,11 +54,11 @@ def make_af50_dictionary(clusters_to_include=None):
     return af50_dict
 
 
-def make_zip_dictionary(accessions_to_include=None):
+def make_zip_dictionary(zip_index, accessions_to_include=None):
     line_counter = 0
     af2zip = {}
     # TODO: finish early if we get all the accessions.
-    with open("/SAN/bioinf/afdb_domain/zipmaker/zip_index", "r") as f:
+    with open(zip_index, "r") as f:
         for line in f:
             line = line.strip().split("\t")
             afdb_id = line[0]
@@ -117,6 +113,7 @@ def make_cluster_dictionary(cluster_path):
                 print("Processed", line_counter, "lines for cluster dictionary", flush=True)
     return cluster_dict
 
+
 def run_foldmason(filelist, output_dir, tmp_dir):
     cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
     
@@ -127,6 +124,7 @@ def run_foldmason(filelist, output_dir, tmp_dir):
         print(f"FoldMason execution failed: {e}", flush=True)
         print(f"FoldMason stderr: {e.stderr}", flush=True)
         raise
+
 
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
     # Save the pdbs to parquet
@@ -222,6 +220,8 @@ def make_job_list(
     save_dir,
     minimum_foldseek_cluster_size=1,
     skip_af50=False,
+    zip_index_file=None,
+    af50_path=None,
 ):
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
@@ -257,10 +257,12 @@ def make_job_list(
 
     all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
     if not skip_af50:
-        af50_dict = make_af50_dictionary(clusters_to_include=all_accessions)
+        af50_path = af50_path or "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
+        af50_dict = make_af50_dictionary(af50_path, clusters_to_include=all_accessions)
         all_accessions = all_accessions + [cluster_id for cluster_members in af50_dict.values() for cluster_id in cluster_members]
 
-    af2zip = make_zip_dictionary(all_accessions)
+    zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
+    af2zip = make_zip_dictionary(zip_index, all_accessions)
 
     pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
@@ -355,6 +357,8 @@ def create_foldseek_parquets(
             save_dir=save_dir,
             minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
             skip_af50=skip_af50,
+            zip_index_file=os.path.join(scratch_dir, "zip_index"),
+            af50_path=os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv"),
         )
         extract_pdbs_for_parquet(
             pdb_lookup=pdb_lookup,
