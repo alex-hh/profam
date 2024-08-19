@@ -8,8 +8,10 @@ class EvaluationPipelineCallback:
 
     sequence_prompts: List[List[str]]
 
-    def __init__(self, pipeline, num_samples):
+    def __init__(self, pipeline, evaluator, num_samples):
         self.pipeline = pipeline
+        assert not self.pipeline.save_to_file, "Pipeline should not save to file during callback"
+        self.evaluator = evaluator
         self.num_samples = num_samples
 
     def on_train_epoch_end(self, trainer, model):

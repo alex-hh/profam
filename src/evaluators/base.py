@@ -90,6 +90,11 @@ class SamplingEvaluator:
         else:
             raise ValueError("Prompt should be a list of strings or a tuple of lists")
 
+    # TODO: I think this should be a method on the model, that both the pipeline
+    # and the evaluator can call. Different models might build prompt differently
+    # based on their configuration - this should not be a function of evaluator configuration.
+    # The only issue is that in some cases we want to share the same prompt when comparing
+    # different models...this is a little tricky.
     def run_sampling(
         self, model, protein_document, num_samples: Optional[int] = None, **model_kwargs
     ):

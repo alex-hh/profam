@@ -24,12 +24,14 @@ class BaseEvaluatorPipeline:
         self,
         pipeline_id: str,
         benchmark_directory: str = None,
+        save_to_file: bool = True,
     ):
         self.pipeline_id = pipeline_id
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
         )
+        self.save_to_file = save_to_file
         self.load_results()
 
     def instance_ids(self):
@@ -38,7 +40,7 @@ class BaseEvaluatorPipeline:
     def load_results(self) -> pd.DataFrame:
         """Load results dataframe from local disk location."""
         results_path = os.path.join(self.pipeline_directory, "results.csv")
-        if os.path.exists(results_path):
+        if self.save_to_file and os.path.exists(results_path):
             self.results_df = pd.read_csv(results_path)
         else:
             self.results_df = pd.DataFrame(
@@ -76,8 +78,9 @@ class BaseEvaluatorPipeline:
 
     def save_results(self) -> None:
         """Save results dataframe to local disk location."""
-        results_path = os.path.join(self.pipeline_directory, "results.csv")
-        self.results_df.to_csv(results_path, index=True)
+        if self.save_to_file:
+            results_path = os.path.join(self.pipeline_directory, "results.csv")
+            self.results_df.to_csv(results_path, index=True)
 
     def make_summary(self):
         summaries = []
@@ -178,6 +181,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 os.makedirs(outputs_dir, exist_ok=True)
                 # TODO: it's a bit awkward that this is a method on evaluator...
+                # it should produce the same output regardless of the evaluator
                 generated_sequences = evaluator.run_sampling(
                     model, protein_document, self.num_generations
                 )
