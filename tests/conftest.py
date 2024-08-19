@@ -37,9 +37,24 @@ def profam_tokenizer():
 
 
 @pytest.fixture()
-def default_model(profam_tokenizer):
+def default_model_noseqpos(profam_tokenizer):
     with initialize(config_path="../configs", version_base="1.3"):
-        cfg = compose(config_name="train.yaml", return_hydra_config=True, overrides=[])
+        cfg = compose(
+            config_name="train.yaml",
+            return_hydra_config=True,
+            overrides=["data.use_seq_pos=False"],
+        )
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
+
+
+@pytest.fixture()
+def default_model_seqpos(profam_tokenizer):
+    with initialize(config_path="../configs", version_base="1.3"):
+        cfg = compose(
+            config_name="train.yaml",
+            return_hydra_config=True,
+            overrides=["data.use_seq_pos=True"],
+        )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
 
