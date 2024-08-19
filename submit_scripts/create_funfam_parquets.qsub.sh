@@ -4,7 +4,7 @@
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
 #$ -N create_funfam_parquets
-#$ -t 1
+#$ -t 5
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -22,7 +22,7 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 SAVE_DIR="/SAN/orengolab/cath_plm/ProFam/data/funfams/parquets"
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
-python ${ROOT_DIR}/data_creation_scripts/create_funfam_parquets.py --task_index $((SGE_TASK_ID - 1)) --num_tasks 1 --save_dir $SAVE_DIR
+python ${ROOT_DIR}/data_creation_scripts/create_funfam_parquets.py --task_index $((SGE_TASK_ID - 1)) --num_tasks 5 --save_dir $SAVE_DIR
 date
 
 SAVE_SOURCE_PATH=${SAVE_DIR}/parquet_creation_source_code.txt
