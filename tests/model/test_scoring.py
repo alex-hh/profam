@@ -66,5 +66,52 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     #     )
 
 
-def test_kv_cache_with_seqpos(default_model_seqpos):
-    pass
+def test_kv_cache_with_seqpos(default_model_seqpos, proteingym_batch):
+    model = default_model_seqpos.eval()
+    print(proteingym_batch.keys())
+    full_input_ids = torch.cat(
+        [proteingym_batch["input_ids"], proteingym_batch["completion_ids"][:, 0]], dim=1
+    )
+    completion_start_ix = (
+        proteingym_batch["input_ids"].shape[1] + 1
+    )  # skip the SEP token
+    assert full_input_ids[..., completion_start_ix - 1] == model.tokenizer.sep_token_id
+    full_seq_pos = torch.cat(
+        [proteingym_batch["seq_pos"], proteingym_batch["completion_seq_pos"][:, 0]],
+        dim=1,
+    )
+    past_key_values = None
+    with torch.no_grad():
+        outputs = model(full_input_ids, seq_pos=full_seq_pos, use_cache=False)
+        logits_v1 = outputs.logits
+        log_likelihood_v1 = log_likelihood_from_outputs(
+            outputs, full_input_ids, start_ix=completion_start_ix-1
+        )
+
+    # next run forward pass, caching the kv states
+    # input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
+    past_key_values = None
+    with torch.no_grad():
+        outputs = model(
+            proteingym_batch["input_ids"],
+            seq_pos=proteingym_batch["seq_pos"],
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+        past_key_values = outputs.past_key_values
+
+    # the 0 index is the first mutated sequence
+    print(proteingym_batch["completion_ids"][:, 0].shape)
+    with torch.no_grad():
+        outputs = model(
+            proteingym_batch["completion_ids"][:, 0],
+            seq_pos=proteingym_batch["completion_seq_pos"][:, 0],
+            past_key_values=past_key_values,
+            use_cache=True,
+        )
+    logits_v2 = outputs.logits
+    log_likelihood_v2 = log_likelihood_from_outputs(
+        outputs, proteingym_batch["completion_ids"][:, 0]
+    )
+
+    assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
