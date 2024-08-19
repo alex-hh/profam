@@ -105,7 +105,7 @@ class SamplingEvaluator:
             and num_samples is not None
             and num_samples != self.num_samples
         ):
-            print("Warning: self.num_samples overriden by num_samples")
+            print(f"Warning: self.num_samples ({self.num_samples}) overriden by num_samples ({num_samples})")
 
         prompt = self.build_prompt(protein_document)
         inputs = self.build_inputs_from_prompt(prompt, num_samples)

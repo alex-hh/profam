@@ -576,7 +576,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def _sample_seqs(
         self,
         input_ids,
-        num_sequences,
+        num_samples,
         batch_size: int = 1,
         max_length: int = 8192,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
@@ -596,6 +596,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
+        print("Sampling seqs batch size", batch_size)
         generation_kwargs = {}
         if fixed_length is not None:
             if max_length is not None:
@@ -614,8 +615,8 @@ class BaseFamilyLitModule(BaseLitModule):
         assert input_ids.ndim == 2  # b, L
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         all_outputs = []
-        for batch_start in range(0, num_sequences, batch_size):
-            num_return_sequences = min(batch_size, num_sequences - batch_start)
+        for batch_start in range(0, num_samples, batch_size):
+            num_return_sequences = min(batch_size, num_samples - batch_start)
             forward_kwargs = (
                 {"seq_pos": input_seq_pos.expand(num_return_sequences, -1)}
                 if self.use_seq_pos
@@ -643,7 +644,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: poss just return a list instead of the padded tensor
         # TODO: does padding include eos (sep)? seems no?
         padded_outputs = torch.full(
-            (num_sequences, max_output_length), self.tokenizer.pad_token_id
+            (num_samples, max_output_length), self.tokenizer.pad_token_id
         )
         for i, o in enumerate(all_outputs):
             padded_outputs[i, : o.shape[1]] = o

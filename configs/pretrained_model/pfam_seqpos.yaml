@@ -1,3 +1,5 @@
 _target_: src.models.base.load_checkpoint
 checkpoint_dir: outputs/pfam_train_seqpos
 name: llama_tiny_pfam_seqpos
+sampling_evaluator_kwargs:
+  batch_size: 1

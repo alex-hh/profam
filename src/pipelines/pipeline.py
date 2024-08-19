@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -175,7 +175,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         for instance_id in instance_ids:
             protein_document = self.load_protein_document(instance_id)
             if rerun or not self.has_generations(instance_id, model_name):
-                print(f"Running generations for instance: {instance_id}")
+                print(f"Running generations for instance: {instance_id}", flush=True)
                 outputs_dir = os.path.join(
                     self.pipeline_directory, instance_id, model_name
                 )
