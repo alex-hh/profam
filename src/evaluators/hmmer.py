@@ -54,7 +54,9 @@ class PFAMHMMERMixin:
 
     def extract_hmm(self, identifier, hmm_file):
         with open(hmm_file, "w") as hmm_file:
-            subprocess.run(["hmmfetch", self.pfam_database, identifier], stdout=hmm_file)
+            subprocess.run(
+                ["hmmfetch", self.pfam_database, identifier], stdout=hmm_file
+            )
 
     def hmm_file_from_identifier(self, identifier: str):
         # other option would be to never build separate hmm files:
