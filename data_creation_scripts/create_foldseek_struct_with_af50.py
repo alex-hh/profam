@@ -61,6 +61,7 @@ def make_af50_dictionary(clusters_to_include=None):
 def make_zip_dictionary(accessions_to_include=None):
     line_counter = 0
     af2zip = {}
+    # TODO: finish early if we get all the accessions.
     with open("/SAN/bioinf/afdb_domain/zipmaker/zip_index", "r") as f:
         for line in f:
             line = line.strip().split("\t")

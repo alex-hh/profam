@@ -11,10 +11,12 @@
 #$ -j y
 date
 # conda activate venvPF
+# n.b. if we set minimum foldseek cluster size to 1, we might need more memory
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID
 mkdir -p ${SCRATCH_DIR}/data
 source ~/source_files/afenv.source
 export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
 python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 /SAN/orengolab/cath_plm/ProFam/data/foldseek_struct_example  --skip_af50 --num_processes 1 --minimum_foldseek_cluster_size 10 --parquet_ids $((SGE_TASK_ID - 1)) --run_foldmason
 # TODO: zip the scratch dir?, remove scratch dir
+rm -rf ${SCRATCH_DIR}/data
 date
