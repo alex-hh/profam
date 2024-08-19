@@ -17,7 +17,7 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
         outputs = model(full_input_ids, use_cache=False)
         logits_v1 = outputs.logits
         log_likelihood_v1 = log_likelihood_from_outputs(
-            outputs, full_input_ids, start_ix=completion_start_ix-1
+            outputs, full_input_ids, start_ix=completion_start_ix - 1
         )
 
     # next run forward pass, caching the kv states
@@ -85,7 +85,7 @@ def test_kv_cache_with_seqpos(default_model_seqpos, proteingym_batch):
         outputs = model(full_input_ids, seq_pos=full_seq_pos, use_cache=False)
         logits_v1 = outputs.logits
         log_likelihood_v1 = log_likelihood_from_outputs(
-            outputs, full_input_ids, start_ix=completion_start_ix-1
+            outputs, full_input_ids, start_ix=completion_start_ix - 1
         )
 
     # next run forward pass, caching the kv states
