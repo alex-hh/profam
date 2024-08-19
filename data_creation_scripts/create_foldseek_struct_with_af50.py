@@ -12,12 +12,9 @@ number of files if we use these rather than pdb files.)
 import argparse
 import shutil
 from collections import defaultdict
-from typing import List
-import biotite
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues
 import numpy as np
-import sys
 import time
 import pickle
 import glob

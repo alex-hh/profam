@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import hydra
+import pandas as pd
 import pytest
 import rootutils
 from hydra import compose, initialize
@@ -121,6 +122,13 @@ def foldseek_batch():
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
     return collator([datapoint])
+
+
+@pytest.fixture
+def pfam_fasta_text():
+    return pd.read_parquet(
+        "data/example_data/pfam/Domain_60429258_61033370.parquet"
+    ).iloc[0]["text"]
 
 
 @pytest.fixture(scope="package")

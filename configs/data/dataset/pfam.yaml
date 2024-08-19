@@ -7,3 +7,4 @@ keep_gaps: false
 to_upper: true
 keep_insertions: true
 document_tag: "[MSA]"
+use_msa_pos: true

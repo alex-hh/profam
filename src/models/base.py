@@ -1,21 +1,26 @@
+import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+import hydra
 import numpy as np
 import torch
 import tqdm
 from lightning import LightningModule
+from omegaconf import OmegaConf
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
+from src.constants import BASEDIR
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,
     log_likelihood_from_outputs,
 )
+from src.utils.tokenizers import ProFamTokenizer
 
 
 def calc_grad_norm(params):
@@ -27,6 +32,53 @@ def calc_grad_norm(params):
     )
 
     return grad_norm
+
+
+def load_checkpoint(checkpoint_dir, **kwargs):
+    config_dir = os.path.join(BASEDIR, checkpoint_dir, ".hydra")
+    cfg = OmegaConf.load(os.path.join(config_dir, "config.yaml"))
+    if "tokenizer" in cfg:
+        old_config = False
+        tokenizer = hydra.utils.instantiate(cfg.tokenizer)
+    else:
+        # old config
+        old_config = True
+        from src.utils.tokenizers import ProFamTokenizer
+
+        tokenizer = ProFamTokenizer(
+            tokenizer_file=cfg.data.tokenizer_path,
+            unk_token="[UNK]",
+            pad_token="[PAD]",
+            sep_token="[SEP]",
+            mask_token="[MASK]",
+            bos_token="[start-of-document]",
+            add_special_tokens=True,
+            add_final_sep=True,
+            add_bos_token=True,
+            add_document_type_token=True,
+            use_seq_pos=cfg.data.use_seq_pos,
+            max_seq_pos=cfg.data.max_seq_pos,
+            max_tokens=cfg.data.max_tokens,
+        )
+        del cfg.model.use_seq_pos
+        del cfg.model.max_seq_pos
+
+    print(OmegaConf.to_yaml(cfg.model))
+    # TODO: check callback config
+    checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+    )["state_dict"]
+    if old_config and tokenizer.use_seq_pos:
+        # TODO: we'll have to convert keys and change model class if using an old-style checkpoint.
+        checkpoint = {
+            k.replace("model.model.", "model."): v for k, v in checkpoint.items()
+        }
+
+    model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
+    model.load_state_dict(checkpoint)
+    return model
 
 
 class BaseLitModule(LightningModule):
@@ -354,7 +406,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def __init__(
         self,
         model,
-        tokenizer: PreTrainedTokenizerFast,
+        tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
@@ -362,7 +414,6 @@ class BaseFamilyLitModule(BaseLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
-        use_seq_pos: bool = False,
     ):
         super().__init__(
             model,
@@ -378,7 +429,8 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.dataset_sample_counts = {}
         self.doc_hash_counts = {}
-        self.use_seq_pos = use_seq_pos
+        self.use_seq_pos = self.tokenizer.use_seq_pos
+        self.max_seq_pos = self.tokenizer.max_seq_pos
 
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
@@ -520,6 +572,115 @@ class BaseFamilyLitModule(BaseLitModule):
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
             )
+
+    def _sample_seqs(
+        self,
+        input_ids,
+        num_samples,
+        batch_size: int = 1,
+        max_length: int = 8192,  # maximum length of inputs plus completions
+        input_seq_pos: Optional[torch.LongTensor] = None,
+        include_prompt_in_output: bool = False,
+        fixed_length: Optional[int] = None,
+        greedy: bool = False,
+        temperature: Optional[float] = None,
+    ):
+        """
+        Conditionally independent sequence generation: sequences are generated independently of each other
+        given the prompt. Once sep token is generated, the sequence is considered complete.
+        (i.e. we don't generate a sequence of sequences directly).
+        """
+        # TODO: pass attention mask, pad_token_id to avoid the following warning:
+        # The attention mask and the pad token id were not set. As a consequence, you may
+        # observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
+        # TODO: add temperature kwarg
+        # TODO: add min length kwarg
+        # TODO: check whether model spontaneously adds the SEP token
+        print("Sampling seqs batch size", batch_size)
+        generation_kwargs = {}
+        if fixed_length is not None:
+            if max_length is not None:
+                assert input_ids.shape[1] + fixed_length <= max_length
+            generation_kwargs["min_new_tokens"] = fixed_length
+            generation_kwargs["max_new_tokens"] = fixed_length
+            generation_kwargs["eos_token_id"] = None
+        else:
+            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
+            generation_kwargs["max_length"] = max_length
+        generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
+        assert (
+            input_ids.shape[0] == 1
+        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+
+        assert input_ids.ndim == 2  # b, L
+        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
+        all_outputs = []
+        for batch_start in range(0, num_samples, batch_size):
+            num_return_sequences = min(batch_size, num_samples - batch_start)
+            forward_kwargs = (
+                {"seq_pos": input_seq_pos.expand(num_return_sequences, -1)}
+                if self.use_seq_pos
+                else {}
+            )
+            # TemperatureLogitsWarper
+            # TODO: migrate to model.sample
+            # N.B. we need to be careful about generationconfig -- in particular eos token id
+            # if we want to generate multiple sequences in a single family: we either need to restore eos token id
+            # or we just do a batched generation like we do here. latter is more explicit.
+            outputs = self.model.generate(
+                input_ids=input_ids,
+                num_return_sequences=num_return_sequences,
+                return_dict_in_generate=False,
+                do_sample=not greedy,
+                temperature=temperature,
+                # https://huggingface.co/docs/transformers/en/generation_strategies
+                **generation_kwargs,
+                **forward_kwargs,
+            )
+            if not include_prompt_in_output:
+                outputs = outputs[:, input_ids.shape[1] :]
+            all_outputs.append(outputs)
+        max_output_length = max([o.shape[1] for o in all_outputs])
+        # TODO: poss just return a list instead of the padded tensor
+        # TODO: does padding include eos (sep)? seems no?
+        padded_outputs = torch.full(
+            (num_samples, max_output_length), self.tokenizer.pad_token_id
+        )
+        for i, o in enumerate(all_outputs):
+            padded_outputs[i, : o.shape[1]] = o
+        return padded_outputs
+
+    def sample_seqs(
+        self,
+        sequence_prompt: List[str],
+        num_samples,
+        position_indices: Optional[List[int]] = None,
+        batch_size: int = 1,
+        include_prompt_in_output: bool = False,
+        greedy: bool = False,
+        fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
+        temperature: Optional[float] = None,
+    ):
+        # TODO: encode sequence prompt and get sequence pos if necessary.
+        tokenized = self.tokenizer.encode_sequences(
+            sequence_prompt, positions=position_indices
+        )
+        if "seq_pos" in tokenized.data:
+            seq_pos = tokenized.data["seq_pos"].unsqueeze(0)
+        else:
+            seq_pos = None
+        encoded = self._sample_seqs(
+            tokenized.input_ids.unsqueeze(0),
+            num_samples,
+            input_seq_pos=seq_pos,
+            batch_size=batch_size,
+            include_prompt_in_output=include_prompt_in_output,
+            greedy=greedy,
+            fixed_length=fixed_length,
+            temperature=temperature,
+        )
+        # print("samples shape", encoded.shape)
+        return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
