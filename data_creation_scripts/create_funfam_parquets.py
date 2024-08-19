@@ -1,6 +1,7 @@
 import os
 import argparse
 import glob
+import json
 
 import numpy as np
 import pandas as pd
@@ -52,7 +53,8 @@ def main(task_index, num_tasks, output_dir):
     for i in range(2):
         print(families_to_process[i])
     data = []
-
+    fam_ids = []
+    fname_2_fam_id = {}
     parquet_size_mb = 0
     parquet_index = 0
     for family_path in families_to_process:
@@ -72,19 +74,27 @@ def main(task_index, num_tasks, output_dir):
             'sequences': sequences,
             'accessions': accessions
         })
+        fam_ids.append(fam_id)
         sequence_bytes = calculate_list_size(sequences)
         parquet_size_mb += sequence_bytes / 1024 / 1024
         if parquet_size_mb >= list_size_mb:
-            output_file = os.path.join(output_dir, f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(2)}.parquet')
+            parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(3)}.parquet'
+            output_file = os.path.join(output_dir, parquet_name)
             create_parquet_file(data, output_file)
             print(f"Created parquet file: {output_file}")
             data = []
             parquet_size_mb = 0
             parquet_index += 1
+            fname_2_fam_id[parquet_name] = fam_ids
+            fam_ids = []
     if len(data):
-        output_file = os.path.join(output_dir, f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(2)}.parquet')
+        parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(2)}.parquet'
+        output_file = os.path.join(output_dir, parquet_name)
         create_parquet_file(data, output_file)
         print(f"Created parquet file: {output_file}")
+        fname_2_fam_id[parquet_name] = fam_ids
+    with open(os.path.join(output_dir, f'funfam_data_{str(task_index).zfill(2)}_fname2famid.json'), 'w') as f:
+        json.dump(fname_2_fam_id, f)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create parquet files from FASTA files")
