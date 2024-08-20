@@ -12,7 +12,7 @@ import sys
 import pandas as pd
 import pickle
 
-from src.data.fasta import read_fasta_sequences
+from src.data.fasta import read_fasta_lines
 
 
 def create_parquet_map(pfam_parquet_dir, mapping_path, limit_mb=250):
@@ -50,11 +50,11 @@ def create_parquet_map(pfam_parquet_dir, mapping_path, limit_mb=250):
     with open(mapping_path, "wb") as f:
         pickle.dump(new_mapping, f)
 
-def reformat_df(df, max_mb_per_entry, name, outdir):
+def reformat_df(df, max_mb_per_entry, filename, outdir):
     new_rows = []
     for i, row in df.iterrows():
         fam_id = row["pfam_acc"]
-        seq_iterator = read_fasta_sequences(row["text"].split("\n"), keep_gaps=True, keep_insertions=True, to_upper=False)
+        seq_iterator = read_fasta_lines(row["text"].split("\n"), keep_gaps=True, keep_insertions=True, to_upper=False)
 
         names, seqs = [], []
         seqs_mb = 0
@@ -62,10 +62,10 @@ def reformat_df(df, max_mb_per_entry, name, outdir):
         for name, seq in seq_iterator:
             names.append(name)
             seqs.append(seq)
-            seqs_mb += sys.getsizeof(seq) // 1024 // 1024
+            seqs_mb += sys.getsizeof(seq) / 1024 / 1024
             if seqs_mb > max_mb_per_entry:
-                save_path = f"{outdir}/{name.split('_')[0]}_{fam_id}_{sub_fam_counter}.parquet"
-                # save to parquet and reset
+                save_path = f"{outdir}/{filename.split('_')[0]}_{fam_id}_{sub_fam_counter}.parquet"
+                # save partial single family to parquet and reset
                 df = pd.DataFrame([{
                     "fam_id": fam_id,
                     "accessions": names,
@@ -100,9 +100,12 @@ if __name__=="__main__":
         entries_fam = []
         entries_dom = []
         for old_parq_path in v.keys():
-            old_df = pd.read_parquet(f"{pfam_parquet_dir}/{old_parq_path}")
+            old_path = f"{pfam_parquet_dir}/{old_parq_path}"
+            if not os.path.exists(old_path):
+                continue
+            old_df = pd.read_parquet(old_path)
             new_df = old_df[old_df["pfam_acc"].isin(v[old_parq_path])]
-            new_df = reformat_df(new_df, max_mb_per_entry=limit_mb / 2, name=old_parq_path, outdir=outdir)
+            new_df = reformat_df(new_df, max_mb_per_entry=limit_mb / 2, filename=old_parq_path, outdir=outdir)
             if new_df.empty:
                 continue
             if old_parq_path.startswith("Domain"):
