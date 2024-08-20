@@ -69,11 +69,14 @@ example_sequence_1 = (
 example_sequence_2 = (
     "[start-of-document]ARNDC[SEP]QEGHIL[SEP]KMFPST[SEP]WYV[SEP]"  # also fine
 )
+example_sequence_3 = (
+    "[start-of-document] arndc [SEP] ARNDC [SEP] QEGHIL [SEP] KMFPST [SEP] WYV [SEP]"  # also fine
+)
 print("Example sequence 1 encoding", tokenizer.encode(example_sequence_1).tokens)
-
 print("Example sequence 2 encoding", tokenizer.encode(example_sequence_2).tokens)
+print("Example sequence 3 encoding", tokenizer.encode(example_sequence_3).tokens)
 tokens = fast_tokenizer.batch_encode_plus(
-    [example_sequence_1, example_sequence_2],
+    [example_sequence_1, example_sequence_2, example_sequence_3],
     return_tensors="pt",
     padding=True,
     truncation=True,
@@ -83,7 +86,7 @@ ids = tokens["input_ids"]
 print(ids)
 
 # Assert tests
-assert len(ids) == 2, "The number of encoded sequences should be 2."
+assert len(ids) == 3, "The number of encoded sequences should be 2."
 assert (
     ids[0][0] == fast_tokenizer.bos_token_id
 ), "The first token of the first sequence should be the CLS token."
@@ -100,8 +103,8 @@ assert (ids[0] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 3 sep token
 assert (ids[1] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 3 sep tokens"
 
 
-# print("Tokens:", tokens)
-# print("Token IDs:", ids)
+print("Tokens:", tokens)
+print("Token IDs:", ids)
 
 # # Save the tokenizer in the Hugging Face format
 # fast_tokenizer.save_pretrained("src/data/components/profam_tokenizer")
