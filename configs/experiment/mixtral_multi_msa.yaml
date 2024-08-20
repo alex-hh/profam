@@ -27,7 +27,7 @@ model:
   lr: 1e-4
   config:
     pad_token_id: 25 # fix
-    bos_token_id: 26 # fix 
+    bos_token_id: 26 # fix
     eos_token_id: 27 # fix
     hidden_act: "silu"
     hidden_size: 768
@@ -86,4 +86,3 @@ logger:
 
 float32_matmul_precision: high
 ckpt_path: null
-
