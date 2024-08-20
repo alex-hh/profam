@@ -69,9 +69,7 @@ example_sequence_1 = (
 example_sequence_2 = (
     "[start-of-document]ARNDC[SEP]QEGHIL[SEP]KMFPST[SEP]WYV[SEP]"  # also fine
 )
-example_sequence_3 = (
-    "[start-of-document] arndc [SEP] ARNDC [SEP] QEGHIL [SEP] KMFPST [SEP] WYV [SEP]"  # also fine
-)
+example_sequence_3 = "[start-of-document] arndc [SEP] ARNDC [SEP] QEGHIL [SEP] KMFPST [SEP] WYV [SEP]"  # also fine
 print("Example sequence 1 encoding", tokenizer.encode(example_sequence_1).tokens)
 print("Example sequence 2 encoding", tokenizer.encode(example_sequence_2).tokens)
 print("Example sequence 3 encoding", tokenizer.encode(example_sequence_3).tokens)
