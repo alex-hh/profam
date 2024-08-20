@@ -55,8 +55,10 @@ class CustomDataCollator:
     tensors with seq_len dimension, eg. dataset names
     """
 
-    def __init__(self, tokenizer, mlm=False):
+    def __init__(self, tokenizer, mlm=False, ignore_gaps: bool = False):
+        self.tokenizer = tokenizer
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
+        self.ignore_gaps = ignore_gaps
 
     def __call__(self, examples):
         non_string_data = [
@@ -67,6 +69,10 @@ class CustomDataCollator:
         ]
         string_data_keys = set(k for obs in string_data for k in obs.keys())
         batch = self.base_collator(non_string_data)
+        if self.ignore_gaps:
+            batch["labels"] = batch["labels"][
+                batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")
+            ] = -100
         for str_key in string_data_keys:
             str_vals = [obs.get(str_key, "") for obs in string_data]
             str_obj = StringObject()
@@ -89,9 +95,9 @@ def get_flat_seq_pos_from_positions(
         flat_positions = [prepend_index] * num_start_tokens
         for sequence_positions in positions[:-1]:
             # add 1 so that sep doesnt have same position index
-            flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
+            flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
             flat_positions.append(sep_index)
-        flat_positions += [min(p + 1, max_seq_pos) for p in positions[-1]]
+        flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
         flat_positions += [append_index] * num_end_tokens
         return flat_positions
     else:

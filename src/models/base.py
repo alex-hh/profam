@@ -126,7 +126,12 @@ class BaseLitModule(LightningModule):
         )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
@@ -167,6 +172,11 @@ class BaseLitModule(LightningModule):
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
+        ds_name = (
+            batch["ds_name"][0]
+            if isinstance(batch["ds_name"], list)
+            else batch["ds_name"].text[0]
+        )
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -183,18 +193,54 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
-        self.log("val/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
+        self.log(
+            f"val/{ds_name}/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
+        if dataloader_idx == 0:
+            # log the loss again with generic name for the sake of model checkpointing
+            self.log(
+                f"val/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=True,
+            )
+
+        self.log(
+            f"val/{ds_name}/accuracy",
+            accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
         # n.b. this might be biased for batch size > 1
         self.log(
-            "val/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+            f"val/{ds_name}/ppl",
+            torch.exp(loss),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
         )
         return loss
 
     def test_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
+        ds_name = batch["ds_name"].text[0]
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -208,14 +254,35 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
-        self.log("test/loss", loss, on_step=False, on_epoch=True, prog_bar=False)
-        # n.b. this might be biased for batch size > 1
-        self.log(
-            "test/ppl", torch.exp(loss), on_step=False, on_epoch=True, prog_bar=False
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
         )
         self.log(
-            "test/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=False
+            f"test/{ds_name}/loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
+        # n.b. this might be biased for batch size > 1
+        self.log(
+            f"test/{ds_name}/ppl",
+            torch.exp(loss),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
+        self.log(
+            f"test/{ds_name}/accuracy",
+            accuracy,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
         )
         return loss
 
@@ -274,7 +341,12 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=True
+            "gym/spearman",
+            spearman_corr,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
         )
 
 
@@ -350,10 +422,11 @@ class BaseFamilyLitModule(BaseLitModule):
                 forward_kwargs["seq_pos"] = this_seq_pos
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            cache.batch_repeat_interleave(actual_batch_size)
 
             outputs = self.model(
                 input_ids=this_input_ids,
-                past_key_values=cache.batch_repeat_interleave(actual_batch_size),
+                past_key_values=cache,
                 use_cache=True,
                 **forward_kwargs,
             )
@@ -513,19 +586,32 @@ class BaseFamilyLitModule(BaseLitModule):
         precision, recall, thresholds = precision_recall_curve(target_vals, lls)
         metric = auc(recall, precision)
         self.log(
-            "auprc_fam_classification",
+            "val/auprc_fam_classification",
             metric,
             on_step=False,
             on_epoch=True,
         )
         au_roc = roc_auc_score(target_vals, lls)
         self.log(
-            "auroc_fam_classification",
+            "val/auroc_fam_classification",
             au_roc,
             on_step=False,
             on_epoch=True,
         )
-        return torch.tensor(metric, device=self.device)
+        k_vals = [k for k in [1, 2, 5, 10] if k < len(target_vals)]
+        for top_k in k_vals:
+            top_k_acc = len(
+                set(np.argsort(lls)[::-1][:top_k]).intersection(
+                    set(np.where(target_vals)[0])
+                )
+            ) / min(top_k, sum(target_vals))
+            self.log(
+                f"val/top_{top_k}_acc_fam_classification",
+                top_k_acc,
+                on_step=False,
+                on_epoch=True,
+            )
+        return torch.tensor(metric, device=self.device, dtype=torch.float32)
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -539,7 +625,12 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         loss = outputs.loss
         # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(outputs, batch["labels"], ignore_index=-100)
+        accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
+        )
         self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log(
             "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
@@ -572,6 +663,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     outputs,
                     batch["input_ids"],
                     dataset_names=batch["ds_name"].text,
+                    ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
                 )
                 self.log_dict(
                     {
