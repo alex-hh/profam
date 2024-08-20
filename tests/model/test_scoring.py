@@ -146,7 +146,7 @@ def test_seq_scoring_batched(default_model_seqpos, proteingym_batch):
     with torch.no_grad():
         kv_scores = model.score_seqs(
             input_ids=proteingym_batch["input_ids"],
-            completion_ids=proteingym_batch["completion_ids"][:, :2],
+            completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=True,
             batch_size=2,
             input_seq_pos=proteingym_batch.get("seq_pos", None),
@@ -155,9 +155,9 @@ def test_seq_scoring_batched(default_model_seqpos, proteingym_batch):
 
         scores = model.score_seqs(
             input_ids=proteingym_batch["input_ids"],
-            completion_ids=proteingym_batch["completion_ids"][:, :2],
+            completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=False,
-            batch_size=2,
+            batch_size=1,
             input_seq_pos=proteingym_batch.get("seq_pos", None),
             completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
         )
@@ -169,7 +169,7 @@ def test_seq_scoring_noseqpos(default_model_noseqpos, proteingym_batch):
     with torch.no_grad():
         kv_scores = model.score_seqs(
             input_ids=proteingym_batch["input_ids"],
-            completion_ids=proteingym_batch["completion_ids"][:, :2],
+            completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=True,
             batch_size=1,
             input_seq_pos=None,
@@ -178,7 +178,7 @@ def test_seq_scoring_noseqpos(default_model_noseqpos, proteingym_batch):
 
         scores = model.score_seqs(
             input_ids=proteingym_batch["input_ids"],
-            completion_ids=proteingym_batch["completion_ids"][:, :2],
+            completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=False,
             batch_size=1,
             input_seq_pos=None,

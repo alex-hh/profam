@@ -352,7 +352,9 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
-        assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
+        assert (
+            input_ids.ndim == 2 and completion_ids.ndim == 3
+        ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
         L = completion_ids.shape[-1]
         all_lls = []
         for batch_start in range(0, completion_ids.shape[1], batch_size):
@@ -455,7 +457,6 @@ class BaseFamilyLitModule(BaseLitModule):
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
         L = completion_ids.shape[-1]
-        assert batch_size == 1, "Batch size > 1 not yet supported for kv caching"
         for batch_start in tqdm.tqdm(
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
         ):
@@ -473,12 +474,14 @@ class BaseFamilyLitModule(BaseLitModule):
                     -1, L
                 )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
                 forward_kwargs["seq_pos"] = this_seq_pos
-            # actual_batch_size = this_input_ids.shape[0]
-            # cache = UpdatedDynamicCache.from_legacy_cache(past_key_values).batch_repeat_interleave(actual_batch_size)
+
+            actual_batch_size = this_input_ids.shape[0]
+            cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
 
             outputs = self.model(
                 input_ids=this_input_ids,
-                past_key_values=past_key_values,
+                past_key_values=cache,
                 use_cache=True,
                 **forward_kwargs,
             )
@@ -558,7 +561,9 @@ class BaseFamilyLitModule(BaseLitModule):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
-        assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
+        assert (
+            input_ids.ndim == 2 and completion_ids.ndim == 3
+        ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
         if use_cache:
             return self._score_seqs_kv_cache(
                 input_ids,

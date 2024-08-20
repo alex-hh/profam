@@ -10,7 +10,6 @@ import rootutils
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
-from transformers import PreTrainedTokenizerFast
 
 from src.constants import BASEDIR
 from src.data.proteingym import load_gym_dataset
@@ -36,7 +35,7 @@ def profam_tokenizer_seqpos():
         add_special_tokens=True,
         use_seq_pos=True,
         max_seq_pos=2048,
-        max_tokens=8192,
+        max_tokens=2048,
     )
     return tokenizer
 
@@ -109,7 +108,7 @@ def pfam_batch(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=5000,
+        max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         use_seq_pos=True,
         max_seq_pos=2048,
@@ -121,7 +120,7 @@ def pfam_batch(profam_tokenizer):
 
 
 @pytest.fixture()
-def foldseek_batch():
+def foldseek_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         name="foldseek",
         keep_gaps=False,
@@ -133,7 +132,7 @@ def foldseek_batch():
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=5000,
+        max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         use_seq_pos=True,
         max_seq_pos=2048,
