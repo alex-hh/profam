@@ -95,7 +95,7 @@ def main(task_index, num_tasks, output_dir):
         print(f"Created parquet file: {output_file}")
         fname_2_fam_id[parquet_name] = fam_ids
     with open(os.path.join(output_dir, f'funfam_data_{str(task_index).zfill(2)}_fname2famid.json'), 'w') as f:
-        json.dump(fname_2_fam_id, f)
+        json.dump(fname_2_fam_id, f, indent=4)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create parquet files from FASTA files")
