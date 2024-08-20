@@ -55,7 +55,7 @@ def profam_tokenizer_noseqpos():
         add_special_tokens=True,
         use_seq_pos=False,
         max_seq_pos=2048,
-        max_tokens=8192,
+        max_tokens=2048,
     )
     return tokenizer
 
