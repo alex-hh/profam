@@ -24,4 +24,3 @@ cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/scripts/shuffle_pfam_parquets.py --task_index $((SGE_TASK_ID - 1))
 date
-
