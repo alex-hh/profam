@@ -68,26 +68,27 @@ def main(task_index, num_tasks, output_dir):
                     keep_gaps=True,
                     to_upper=False,
                 )
-
-        data.append({
-            'fam_id': fam_id,
-            'sequences': sequences,
-            'accessions': accessions
-        })
-        fam_ids.append(fam_id)
-        sequence_bytes = calculate_list_size(sequences)
-        parquet_size_mb += sequence_bytes / 1024 / 1024
-        if parquet_size_mb >= list_size_mb:
-            parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(3)}.parquet'
-            output_file = os.path.join(output_dir, parquet_name)
-            create_parquet_file(data, output_file)
-            print(f"Created parquet file: {output_file}")
-            data = []
-            parquet_size_mb = 0
-            parquet_index += 1
-            fname_2_fam_id[parquet_name] = fam_ids
-            fam_ids = []
-            gc.collect()
+        assert len(sequences) == len(accessions)
+        if len(sequences) > 1:
+            data.append({
+                'fam_id': fam_id,
+                'sequences': sequences,
+                'accessions': accessions
+            })
+            fam_ids.append(fam_id)
+            sequence_bytes = calculate_list_size(sequences)
+            parquet_size_mb += sequence_bytes / 1024 / 1024
+            if parquet_size_mb >= list_size_mb:
+                parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(3)}.parquet'
+                output_file = os.path.join(output_dir, parquet_name)
+                create_parquet_file(data, output_file)
+                print(f"Created parquet file: {output_file}")
+                data = []
+                parquet_size_mb = 0
+                parquet_index += 1
+                fname_2_fam_id[parquet_name] = fam_ids
+                fam_ids = []
+                gc.collect()
     if len(data):
         parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(2)}.parquet'
         output_file = os.path.join(output_dir, parquet_name)
@@ -95,7 +96,7 @@ def main(task_index, num_tasks, output_dir):
         print(f"Created parquet file: {output_file}")
         fname_2_fam_id[parquet_name] = fam_ids
     with open(os.path.join(output_dir, f'funfam_data_{str(task_index).zfill(2)}_fname2famid.json'), 'w') as f:
-        json.dump(fname_2_fam_id, f)
+        json.dump(fname_2_fam_id, f, indent=4)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create parquet files from FASTA files")
