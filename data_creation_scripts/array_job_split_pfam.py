@@ -82,8 +82,6 @@ def process_pfam_batch(pfam_file, start_line, end_lines, output_dir):
 
     return msa_count
 
-# The rest of the script (main function, etc.) remains the same
-
 def main(args):
     grepper_file = "/SAN/orengolab/cath_plm/ProFam/data/pfam/pfam_end_grepper.txt"
     pfam_file = "/SAN/orengolab/cath_plm/ProFam/data/pfam/Pfam-A.full"

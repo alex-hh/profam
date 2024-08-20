@@ -1,0 +1,9 @@
+_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+name: openfold_aligned_c50_si20
+data_path_pattern: openfold/c50_si20_uniclust30_filtered/*.parquet
+holdout_data_files: null
+is_parquet: true
+keep_gaps: true
+to_upper: false
+keep_insertions: false
+document_tag: "[MSA]"

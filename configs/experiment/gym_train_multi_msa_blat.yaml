@@ -1,0 +1,46 @@
+# @package _global_
+# train across multiple ProteinGym msas, concatenating sets
+# of sequences to form context aware single sequence inputs to the model
+# ALSO with a context-aware model
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: gym_multi_msa
+  - override /model: gpt2tiny
+  - override /callbacks: default_with_shuffle
+  - override /trainer: default
+
+tags: ["gym_train"]
+
+seed: 12345
+
+trainer:
+  min_epochs: 10
+  max_epochs: 10000
+  gradient_clip_val: 1.0
+  val_check_interval: 1.0
+  check_val_every_n_epoch: 1
+
+model:
+  scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
+  num_warmup_steps: 200
+
+data:
+  batch_size: 2  # for consistency with prime_frog run
+  num_workers: 12
+  mutant_bos_token: "sep"
+  gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013"]
+  use_seq_pos: false
+  max_seq_pos: 2048
+  dataset_cfg:
+    data_path_pattern: ProteinGym/DMS_msa_files/BLAT_ECOLX_full_11-26-2021_b02.a2m
+    file_repeats: 1000
+
+logger:
+  wandb:
+    tags: ${tags}
+    group: "gym_train_multi_msa"
+
+float32_matmul_precision: high

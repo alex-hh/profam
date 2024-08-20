@@ -1,7 +1,8 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: gene3dS50
 data_path_pattern: gene3d/all_sfams_4.3/*/*_s50_rep_seq.fasta
+holdout_data_files: null
 is_parquet: false
 keep_gaps: false
-to_upper: false
-keep_insertions: false
+to_upper: true
+keep_insertions: true

@@ -59,7 +59,7 @@
     },
     {
       "id": 31,
-      "content": "[SP1]",
+      "content": "[RAW]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -68,7 +68,7 @@
     },
     {
       "id": 32,
-      "content": "[SP2]",
+      "content": "[MSA]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -194,8 +194,8 @@
       "[SEP]": 28,
       "[UNK]": 29,
       "[MASK]": 30,
-      "[SP1]": 31,
-      "[SP2]": 32,
+      "[RAW]": 31,
+      "[MSA]": 32,
       "[SP3]": 33,
       "[SP4]": 34,
       "[SP5]": 35,

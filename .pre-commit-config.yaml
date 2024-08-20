@@ -21,8 +21,6 @@ repos:
       - id: trailing-whitespace
         exclude: '^data'
         # exclude: '^data|^scripts/gvp'
-
-
   # - repo: https://github.com/PyCQA/flake8
   #   rev: 4.0.1
   #   hooks:

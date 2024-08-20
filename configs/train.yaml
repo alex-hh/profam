@@ -6,7 +6,7 @@ defaults:
   - _self_
   - data: example_data
   - model: mistral
-  - callbacks: default
+  - callbacks: default_no_shuffle
   - logger: wandb
   - trainer: mps
   - paths: default
@@ -40,7 +40,7 @@ train: True
 
 # evaluate on test set, using best model weights achieved during training
 # lightning chooses best weights based on the metric specified in checkpoint callback
-test: True
+test: False
 
 # simply provide checkpoint path to resume training
 ckpt_path: null

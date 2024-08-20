@@ -1,8 +1,10 @@
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: gym_msas
 data_path_pattern: ProteinGym/DMS_msa_files/*.a2m
+holdout_data_files: null
 is_parquet: false
 keep_gaps: true
 to_upper: true
 keep_insertions: true
 file_repeats: 1
+document_tag: "[MSA]"

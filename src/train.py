@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
@@ -50,6 +51,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     :param cfg: A DictConfig configuration composed by Hydra.
     :return: A tuple with metrics and dict with all instantiated objects.
     """
+    log.info(f"Output dir: {cfg.paths.output_dir}")  # base for checkpoint, wandb
     if cfg.get("float32_matmul_precision", None) is not None:
         log.info(f"Setting float32_matmul_precision to {cfg.float32_matmul_precision}")
         torch.set_float32_matmul_precision(cfg.float32_matmul_precision)
@@ -58,11 +60,15 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     if cfg.get("seed"):
         L.seed_everything(cfg.seed, workers=True)
 
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
     log.info(f"Instantiating datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
 
     log.info(f"Instantiating model <{cfg.model._target_}>")
-    model: LightningModule = hydra.utils.instantiate(cfg.model)
+    model: LightningModule = hydra.utils.instantiate(
+        cfg.model, tokenizer=datamodule.tokenizer
+    )
 
     log.info("Instantiating callbacks...")
     callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
@@ -74,6 +80,11 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     trainer: Trainer = hydra.utils.instantiate(
         cfg.trainer, callbacks=callbacks, logger=logger
     )
+    # print(trainer.strategy._get_process_group_backend())
+    # print(
+    #     trainer.strategy.cluster_environment,
+    #     trainer.strategy.cluster_environment.__dict__,
+    # )
 
     object_dict = {
         "cfg": cfg,
@@ -87,6 +98,16 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     if logger:
         log.info("Logging hyperparameters!")
         log_hyperparameters(object_dict)
+
+    if datamodule.evaluate_gym and cfg.get("pre_evaluate_gym"):
+        datamodule.setup()
+        log.info("Evaluating on proteingym")
+        trainer.validate(model=model, dataloaders=datamodule.gym_dataloader())
+
+    if datamodule.evaluate_ec_class and cfg.get("pre_evaluate_ec_class"):
+        datamodule.setup()
+        log.info("Evaluating on ec class")
+        trainer.validate(model=model, dataloaders=datamodule.ec_dataloader())
 
     if cfg.get("train"):
         log.info("Starting training!", cfg.get("ckpt_path"))

@@ -30,7 +30,7 @@ def gzread(filename, encoding=None):
     f.close()
 
 
-def _read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
+def read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
     """
     From esm
     Works for fasta and a2m/a3m
@@ -59,6 +59,61 @@ def _read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=Fals
     yield desc, parse(seq)
 
 
+def read_fasta_sequences(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
+    """
+    From esm
+    Works for fasta and a2m/a3m
+    """
+    iterator = read_fasta_lines(
+        lines, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
+    )
+    for _, seq in iterator:
+        yield seq
+
+
+def convert_sequence_with_positions(
+    seq, keep_gaps=True, keep_insertions=True, to_upper=False
+):
+    """
+    Get positions relative to sequence. For alignments position is relative to match states.
+    i.e. insertions have the same position as the previous match state.
+
+    TODO: write test
+
+    N.B. currently there is ambiguity between position encoding for a gap then insert
+    and a match state. we require a binary mask to resolve.
+    """
+    match_index = 0  # 0 for inserts before first match state
+    positions = []
+    is_match = []
+    sequence = ""
+    if not keep_gaps:
+        assert keep_insertions, "If not keeping gaps should keep insertions"
+    if keep_insertions:
+        assert to_upper, "If keeping insertions should convert to upper case"
+    for aa in seq:
+        if keep_gaps or aa != "-":
+            if aa == ".":
+                # dont keep gaps in insert columns: we can modify later if we ever want to use
+                continue
+            # TODO: check for valid characters
+            upper = aa.upper()
+            if upper == aa or keep_insertions:
+                # increment first so that insert corresponds to prev match state
+                if upper == aa and aa != ".":  # includes case where aa is "-"
+                    match_index += 1
+                    is_match.append(True)
+                else:
+                    is_match.append(False)
+                positions.append(match_index)
+                sequence += upper
+        elif aa == "-":
+            match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
+
+    assert len(positions) == len(sequence) and len(sequence) == len(is_match)
+    return sequence, positions, is_match
+
+
 def fasta_generator(
     filepath,
     encoding=None,
@@ -70,7 +125,7 @@ def fasta_generator(
     # if a return statement is used it closes the context manager too early
     # with gzread(filepath, encoding=encoding) as fin:
     with open(filepath, "r", encoding=encoding) as fin:
-        yield from _read_fasta_lines(
+        yield from read_fasta_lines(
             fin, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
         )
 
