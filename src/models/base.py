@@ -422,10 +422,11 @@ class BaseFamilyLitModule(BaseLitModule):
                 forward_kwargs["seq_pos"] = this_seq_pos
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            cache.batch_repeat_interleave(actual_batch_size)
 
             outputs = self.model(
                 input_ids=this_input_ids,
-                past_key_values=cache.batch_repeat_interleave(actual_batch_size),
+                past_key_values=cache,
                 use_cache=True,
                 **forward_kwargs,
             )
