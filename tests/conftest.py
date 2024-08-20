@@ -85,7 +85,7 @@ def proteingym_batch(profam_tokenizer_seqpos):
     data = load_gym_dataset(
         dms_ids=["BLAT_ECOLX_Jacquier_2013"],
         tokenizer=profam_tokenizer_seqpos,
-        gym_data_dir="data/example_data/proteingym",
+        gym_data_dir="data/example_data/ProteinGym",
         max_tokens=profam_tokenizer_seqpos.max_tokens,
         keep_gaps=False,
         num_proc=None,
