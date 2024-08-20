@@ -14,7 +14,16 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
-from src.data.proteingym import tokenize
+from src.data.utils import tokenize
+
+family_columns = [
+    "input_ids",
+    "completion_ids",
+    "family_labels",
+    "ds_name",
+    "family_id",
+    "eval_fam_ids",
+]
 
 
 def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_pos):
@@ -31,7 +40,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
     )
-    columns = ["input_ids", "completion_ids", "family_labels", "ds_name", "family_id"]
+    columns = family_columns
     if use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
@@ -59,18 +68,31 @@ def load_classifier_dataset(
     for target_family_path in paths:
         # Load sequences from the target family
         _, seqs = fasta.read_fasta(target_family_path)
+        target_fam_id = (
+            target_family_path.split("/")[-1].replace(".fasta", "").replace(".fa", "")
+        )
         target_family_seqs = seqs.copy()
         n_targ_seqs = min(len(target_family_seqs) // 2, max_seqs_to_predict)
+        n_targ_seqs = min(n_targ_seqs, len(target_family_seqs))
         target_seqs = random.sample(target_family_seqs, n_targ_seqs)
         remaining_seqs = list(set(target_family_seqs) - set(target_seqs))
         decoy_seqs = []
+        target_fam_ids = [target_fam_id] * len(target_seqs)
+        decoy_fam_ids = []
         for decoy_family_path in paths:
+            fam_id = (
+                decoy_family_path.split("/")[-1]
+                .replace(".fasta", "")
+                .replace(".fa", "")
+            )
             if decoy_family_path == target_family_path:
                 continue
             # Load sequences from the decoy family
             _, seqs = fasta.read_fasta(decoy_family_path)
+            n_samples = min(len(seqs), num_decoys_per_target)
             # Sample sequences for the decoys
-            decoy_seqs.extend(random.sample(seqs, num_decoys_per_target))
+            decoy_seqs.extend(random.sample(seqs, n_samples))
+            decoy_fam_ids.extend([fam_id] * n_samples)
         completion_seqs = target_seqs + decoy_seqs
         # save space for completions
         max_tokens_for_prompt = max_tokens - max([len(s) for s in completion_seqs]) - 2
@@ -89,9 +111,8 @@ def load_classifier_dataset(
             "completion_seqs": completion_seqs,
             "family_labels": family_labels,
             "ds_name": "ec_class",
-            "family_id": target_family_path.split("/")[-1]
-            .replace(".fasta", "")
-            .replace(".fa", ""),
+            "family_id": target_fam_id,
+            "eval_fam_ids": "|".join(target_fam_ids + decoy_fam_ids),
         }
         dataset_list.append(family_dict)
 
@@ -165,6 +186,7 @@ def load_ec_cluster_classifier_dataset(
                 "completion_seqs": completion_seqs,
                 "family_labels": labels,
                 "family_id": ec_num,
+                "eval_fam_ids": "|".join(eval_ecs),
                 "eval_cluster_level": c.val_cluster_level.values.min(),  # eval seqs share this level of similarity
                 "eval_sim_min_max": c.val_cluster_min_max.values.min(),  # min & max sim with any other EC sequence
                 "ds_name": "ec_cluster_class",

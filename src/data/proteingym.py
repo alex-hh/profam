@@ -5,7 +5,6 @@ from typing import List, Optional
 import pandas as pd
 from datasets import Dataset
 from lightning import LightningDataModule
-from torch import stack
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
@@ -16,112 +15,10 @@ from src.data.utils import (
     ProteinDatasetConfig,
     get_seq_pos_from_positions,
     load_protein_dataset,
+    tokenize,
+    tokenize_completions,
+    tokenize_msa,
 )
-
-
-def tokenize_msa(
-    sample,
-    tokenizer: PreTrainedTokenizerFast,
-    document_tag: Optional[str] = "[RAW]",
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
-):
-    # TODO: fix tokenization. copying hf loader for now
-    concatenated_seqs = (
-        document_tag + tokenizer.bos_token + tokenizer.sep_token.join(sample["MSA"])
-    )  # No EOS token here because the target seq will be added
-    tokenized = tokenizer(
-        concatenated_seqs, return_tensors="pt", add_special_tokens=False
-    )
-    sample["input_ids"] = tokenized.input_ids[0]  # no extra dim
-    if use_seq_pos:
-        # gym msas don't contain insertions so no need to worry about that
-        # +1 to match convert_sequence_with_positions
-        # get_seq_pos_from_positions adds another offset
-        positions = [list(range(1, len(s) + 1)) for s in sample["MSA"]]
-        sample["seq_pos"] = get_seq_pos_from_positions(
-            sample["input_ids"],
-            positions,
-            pad_token_id=tokenizer.pad_token_id,
-            max_seq_pos=max_seq_pos,
-            num_start_tokens=2,
-            num_end_tokens=0,
-        )
-    return sample
-
-
-def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
-    if name == "bos":
-        return tokenizer.bos_token
-    elif name == "sep":
-        return tokenizer.sep_token
-    else:
-        pass
-
-
-def tokenize_completions(
-    sample,
-    tokenizer: PreTrainedTokenizerFast,
-    bos_token="sep",
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
-):
-    max_length = max(len(seq) for seq in sample["completion_seqs"])
-    completion_seqs = [
-        get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
-        for seq in sample["completion_seqs"]
-    ]
-    tokenized = tokenizer(
-        completion_seqs,
-        return_tensors="pt",
-        padding="max_length",  # todo handle the padding in the validation step
-        truncation=False,  # should be handled elsewhere
-        max_length=max_length + 2,  # bos_token and sep_token
-        add_special_tokens=False,
-    )
-    sample["completion_ids"] = tokenized.input_ids
-    if use_seq_pos:
-        # +1 to match convert_sequence_with_positions
-        # get_seq_pos_from_positions adds another offset
-        completion_seq_pos = stack(
-            [
-                get_seq_pos_from_positions(
-                    sample["completion_ids"][i],
-                    [list(range(1, len(seq) + 1))],
-                    pad_token_id=tokenizer.pad_token_id,
-                    max_seq_pos=max_seq_pos,
-                    num_start_tokens=1,
-                )
-                for i, seq in enumerate(sample["completion_seqs"])
-            ]
-        )
-        sample["completion_seq_pos"] = completion_seq_pos
-    return sample
-
-
-def tokenize(
-    sample,
-    tokenizer: PreTrainedTokenizerFast,
-    mutant_bos_token="sep",
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
-    document_tag="[RAW]",
-):
-    sample = tokenize_msa(
-        sample,
-        tokenizer,
-        document_tag=document_tag,
-        use_seq_pos=use_seq_pos,
-        max_seq_pos=max_seq_pos,
-    )
-    sample = tokenize_completions(
-        sample,
-        tokenizer,
-        bos_token=mutant_bos_token,
-        use_seq_pos=use_seq_pos,
-        max_seq_pos=max_seq_pos,
-    )
-    return sample
 
 
 def load_msa_for_row(
