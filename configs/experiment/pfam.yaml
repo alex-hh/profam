@@ -7,19 +7,20 @@ defaults:
   - _self_
 
 tags: ["pfam", "llama_tiny"]
+ckpt_path: /mnt/disk2/cath_plm/profam/logs/train/runs/2024-08-16_11-07-13/checkpoints/last.ckpt
 
 seed: 12345
 
 trainer:
-  val_check_interval: 2000
+  val_check_interval: 1.0
   target_tokens_per_batch: 256000
   min_epochs: 1000
   max_epochs: 10000
 
 data:
   _target_: src.data.hf_protein_datamodule.ProteinDataModule
-  batch_size: 7
-  num_workers: 3
+  batch_size: 6
+  num_workers: 2
   max_tokens: 5000
   data_dir: ../data
   tokenizer_path: src/data/components/profam_tokenizer.json
@@ -92,4 +93,6 @@ logger:
   wandb:
     tags: ${tags}
 float32_matmul_precision: high
-ckpt_path: null
+
+model:
+  use_kv_cache_for_scoring: False
