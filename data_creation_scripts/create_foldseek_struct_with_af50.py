@@ -156,8 +156,6 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             sequences.append(seq)
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
-
-            os.remove(pdb)
             
         # Run FoldMason on the cluster
         if args.run_foldmason:
@@ -174,7 +172,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             assert labels == struct_labels
             msta_3di = [msta_3di[ix] for ix in perm]
 
-    # TODO: save representative?
+        # TODO: save representative?
         results.append(
             {
                 "sequences": sequences,
