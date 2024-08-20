@@ -1,9 +1,9 @@
 #!/bin/bash
-#$ -l tmem=32G
-#$ -l h_vmem=32G
+#$ -l tmem=64G
+#$ -l h_vmem=64G
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N remapPfam
+#$ -N shufflePfam
 #$ -t 1
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
@@ -22,6 +22,6 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
-python ${ROOT_DIR}/scripts/map_pfam_parquet_contents.py --task_index $((SGE_TASK_ID - 1))
+python ${ROOT_DIR}/scripts/shuffle_pfam_parquets.py --task_index $((SGE_TASK_ID - 1))
 date
 
