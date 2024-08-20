@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from torch import stack
 from transformers import PreTrainedTokenizerFast
 
 from src.data.utils import get_seq_pos_from_positions
@@ -90,6 +91,40 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["seq_pos"] = seq_pos
         # TODO: maybe return tokenized rather than just input ids.
         # then we can add position encoding to tokenized.data
+        return tokenized
+
+    def encode_completions(
+        self,
+        sequences,
+        positions: Optional[List[int]] = None,
+        bos_token="[SEP]",
+    ):
+        completion_seqs = [bos_token + seq + self.sep_token for seq in sequences]
+        tokenized = self(
+            completion_seqs,
+            return_tensors="pt",
+            padding="longest",
+            truncation=False,
+            add_special_tokens=False,
+        )
+        if self.use_seq_pos:
+            all_positions = []
+            for i, seq in enumerate(completion_seqs):
+                if positions is None:
+                    seq_positions = [list(range(1, len(seq) + 1))]
+                else:
+                    seq_positions = positions[i]
+                all_positions.append(
+                    get_seq_pos_from_positions(
+                        tokenized.input_ids[i],
+                        seq_positions,
+                        pad_token_id=self.pad_token_id,
+                        max_seq_pos=self.max_seq_pos,
+                        num_start_tokens=1,  # just bos_token (no document tag because we are completing prompt)
+                    )
+                )
+            tokenized.data["seq_pos"] = stack(all_positions)
+
         return tokenized
 
     def decode_tokens(self, tokens):
