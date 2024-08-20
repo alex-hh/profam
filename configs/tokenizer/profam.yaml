@@ -1,0 +1,14 @@
+_target_: src.utils.tokenizers.ProFamTokenizer
+tokenizer_file: src/data/components/profam_tokenizer.json
+unk_token: "[UNK]"
+pad_token: "[PAD]"
+bos_token: "[start-of-document]"
+sep_token: "[SEP]"
+mask_token: "[MASK]"
+add_special_tokens: True
+add_final_sep: True
+add_bos_token: True
+add_document_type_token: True
+use_seq_pos: False
+max_seq_pos: 1024
+max_tokens: ${data.max_tokens}

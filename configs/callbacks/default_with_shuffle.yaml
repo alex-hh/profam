@@ -2,6 +2,8 @@ defaults:
   - model_checkpoint
   - model_summary
   - rich_progress_bar
+  - timer
+  - print
   - shuffle
   - _self_
 

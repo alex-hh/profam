@@ -14,38 +14,23 @@ from src.data import utils as data_utils
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
-    get_seq_pos_from_positions,
     load_protein_dataset,
 )
+from src.utils.tokenizers import ProFamTokenizer
 
 
 def tokenize_msa(
     sample,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     document_tag: Optional[str] = "[RAW]",
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
 ):
-    # TODO: fix tokenization. copying hf loader for now
-    concatenated_seqs = (
-        document_tag + tokenizer.bos_token + tokenizer.sep_token.join(sample["MSA"])
-    )  # No EOS token here because the target seq will be added
-    tokenized = tokenizer(
-        concatenated_seqs, return_tensors="pt", add_special_tokens=False
-    )
-    sample["input_ids"] = tokenized.input_ids[0]  # no extra dim
-    if use_seq_pos:
-        # gym msas don't contain insertions so no need to worry about that
-        positions = [list(range(len(s))) for s in sample["MSA"]]
-        print("positions", positions, "msa", sample["MSA"])
-        sample["seq_pos"] = get_seq_pos_from_positions(
-            sample["input_ids"],
-            positions,
-            pad_token_id=tokenizer.pad_token_id,
-            max_seq_pos=max_seq_pos,
-            num_start_tokens=2,
-            num_end_tokens=0,
-        )
+    # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
+    tokenized = tokenizer.encode_sequences(
+        sample["MSA"], document_type=document_tag, add_final_sep=False
+    )  # sep gets added in completion bos
+    sample["input_ids"] = tokenized.input_ids.squeeze()
+    if tokenizer.use_seq_pos:
+        sample["seq_pos"] = tokenized.data["seq_pos"]
     return sample
 
 
@@ -60,39 +45,17 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
 
 def tokenize_completions(
     sample,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     bos_token="sep",
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
 ):
-    max_length = max(len(seq) for seq in sample["completion_seqs"])
-    completion_seqs = [
-        get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
-        for seq in sample["completion_seqs"]
-    ]
-    tokenized = tokenizer(
-        completion_seqs,
-        return_tensors="pt",
-        padding="max_length",  # todo handle the padding in the validation step
-        truncation=False,  # should be handled elsewhere
-        max_length=max_length + 2,  # bos_token and sep_token
-        add_special_tokens=False,
+    tokenized = tokenizer.encode_completions(
+        sample["completion_seqs"],
+        bos_token=get_token_from_name(bos_token, tokenizer),
+        add_final_sep=True,
     )
     sample["completion_ids"] = tokenized.input_ids
-    if use_seq_pos:
-        completion_seq_pos = stack(
-            [
-                get_seq_pos_from_positions(
-                    sample["completion_ids"][i],
-                    [list(range(len(seq)))],
-                    pad_token_id=tokenizer.pad_token_id,
-                    max_seq_pos=max_seq_pos,
-                    num_start_tokens=1,
-                )
-                for i, seq in enumerate(sample["completion_seqs"])
-            ]
-        )
-        sample["completion_seq_pos"] = completion_seq_pos
+    if tokenizer.use_seq_pos:
+        sample["completion_seq_pos"] = tokenized.data["seq_pos"]
     return sample
 
 
@@ -100,23 +63,17 @@ def tokenize(
     sample,
     tokenizer: PreTrainedTokenizerFast,
     mutant_bos_token="sep",
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
     document_tag="[RAW]",
 ):
     sample = tokenize_msa(
         sample,
         tokenizer,
         document_tag=document_tag,
-        use_seq_pos=use_seq_pos,
-        max_seq_pos=max_seq_pos,
     )
     sample = tokenize_completions(
         sample,
         tokenizer,
         bos_token=mutant_bos_token,
-        use_seq_pos=use_seq_pos,
-        max_seq_pos=max_seq_pos,
     )
     return sample
 
@@ -132,10 +89,11 @@ def load_msa_for_row(
     )
     # need to allow room for the completion
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
+    if keep_wt:
+        raise NotImplementedError()
     sampled_seqs = data_utils.sample_to_max_tokens(
         seqs,
         seed=seed,
-        keep_first=keep_wt,
         drop_first=drop_wt,
         max_tokens=max_tokens_for_msa,
     )
@@ -182,7 +140,8 @@ def build_gym_df(
         max_mutated_sequences=max_mutated_sequences,
         gym_data_dir=gym_data_dir,
     )
-    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs"]]
+    df["ds_name"] = "gym"
+    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs", "ds_name"]]
 
 
 def load_gym_dataset(
@@ -194,8 +153,6 @@ def load_gym_dataset(
     mutant_bos_token: str = "sep",
     gym_data_dir: str = "data/example_data/ProteinGym",
     keep_gaps: bool = False,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
     num_proc: Optional[int] = None,
 ):
     """mutant_bos_token should almost always be sep.
@@ -221,8 +178,6 @@ def load_gym_dataset(
             tokenize,
             tokenizer=tokenizer,
             mutant_bos_token=mutant_bos_token,
-            use_seq_pos=use_seq_pos,
-            max_seq_pos=max_seq_pos,
             document_tag="[MSA]" if keep_gaps else "[RAW]",
         ),
         batched=False,
@@ -230,8 +185,8 @@ def load_gym_dataset(
         num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-    columns = ["input_ids", "completion_ids", "DMS_scores"]
-    if use_seq_pos:
+    columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
+    if tokenizer.use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
     dataset.set_format(
@@ -291,7 +246,7 @@ class GymSingleMSADataModule(LightningDataModule):
 
     def __init__(
         self,
-        tokenizer_path: str,
+        tokenizer: ProFamTokenizer,
         gym_dms_id: str,
         gym_data_dir: str,
         batch_size: int,
@@ -308,15 +263,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.num_workers = num_workers
         self.keep_gaps = keep_gaps
         self.use_seq_pos = use_seq_pos
-        self.tokenizer = PreTrainedTokenizerFast(
-            tokenizer_file=tokenizer_path,
-            unk_token="[UNK]",
-            pad_token="[PAD]",
-            bos_token="[start-of-document]",
-            sep_token="[SEP]",
-            mask_token="[MASK]",
-            add_special_tokens=True,
-        )
+        self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_id is not None
@@ -326,7 +273,6 @@ class GymSingleMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_mutated_sequences=self.max_gym_sequences,
             gym_data_dir=self.gym_data_dir,
-            use_seq_pos=self.use_seq_pos,
             num_proc=self.num_workers,
             keep_gaps=self.keep_gaps,
         )
@@ -340,7 +286,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.train_dataset = ddict["train"]
         self.val_dataset = ddict["test"]
 
-    def train_dataloader(self) -> list[DataLoader]:
+    def train_dataloader(self) -> List[DataLoader]:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -350,7 +296,7 @@ class GymSingleMSADataModule(LightningDataModule):
             shuffle=True,
         )
 
-    def val_dataloader(self) -> list[DataLoader]:
+    def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.val_dataset,
@@ -371,7 +317,7 @@ class GymSingleMSADataModule(LightningDataModule):
         )
         return loaders
 
-    def test_dataloader(self) -> list[DataLoader]:
+    def test_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.test_dataset,
@@ -410,7 +356,7 @@ class GymMultiMSADataModule(LightningDataModule):
         self,
         dataset_cfg: ProteinDatasetConfig,
         val_dataset_cfg: ProteinDatasetConfig,
-        tokenizer_path: str,
+        tokenizer: ProFamTokenizer,
         gym_dms_ids: str,
         gym_data_dir: str,
         data_dir: str,
@@ -424,8 +370,6 @@ class GymMultiMSADataModule(LightningDataModule):
         # n.b. during training the model might nonetheless receive multiple concatenated
         # sequences
         mutant_bos_token: str = "sep",
-        use_seq_pos: bool = False,
-        max_seq_pos: Optional[int] = None,
         # will allow sampling multiple times from same dataset.
     ):
         super().__init__()
@@ -436,18 +380,8 @@ class GymMultiMSADataModule(LightningDataModule):
         self.max_tokens = max_tokens
         self.gym_dms_ids = gym_dms_ids
         self.num_workers = num_workers
-        self.tokenizer = PreTrainedTokenizerFast(
-            tokenizer_file=tokenizer_path,
-            unk_token="[UNK]",
-            pad_token="[PAD]",
-            bos_token="[start-of-document]",
-            sep_token="[SEP]",
-            mask_token="[MASK]",
-            add_special_tokens=True,
-        )
+        self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
-        self.max_seq_pos = max_seq_pos
-        self.use_seq_pos = use_seq_pos
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_ids is not None
         assert self.gym_data_dir is not None
@@ -458,8 +392,6 @@ class GymMultiMSADataModule(LightningDataModule):
             gym_data_dir=self.gym_data_dir,
             mutant_bos_token=mutant_bos_token,  # we might want to set to bos
             max_tokens=max_tokens,
-            use_seq_pos=self.use_seq_pos,
-            max_seq_pos=self.max_seq_pos,
             num_proc=self.num_workers,
             keep_gaps=dataset_cfg.keep_gaps,
         )
@@ -468,8 +400,6 @@ class GymMultiMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
-            use_seq_pos=self.use_seq_pos,
-            max_seq_pos=self.max_seq_pos,
         )
         self.train_dataset = self.train_dataset.shuffle(
             buffer_size=self.train_dataset.n_shards // dataset_cfg.file_repeats,
@@ -481,19 +411,15 @@ class GymMultiMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
-            use_seq_pos=self.use_seq_pos,
-            max_seq_pos=self.max_seq_pos,
         )
         self.test_dataset = load_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
-            use_seq_pos=self.use_seq_pos,
-            max_seq_pos=self.max_seq_pos,
         )
 
-    def train_dataloader(self) -> list[DataLoader]:
+    def train_dataloader(self) -> List[DataLoader]:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
@@ -501,7 +427,7 @@ class GymMultiMSADataModule(LightningDataModule):
             num_workers=self.num_workers,
         )
 
-    def val_dataloader(self) -> list[DataLoader]:
+    def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.val_dataset,
@@ -522,7 +448,7 @@ class GymMultiMSADataModule(LightningDataModule):
         )
         return loaders
 
-    def test_dataloader(self) -> list[DataLoader]:
+    def test_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
                 self.test_dataset,

@@ -16,8 +16,6 @@ import os
 import re
 from contextlib import contextmanager
 
-import pandas as pd
-
 
 @contextmanager
 def gzread(filename, encoding=None):
@@ -59,17 +57,41 @@ def read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False
     yield desc, parse(seq)
 
 
+def read_fasta_sequences(lines, keep_gaps=True, keep_insertions=True, to_upper=False):
+    """
+    From esm
+    Works for fasta and a2m/a3m
+    """
+    iterator = read_fasta_lines(
+        lines, keep_gaps=keep_gaps, keep_insertions=keep_insertions, to_upper=to_upper
+    )
+    for _, seq in iterator:
+        yield seq
+
+
 def convert_sequence_with_positions(
-    seq, keep_gaps=True, keep_insertions=True, to_upper=False
+    seq,
+    keep_gaps=True,
+    keep_insertions=True,
+    to_upper=False,
+    use_msa_pos: bool = True,
 ):
     """
-    Get positions relative to sequence. For alignments position is relative to match states.
-    i.e. insertions have the same position as the previous match state.
+    Get positions relative to sequence.
+    For alignments, if use_msa_pos is True, the positions are relative to the alignment columns
+    (match states). Insertions have the same position index as the previous match state.
+
+    If use_msa_pos is False, or the sequence is unaligned,
+    positions are relative to the retained sequence - ignored insertions dont contribute
 
     TODO: write test
+
+    N.B. currently there is ambiguity between position encoding for a gap then insert
+    and a match state. we require a binary mask to resolve.
     """
-    match_index = 0
+    match_index = 0  # 0 for inserts before first match state
     positions = []
+    is_match = []
     sequence = ""
     if not keep_gaps:
         assert keep_insertions, "If not keeping gaps should keep insertions"
@@ -80,49 +102,35 @@ def convert_sequence_with_positions(
             if aa == ".":
                 # dont keep gaps in insert columns: we can modify later if we ever want to use
                 continue
+            # at this point we have any amino acid character (match or insert) or a match gap
             # TODO: check for valid characters
             upper = aa.upper()
             if upper == aa or keep_insertions:
-                positions.append(match_index)
-                sequence += upper
+                # increment first so that insert corresponds to prev match state
                 if upper == aa and aa != ".":  # includes case where aa is "-"
                     match_index += 1
+                    is_match.append(True)
+                else:
+                    assert aa != "."
+                    # insertion
+                    if not use_msa_pos:
+                        match_index += 1
+                    is_match.append(False)
+                positions.append(match_index)
+                sequence += upper
+            # otherwise we're not keeping insertions in which case we pass
+
         elif aa == "-":
-            match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
+            if use_msa_pos:
+                match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
 
-    assert len(positions) == len(sequence)
-    return sequence, positions
-
-
-def read_fasta_lines_with_positions(
-    lines, keep_gaps=True, keep_insertions=True, to_upper=False
-):
-    seq = desc = None
-
-    for line in lines:
-        # Line may be empty if seq % file_line_width == 0
-        if len(line) > 0 and line[0] == ">":
-            if seq is not None:
-                seq, pos = convert_sequence_with_positions(
-                    seq,
-                    keep_gaps=keep_gaps,
-                    keep_insertions=keep_insertions,
-                    to_upper=to_upper,
-                )
-                yield desc, seq, pos
-            desc = line.strip()[1:]
-            seq = ""
-        else:
-            assert isinstance(seq, str)
-            seq += line.strip()
-    assert isinstance(seq, str) and isinstance(desc, str)
-    seq, pos = convert_sequence_with_positions(
-        seq,
-        keep_gaps=keep_gaps,
-        keep_insertions=keep_insertions,
-        to_upper=to_upper,
-    )
-    yield desc, seq, pos
+    assert len(positions) == len(
+        sequence
+    ), f"positions length {len(positions)} != sequence length {len(sequence)}"
+    assert len(sequence) == len(
+        is_match
+    ), f"sequenc length {len(sequence)} != is_match length {len(is_match)}"
+    return sequence, positions, is_match
 
 
 def fasta_generator(

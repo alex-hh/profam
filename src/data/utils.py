@@ -10,9 +10,10 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import torch
 from datasets import Dataset, load_dataset
+from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
 
-from src.data.fasta import read_fasta_lines, read_fasta_lines_with_positions
+from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 
 
 # TODO: in future we might actually want standalone dataset class for
@@ -22,6 +23,7 @@ class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
     data_path_pattern: Optional[str] = None
+    holdout_data_files: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
@@ -29,6 +31,8 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
     minimum_sequences: Optional[int] = None
     document_tag: str = "[RAW]"
+    truncate_after_n_sequences: Optional[int] = None
+    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
 
 
 class StringObject:
@@ -50,28 +54,29 @@ class CustomDataCollator:
     tensors with seq_len dimension, eg. dataset names
     """
 
-    def __init__(self, tokenizer, mlm=False):
+    def __init__(self, tokenizer, mlm=False, ignore_gaps: bool = False):
+        self.tokenizer = tokenizer
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
+        self.ignore_gaps = ignore_gaps
 
     def __call__(self, examples):
-        has_ds_name = "ds_name" in examples[0]
-        has_doc_hash = "doc_hash" in examples[0]
-        if has_ds_name or has_doc_hash:
-            if has_ds_name:
-                ds_names = [example.pop("ds_name") for example in examples]
-            if has_doc_hash:
-                doc_hashes = [example.pop("doc_hash") for example in examples]
-            batch = self.base_collator(examples)
-            if has_ds_name:
-                ds_names_obj = StringObject()
-                ds_names_obj.text = ds_names
-                batch["ds_name"] = ds_names_obj
-            if has_doc_hash:
-                doc_hash_obj = StringObject()
-                doc_hash_obj.text = doc_hashes
-                batch["doc_hash"] = doc_hash_obj
-        else:
-            batch = self.base_collator(examples)
+        non_string_data = [
+            {k: v for k, v in e.items() if not isinstance(v, str)} for e in examples
+        ]
+        string_data = [
+            {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
+        ]
+        string_data_keys = set(k for obs in string_data for k in obs.keys())
+        batch = self.base_collator(non_string_data)
+        if self.ignore_gaps:
+            batch["labels"] = batch["labels"][
+                batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")
+            ] = -100
+        for str_key in string_data_keys:
+            str_vals = [obs.get(str_key, "") for obs in string_data]
+            str_obj = StringObject()
+            str_obj.text = str_vals
+            batch[str_key] = str_obj
         return batch
 
 
@@ -89,9 +94,9 @@ def get_flat_seq_pos_from_positions(
         flat_positions = [prepend_index] * num_start_tokens
         for sequence_positions in positions[:-1]:
             # add 1 so that sep doesnt have same position index
-            flat_positions += [min(p + 1, max_seq_pos) for p in sequence_positions]
+            flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
             flat_positions.append(sep_index)
-        flat_positions += [min(p + 1, max_seq_pos) for p in positions[-1]]
+        flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
         flat_positions += [append_index] * num_end_tokens
         return flat_positions
     else:
@@ -126,46 +131,66 @@ def get_seq_pos_from_positions(
     return seq_pos
 
 
-def load_protein_dataset(
-    cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
-    max_tokens: int = 5000,
-    data_dir="../data",
-    split="train",
-    include_doc_hashes: bool = False,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
-) -> Dataset:
-    def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        if use_seq_pos:
-            sequences = []
-            positions = []
-            for _, seq, pos in read_fasta_lines_with_positions(
-                example["text"].split("\n"),
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
-            ):
-                sequences.append(seq)
-                positions.append(pos)
+def subsample_fasta_lines(lines, n_lines, shuffle=True):
+    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
+    end_ix = start_ix[1:]
+    end_ix = np.append(end_ix, len(lines))
+    lines_per_seq = len(lines) // len(start_ix)
+    n_samples = min(n_lines // lines_per_seq, len(start_ix))
+    if shuffle:
+        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    else:
+        sample_indices = np.arange(n_samples)
+    starts = start_ix[sample_indices]
+    ends = end_ix[sample_indices]
+    sampled_lines = []
+    for start, end in zip(starts, ends):
+        assert lines[end - 1][0] != ">"
+        sampled_lines.extend(lines[start:end])
+    return sampled_lines
 
-            # TODO: seed explicitly?
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
+
+def np_random(seed: Optional[int]) -> Any:
+    """Returns a numpy random number generator with a given seed.
+
+    :param seed: The seed value for the random number generator.
+    :return: A numpy random number generator.
+    """
+    if seed is not None:
+        rnd = np.random.default_rng(seed)
+    else:
+        # to maintain control by global seed
+        rnd = np.random
+    return rnd
+
+
+def random_subsample(arr, n, seed: Optional[int] = None):
+    rnd = np_random(seed)
+    return rnd.choice(arr, min(n, len(arr)), replace=False)
+
+
+def sample_to_max_tokens(
+    sequences,
+    positions: Optional[List[int]] = None,
+    max_tokens: Optional[int] = None,
+    shuffle=True,
+    seed: Optional[int] = None,
+    drop_first: bool = False,
+):
+    rnd = np_random(seed)
+    # TODO: implement keep first, drop first
+    if drop_first:
+        sequences = sequences[1:]
+        if positions is not None:
+            positions = positions[1:]
+
+    if shuffle:
+        perm = rnd.permutation(len(sequences))
+        sequences = [sequences[i] for i in perm]
+        if positions is not None:
             positions = [positions[i] for i in perm]
-        else:
-            sequences = [
-                seq
-                for _, seq in read_fasta_lines(
-                    example["text"].split("\n"),
-                    keep_gaps=cfg.keep_gaps,
-                    keep_insertions=cfg.keep_insertions,
-                    to_upper=cfg.to_upper,
-                )
-            ]
-            perm = np.random.permutation(len(sequences))
-            sequences = [sequences[i] for i in perm]
 
+    if max_tokens is not None:
         cumulative_lengths = list(
             itertools.accumulate([len(s) + 1 for s in sequences])
         )  # +1 for separator
@@ -173,27 +198,96 @@ def load_protein_dataset(
             cumulative_lengths,
             max_tokens - 2,
         )  # -2 for doc start and end tokens
-        concatenated_seqs = (
-            cfg.document_tag
-            + tokenizer.bos_token
-            + tokenizer.sep_token.join(sequences[:insertion_point])
-            + tokenizer.sep_token
-        )
-        tokenized = tokenizer(
-            concatenated_seqs,
-            truncation=False,  # shouldnt be necessary: bisection should handle
+    else:
+        insertion_point = len(sequences)
+    if positions is None:
+        return sequences[:insertion_point]
+    else:
+        return sequences[:insertion_point], positions[:insertion_point]
+
+
+def load_protein_dataset(
+    cfg: ProteinDatasetConfig,
+    tokenizer: PreTrainedTokenizerFast,
+    max_tokens: Optional[int] = 5000,
+    data_dir="../data",
+    split="train",
+    padding="max_length",
+    include_doc_hashes: bool = False,
+    remove_text: bool = True,
+    shuffle: bool = True,
+) -> Dataset:
+    def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
+        # N.B. for stockholm format we need to check that sequences aren't split over
+        # multiple lines
+        if "sequences" in example:
+            sequence_iterator = example["sequences"]
+            max_sequences_to_preprocess = max_tokens // 10
+            # n.b. this also shuffles
+            sequence_iterator = random_subsample(
+                sequence_iterator,
+                max_sequences_to_preprocess,
+            )
+        else:
+            lines = example["text"].split("\n")
+            if not len(lines[-1]):
+                lines = lines[:-1]
+            # min 2 lines per seq, assume at least 10 tks per line
+            max_fasta_lines_to_preprocess = (
+                max_tokens // 5
+            )  # upper bound on lines to proc.
+            if len(lines) > max_fasta_lines_to_preprocess:
+                lines = subsample_fasta_lines(
+                    lines,
+                    max_fasta_lines_to_preprocess,
+                    shuffle=shuffle,
+                )
+            sequence_iterator = read_fasta_sequences(
+                lines,
+                # preserve original sequences before getting positions
+                keep_gaps=True if tokenizer.use_seq_pos else cfg.keep_gaps,
+                keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
+                to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
+            )
+        if tokenizer.use_seq_pos:
+            sequences = []
+            positions = []
+            for seq in itertools.islice(
+                sequence_iterator, cfg.truncate_after_n_sequences
+            ):
+                seq, pos, _ = convert_sequence_with_positions(
+                    seq,
+                    keep_gaps=cfg.keep_gaps,
+                    keep_insertions=cfg.keep_insertions,
+                    to_upper=cfg.to_upper,
+                    use_msa_pos=cfg.use_msa_pos,
+                )
+                sequences.append(seq)
+                positions.append(pos)
+            sequences, positions = sample_to_max_tokens(
+                sequences, positions=positions, max_tokens=max_tokens, shuffle=shuffle
+            )
+
+        else:
+            sequences = [
+                seq
+                for seq in itertools.islice(
+                    sequence_iterator, cfg.truncate_after_n_sequences
+                )
+            ]  # necessary for fasta iterator...
+            sequences = sample_to_max_tokens(
+                sequences, max_tokens=max_tokens, shuffle=shuffle
+            )
+
+        # TODO: use profam tokenizer to handle this.
+        tokenized = tokenizer.encode_sequences(
+            sequences,
+            positions=positions if tokenizer.use_seq_pos else None,
+            document_type=cfg.document_tag,
+            padding=padding,
             max_length=max_tokens,
-            return_tensors="pt",
-            # padding="longest",
-            padding="max_length",
-            add_special_tokens=False,
-        )
-        assert tokenized.input_ids.shape[1] <= max_tokens, (
-            tokenized.input_ids.shape[1],
-            max_tokens,
         )
 
-        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
         tokenized.data["ds_name"] = cfg.name
         tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
@@ -202,16 +296,6 @@ def load_protein_dataset(
             tokenized.data["doc_hash"] = hashlib.md5(
                 example["text"][:512].encode()
             ).hexdigest()
-
-        if use_seq_pos:
-            seq_pos = get_seq_pos_from_positions(
-                tokenized.input_ids,
-                positions[:insertion_point],
-                pad_token_id=tokenizer.pad_token_id,
-                max_seq_pos=max_seq_pos,
-                num_start_tokens=2,
-            )
-            tokenized.data["seq_pos"] = seq_pos
 
         return tokenized
 
@@ -245,6 +329,14 @@ def load_protein_dataset(
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
 
+    if cfg.holdout_data_files is not None:
+        assert isinstance(cfg.holdout_data_files, list) or isinstance(
+            cfg.holdout_data_files, ListConfig
+        ), f"holdout files is {type(cfg.holdout_data_files)} not list"
+        all_files = len(data_files)
+        data_files = [f for f in data_files if f not in cfg.holdout_data_files]
+        print("Excluding", all_files - len(data_files), "holdout files")
+
     assert isinstance(data_files, list)
     data_files = data_files * cfg.file_repeats
     random.shuffle(data_files)  # TODO: seed explicitly?
@@ -259,9 +351,8 @@ def load_protein_dataset(
             data_files=data_files,
             split=split,
             streaming=True,
-            ignore_verifications=True,
+            verification_mode="no_checks",
         )
-        dataset = dataset.remove_columns(["__index_level_0__"])
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         dataset = load_dataset(
@@ -272,6 +363,12 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
+    print("Verifying dataset content:")
+    for i, item in enumerate(dataset.take(3)):
+        print(f"  Item {i + 1}:")
+        for key, value in item.items():
+            print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
+        print()
     # with batched map there is a massive delay before training actually starts - why?
     # dataset = dataset.map(
     #     batched_preprocess_and_filter,
@@ -281,34 +378,7 @@ def load_protein_dataset(
     # )
     # filter after map also seems to slow things down...
     dataset = dataset.map(
-        preprocess_fasta, batched=False, remove_columns=["text"]
+        preprocess_fasta, batched=False, remove_columns=["text"] if remove_text else []
     ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
 
     return dataset
-
-
-def sample_to_max_tokens(
-    sequences,
-    seed: int = None,
-    keep_first: bool = False,
-    drop_first: bool = False,
-    max_tokens: int = 5000,
-):
-    rng = np.random.default_rng(seed)
-    if keep_first:
-        # TODO: might want to allow it to be shuffled
-        assert not drop_first
-        sampled_sequences = [sequences[0]]
-        token_count = len(sampled_sequences[0]) + 2  # bos and eos
-    else:
-        sampled_sequences = []
-        token_count = 2
-
-    shuffled_sequences = sequences[1:] if drop_first or keep_first else sequences
-    rng.shuffle(shuffled_sequences)
-    for seq in shuffled_sequences:
-        if token_count + len(seq) + 1 > max_tokens:
-            break
-        sampled_sequences.append(seq)
-        token_count += len(seq) + 1
-    return sampled_sequences

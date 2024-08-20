@@ -1,8 +1,11 @@
 import hydra
+import pandas as pd
+import pytest
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
 
+@pytest.mark.example
 def test_train_config(cfg_train: DictConfig) -> None:
     """Tests the training configuration provided by the `cfg_train` pytest fixture.
 
@@ -20,6 +23,7 @@ def test_train_config(cfg_train: DictConfig) -> None:
     hydra.utils.instantiate(cfg_train.trainer)
 
 
+@pytest.mark.example
 def test_eval_config(cfg_eval: DictConfig) -> None:
     """Tests the evaluation configuration provided by the `cfg_eval` pytest fixture.
 
