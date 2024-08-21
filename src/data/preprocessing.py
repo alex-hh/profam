@@ -107,6 +107,8 @@ def _subsample_and_tokenize_protein_data(
         coords=coords,
         plddts=plddts,
     )
+    if cfg.identifier_col is not None:
+        tokenized.data["identifier"] = example[cfg.identifier_col]
     if cfg.include_doc_hashes:
         # identify documents by a hash of the first 512 characters
         tokenized["doc_hash"] = hashlib.md5(example["text"][:512].encode()).hexdigest()
