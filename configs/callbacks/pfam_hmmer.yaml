@@ -1,0 +1,10 @@
+_target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
+defaults:
+  - /pipeline: pfam
+  - /evaluator: hmmer
+
+num_samples: 9
+sampling_kwargs:
+  batch_size: 3
+pipeline:
+  save_to_file: false

@@ -12,6 +12,9 @@ tags: ["pfam"]
 
 seed: 12345
 
+callbacks:
+  + pfam_hmmer
+
 trainer:
   min_epochs: 10
   max_epochs: 10000
