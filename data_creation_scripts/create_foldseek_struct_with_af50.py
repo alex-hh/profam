@@ -176,7 +176,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         results.append(
             {
                 "sequences": sequences,
-                "cluster_id": cluster_id,
+                "fam_id": cluster_id,
                 "N": all_coords["N"],
                 "CA": all_coords["CA"],
                 "C": all_coords["C"],
