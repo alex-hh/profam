@@ -10,21 +10,39 @@ from src.data.utils import random_subsample, sample_to_max_tokens
 
 
 class SamplingEvaluator:
-    def __init__(self, name: str, seed: int = 52, num_samples: Optional[int] = None):
+    def __init__(
+        self,
+        name: str,
+        seed: int = 52,
+        num_samples: Optional[int] = None,
+        max_tokens: int = 8192,
+        keep_gaps: bool = False,
+        keep_insertions: bool = True,
+        to_upper: bool = True,
+        use_msa_pos: bool = True,
+        document_type: str = "[RAW]",
+    ):
         self.name = name
         self.seed = seed
+        self.max_tokens = max_tokens
         self.num_samples = num_samples
+        self.keep_gaps = keep_gaps
+        self.keep_insertions = keep_insertions
+        self.to_upper = to_upper
+        self.use_msa_pos = use_msa_pos
+        self.document_type = document_type
 
     def evaluate_samples(
         self,
         protein_document: ProteinDocument,
         samples: List[str],
         num_samples: Optional[int] = None,
+        output_dir: Optional[str] = None,
     ) -> Dict[str, float]:
         if num_samples is not None and len(samples) != num_samples:
             assert len(samples) >= num_samples, f"Need at least {num_samples} samples"
             samples = samples[:num_samples]  # assuming samples are unsorted
-        return self._evaluate_samples(protein_document, samples)
+        return self._evaluate_samples(protein_document, samples, output_dir=output_dir)
 
     def _evaluate_samples(
         self, protein_document: ProteinDocument, samples: List[str]
@@ -45,6 +63,7 @@ class SamplingEvaluator:
                 keep_gaps=self.keep_gaps,
                 keep_insertions=self.keep_insertions,
                 to_upper=self.to_upper,
+                use_msa_pos=self.use_msa_pos,
             )
             sequences.append(seq)
             positions.append(pos)
@@ -95,6 +114,7 @@ class SamplingEvaluator:
     # based on their configuration - this should not be a function of evaluator configuration.
     # The only issue is that in some cases we want to share the same prompt when comparing
     # different models...this is a little tricky.
+    # TODO: handle kwargs like document tag...
     def run_sampling(
         self, model, protein_document, num_samples: Optional[int] = None, **model_kwargs
     ):
@@ -112,8 +132,8 @@ class SamplingEvaluator:
         prompt = self.build_prompt(protein_document)
         inputs = self.build_inputs_from_prompt(prompt, num_samples)
         samples = model.sample_seqs(
-            **inputs, **model_kwargs
-        )  # TODO: figure out how to configure model_kwargs
+            **inputs, document_type=self.document_type, **model_kwargs
+        )
         return samples
 
     def __call__(

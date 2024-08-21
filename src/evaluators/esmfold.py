@@ -61,28 +61,21 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         name,
         device,
         num_samples: Optional[int] = None,
-        max_tokens: int = 8192,
         seed: int = 52,
         prompt_plddt: bool = True,
-        keep_gaps: bool = False,
-        keep_insertions: bool = True,
-        to_upper: bool = True,
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
         save_structures: bool = False,
+        **kwargs,
     ):
-        super().__init__(name, seed=seed, num_samples=num_samples)
+        super().__init__(name, seed=seed, num_samples=num_samples, **kwargs)
         self.esmfold = EsmForProteinFolding.from_pretrained(
             "facebook/esmfold_v1"
         ).eval()
         self.esmfold = self.esmfold.to("cpu")
         self.device = device
-        self.max_tokens = max_tokens  # includes prompt...
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
         self.prompt_plddt = prompt_plddt
-        self.keep_gaps = keep_gaps
-        self.keep_insertions = keep_insertions
-        self.to_upper = to_upper
         self.half_precision = half_precision
         self.use_precomputed_reference_structures = use_precomputed_reference_structures
         self.save_structures = save_structures
@@ -143,4 +136,5 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             "prompt_plddt": np.mean(prompt_plddts),
             "sample_plddt": np.mean(sample_plddts),
             "min_tm_score": np.mean([min(tm_scores) for tm_scores in all_tm_scores]),
+            "max_tm_score": np.mean([max(tm_scores) for tm_scores in all_tm_scores]),
         }

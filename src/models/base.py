@@ -668,10 +668,11 @@ class BaseFamilyLitModule(BaseLitModule):
         greedy: bool = False,
         fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
         temperature: Optional[float] = None,
+        document_type: str = "[RAW]",
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
         tokenized = self.tokenizer.encode_sequences(
-            sequence_prompt, positions=position_indices
+            sequence_prompt, positions=position_indices, document_type=document_type
         )
         if "seq_pos" in tokenized.data:
             seq_pos = tokenized.data["seq_pos"].unsqueeze(0)

@@ -36,21 +36,13 @@ class PFAMHMMERMixin:
         self,
         name,
         num_samples: Optional[int] = None,
-        max_tokens: int = 8192,
         seed: int = 52,
         pfam_hmm_dir="../data/pfam/hmms",
         pfam_database="../data/pfam/Pfam-A.hmm",
-        keep_gaps=False,
-        keep_insertions=True,
-        to_upper=True,
         **kwargs,
     ):
         super().__init__(name, seed=seed, num_samples=num_samples, **kwargs)
         self.pfam_hmm_dir = pfam_hmm_dir
-        self.keep_gaps = keep_gaps
-        self.keep_insertions = keep_insertions
-        self.to_upper = to_upper
-        self.max_tokens = max_tokens
         self.pfam_database = pfam_database
 
     def extract_hmm(self, identifier, hmm_file):
