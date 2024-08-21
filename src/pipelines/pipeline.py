@@ -229,6 +229,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         )
 
         self.save_results()
+        return combo_results
 
     def run(
         self,
