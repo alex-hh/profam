@@ -53,7 +53,6 @@ def instantiate_callbacks(
                 "Callback config must be a dict config with a _target_ key!"
             )
 
-
     return callbacks
 
 
