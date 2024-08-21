@@ -112,11 +112,13 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         num_generations: int,
         pipeline_id: str,
         benchmark_directory: str = None,
+        save_to_file: bool = True,
     ):
         self.num_generations = num_generations
         super().__init__(
             pipeline_id,
             benchmark_directory=benchmark_directory,
+            save_to_file=save_to_file,
         )
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:

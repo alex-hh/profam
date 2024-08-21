@@ -73,7 +73,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info("Instantiating callbacks...")
     callbacks: List[Callback] = instantiate_callbacks(
-        cfg.get("callbacks"), extra_callbacks=cfg.get("extra_callbacks")
+        cfg.get("callbacks"), extra_callbacks_cfg=cfg.get("extra_callbacks")
     )
 
     log.info("Instantiating loggers...")

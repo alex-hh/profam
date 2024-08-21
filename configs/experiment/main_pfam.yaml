@@ -4,18 +4,14 @@
 # python train.py experiment=foldseek_small
 
 defaults:
+  - /callbacks@extra_callbacks.pfam_hmmer: pfam_hmmer
+  - override /callbacks: default_with_shuffle
   - override /data: pfam
   - override /model: llama_tiny
-  - override /callbacks: default_with_shuffle
 
 tags: ["pfam"]
 
 seed: 12345
-
-# no way to extend callbacks list so create a separate list of extra callbacks
-# https://stackoverflow.com/questions/75201323/extend-list-from-default-config-in-hydra
-extra_callbacks:
-  - pfam_hmmer
 
 trainer:
   min_epochs: 10
