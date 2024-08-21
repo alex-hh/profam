@@ -618,8 +618,11 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["max_length"] = max_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
         if not sample_gaps:
-            generation_kwargs["bad_word_ids"] = [
-                self.tokenizer.convert_tokens_to_ids("-"),
+            # each 'word' is treated as a list of tokens
+            generation_kwargs["bad_words_ids"] = [
+                [
+                    self.tokenizer.convert_tokens_to_ids("-"),
+                ]
             ]
         assert (
             input_ids.shape[0] == 1
