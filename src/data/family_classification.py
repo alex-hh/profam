@@ -92,7 +92,8 @@ def load_classifier_dataset(
         dataset_list.append(family_dict)
 
     dataset = family_dataset_from_dict_list(
-        dataset_list, tokenizer,
+        dataset_list,
+        tokenizer,
     )
     return dataset
 
@@ -165,7 +166,8 @@ def load_ec_cluster_classifier_dataset(
             }
             dataset_list.append(family_dict)
     dataset = family_dataset_from_dict_list(
-        dataset_list, tokenizer,
+        dataset_list,
+        tokenizer,
     )
     return dataset
 

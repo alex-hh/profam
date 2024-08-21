@@ -69,7 +69,10 @@ def _subsample_and_tokenize_protein_data(
     tokenizer: ProFamTokenizer,
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
+    structure_tokens: Optional[List[str]] = None,
 ):
+    # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
+    # TODO: sample to max tokens // 2 if interleaving structure tokens
     if cfg.use_seq_pos:
         sequences = []
         positions = []
@@ -91,14 +94,22 @@ def _subsample_and_tokenize_protein_data(
         ]  # necessary for fasta iterator...
         positions = None
 
-    extra_arrays = [positions, coords, plddts]
+    extra_arrays = [positions, coords, plddts, structure_tokens]
     sequences, extra_arrays = sample_to_max_tokens(
         sequences,
         extra_arrays=extra_arrays,
-        max_tokens=cfg.max_tokens,
+        # TODO: we need to subtract the cost of the extra sep tokens also.
+        max_tokens=cfg.max_tokens // 2
+        if cfg.interleave_structure_tokens
+        else cfg.max_tokens,
         shuffle=cfg.shuffle,
     )
-    positions, coords, plddts = extra_arrays
+    positions, coords, plddts, structure_tokens = extra_arrays
+    if cfg.interleave_structure_tokens:
+        sequences = [
+            seq + tokenizer.convert_tokens_to_ids("[3DI-AA-SEP]") + seq_3d
+            for seq, seq_3d in zip(sequences, structure_tokens)
+        ]
     tokenized = _tokenize_protein_data(
         sequences,
         cfg=cfg,
@@ -172,13 +183,23 @@ def preprocess_parquet_data(
     cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
+    if "3di_sequences" in example:
+        structure_tokens = example["3di_sequences"]
+    elif "msta_3di" in example:
+        structure_tokens = [s.replace("-", "") for s in example["msta_3di"]]
+    else:
+        structure_tokens = None
     sequence_iterator = example["sequences"]
     max_sequences_to_preprocess = cfg.max_tokens // 10
     # n.b. this also shuffles
-    sequence_iterator = random_subsample(
-        sequence_iterator,
+    sequence_ids = random_subsample(
+        len(sequence_iterator),
         max_sequences_to_preprocess,
     )
+    sequence_iterator = [sequence_iterator[i] for i in sequence_ids]
+    if structure_tokens is not None:
+        structure_tokens = [structure_tokens[i] for i in sequence_ids]
+
     if "N" in example:
         coords = backbone_coords_from_example(example)
         plddts = example["plddts"]
@@ -191,6 +212,7 @@ def preprocess_parquet_data(
         tokenizer=tokenizer,
         coords=coords,
         plddts=plddts,
+        structure_tokens=structure_tokens,
     )
 
 

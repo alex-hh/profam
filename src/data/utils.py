@@ -1,10 +1,10 @@
-from typing import Any, List, Optional
-
-import itertools
 import bisect
 import glob
+import itertools
 import os
 import random
+from typing import Any, List, Optional
+
 import numpy as np
 import torch
 from datasets import Dataset, load_dataset
@@ -232,7 +232,7 @@ def load_protein_dataset(
         for key, value in item.items():
             print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
         print()
-    
+
     if cfg.holdout_identifiers:
         assert (
             cfg.identifier_col is not None
