@@ -45,7 +45,10 @@ class SamplingEvaluator:
         return self._evaluate_samples(protein_document, samples, output_dir=output_dir)
 
     def _evaluate_samples(
-        self, protein_document: ProteinDocument, samples: List[str]
+        self,
+        protein_document: ProteinDocument,
+        samples: List[str],
+        output_dir: Optional[str] = None,
     ) -> Dict[str, float]:
         raise NotImplementedError("should be implemented on child class")
 

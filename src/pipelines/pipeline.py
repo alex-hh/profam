@@ -1,4 +1,5 @@
 import os
+import shutil
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -148,12 +149,16 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         if rerun_evaluator or not self.has_result(
             evaluator.name, instance_id, model_id
         ):
+            output_dir = os.path.join(
+                self.pipeline_directory, instance_id, model_id, evaluator.name
+            )
+            if rerun_evaluator:
+                if os.path.isdir(output_dir):
+                    shutil.rmtree(output_dir)
             metrics = evaluator.evaluate_samples(
                 protein_document,
                 generated_sequences,
-                output_dir=os.path.join(
-                    self.pipeline_directory, instance_id, model_id, evaluator.name
-                ),
+                output_dir=output_dir,
             )
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
             print(f"Instance {instance_id} metrics: {metrics_str}")

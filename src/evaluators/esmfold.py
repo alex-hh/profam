@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 from typing import List, Optional
 
 import numpy as np

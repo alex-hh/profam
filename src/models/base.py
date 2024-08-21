@@ -658,6 +658,7 @@ class BaseFamilyLitModule(BaseLitModule):
             if not include_prompt_in_output:
                 outputs = outputs[:, input_ids.shape[1] :]
             all_outputs.append(outputs)
+
         max_output_length = max([o.shape[1] for o in all_outputs])
         # TODO: poss just return a list instead of the padded tensor
         # TODO: does padding include eos (sep)? seems no?
@@ -665,7 +666,8 @@ class BaseFamilyLitModule(BaseLitModule):
             (num_samples, max_output_length), self.tokenizer.pad_token_id
         )
         for i, o in enumerate(all_outputs):
-            padded_outputs[i, : o.shape[1]] = o
+            padded_outputs[i : i + o.shape[0], : o.shape[1]] = o
+
         return padded_outputs
 
     def sample_seqs(
