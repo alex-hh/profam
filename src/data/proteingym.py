@@ -164,7 +164,8 @@ def build_gym_df(
         max_mutated_sequences=max_mutated_sequences,
         gym_data_dir=gym_data_dir,
     )
-    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs"]]
+    df["ds_name"] = "gym"
+    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs", "ds_name"]]
 
 
 def load_gym_dataset(

@@ -17,6 +17,29 @@ from src.data.proteingym import tokenize
 from src.utils.tokenizers import ProFamTokenizer
 
 
+def family_dataset_from_dict_list(dataset_list, tokenizer):
+    dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
+    dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
+        partial(
+            tokenize,
+            tokenizer=tokenizer,
+            mutant_bos_token="sep",  # todo check this
+            document_tag="[RAW]",
+        ),
+        batched=False,
+        remove_columns=["MSA", "completion_seqs"],
+    )
+    columns = ["input_ids", "completion_ids", "family_labels", "ds_name", "family_id"]
+    if tokenizer.use_seq_pos:
+        columns += ["seq_pos", "completion_seq_pos"]
+
+    dataset.set_format(
+        type="torch",
+        columns=columns,
+    )
+    return dataset
+
+
 def load_classifier_dataset(
     fasta_file_pattern,
     tokenizer: ProFamTokenizer,
@@ -46,13 +69,13 @@ def load_classifier_dataset(
             decoy_seqs.extend(random.sample(seqs, num_decoys_per_target))
         completion_seqs = target_seqs + decoy_seqs
         # save space for completions
-        max_tokens_for_msa = max_tokens - max([len(s) for s in completion_seqs]) - 2
+        max_tokens_for_prompt = max_tokens - max([len(s) for s in completion_seqs]) - 2
         msa_seqs = data_utils.sample_to_max_tokens(
-            remaining_seqs, seed=seed, max_tokens=max_tokens_for_msa
+            remaining_seqs, seed=seed, max_tokens=max_tokens_for_prompt
         )
         assert (
             len(msa_seqs) > 0
-        ), f"No msa seqs sampled for family classification, check max tokens {max_tokens_for_msa}"
+        ), f"No msa seqs sampled for family classification, check max tokens {max_tokens_for_prompt}"
 
         family_labels = [1] * len(target_seqs) + [0] * len(decoy_seqs)
 
@@ -61,27 +84,91 @@ def load_classifier_dataset(
             "MSA": msa_seqs,
             "completion_seqs": completion_seqs,
             "family_labels": family_labels,
+            "ds_name": "ec_class",
+            "family_id": target_family_path.split("/")[-1]
+            .replace(".fasta", "")
+            .replace(".fa", ""),
         }
         dataset_list.append(family_dict)
 
-    # Create a dataset from the list of dictionaries
-    dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
-    dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
-        partial(
-            tokenize,
-            tokenizer=tokenizer,
-            mutant_bos_token="sep",  # todo check this
-            document_tag="[RAW]",
-        ),
-        batched=False,
-        remove_columns=["MSA", "completion_seqs"],
-    )
-    columns = ["input_ids", "completion_ids", "family_labels"]
-    if tokenizer.use_seq_pos:
-        columns += ["seq_pos", "completion_seq_pos"]
-
-    dataset.set_format(
-        type="torch",
-        columns=columns,
+    dataset = family_dataset_from_dict_list(
+        dataset_list, tokenizer,
     )
     return dataset
+
+
+def get_prompt_from_ec_num(
+    ec_num: str,
+    fasta_dir: str,
+    exclusion_ids: list[str],
+):
+    ec_fasta_path = f"{fasta_dir}/{ec_num.replace('.', '_')}.fasta"
+    ids, seqs = fasta.read_fasta(
+        ec_fasta_path,
+        keep_insertions=True,
+        keep_gaps=False,  # currently no gaps in fasta: if this changes beware eval seqs are not aligned
+        to_upper=False,
+    )
+    ids = [id.split("|")[1] for id in ids]
+    assert set(ids).intersection(
+        set(exclusion_ids)
+    )  # at least one of the eval seqs should be in the fam
+    assert set(ids) - set(
+        exclusion_ids
+    )  # at least one of the eval seqs should NOT be in the fam
+    keep_idxs = [i for i, id in enumerate(ids) if id not in exclusion_ids]
+    ids = [ids[i] for i in keep_idxs]
+    seqs = [seqs[i] for i in keep_idxs]
+    return ids, seqs
+
+
+def load_ec_cluster_classifier_dataset(
+    tokenizer: ProFamTokenizer,
+    fasta_dir: str = "../data/ec/ec_fastas",
+    val_df_path: str = "data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
+    max_tokens=10000,
+    seed=42,
+):
+    """
+    classifies sequences as member of family
+    or not where the eval sequences are from
+    the same seq-similarity cluster.
+    iterate through each cluster and create an
+    eval sample for each EC number in the cluster
+    """
+    val_df = pd.read_csv(val_df_path)
+    dataset_list = []
+    for c_id in val_df.val_cluster_id.unique():
+        c = val_df[val_df.val_cluster_id == c_id]
+        completion_seqs = c.Sequence.values
+        eval_ids = c.Entry.values
+        eval_ecs = c["EC number"].values
+        for ec_num in eval_ecs:
+            ids, prompt_seqs = get_prompt_from_ec_num(
+                ec_num, fasta_dir=fasta_dir, exclusion_ids=eval_ids
+            )
+            max_tokens_for_prompt = (
+                max_tokens - max([len(s) for s in completion_seqs]) - 2
+            )
+            prompt_seqs = data_utils.sample_to_max_tokens(
+                prompt_seqs, seed=seed, max_tokens=max_tokens_for_prompt
+            )
+            labels = [1 if eval_ecs[i] == ec_num else 0 for i in range(len(eval_ecs))]
+            family_dict = {
+                "MSA": prompt_seqs,
+                "completion_seqs": completion_seqs,
+                "family_labels": labels,
+                "family_id": ec_num,
+                "eval_cluster_level": c.val_cluster_level.values.min(),  # eval seqs share this level of similarity
+                "eval_sim_min_max": c.val_cluster_min_max.values.min(),  # min & max sim with any other EC sequence
+                "ds_name": "ec_cluster_class",
+            }
+            dataset_list.append(family_dict)
+    dataset = family_dataset_from_dict_list(
+        dataset_list, tokenizer,
+    )
+    return dataset
+
+
+if __name__ == "__main__":
+    load_ec_cluster_classifier_dataset()

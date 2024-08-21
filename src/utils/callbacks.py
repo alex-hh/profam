@@ -4,6 +4,10 @@ from lightning.pytorch.callbacks import Callback, ThroughputMonitor
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from typing_extensions import override
 
+from src.utils import RankedLogger
+
+log = RankedLogger(__name__, rank_zero_only=True)
+
 
 class ShuffleCallback(Callback):
     def on_train_epoch_start(self, trainer, pl_module):
@@ -23,7 +27,7 @@ class EpochTimerCallback(Callback):
 
     def on_train_epoch_end(self, trainer, pl_module):
         self._t1_epoch = time.time()
-        self.log(
+        pl_module.log(
             "train/epoch_time",
             self._t1_epoch - self._t0_epoch,
             on_step=False,
@@ -36,7 +40,7 @@ class EpochTimerCallback(Callback):
 
     def on_validation_epoch_end(self, trainer, pl_module):
         self._val_t1_epoch = time.time()
-        self.log(
+        pl_module.log(
             "val/epoch_time",
             self._val_t1_epoch - self._val_t0_epoch,
             on_step=False,
@@ -53,12 +57,9 @@ class PrintCallback(Callback):
         if self.print_freq > 0 and (
             (pl_module.current_epoch + 1) % self.print_freq == 0
         ):
-            # TODO: check exactly what gets logged here
             metrics = trainer.callback_metrics
             metrics_msg = "\t".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
-            print(
-                f"Epoch {pl_module.current_epoch}, metrics:\t{metrics_msg}", flush=True
-            )
+            log.info(f"Epoch {pl_module.current_epoch}, metrics:\t{metrics_msg}")
 
 
 class TokenThroughputMonitor(ThroughputMonitor):

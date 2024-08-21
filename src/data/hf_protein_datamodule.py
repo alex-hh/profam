@@ -9,8 +9,11 @@ from lightning import LightningDataModule
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import DataLoader
 
-from src.data.family_classification import load_classifier_dataset
 from src.data.preprocessing import preprocess_protein_data
+from src.data.family_classification import (
+    load_classifier_dataset,
+    load_ec_cluster_classifier_dataset,
+)
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -20,115 +23,6 @@ from src.data.utils import (
 from src.utils.tokenizers import ProFamTokenizer
 
 
-# TODO: in future we might actually want standalone dataset class for
-# more flexible customisation (e.g. mapping uniprot ids via db)
-@dataclass
-class ProteinDatasetConfig:
-    name: str
-    keep_gaps: bool = False
-    data_path_pattern: Optional[str] = None
-    holdout_data_files: Optional[str] = None
-    data_path_file: Optional[str] = None
-    keep_insertions: bool = False
-    to_upper: bool = False
-    file_repeats: int = 1
-    is_parquet: bool = False
-    minimum_sequences: Optional[int] = None
-    document_tag: str = "[RAW]"
-    truncate_after_n_sequences: Optional[int] = None
-    # global arguments that will get overridden in load_protein_dataset
-    max_tokens: Optional[int] = 5000
-    shuffle: bool = (True,)
-    include_doc_hashes: bool = False
-
-    def set_global_args(
-        self,
-        max_tokens: int,
-        shuffle: bool,
-        include_doc_hashes: bool,
-    ):
-        self.max_tokens = max_tokens
-        self.shuffle = shuffle
-        self.include_doc_hashes = include_doc_hashes
-
-
-def load_protein_dataset(
-    cfg: ProteinDatasetConfig,
-    tokenizer: ProFamTokenizer,
-    max_tokens: Optional[int] = 5000,
-    data_dir="../data",
-    split="train",
-    include_doc_hashes: bool = False,
-    shuffle: bool = True,
-) -> Dataset:
-    if cfg.data_path_pattern is not None:
-        # replace hf path resolution with manual glob, to allow repetition
-        # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
-        data_files = glob.glob(os.path.join(data_dir, cfg.data_path_pattern))
-    else:
-        assert cfg.data_path_file is not None
-        with open(os.path.join(data_dir, cfg.data_path_file), "r") as f:
-            data_files = [
-                os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
-            ]
-
-    cfg.set_global_args(
-        max_tokens=max_tokens,
-        shuffle=shuffle,
-        include_doc_hashes=include_doc_hashes,
-    )
-
-    if cfg.holdout_data_files is not None:
-        assert isinstance(cfg.holdout_data_files, list) or isinstance(
-            cfg.holdout_data_files, ListConfig
-        ), f"holdout files is {type(cfg.holdout_data_files)} not list"
-        all_files = len(data_files)
-        data_files = [f for f in data_files if f not in cfg.holdout_data_files]
-        print("Excluding", all_files - len(data_files), "holdout files")
-
-    assert isinstance(data_files, list)
-    data_files = data_files * cfg.file_repeats
-    random.shuffle(data_files)  # TODO: seed explicitly?
-    print(
-        f"Loading {cfg.name} dataset from {len(data_files)} files, "
-        f"({cfg.file_repeats} repeats), "
-        f"{os.path.join(data_dir, cfg.data_path_pattern)}"
-    )
-    if cfg.is_parquet:
-        dataset = load_dataset(
-            path="parquet",
-            data_files=data_files,
-            split=split,
-            streaming=True,
-            verification_mode="no_checks",
-        )
-    else:
-        # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
-        dataset = load_dataset(
-            "text",
-            data_files=data_files,
-            split=split,
-            streaming=True,
-            sample_by="document",
-        )
-    print("Dataset n shards", dataset.n_shards)
-    print("Verifying dataset content:")
-    for i, item in enumerate(dataset.take(3)):
-        print(f"  Item {i + 1}:")
-        for key, value in item.items():
-            print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
-        print()
-
-    dataset = dataset.map(
-        preprocess_protein_data,
-        batched=False,
-        remove_columns=["text"],
-        fn_kwargs={"cfg": cfg, "tokenizer": tokenizer},
-    ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
-
-    return dataset
-
-
 class ProteinDataModule(LightningDataModule):
     def __init__(
         self,
@@ -136,7 +30,7 @@ class ProteinDataModule(LightningDataModule):
         data_weights: Dict[str, float],
         tokenizer: ProFamTokenizer,
         data_dir: str,
-        val_dataset_name: str,
+        val_dataset_names: List[str],
         batch_size: int = 8,
         max_tokens: int = 5000,
         evaluate_gym: bool = False,
@@ -146,7 +40,9 @@ class ProteinDataModule(LightningDataModule):
         gym_dms_ids: Optional[List[str]] = None,
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
+        evaluate_ec_cluster_class: bool = True,
         count_doc_hashes: bool = True,
+        ignore_gaps: bool = False,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -154,17 +50,18 @@ class ProteinDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.max_tokens = max_tokens
         self.data_dir = data_dir
-        self.val_dataset_name = val_dataset_name
+        self.val_dataset_names = val_dataset_names
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.keep_gym_gaps = keep_gym_gaps
         if self.evaluate_gym:
             self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
+        self.evaluate_ec_cluster_class = evaluate_ec_cluster_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer = tokenizer
-        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        self.collator = CustomDataCollator(self.tokenizer, mlm=False, ignore_gaps=ignore_gaps)
         self.count_doc_hashes = count_doc_hashes
         self._is_setup = False
 
@@ -174,7 +71,7 @@ class ProteinDataModule(LightningDataModule):
             train_datasets = []
             train_data_weights = []
             for data_key, dataset_config in self.dataset_cfgs.items():
-                if data_key != self.val_dataset_name:
+                if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
                         dataset_config,
                         self.tokenizer,
@@ -207,14 +104,17 @@ class ProteinDataModule(LightningDataModule):
             # n.b. set_epoch is required in order for shuffling to be correctly randomised
             # - this is handled by ShuffleCallback
             self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
-            self.val_dataset = load_protein_dataset(
-                self.dataset_cfgs[self.val_dataset_name],
-                self.tokenizer,
-                self.max_tokens,
-                data_dir=self.data_dir,
-            )
+            self.val_datasets = [
+                load_protein_dataset(
+                    self.dataset_cfgs[v_ds_name],
+                    self.tokenizer,
+                    self.max_tokens,
+                    data_dir=self.data_dir,
+                )
+                for v_ds_name in self.val_dataset_names
+            ]
             self.test_dataset = load_protein_dataset(
-                self.dataset_cfgs[self.val_dataset_name],
+                self.dataset_cfgs[self.val_dataset_names[0]],
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
@@ -237,6 +137,15 @@ class ProteinDataModule(LightningDataModule):
                     "data/example_data/expasy_ec/*.fasta",
                     self.tokenizer,
                     max_tokens=self.max_tokens,
+                )
+            if self.evaluate_ec_cluster_class:
+                self.ec_cluster_class_dataset = load_ec_cluster_classifier_dataset(
+                    tokenizer=self.tokenizer,
+                    fasta_dir="../data/ec/ec_fastas",
+                    val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
+                    max_tokens=self.max_tokens,
+                    use_seq_pos=self.use_seq_pos,
+                    max_seq_pos=self.max_seq_pos,
                 )
 
             self._is_setup = True
@@ -269,12 +178,13 @@ class ProteinDataModule(LightningDataModule):
     def val_dataloader(self) -> List[DataLoader]:
         loaders = [
             DataLoader(
-                self.val_dataset,
+                val_ds,
                 batch_size=self.batch_size,
                 collate_fn=self.collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )
+            for val_ds in self.val_datasets
         ]
         if self.evaluate_gym:
             loaders.append(
@@ -290,6 +200,16 @@ class ProteinDataModule(LightningDataModule):
             loaders.append(
                 DataLoader(
                     self.ec_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
+            )
+
+        if self.evaluate_ec_cluster_class:
+            loaders.append(
+                DataLoader(
+                    self.ec_cluster_class_dataset,
                     batch_size=1,
                     collate_fn=self.collator,
                     shuffle=False,

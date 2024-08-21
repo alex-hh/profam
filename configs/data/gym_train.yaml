@@ -21,7 +21,8 @@ gym_dms_ids: [
   'P53_HUMAN_Giacomelli_2018_WT_Nutlin'
 ]
 evaluate_gym: True
-val_dataset_name: gym_val
+val_dataset_names:
+  - gym_val
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ${.data_dir}/ProteinGym
 use_seq_pos: True
