@@ -393,7 +393,7 @@ def load_protein_dataset(
         filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
         # TODO: we need to be very careful with this!
         filter_identifier = (
-            cfg.holdout_data_files is None
+            cfg.holdout_identifiers is None
             or example["identifier"] not in cfg.holdout_identifiers
         )
         return filter_num_seqs and filter_identifier
