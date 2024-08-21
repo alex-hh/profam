@@ -55,14 +55,26 @@ class TestSequencePositions:
             inferred_pos = convert_sequence_with_positions(
                 seq, keep_gaps=False, keep_insertions=True, to_upper=True
             )[1]
+            inferred_pos_nomsa = convert_sequence_with_positions(
+                seq,
+                keep_gaps=False,
+                keep_insertions=True,
+                to_upper=True,
+                use_msa_pos=False,
+            )[1]
             assert tuple(inferred_pos) == tuple(pos)
+            assert tuple(inferred_pos_nomsa) == tuple(pos)
 
     def test_msa_positions_no_gaps(self):
         sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
         positions = [[0, 1, 3], [1, 2, 3], [1, 1, 1, 1, 2, 3, 4, 4, 7]]
         for seq, pos in zip(sequences, positions):
             inferred_pos = convert_sequence_with_positions(
-                seq, keep_gaps=False, keep_insertions=True, to_upper=True
+                seq,
+                keep_gaps=False,
+                keep_insertions=True,
+                to_upper=True,
+                use_msa_pos=True,
             )[1]
             assert tuple(inferred_pos) == tuple(pos)
 
@@ -71,6 +83,35 @@ class TestSequencePositions:
         positions = [[1, 2, 3], [1, 2, 3], [1, 2, 3, 4, 5, 6, 7]]
         for seq, pos in zip(sequences, positions):
             inferred_pos = convert_sequence_with_positions(
-                seq, keep_gaps=True, keep_insertions=False, to_upper=True
+                seq,
+                keep_gaps=True,
+                keep_insertions=False,
+                to_upper=True,
+            )[1]
+            assert tuple(inferred_pos) == tuple(pos)
+
+    def test_msa_positions_not_msa_relative(self):
+        sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
+        positions = [[1, 2, 3], [1, 2, 3], [1, 2, 3, 4, 5, 6, 7, 8, 9]]
+        for seq, pos in zip(sequences, positions):
+            inferred_pos = convert_sequence_with_positions(
+                seq,
+                keep_gaps=False,
+                keep_insertions=True,
+                to_upper=True,
+                use_msa_pos=False,
+            )[1]
+            assert tuple(inferred_pos) == tuple(pos)
+
+    def test_msa_positions_with_gaps_not_msa_relative(self):
+        sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
+        positions = [[1, 2, 3], [1, 2, 3], [1, 2, 3, 4, 5, 6, 7]]
+        for seq, pos in zip(sequences, positions):
+            inferred_pos = convert_sequence_with_positions(
+                seq,
+                keep_gaps=True,
+                keep_insertions=False,
+                to_upper=True,
+                use_msa_pos=False,
             )[1]
             assert tuple(inferred_pos) == tuple(pos)

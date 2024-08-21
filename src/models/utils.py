@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 import numpy as np
 import torch
 from transformers.cache_utils import DynamicCache
@@ -32,7 +34,12 @@ class UpdatedDynamicCache(DynamicCache):
 
 
 def accuracy_from_outputs(
-    model_outputs, labels, start_ix=0, ignore_index=-100, dataset_names=None
+    model_outputs,
+    labels,
+    start_ix=0,
+    ignore_index=-100,
+    dataset_names=None,
+    ignore_token_ids: Optional[List[int]] = None,
 ):
     """Compute the accuracy of the target sequence given the model outputs.
 
@@ -45,6 +52,9 @@ def accuracy_from_outputs(
     Returns:
         The accuracy of the target sequence.
     """
+    labels = labels.clone()
+    for token_id in ignore_token_ids:
+        labels[labels == token_id] = ignore_index
     logits = model_outputs.logits
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
