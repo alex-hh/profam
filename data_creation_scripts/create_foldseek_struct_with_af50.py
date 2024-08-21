@@ -194,6 +194,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
     shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
+    # Q. why not just df.to_parquet?
     table = pa.Table.from_pandas(df)
     output_file = os.path.join(f'{save_dir}', f'{parquet_id}.parquet')
     pq.write_table(table, output_file)
