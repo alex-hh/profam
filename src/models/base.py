@@ -592,6 +592,7 @@ class BaseFamilyLitModule(BaseLitModule):
         fixed_length: Optional[int] = None,
         greedy: bool = False,
         temperature: Optional[float] = None,
+        sample_gaps: bool = False,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -616,6 +617,10 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
             generation_kwargs["max_length"] = max_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
+        if not sample_gaps:
+            generation_kwargs["bad_word_ids"] = [
+                self.tokenizer.convert_tokens_to_ids("-"),
+            ]
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -687,6 +692,7 @@ class BaseFamilyLitModule(BaseLitModule):
             greedy=greedy,
             fixed_length=fixed_length,
             temperature=temperature,
+            sample_gaps=document_type == "[MSA]",
         )
         # print("samples shape", encoded.shape)
         return self.tokenizer.decode_tokens(encoded)
