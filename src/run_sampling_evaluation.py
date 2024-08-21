@@ -31,7 +31,7 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 @hydra.main(
     version_base="1.3",
     config_path=os.path.join(BASEDIR, "configs"),
-    config_name="eval",
+    config_name="sampling_eval",
 )
 def run(cfg: DictConfig) -> None:
     """Things that might not fit straightforwardly in generation validation:
