@@ -16,6 +16,6 @@ mkdir -p ${SCRATCH_DIR}/data
 cp /SAN/bioinf/afdb_domain/zipmaker/zip_index $SCRATCH_DIR/data/
 cp /SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv $SCRATCH_DIR/data/
 source ~/source_files/afenv.source
-python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --num_processes 1 --minimum_foldseek_cluster_size 1 --parquet_ids $((SGE_TASK_ID - 1))
+python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --num_processes 1 --minimum_foldseek_cluster_size 1 --parquet_ids $((SGE_TASK_ID - 1)) --run_foldmason
 rm -rf ${SCRATCH_DIR}/data
 date
