@@ -23,7 +23,9 @@ class ProteinDatasetConfig:
     name: str
     keep_gaps: bool = False
     data_path_pattern: Optional[str] = None
-    holdout_data_files: Optional[str] = None
+    holdout_data_files: Optional[List[str]] = None
+    holdout_identifiers: Optional[List[str]] = None
+    identifier_col: Optional[str] = None
     data_path_file: Optional[str] = None
     keep_insertions: bool = False
     to_upper: bool = False
@@ -258,6 +260,8 @@ def load_protein_dataset(
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         # tokenized.input_ids is flat now
+        if cfg.identifier_col is not None:
+            tokenized.data["identifier"] = example[cfg.identifier_col]
         tokenized.data["ds_name"] = cfg.name
         tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
         if include_doc_hashes:
@@ -334,6 +338,9 @@ def load_protein_dataset(
         )
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
+        assert (
+            cfg.holdout_identifiers is None
+        ), "For loading from fasta use holdout accessions"
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -356,9 +363,25 @@ def load_protein_dataset(
     #     batch_size=2,
     # )
     # filter after map also seems to slow things down...
+    if cfg.holdout_identifiers:
+        assert (
+            cfg.identifier_col is not None
+        ), "Need identifier column for identifier holdout"
+
+    def filter_example(example):
+        filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
+        # TODO: we need to be very careful with this!
+        filter_identifier = (
+            cfg.holdout_data_files is None
+            or example["identifier"] not in cfg.holdout_identifiers
+        )
+        return filter_num_seqs and filter_identifier
+
     dataset = dataset.map(
-        preprocess_fasta, batched=False, remove_columns=["text"]
-    ).filter(lambda x: x["total_num_sequences"] >= (cfg.minimum_sequences or 1))
+        preprocess_fasta,
+        batched=False,
+        remove_columns=["text"],
+    ).filter(filter_example)
 
     return dataset
 
@@ -388,3 +411,25 @@ def sample_to_max_tokens(
         sampled_sequences.append(seq)
         token_count += len(seq) + 1
     return sampled_sequences
+
+
+def backbone_coords_from_example(example):
+    ns = example["N"]
+    cas = example["CA"]
+    cs = example["C"]
+    oxys = example["O"]
+    coords = []
+    for seq, n, ca, c, o in zip(
+        example["sequences"],
+        ns,
+        cas,
+        cs,
+        oxys,
+    ):
+        recons_coords = np.zeros((len(seq), 4, 3))
+        recons_coords[:, 0] = n.reshape(-1, 3)
+        recons_coords[:, 1] = ca.reshape(-1, 3)
+        recons_coords[:, 2] = c.reshape(-1, 3)
+        recons_coords[:, 3] = o.reshape(-1, 3)
+        coords.append(recons_coords)
+    return coords
