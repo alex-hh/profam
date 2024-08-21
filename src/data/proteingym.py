@@ -51,7 +51,6 @@ def tokenize_completions(
     tokenized = tokenizer.encode_completions(
         sample["completion_seqs"],
         bos_token=get_token_from_name(bos_token, tokenizer),
-        add_final_sep=True,
     )
     sample["completion_ids"] = tokenized.input_ids
     if tokenizer.use_seq_pos:
