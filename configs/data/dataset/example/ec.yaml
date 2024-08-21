@@ -2,6 +2,8 @@ _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: ec
 data_path_pattern:  example_data/expasy_ec/*.fasta
 holdout_data_files: null
+holdout_identifiers: null
+identifier_col: null
 keep_gaps: false
 to_upper: true
 keep_insertions: true
