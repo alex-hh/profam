@@ -12,8 +12,10 @@ tags: ["pfam"]
 
 seed: 12345
 
-callbacks:
-  + pfam_hmmer
+# no way to extend callbacks list so create a separate list of extra callbacks
+# https://stackoverflow.com/questions/75201323/extend-list-from-default-config-in-hydra
+extra_callbacks:
+  - pfam_hmmer
 
 trainer:
   min_epochs: 10
