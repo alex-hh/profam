@@ -1,8 +1,9 @@
+from lightning.pytorch.callbacks import Callback
 from collections import defaultdict
 from typing import Dict, Optional
 
 
-class SamplingEvaluationPipelineCallback:
+class SamplingEvaluationPipelineCallback(Callback):
     def __init__(
         self, pipeline, evaluator, num_samples, sampling_kwargs: Optional[Dict] = None
     ):
