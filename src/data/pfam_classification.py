@@ -88,6 +88,14 @@ def tokenize_pfam(
     sample["eval_fam_ids"] = "|".join(eval_names)
     return sample
 
+def process_eval_seqs(
+    eval_path: str,
+    use_seq_pos: bool,
+    keep_insertions,
+    keep_gaps,
+    to_upper,
+):
+    pass
 
 def load_pfam_classification_dataset(
     tokenizer,
@@ -102,9 +110,6 @@ def load_pfam_classification_dataset(
     num_workers=4,
     max_eval_per_fam=4,
 ):
-    if use_seq_pos and keep_insertions:
-        warnings.warn("Position embeddings will be incorrect with keep_insertions=True")
-
     combined_eval_seqs = []
     eval_labels = []
 
@@ -117,7 +122,12 @@ def load_pfam_classification_dataset(
     max_eval_len = 0
     for eval_path in eval_seq_paths:
         eval_name = eval_path.split("/")[-1].split("_")[0]
-        eval_names, eval_seqs = fasta.read_fasta(eval_path)
+        eval_names, eval_seqs = fasta.read_fasta(
+            eval_path,
+            keep_insertions=True,
+            keep_gaps=True,
+            to_upper=False,
+        )
         assert len(set(eval_names)) == 1
         assert eval_name in eval_names
         combined_eval_seqs.extend(eval_seqs[:max_eval_per_fam])
@@ -125,6 +135,19 @@ def load_pfam_classification_dataset(
         # todo: current form always counts gaps towards limit
         max_eval_len = max(max_eval_len, max(map(len, eval_seqs)))
 
+    if use_seq_pos:
+        completion_seqs = []
+        completion_seq_pos = []
+        for seq in combined_eval_seqs:
+            new_seq, pos, is_match = fasta.convert_sequence_with_positions(
+                seq,
+                keep_gaps=True,
+                keep_insertions=True,
+                to_upper=False
+
+            )
+    else:
+        completion_seqs = combined_eval_seqs
     # Tokenize eval sequences once and re-use
     tok_eval_seqs = tokenize_completions(
         sample={"completion_seqs": combined_eval_seqs},
@@ -133,14 +156,7 @@ def load_pfam_classification_dataset(
     )
     max_msa_tokens = max_tokens - max_eval_len - 2
     assert (tok_eval_seqs["completion_ids"][:, 0] == tokenizer.vocab["[SEP]"]).all()
-    if use_seq_pos:
-        n_seqs, longest = tok_eval_seqs["completion_ids"].shape
-        # first token is always [SEP], last token before padding is [SEP]
-        completion_seq_pos = arange(1, longest + 1).repeat(n_seqs, 1)
-        assert completion_seq_pos.shape == tok_eval_seqs["completion_ids"].shape
-        completion_seq_pos[:, 0] = 0
-        # first AA now has position 2, first [SEP] has position 0
-        completion_seq_pos.clamp_(max=max_seq_pos - 1)
+
     tokenized_eval_seqs = tok_eval_seqs["completion_ids"]
     # tokenized_eval_seqs = tokenize_eval_seqs(tokenizer, combined_eval_seqs, use_seq_pos, max_seq_pos)
     msa_paths = sorted(glob.glob(f"{pfam_dir}/*_train.fasta"))

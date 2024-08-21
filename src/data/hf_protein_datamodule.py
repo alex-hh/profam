@@ -173,7 +173,7 @@ class ProteinDataModule(LightningDataModule):
                     keep_insertions=True,  # TODO: should be val config
                     to_upper=True,  # TODO: should be val config
                     keep_gaps=True,  # TODO: should be val config
-                    pfam_dir="../data/pfam/pfam_eval_splits/clustered_split_fastas",
+                    pfam_dir="../data/pfam/pfam_eval_splits/val/clustered_split_fastas",
                     max_tokens=self.max_tokens,
                     use_seq_pos=self.use_seq_pos,
                     max_seq_pos=self.max_seq_pos,
