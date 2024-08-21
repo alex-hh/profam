@@ -7,11 +7,22 @@ clustered splits from:
 console.cloud.google.com/storage/browser/brain-genomics-public/research/proteins/pfam
 referrenced in:
 https://www.nature.com/articles/s41587-021-01179-w#Sec4
+
+Following directories have sequence dfs:
+'../data/pfam/pfam_eval_splits/clustered_split/train' (1,296,280 seqs, 17,929 fams)
+'../data/pfam/pfam_eval_splits/clustered_split/test' (21,293 seqs, 3097 family accessions)
+
+
+
 """
 
-def make_pfam_select_fam(pfam_select_fam_path):
+def make_pfam_select_fam(pfam_select_fam_path, n_families=300):
+    """
+    select families that occur in train AND test for
+    BOTH clustered AND random
+    """
+
     random.seed(42)
-    n_families = 300
     pfam_families = set()
     for split_type in ['clustered_split', 'random_split']:
         for split in ['train', 'test']:
@@ -30,10 +41,10 @@ def make_pfam_select_fam(pfam_select_fam_path):
                 pfam_families = pfam_families.intersection(
                     set(combined['family_accession'].unique())
                 )
+            print(f"number of families in {split_type} {split}: {len(combined.family_accession.unique())}")
 
-        print(f"number of families in train {len(combined[combined['split'] == 'train'].family_accession.unique())}")
-        print(f"number of families in test {len(combined[combined['split'] == 'test'].family_accession.unique())}")
     print(f"Total number of families to sample from {len(pfam_families)}")
+    pfam_families = sorted(list(pfam_families))
     selected_families = random.sample(pfam_families, n_families)
     with open(pfam_select_fam_path, 'w') as f:
         f.write('family_accession\n')
@@ -69,9 +80,10 @@ def make_pfam_eval_fastas(selected_families):
 
 
 def main():
-    pfam_select_fam_path = os.path.join(pfam_dir, 'eval_families.csv')
+    pfam_select_fam_path = os.path.join(pfam_dir, 'v2_eval_families_500.csv')
+    n_families = 500
     if not os.path.exists(pfam_select_fam_path):
-        make_pfam_select_fam(pfam_select_fam_path)
+        make_pfam_select_fam(pfam_select_fam_path, n_families=n_families)
     selected_families = pd.read_csv(pfam_select_fam_path)
     make_pfam_eval_fastas(selected_families['family_accession'].values)
 
