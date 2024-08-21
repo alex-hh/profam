@@ -102,6 +102,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.esmfold = self.esmfold.to(self.device)
         reference_cas = []
         ca_index = atom_order["CA"]
+        if self.save_structures:
+            os.makedirs(output_dir, exist_ok=True)
         if (
             not self.use_precomputed_reference_structures
             or protein_document.backbone_coords is None

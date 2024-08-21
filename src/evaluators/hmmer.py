@@ -99,7 +99,12 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
         self.hit_threshold_for_metrics = hit_threshold_for_metrics
         self.num_reference = num_reference
 
-    def _evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
+    def _evaluate_samples(
+        self,
+        protein_document: ProteinDocument,
+        samples: List[str],
+        output_dir: Optional[str] = None,
+    ):
         hmm = self.load_hmm(protein_document.identifier)
         # TODO: we want to not return ordered...
         names = [f"seq{i}".encode() for i in range(len(samples))]
@@ -170,7 +175,12 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
         self.num_reference = num_reference
         self.seed = seed
 
-    def evaluate_samples(self, protein_document: ProteinDocument, samples: List[str]):
+    def _evaluate_samples(
+        self,
+        protein_document: ProteinDocument,
+        samples: List[str],
+        output_dir: Optional[str] = None,
+    ):
         # TODO: add uniqueness, diversity hamming distance-based metrics
         if self.is_pre_aligned:
             sequences = samples

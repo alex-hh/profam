@@ -148,7 +148,13 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         if rerun_evaluator or not self.has_result(
             evaluator.name, instance_id, model_id
         ):
-            metrics = evaluator.evaluate_samples(protein_document, generated_sequences)
+            metrics = evaluator.evaluate_samples(
+                protein_document,
+                generated_sequences,
+                output_dir=os.path.join(
+                    self.pipeline_directory, instance_id, model_id, evaluator.name
+                ),
+            )
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
             print(f"Instance {instance_id} metrics: {metrics_str}")
             metrics.update(self.get_instance_summary(instance_id))
