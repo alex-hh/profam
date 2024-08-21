@@ -33,6 +33,7 @@ class ProteinDataModule(LightningDataModule):
         gym_data_dir: Optional[str] = None,
         max_gym_sequences: Optional[int] = None,
         gym_dms_ids: Optional[List[str]] = None,
+        use_filtered_gym_msas: bool = False,
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
         evaluate_ec_cluster_class: bool = True,
@@ -57,6 +58,7 @@ class ProteinDataModule(LightningDataModule):
         self.evaluate_ec_cluster_class = evaluate_ec_cluster_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
+        self.use_filtered_gym_msas = use_filtered_gym_msas
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos  # max embed index for relative position
         self.tokenizer_path = tokenizer_path
@@ -148,6 +150,7 @@ class ProteinDataModule(LightningDataModule):
                     max_seq_pos=self.max_seq_pos,
                     keep_gaps=self.keep_gym_gaps,
                     num_proc=self.num_workers,
+                    use_filtered_msa=self.use_filtered_gym_msas,
                 )
             if self.evaluate_ec_class:
                 # TODO: add other classifier dataset kwargs to config
