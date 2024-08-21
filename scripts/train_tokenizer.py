@@ -29,8 +29,12 @@ special_tokens = [
     "[SEP]",
     "[MASK]",
     "[UNK]",
+    "[RAW]",
+    "[MSA]",
+    "[RAW-WITH-MSA-POS]",
 ] + unassigned_special_tokens
 tokenizer.add_special_tokens(special_tokens)
+# N.B. if all special tokens aren't assigned we have tokenization issues...
 
 # we can't include unk tokens in inputs explicitly; they have to be inferred.
 # i.e. the inputs to encode should not contain any [unk]

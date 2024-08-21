@@ -229,8 +229,8 @@ def load_protein_dataset(
             )  # +1 for separator
             insertion_point = bisect.bisect_left(
                 cumulative_lengths,
-                max_tokens - 2,
-            )  # -2 for doc start and end tokens
+                max_tokens - 3,
+            )  # -3 for doc start and end tokens
         else:
             insertion_point = len(sequences)
         concatenated_seqs = (
@@ -255,6 +255,10 @@ def load_protein_dataset(
             )
 
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        assert not (
+            tokenized.input_ids == tokenizer.convert_tokens_to_ids("[UNK]")
+        ).any(), "UNK tokens in input"
+
         # tokenized.input_ids is flat now
         tokenized.data["ds_name"] = cfg.name
         tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold

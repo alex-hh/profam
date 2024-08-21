@@ -63,5 +63,5 @@
     "[SP10]": 61,
     "[MSA]": 62,
     "[RAW]": 63,
-    "[RAW_WITH_MSA_POS]": 64
+    "[RAW-WITH-MSA-POS]": 64
 }

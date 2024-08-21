@@ -146,6 +146,33 @@
       "rstrip": false,
       "normalized": false,
       "special": true
+    },
+    {
+      "id": 62,
+      "content": "[MSA]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 63,
+      "content": "[RAW]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 64,
+      "content": "[RAW-WITH-MSA-POS]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
     }
   ],
   "normalizer": null,
@@ -228,7 +255,7 @@
       "[SP10]": 61,
       "[MSA]": 62,
       "[RAW]": 63,
-      "[RAW_WITH_MSA_POS]": 64
+      "[RAW-WITH-MSA-POS]": 64
     },
     "merges": []
   }
