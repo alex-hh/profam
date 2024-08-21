@@ -620,7 +620,10 @@ class BaseFamilyLitModule(BaseLitModule):
         if not sample_gaps:
             # each 'word' is treated as a list of tokens
             generation_kwargs["bad_words_ids"] = [
-                [tok] for tok in self.tokenizer.convert_tokens_to_ids(["-", "[MASK]", "[CLS]", "[UNK]", "[RAW]", "X"])
+                [tok]
+                for tok in self.tokenizer.convert_tokens_to_ids(
+                    ["-", "[MASK]", "[CLS]", "[UNK]", "[RAW]", "X"]
+                )
             ]
 
         assert (
