@@ -8,3 +8,4 @@ num_samples: 100
 keep_gaps: False
 keep_insertions: True
 to_upper: True
+save_structures: False

@@ -129,7 +129,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             all_tm_scores.append(tm_scores)
             if self.save_structures:
                 pdb_str = self.esmfold.output_to_pdb(out)[0]
-                with open(os.path.join(output_dir, f"sample_{i}.pdb")) as f:
+                with open(os.path.join(output_dir, f"sample_{i}.pdb"), "w") as f:
                     f.write(pdb_str)
 
         return {
