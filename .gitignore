@@ -9,3 +9,4 @@ build/
 venvPF/
 wandb
 .git
+nohup.out
