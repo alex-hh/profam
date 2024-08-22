@@ -24,6 +24,7 @@ class SamplingEvaluationPipelineCallback(Callback):
                 "profam_model",
                 self.evaluator,
                 sampling_kwargs=self.sampling_kwargs,
+                verbose=False,
             )
             mean_results = results_df.mean().to_dict()
             all_metrics = {

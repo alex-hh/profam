@@ -10,6 +10,11 @@ from src.utils import pylogger, rich_utils
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 
+def maybe_print(*args, verbose=False, **kwargs):
+    if verbose:
+        print(*args)
+
+
 def extras(cfg: DictConfig) -> None:
     """Applies optional utilities before the task is started.
 
