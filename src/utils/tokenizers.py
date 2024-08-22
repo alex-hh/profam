@@ -109,9 +109,8 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         positions: Optional[List[int]] = None,
         bos_token="[SEP]",
     ):
-        completion_seqs = [bos_token + seq + self.sep_token for seq in sequences]
         tokenized = self(
-            completion_seqs,
+            [bos_token + seq + self.sep_token for seq in sequences],
             return_tensors="pt",
             padding="longest",
             truncation=False,
@@ -119,7 +118,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         )
         if self.use_seq_pos:
             all_positions = []
-            for i, seq in enumerate(completion_seqs):
+            for i, seq in enumerate(sequences):
                 if positions is None:
                     seq_positions = [list(range(1, len(seq) + 1))]
                 else:
