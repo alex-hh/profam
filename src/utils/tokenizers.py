@@ -63,8 +63,19 @@ def get_seq_pos_from_positions(
     return seq_pos
 
 
-def concatenate_pad_array(array_list, fill_value, num_start_tokens=1, num_end_tokens=1):
-    full_length = sum(len(a) for a in array_list) + num_start_tokens + num_end_tokens
+def concatenate_pad_array(
+    array_list,
+    fill_value,
+    num_start_tokens=1,
+    num_end_tokens=1,
+    pad_to_length: Optional[int] = None,
+):
+    if pad_to_length is not None:
+        full_length = pad_to_length
+    else:
+        full_length = (
+            sum(len(a) for a in array_list) + num_start_tokens + num_end_tokens
+        )
     if isinstance(array_list[0], list):
         full_array = np.full((full_length,), fill_value)
     else:
@@ -72,7 +83,7 @@ def concatenate_pad_array(array_list, fill_value, num_start_tokens=1, num_end_to
         full_array = np.full((full_length, *array_list[0].shape[1:]), fill_value)
     start_ix = num_start_tokens
     for arr in array_list:
-        end_ix = start_ix + arr.shape[0]
+        end_ix = start_ix + len(arr)
         full_array[start_ix:end_ix] = arr
         start_ix = end_ix + 1  # +1 for sep token
     return full_array
@@ -92,6 +103,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
+        seq_struct_sep_token="[SEQ-STRUCT-SEP]",
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -101,6 +113,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
+        self.seq_struct_sep_token = seq_struct_sep_token
 
         if not self.additional_special_tokens:
             additional_special_tokens = [
@@ -111,6 +124,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             self.add_special_tokens(
                 {"additional_special_tokens": additional_special_tokens}
             )
+
+    @property
+    def seq_struct_sep_token_id(self):
+        return self.convert_tokens_to_ids(self.seq_struct_sep_token)
 
     @property
     def aa_tokens(self):
@@ -184,9 +201,12 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     fill_value=np.nan,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,
+                    pad_to_length=max_length if padding == "max_length" else None,
                 )
             )
-            assert tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
+            assert (
+                tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
+            ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
 
         if plddts is not None:
             tokenized.data["plddts"] = torch.from_numpy(
@@ -195,9 +215,12 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     fill_value=np.nan,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,
+                    pad_to_length=max_length if padding == "max_length" else None,
                 )
             )
-            assert tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
+            assert (
+                tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
+            ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
 
         tokenized.data["aa_mask"] = torch.isin(
             tokenized.input_ids, torch.tensor(self.aa_tokens)

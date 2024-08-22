@@ -33,6 +33,7 @@ def test_foldseek_backbone_loading(foldseek_df):
             assert len(coords) == len(seq)
 
 
+# TODO: write full manual test for coords concatenation and padding etc.
 def test_foldseek_interleaved_tokenization(
     foldseek_interleaved_structure_sequence_batch,
 ):

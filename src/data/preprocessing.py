@@ -209,13 +209,16 @@ def _subsample_and_tokenize_protein_data(
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
     if cfg.interleave_structure_tokens:
         sequences = [
-            seq + "[3DI-AA-SEP]" + seq_3d
+            seq + tokenizer.seq_struct_sep_token + seq_3d
             for seq, seq_3d in zip(sequences, structure_tokens)
         ]
         coords = [
             np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
             for xyz in coords
         ]
+        assert isinstance(plddts[0], list)
+        assert isinstance(positions[0], list)
+        positions = [pos + [0] + pos for pos in positions]
         plddts = [vals + [np.nan] + vals for vals in plddts]
 
     tokenized = _tokenize_protein_data(

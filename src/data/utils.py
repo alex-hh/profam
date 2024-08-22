@@ -93,7 +93,6 @@ def load_protein_dataset(
     split="train",
     include_doc_hashes: bool = False,
     shuffle: bool = True,
-    remove_text: bool = False,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -180,7 +179,7 @@ def load_protein_dataset(
     dataset = dataset.map(
         preprocess_protein_data,
         batched=False,
-        remove_columns=["text"] if remove_text else [],
+        remove_columns=dataset.column_names,  # preprocess returns anything that should be kept
         fn_kwargs={"cfg": cfg, "tokenizer": tokenizer},
     ).filter(filter_example)
 
