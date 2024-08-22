@@ -1,16 +1,20 @@
+import os
 import time
 from typing import Any, Dict, List, Optional
 
+import hydra
 import numpy as np
 import torch
 import tqdm
 from lightning import LightningModule
+from omegaconf import OmegaConf
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
+from src.constants import BASEDIR
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,
@@ -28,6 +32,53 @@ def calc_grad_norm(params):
     )
 
     return grad_norm
+
+
+def load_checkpoint(checkpoint_dir, **kwargs):
+    config_dir = os.path.join(BASEDIR, checkpoint_dir, ".hydra")
+    cfg = OmegaConf.load(os.path.join(config_dir, "config.yaml"))
+    if "tokenizer" in cfg:
+        old_config = False
+        tokenizer = hydra.utils.instantiate(cfg.tokenizer)
+    else:
+        # old config
+        old_config = True
+        from src.utils.tokenizers import ProFamTokenizer
+
+        tokenizer = ProFamTokenizer(
+            tokenizer_file=cfg.data.tokenizer_path,
+            unk_token="[UNK]",
+            pad_token="[PAD]",
+            sep_token="[SEP]",
+            mask_token="[MASK]",
+            bos_token="[start-of-document]",
+            add_special_tokens=True,
+            add_final_sep=True,
+            add_bos_token=True,
+            add_document_type_token=True,
+            use_seq_pos=cfg.data.use_seq_pos,
+            max_seq_pos=cfg.data.max_seq_pos,
+            max_tokens=cfg.data.max_tokens,
+        )
+        del cfg.model.use_seq_pos
+        del cfg.model.max_seq_pos
+
+    print(OmegaConf.to_yaml(cfg.model))
+    # TODO: check callback config
+    checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+    )["state_dict"]
+    if old_config and tokenizer.use_seq_pos:
+        # TODO: we'll have to convert keys and change model class if using an old-style checkpoint.
+        checkpoint = {
+            k.replace("model.model.", "model."): v for k, v in checkpoint.items()
+        }
+
+    model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
+    model.load_state_dict(checkpoint)
+    return model
 
 
 class BaseLitModule(LightningModule):
@@ -301,7 +352,9 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
-        assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
+        assert (
+            input_ids.ndim == 2 and completion_ids.ndim == 3
+        ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
         L = completion_ids.shape[-1]
         all_lls = []
         for batch_start in range(0, completion_ids.shape[1], batch_size):
@@ -421,9 +474,10 @@ class BaseFamilyLitModule(BaseLitModule):
                     -1, L
                 )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
                 forward_kwargs["seq_pos"] = this_seq_pos
+
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
-            cache.batch_repeat_interleave(actual_batch_size)
+            cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
 
             outputs = self.model(
                 input_ids=this_input_ids,
@@ -437,6 +491,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids.clone(),
             )
             log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
+
             all_lls.append(log_likelihood.mean(-1))  # b_mut
 
         lls = torch.cat(all_lls).cpu().numpy()
@@ -487,6 +542,7 @@ class BaseFamilyLitModule(BaseLitModule):
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=completion_start_pos - 1
             )  # 1, L
+
             all_lls.append(log_likelihood.mean(-1).item())
         lls = np.array(all_lls)
         return lls
@@ -505,7 +561,9 @@ class BaseFamilyLitModule(BaseLitModule):
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
-        assert input_ids.ndim == 2 and completion_ids.ndim == 3  # b, L; b, n, L
+        assert (
+            input_ids.ndim == 2 and completion_ids.ndim == 3
+        ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
         if use_cache:
             return self._score_seqs_kv_cache(
                 input_ids,
@@ -526,29 +584,67 @@ class BaseFamilyLitModule(BaseLitModule):
     def _sample_seqs(
         self,
         input_ids,
-        num_sequences,
+        num_samples,
         batch_size: int = 1,
         max_length: int = 8192,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
         include_prompt_in_output: bool = False,
+        fixed_length: Optional[int] = None,
         greedy: bool = False,
         temperature: Optional[float] = None,
+        sample_gaps: bool = False,
     ):
+        """
+        Conditionally independent sequence generation: sequences are generated independently of each other
+        given the prompt. Once sep token is generated, the sequence is considered complete.
+        (i.e. we don't generate a sequence of sequences directly).
+        """
         # TODO: pass attention mask, pad_token_id to avoid the following warning:
         # The attention mask and the pad token id were not set. As a consequence, you may
         # observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
+        generation_kwargs = {}
+        if fixed_length is not None:
+            if max_length is not None:
+                assert input_ids.shape[1] + fixed_length <= max_length
+            generation_kwargs["min_new_tokens"] = fixed_length
+            generation_kwargs["max_new_tokens"] = fixed_length
+            generation_kwargs["eos_token_id"] = None
+        else:
+            generation_kwargs["min_new_tokens"] = 1
+            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
+            generation_kwargs["max_length"] = max_length
+        generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
+        bad_aas = ["X"]
+        if not sample_gaps:
+            bad_aas.append("-")
+
+        # each 'word' is treated as a list of tokens
+        generation_kwargs["bad_words_ids"] = [
+            [tok]
+            for tok in self.tokenizer.convert_tokens_to_ids(
+                [
+                    t
+                    for t in list(self.tokenizer.get_added_vocab().keys())
+                    if t != self.tokenizer.eos_token_id
+                    and t.startswith("[")
+                    and t.endswith("]")
+                ]
+                + bad_aas
+            )  # a bit of a nasty hack
+        ]
 
         assert (
             input_ids.shape[0] == 1
-        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+        ), "Only batch size 1 is supported for sampling; batch dim must be present"
+
         assert input_ids.ndim == 2  # b, L
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         all_outputs = []
-        for batch_start in range(0, num_sequences, batch_size):
-            num_return_sequences = min(batch_size, num_sequences - batch_start)
+        for batch_start in range(0, num_samples, batch_size):
+            num_return_sequences = min(batch_size, num_samples - batch_start)
             forward_kwargs = (
                 {"seq_pos": input_seq_pos.expand(num_return_sequences, -1)}
                 if self.use_seq_pos
@@ -556,45 +652,66 @@ class BaseFamilyLitModule(BaseLitModule):
             )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
+            # N.B. we need to be careful about generationconfig -- in particular eos token id
+            # if we want to generate multiple sequences in a single family: we either need to restore eos token id
+            # or we just do a batched generation like we do here. latter is more explicit.
             outputs = self.model.generate(
                 input_ids=input_ids,
                 num_return_sequences=num_return_sequences,
                 return_dict_in_generate=False,
-                max_length=max_length,
                 do_sample=not greedy,
                 temperature=temperature,
+                # https://huggingface.co/docs/transformers/en/generation_strategies
+                **generation_kwargs,
                 **forward_kwargs,
             )
             if not include_prompt_in_output:
                 outputs = outputs[:, input_ids.shape[1] :]
             all_outputs.append(outputs)
+
         max_output_length = max([o.shape[1] for o in all_outputs])
         # TODO: poss just return a list instead of the padded tensor
         # TODO: does padding include eos (sep)? seems no?
         padded_outputs = torch.full(
-            (num_sequences, max_output_length), self.tokenizer.pad_token_id
+            (num_samples, max_output_length), self.tokenizer.pad_token_id
         )
-        for i, o in enumerate(all_outputs):
-            padded_outputs[i, : o.shape[1]] = o
+        start_ix = 0
+        for o in all_outputs:
+            padded_outputs[start_ix : start_ix + o.shape[0], : o.shape[1]] = o
+            start_ix += o.shape[0]
+
         return padded_outputs
 
     def sample_seqs(
         self,
         sequence_prompt: List[str],
-        num_sequences,
+        num_samples,
         position_indices: Optional[List[int]] = None,
         batch_size: int = 1,
+        include_prompt_in_output: bool = False,
+        greedy: bool = False,
+        fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
+        temperature: Optional[float] = None,
+        document_type: str = "[RAW]",
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
         tokenized = self.tokenizer.encode_sequences(
-            sequence_prompt, positions=position_indices
+            sequence_prompt, positions=position_indices, document_type=document_type
         )
-        seq_pos = tokenized.data.get("seq_pos", None)
+        if "seq_pos" in tokenized.data:
+            seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
+        else:
+            seq_pos = None
         encoded = self._sample_seqs(
-            tokenized.input_ids,
-            num_sequences,
+            tokenized.input_ids.unsqueeze(0).to(self.device),
+            num_samples,
             input_seq_pos=seq_pos,
             batch_size=batch_size,
+            include_prompt_in_output=include_prompt_in_output,
+            greedy=greedy,
+            fixed_length=fixed_length,
+            temperature=temperature,
+            sample_gaps=document_type == "[MSA]",
         )
         return self.tokenizer.decode_tokens(encoded)
 
@@ -618,9 +735,10 @@ class BaseFamilyLitModule(BaseLitModule):
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=(self.scoring_max_tokens - L_prompt) // L
-            if self.use_kv_cache_for_scoring
-            else 1,
+            batch_size=1,
+            # batch_size=(self.scoring_max_tokens - L_prompt) // L
+            # if self.use_kv_cache_for_scoring
+            # else 1,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
@@ -652,9 +770,10 @@ class BaseFamilyLitModule(BaseLitModule):
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=(self.scoring_max_tokens - L_prompt) // L
-            if self.use_kv_cache_for_scoring
-            else 1,
+            batch_size=1,
+            # (self.scoring_max_tokens - L_prompt) // L
+            # if self.use_kv_cache_for_scoring
+            # else 1,
         )
         target_vals = batch["family_labels"][0].cpu().numpy()
         # TODO: maybe specify which family is classified in metric

@@ -1,27 +1,152 @@
 """This file prepares config fixtures for other tests."""
 
+import os
 from pathlib import Path
 
+import hydra
+import pandas as pd
 import pytest
 import rootutils
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
 
+from src.constants import BASEDIR
+from src.data.proteingym import load_gym_dataset
+from src.data.utils import (
+    CustomDataCollator,
+    load_protein_dataset,
+)
 from src.utils.tokenizers import ProFamTokenizer
 
 
 @pytest.fixture()
-def profam_tokenizer():
+def profam_tokenizer_seqpos():
     tokenizer = ProFamTokenizer(
-        tokenizer_file="src/data/components/profam_tokenizer.json",
+        tokenizer_file=os.path.join(
+            BASEDIR, "src/data/components/profam_tokenizer.json"
+        ),
         unk_token="[UNK]",
         pad_token="[PAD]",
         bos_token="[start-of-document]",
         sep_token="[SEP]",
         mask_token="[MASK]",
+        add_special_tokens=True,
+        use_seq_pos=True,
+        max_seq_pos=2048,
+        max_tokens=2048,
     )
     return tokenizer
+
+
+@pytest.fixture()
+def profam_tokenizer_noseqpos():
+    tokenizer = ProFamTokenizer(
+        tokenizer_file=os.path.join(
+            BASEDIR, "src/data/components/profam_tokenizer.json"
+        ),
+        unk_token="[UNK]",
+        pad_token="[PAD]",
+        bos_token="[start-of-document]",
+        sep_token="[SEP]",
+        mask_token="[MASK]",
+        add_special_tokens=True,
+        use_seq_pos=False,
+        max_seq_pos=2048,
+        max_tokens=2048,
+    )
+    return tokenizer
+
+
+@pytest.fixture()
+def default_model_noseqpos(profam_tokenizer_noseqpos):
+    # otherwise could do this via overrides...
+    with initialize(config_path="../configs", version_base="1.3"):
+        cfg = compose(
+            config_name="train.yaml",
+            return_hydra_config=True,
+        )
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
+
+
+@pytest.fixture()
+def default_model_seqpos(profam_tokenizer_seqpos):
+    with initialize(config_path="../configs", version_base="1.3"):
+        cfg = compose(
+            config_name="train.yaml",
+            return_hydra_config=True,
+        )
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_seqpos)
+
+
+@pytest.fixture()
+def proteingym_batch(profam_tokenizer_seqpos):
+    data = load_gym_dataset(
+        dms_ids=["BLAT_ECOLX_Jacquier_2013"],
+        tokenizer=profam_tokenizer_seqpos,
+        gym_data_dir="data/example_data/ProteinGym",
+        max_tokens=profam_tokenizer_seqpos.max_tokens,
+        keep_gaps=False,
+        num_proc=None,
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer_seqpos, mlm=False)
+    return collator([datapoint])
+
+
+@pytest.fixture()
+def pfam_batch(profam_tokenizer):
+    cfg = ProteinDatasetConfig(
+        name="pfam",
+        keep_gaps=False,
+        data_path_pattern="pfam/Domain_60429258_61033370.parquet",
+        keep_insertions=True,
+        to_upper=True,
+        is_parquet=True,
+    )
+    data = load_protein_dataset(
+        cfg,
+        tokenizer=profam_tokenizer,
+        max_tokens=2048,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        use_seq_pos=True,
+        max_seq_pos=2048,
+        shuffle=False,
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    return collator([datapoint])
+
+
+@pytest.fixture()
+def foldseek_batch(profam_tokenizer):
+    cfg = ProteinDatasetConfig(
+        name="foldseek",
+        keep_gaps=False,
+        data_path_pattern="foldseek_struct/3.parquet",
+        keep_insertions=True,
+        to_upper=True,
+        is_parquet=True,
+    )
+    data = load_protein_dataset(
+        cfg,
+        tokenizer=profam_tokenizer,
+        max_tokens=2048,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        use_seq_pos=True,
+        max_seq_pos=2048,
+        shuffle=False,
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    return collator([datapoint])
+
+
+@pytest.fixture
+def pfam_fasta_text():
+    return pd.read_parquet(
+        "data/example_data/pfam/Domain_60429258_61033370.parquet"
+    ).iloc[0]["text"]
 
 
 @pytest.fixture(scope="package")

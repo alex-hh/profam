@@ -72,7 +72,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     model: LightningModule = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
 
     log.info("Instantiating callbacks...")
-    callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
+    callbacks: List[Callback] = instantiate_callbacks(
+        cfg.get("callbacks"), extra_callbacks_cfg=cfg.get("extra_callbacks")
+    )
 
     log.info("Instantiating loggers...")
     logger: List[Logger] = instantiate_loggers(cfg.get("logger"))

@@ -1,0 +1,18 @@
+# @package _global_
+
+# TODO: decide whether we do want pretrained_model to be separately configurable
+defaults:
+  - _self_
+  - pretrained_model: pfam_seqpos
+  - pipeline: pfam_example
+  - evaluator: pfam_profile_hmm
+  - paths: default
+  - extras: default
+  - hydra: default
+  - tokenizer: profam
+
+rerun_model: false
+rerun_evaluator: false
+task_name: "eval"
+
+tags: ["dev"]

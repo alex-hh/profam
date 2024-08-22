@@ -10,6 +10,11 @@ from src.utils import pylogger, rich_utils
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 
+def maybe_print(*args, verbose=False, **kwargs):
+    if verbose:
+        print(*args)
+
+
 def extras(cfg: DictConfig) -> None:
     """Applies optional utilities before the task is started.
 
@@ -122,15 +127,22 @@ def get_metric_value(
     return metric_value
 
 
-def np_random(seed: Optional[int]) -> Any:
-    """Returns a numpy random number generator with a given seed.
-
-    :param seed: The seed value for the random number generator.
-    :return: A numpy random number generator.
+def nested_getattr(obj, attr_path, default=None):
     """
-    if seed is not None:
-        rnd = np.random.default_rng(seed)
-    else:
-        # to maintain control by global seed
-        rnd = np.random
-    return rnd
+    Retrieve a nested attribute value from an object given a dot-separated path.
+
+    Parameters:
+    - obj: The object from which to retrieve the attribute.
+    - attr_path: A string representing the dot-separated path to the nested attribute.
+    - default: The default value to return if the attribute is not found.
+
+    Returns:
+    The value of the nested attribute or the default value if not found.
+    """
+    attributes = attr_path.split(".")
+    try:
+        for attr in attributes:
+            obj = getattr(obj, attr)
+        return obj
+    except AttributeError:
+        return default

@@ -93,6 +93,7 @@ def load_protein_dataset(
     split="train",
     include_doc_hashes: bool = False,
     shuffle: bool = True,
+    remove_text: bool = False,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -161,7 +162,7 @@ def load_protein_dataset(
         filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
         # TODO: we need to be very careful with this!
         filter_identifier = (
-            cfg.holdout_data_files is None
+            cfg.holdout_identifiers is None
             or example["identifier"] not in cfg.holdout_identifiers
         )
         return filter_num_seqs and filter_identifier
@@ -169,7 +170,7 @@ def load_protein_dataset(
     dataset = dataset.map(
         preprocess_protein_data,
         batched=False,
-        remove_columns=["text"],
+        remove_columns=["text"] if remove_text else [],
         fn_kwargs={"cfg": cfg, "tokenizer": tokenizer},
     ).filter(filter_example)
 

@@ -5,7 +5,6 @@ from typing import List, Optional
 import pandas as pd
 from datasets import Dataset
 from lightning import LightningDataModule
-from torch import stack
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
@@ -14,10 +13,9 @@ from src.data import utils as data_utils
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
-    get_seq_pos_from_positions,
     load_protein_dataset,
 )
-from src.utils import ProFamTokenizer
+from src.utils.tokenizers import ProFamTokenizer
 
 
 def tokenize_msa(
@@ -46,40 +44,16 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
 
 def tokenize_completions(
     sample,
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     bos_token="sep",
 ):
-    max_length = max(len(seq) for seq in sample["completion_seqs"])
-    # TODO: make a tokenizer method to handle this
-    completion_seqs = [
-        get_token_from_name(bos_token, tokenizer) + seq + tokenizer.sep_token
-        for seq in sample["completion_seqs"]
-    ]
-    tokenized = tokenizer(
-        completion_seqs,
-        return_tensors="pt",
-        padding="max_length",  # todo handle the padding in the validation step
-        truncation=False,  # should be handled elsewhere
-        max_length=max_length + 2,  # bos_token and sep_token
-        add_special_tokens=False,
+    tokenized = tokenizer.encode_completions(
+        sample["completion_seqs"],
+        bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
     if tokenizer.use_seq_pos:
-        # +1 to match convert_sequence_with_positions
-        # get_seq_pos_from_positions adds another offset
-        completion_seq_pos = stack(
-            [
-                get_seq_pos_from_positions(
-                    sample["completion_ids"][i],
-                    [list(range(1, len(seq) + 1))],
-                    pad_token_id=tokenizer.pad_token_id,
-                    max_seq_pos=tokenizer.max_seq_pos,
-                    num_start_tokens=1,
-                )
-                for i, seq in enumerate(sample["completion_seqs"])
-            ]
-        )
-        sample["completion_seq_pos"] = completion_seq_pos
+        sample["completion_seq_pos"] = tokenized.data["seq_pos"]
     return sample
 
 
@@ -209,7 +183,7 @@ def load_gym_dataset(
         num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-    columns = ["input_ids", "completion_ids", "DMS_scores"]
+    columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
     if tokenizer.use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 

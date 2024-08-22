@@ -3,7 +3,13 @@ from typing import Optional
 from transformers import MistralConfig, MistralForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
-from src.models.wrapper import TransformerWithSequencePositionEmbeddings
+from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
+
+
+class WrappedMistralForCausalLM(
+    WrappedHFModelWithPositionEmbeddingsMixin, MistralForCausalLM
+):
+    pass
 
 
 class MistralLitModule(BaseFamilyLitModule):
@@ -19,15 +25,16 @@ class MistralLitModule(BaseFamilyLitModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
     ) -> None:
-        model = MistralForCausalLM(config)
         if tokenizer.use_seq_pos:
-            model = TransformerWithSequencePositionEmbeddings(
-                model,
-                model.model.embed_tokens,
+            model = WrappedMistralForCausalLM(
+                config,
+                "model.embed_tokens",
                 embedding_dim=config.hidden_size,
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
             )
+        else:
+            model = MistralForCausalLM(config)
         super().__init__(
             model,
             tokenizer,

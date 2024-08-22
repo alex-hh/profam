@@ -1,7 +1,9 @@
+import json
 from typing import List, Optional
 
 import numpy as np
 import torch
+from torch import stack
 from transformers import PreTrainedTokenizerFast
 
 from src.utils import RankedLogger
@@ -89,8 +91,8 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_document_type_token: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
-        max_tokens: Optional[int] = None,
-        **kwargs
+        max_tokens: Optional[int] = 5000,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
@@ -101,6 +103,16 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
+
+        if not self.additional_special_tokens:
+            additional_special_tokens = [
+                tok.content
+                for tok in self.added_tokens_decoder.values()
+                if tok.special and tok.content not in self.special_tokens_map.values()
+            ]
+            self.add_special_tokens(
+                {"additional_special_tokens": additional_special_tokens}
+            )
 
     @property
     def aa_tokens(self):
@@ -117,6 +129,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         coords: Optional[List[np.ndarray]] = None,
         plddts: Optional[List[np.ndarray | List]] = None,
     ):
+        """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
         concatenated_seqs = self.sep_token.join(sequences)
         if add_final_sep:
@@ -130,7 +143,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 not self.add_document_type_token
             ), "Document type token expected but not provided"
         num_end_tokens = int(add_final_sep)
-        tokenized = self.tokenizer(
+        tokenized = self(
             concatenated_seqs,
             truncation=False,  # shouldnt be necessary: bisection should handle
             return_tensors="pt",
@@ -194,17 +207,59 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         # TODO: return sequence start and end positions?
         return tokenized
 
+    def encode_completions(
+        self,
+        sequences,
+        positions: Optional[List[int]] = None,
+        bos_token="[SEP]",
+    ):
+        tokenized = self(
+            [bos_token + seq + self.sep_token for seq in sequences],
+            return_tensors="pt",
+            padding="longest",
+            truncation=False,
+            add_special_tokens=False,
+        )
+        if self.use_seq_pos:
+            all_positions = []
+            for i, seq in enumerate(sequences):
+                if positions is None:
+                    seq_positions = [list(range(1, len(seq) + 1))]
+                else:
+                    seq_positions = positions[i]
+                all_positions.append(
+                    get_seq_pos_from_positions(
+                        tokenized.input_ids[i],
+                        seq_positions,
+                        pad_token_id=self.pad_token_id,
+                        max_seq_pos=self.max_seq_pos,
+                        num_start_tokens=1,  # just bos_token (no document tag because we are completing prompt)
+                    )
+                )
+            tokenized.data["seq_pos"] = stack(all_positions)
+
+        return tokenized
+
     def decode_tokens(self, tokens):
         # TODO: some kind of assertion on shape
-        assert tokens.ndim == 2 and tokens.shape[0] == 1
-        if tokens[:, -1] == self.sep_token_id:
-            tokens = tokens[:, :-1]
-        # TODO: use batch_decode for batches
-        dec = self.decode(tokens.squeeze(0))
-        return [
-            s.replace("[RAW]", "")
-            .replace("[MSA]", "")
-            .replace("[start-of-document]", "")
-            .replace("[end-of-document]", "")
-            for s in dec.replace(" ", "").split("[SEP]")
-        ]
+        assert tokens.ndim == 2
+        dec = self.batch_decode(tokens)
+        decoded_sequences = []
+
+        for seq_of_seqs in dec:
+            # we're trusting that [PAD] tokens are put in the correct place.
+            decoded_seq_of_seqs = []
+            for seq in seq_of_seqs.replace(" ", "").replace("[PAD]", "").split("[SEP]"):
+                processed_seq = (
+                    seq.replace("[RAW]", "")
+                    .replace("[MSA]", "")
+                    .replace("[start-of-document]", "")
+                    .replace("[end-of-document]", "")
+                )
+                if processed_seq:
+                    decoded_seq_of_seqs.append(processed_seq)
+            assert decoded_seq_of_seqs, "Empty sequence"
+            decoded_sequences.append(decoded_seq_of_seqs)
+        if all(len(seq) == 1 for seq in decoded_sequences):
+            decoded_sequences = [seq[0] for seq in decoded_sequences]
+        return decoded_sequences
