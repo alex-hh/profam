@@ -120,27 +120,32 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
             for i, seq in enumerate(reference_sequences)
         ]
         hits = next(pyhmmer.hmmsearch(hmm, sequences, E=self.E, incE=self.E))
-        evalues = {}
-        print("evalues", evalues)
-        for hit in hits.reported:
-            evalues[hit.name] = hit.evalue
+        if len(hits) > 0:
+            evalues = {}
+            for hit in hits.reported:
+                evalues[hit.name] = hit.evalue
 
-        evalues = [
-            evalues[name] for name in names
-        ]  # not actually necessary here since we take average but poss helpful
-
+            evalues = [
+                evalues[name] for name in names
+            ]  # not actually necessary here since we take average but poss helpful
+            evalue = np.mean(evalues)
+            hit_percentage = (
+                np.array(evalues) < self.hit_threshold_for_metrics
+            ).mean()
+        else:
+            evalue = self.E
+            hit_percentage = 0.0
         reference_hits = next(
             pyhmmer.hmmsearch(hmm, reference_sequences, E=self.E, incE=self.E)
         )
         assert len(reference_hits) == len(reference_sequences)
         ref_evalue = np.mean([hit.evalue for hit in reference_hits.reported])
         return {
-            "evalue": np.mean(evalues),
+            "evalue": evalue,
             "ref_evalue": ref_evalue,
-            "hit_percentage": (
-                np.array(evalues) < self.hit_threshold_for_metrics
-            ).mean(),
+            "hit_percentage": hit_percentage,
         }
+
 
 
 class PFAMProfileHMM(PFAMHMMERMixin, ProfileHMMEvaluator):
