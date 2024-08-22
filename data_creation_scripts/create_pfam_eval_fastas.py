@@ -69,7 +69,8 @@ def make_pfam_select_fam(pfam_select_fam_path, n_families=500):
             f.write(f'{fam},test\n')
 
 
-def make_pfam_eval_fastas(selected_families):
+def make_pfam_eval_fastas(selected_families, index_csv_path):
+    index_rows = []
     for split_type in ['clustered_split', 'random_split']:
         for eval_split in ['val', 'test']:
             save_dir = os.path.join(pfam_dir, f'{eval_split}/{split_type}_fastas')
@@ -95,9 +96,42 @@ def make_pfam_eval_fastas(selected_families):
                     fasta_path = os.path.join(save_dir, f"{fam}_{split}.fasta")
                     with open(fasta_path, 'w') as f:
                         for i, row in fam_df.iterrows():
-                            f.write(f'>{row["family_accession"]}\n')
-                            f.write(f'{row["aligned_sequence"]}\n')
+                            f.write(f'>{row.sequence_name}_{row["family_accession"]}\n')
+                            f.write(f'{row["aligned_sequence"].replace(".", "-")}\n')
+                            if '-' in row.aligned_sequence:
+                                bp=1
+                            index_rows.append({
+                                "fam_id": row.family_accession,
+                                "accession": row.sequence_name.split("_")[0],
+                                "sequence_name": row.sequence_name,
+                                "split": eval_split,
+                            })
+    index_df = pd.DataFrame(index_rows)
+    index_df.to_csv(os.path.join(pfam_dir, index_csv_path), index=False)
 
+def remove_from_pfam():
+    pass
+
+def remove_from_foldseek():
+    pass
+
+def remove_from_g3d():
+    pass
+
+def remove_from_ec():
+    pass
+def remove_val_test_fams_from_training():
+    pass
+
+def add_uniprot_accessions_to_csv(csv_path, mapping_path, output_path):
+
+    df = pd.read_csv(csv_path)
+    df["accession"] = df.sequence_name.apply(lambda x: x.split("/")[0])
+
+    mapping = pd.read_csv(mapping_path, delimiter="\t")
+    df2 = df.join(mapping.set_index("From", drop=False), on="accession", rsuffix="_up_map", how="left")
+    print(f"Found uniprot accessions for {df2.Entry.notnull().sum()} out of {len(df2)}")
+    df2.to_csv(output_path, index=False)
 
 def main():
     pfam_select_fam_path = os.path.join(pfam_dir, 'eval_families_500.csv')
@@ -105,9 +139,19 @@ def main():
     if not os.path.exists(pfam_select_fam_path):
         make_pfam_select_fam(pfam_select_fam_path, n_families=n_families)
     selected_families = pd.read_csv(pfam_select_fam_path)
-    make_pfam_eval_fastas(selected_families)
+
+    if not os.path.exists(index_csv_path):
+        make_pfam_eval_fastas(selected_families, index_csv_path=index_csv_path)
+    add_uniprot_accessions_to_csv(
+        index_csv_path,
+        mapping_path,
+        output_path=index_csv_path.replace(".csv", "_w_unip_accs.csv")
+    )
 
 
 if __name__ == "__main__":
     pfam_dir = '../data/pfam/pfam_eval_splits'
+    index_csv_path = os.path.join(pfam_dir, "pfam_val_test_accessions.csv")
+    mapping_path = os.path.join(pfam_dir, "val_test_uniprot_idmapping_2024_08_22.tsv")
+
     main()
