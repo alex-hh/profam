@@ -270,13 +270,18 @@ def sample_to_max_tokens(
     if drop_first:
         sequences = sequences[1:]
         if extra_arrays is not None:
-            extra_arrays = [arr[1:] for arr in extra_arrays]
+            extra_arrays = [
+                arr[1:] if arr is not None else None for arr in extra_arrays
+            ]
 
     if shuffle:
         perm = rng.permutation(len(sequences))
         sequences = [sequences[i] for i in perm]
         if extra_arrays is not None:
-            extra_arrays = [[arr[i] for i in perm] for arr in extra_arrays]
+            extra_arrays = [
+                [arr[i] for i in perm] if arr is not None else None
+                for arr in extra_arrays
+            ]
 
     if max_tokens is not None:
         cumulative_lengths = list(

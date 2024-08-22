@@ -11,6 +11,18 @@ from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
 
+def check_array_lengths(*arrays):  # TODO: name better!
+    sequence_lengths = []
+    for arr in arrays:
+        if arr is None:
+            continue
+        else:
+            sequence_lengths.append(tuple([len(seq) for seq in arr]))
+
+    assert all(l == sequence_lengths[0] for l in sequence_lengths)
+    return sequence_lengths
+
+
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
     start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
     end_ix = start_ix[1:]
@@ -72,7 +84,6 @@ def _subsample_and_tokenize_protein_data(
     structure_tokens: Optional[List[str]] = None,
 ):
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    # TODO: sample to max tokens // 2 if interleaving structure tokens
     if cfg.use_seq_pos:
         sequences = []
         positions = []
@@ -105,11 +116,16 @@ def _subsample_and_tokenize_protein_data(
         shuffle=cfg.shuffle,
     )
     positions, coords, plddts, structure_tokens = extra_arrays
+    check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
     if cfg.interleave_structure_tokens:
         sequences = [
             seq + tokenizer.convert_tokens_to_ids("[3DI-AA-SEP]") + seq_3d
             for seq, seq_3d in zip(sequences, structure_tokens)
         ]
+        coords = [
+            np.concatenate([xyz, np.nan((1, 4, 3)), xyz], axis=0) for xyz in coords
+        ]
+        plddts = [vals + [np.nan] + vals for vals in plddts]
     tokenized = _tokenize_protein_data(
         sequences,
         cfg=cfg,
@@ -118,11 +134,6 @@ def _subsample_and_tokenize_protein_data(
         coords=coords,
         plddts=plddts,
     )
-    if cfg.identifier_col is not None:
-        tokenized.data["identifier"] = example[cfg.identifier_col]
-    if cfg.include_doc_hashes:
-        # identify documents by a hash of the first 512 characters
-        tokenized["doc_hash"] = hashlib.md5(example["text"][:512].encode()).hexdigest()
     return tokenized
 
 
@@ -202,7 +213,9 @@ def preprocess_parquet_data(
 
     if "N" in example:
         coords = backbone_coords_from_example(example)
+        coords = [coords[i] for i in sequence_ids]
         plddts = example["plddts"]
+        plddts = [plddts[i] for i in sequence_ids]
     else:
         coords = None
         plddts = None
@@ -224,6 +237,12 @@ def preprocess_protein_data(
     # N.B. for stockholm format we need to check that sequences aren't split over
     # multiple lines
     if "sequences" in example:
-        return preprocess_parquet_data(example, cfg, tokenizer)
+        tokenized = preprocess_parquet_data(example, cfg, tokenizer)
     else:
-        return preprocess_fasta_data(example, cfg, tokenizer)
+        tokenized = preprocess_fasta_data(example, cfg, tokenizer)
+    if cfg.identifier_col is not None:
+        tokenized["identifier"] = example[cfg.identifier_col]
+    if cfg.include_doc_hashes:
+        # identify documents by a hash of the first 512 characters
+        tokenized["doc_hash"] = hashlib.md5(example["text"][:512].encode()).hexdigest()
+    return tokenized
