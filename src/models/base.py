@@ -605,7 +605,6 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
-        print("Sampling seqs batch size", batch_size)
         generation_kwargs = {}
         if fixed_length is not None:
             if max_length is not None:
