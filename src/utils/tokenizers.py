@@ -86,7 +86,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
 
         if not allow_unk:
             assert not (
-                tokenized.input_ids == tokenizer.convert_tokens_to_ids("[UNK]")
+                tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
         if self.use_seq_pos:
             if positions is None:
