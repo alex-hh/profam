@@ -618,14 +618,24 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
             generation_kwargs["max_length"] = max_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
+        bad_aas = ["X"]
         if not sample_gaps:
-            # each 'word' is treated as a list of tokens
-            generation_kwargs["bad_words_ids"] = [
-                [tok]
-                for tok in self.tokenizer.convert_tokens_to_ids(
-                    ["-", "[MASK]", "[CLS]", "[UNK]", "[RAW]", "X"]
-                )
-            ]
+            bad_aas.append("-")
+
+        # each 'word' is treated as a list of tokens
+        generation_kwargs["bad_words_ids"] = [
+            [tok]
+            for tok in self.tokenizer.convert_tokens_to_ids(
+                [
+                    t
+                    for t in list(self.tokenizer.get_added_vocab().keys())
+                    if t != self.tokenizer.eos_token_id
+                    and t.startswith("[")
+                    and t.endswith("]")
+                ]
+                + bad_aas
+            )  # a bit of a nasty hack
+        ]
 
         assert (
             input_ids.shape[0] == 1

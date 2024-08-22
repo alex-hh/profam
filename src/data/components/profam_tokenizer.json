@@ -162,6 +162,7 @@
     "end_of_word_suffix": null,
     "fuse_unk": false,
     "byte_fallback": false,
+    "ignore_merges": false,
     "vocab": {
       "A": 0,
       "R": 1,

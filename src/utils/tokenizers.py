@@ -1,3 +1,4 @@
+import json
 from typing import List, Optional
 
 from torch import stack
@@ -33,7 +34,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
-        print(f"Tokenizer: seq pos {self.use_seq_pos}, max seq pos {self.max_seq_pos}")
+        if not self.additional_special_tokens:
+            additional_special_tokens = [
+                tok.content
+                for tok in self.added_tokens_decoder.values()
+                if tok.special and tok.content not in self.special_tokens_map.values()
+            ]
+            self.add_special_tokens(
+                {"additional_special_tokens": additional_special_tokens}
+            )
 
     def encode_sequences(
         self,
