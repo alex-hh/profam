@@ -639,7 +639,7 @@ class BaseFamilyLitModule(BaseLitModule):
 
         assert (
             input_ids.shape[0] == 1
-        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+        ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
         assert input_ids.ndim == 2  # b, L
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
