@@ -4,9 +4,10 @@
 # python train.py experiment=foldseek_small
 
 defaults:
+  - /callbacks@extra_callbacks.pfam_hmmer: pfam_hmmer
+  - override /callbacks: default_with_shuffle
   - override /data: pfam
   - override /model: llama_tiny
-  - override /callbacks: default_with_shuffle
 
 tags: ["pfam"]
 
@@ -38,8 +39,6 @@ data:
     "RL40A_YEAST_Roscoe_2013",
     "P53_HUMAN_Giacomelli_2018_WT_Nutlin",
   ]
-  use_seq_pos: true
-  max_seq_pos: 2048
 
 logger:
   wandb:

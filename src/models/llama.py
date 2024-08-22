@@ -3,7 +3,7 @@ from typing import Optional
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
-from src.models.wrapper import TransformerWithSequencePositionEmbeddings
+from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
@@ -31,6 +31,12 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         )
 
 
+class WrappedLlamaForCausalLM(
+    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
+):
+    pass
+
+
 class LlamaLitModule(BaseFamilyLitModule):
     def __init__(
         self,
@@ -43,8 +49,6 @@ class LlamaLitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
     ) -> None:
         """
         From the paper:
@@ -53,17 +57,18 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        model = LlamaForCausalLM(config)
         if (
-            use_seq_pos
+            tokenizer.use_seq_pos
         ):  # commenting out to check computation of inputs embeds is working
-            model = TransformerWithSequencePositionEmbeddings(
-                model,
-                model.model.embed_tokens,
+            model = WrappedLlamaForCausalLM(
+                config,
+                token_embedder="model.embed_tokens",
                 embedding_dim=config.hidden_size,
-                use_seq_pos=use_seq_pos,
-                max_seq_pos=max_seq_pos,
+                use_seq_pos=tokenizer.use_seq_pos,
+                max_seq_pos=tokenizer.max_seq_pos,
             )
+        else:
+            model = LlamaForCausalLM(config)
         super().__init__(
             model,
             tokenizer,
@@ -74,5 +79,4 @@ class LlamaLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
-            use_seq_pos=use_seq_pos,
         )
