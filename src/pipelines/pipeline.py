@@ -270,4 +270,4 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         )
 
         # 2. evaluate the intermediate outputs with each validation
-        self.run_evaluation(model_name, evaluator, rerun=rerun_evaluator)
+        return self.run_evaluation(model_name, evaluator, rerun=rerun_evaluator)
