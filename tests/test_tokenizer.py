@@ -1,31 +1,9 @@
-import pytest
-
 from src.data.fasta import read_fasta_sequences
 from src.data.utils import sample_to_max_tokens
-from src.utils.tokenizers import ProFamTokenizer
 
 
-@pytest.fixture
-def tokenizer():
-    _tok = ProFamTokenizer(
-        tokenizer_file="src/data/components/profam_tokenizer.json",
-        unk_token="[UNK]",
-        pad_token="[PAD]",
-        bos_token="[start-of-document]",
-        sep_token="[SEP]",
-        mask_token="[MASK]",
-        add_special_tokens=True,
-        add_final_sep=True,
-        add_bos_token=True,
-        add_document_type_token=True,
-        use_seq_pos=True,
-        max_seq_pos=1024,
-        max_tokens=5000,
-    )
-    return _tok
 
-
-def test_encode_decode(tokenizer, pfam_fasta_text):
+def test_encode_decode(profam_tokenizer, pfam_fasta_text):
     lines = pfam_fasta_text.split("\n")
     sequence_iterator = read_fasta_sequences(
         lines,
@@ -35,12 +13,32 @@ def test_encode_decode(tokenizer, pfam_fasta_text):
         to_upper=True,
     )
     sequences = sample_to_max_tokens(
-        list(sequence_iterator), max_tokens=tokenizer.max_tokens
+        list(sequence_iterator), max_tokens=profam_tokenizer.max_tokens
     )
     # n.b. encode_sequences encodes as a sequence of sequences
-    encoded = tokenizer.encode_sequences(sequences).input_ids
-    decoded = tokenizer.decode_tokens(encoded.unsqueeze(0))[
+    encoded = profam_tokenizer.encode_sequences(sequences).input_ids
+    decoded = profam_tokenizer.decode_tokens(encoded.unsqueeze(0))[
         0
     ]  # decode_tokens returns a list of lists
     for input_seq, decoded_seq in zip(sequences, decoded):
         assert input_seq == decoded_seq
+
+
+def test_sequence_of_sequence_tokenization(profam_tokenizer):
+    example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]
+    concatenated_sequence = (
+        "[RAW]" + profam_tokenizer.bos_token + "[SEP]".join(example_sequences) + "[SEP]"
+    )
+    tokenized = profam_tokenizer(
+        concatenated_sequence,
+        return_tensors="pt",
+        truncation=False,
+        max_length=100,
+        padding="max_length",
+        add_special_tokens=False,
+    )
+    # TODO: extend...
+    assert tokenized.input_ids[0, 0] == profam_tokenizer.convert_tokens_to_ids("[RAW]")
+    assert not (
+        tokenized["input_ids"] == profam_tokenizer.convert_tokens_to_ids("[UNK]")
+    ).any()
