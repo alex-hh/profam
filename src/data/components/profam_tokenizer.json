@@ -173,6 +173,15 @@
       "rstrip": false,
       "normalized": false,
       "special": true
+    },
+    {
+      "id": 65,
+      "content": "[SEQ-STRUCT-SEP]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
     }
   ],
   "normalizer": null,
@@ -255,7 +264,8 @@
       "[SP10]": 61,
       "[MSA]": 62,
       "[RAW]": 63,
-      "[RAW-WITH-MSA-POS]": 64
+      "[RAW-WITH-MSA-POS]": 64,
+      "[SEQ-STRUCT-SEP]": 65
     },
     "merges": []
   }

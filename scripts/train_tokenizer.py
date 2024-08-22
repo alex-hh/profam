@@ -32,6 +32,7 @@ special_tokens = [
     "[RAW]",
     "[MSA]",
     "[RAW-WITH-MSA-POS]",
+    "[SEQ-STRUCT-SEP]",
 ] + unassigned_special_tokens
 tokenizer.add_special_tokens(special_tokens)
 # N.B. if all special tokens aren't assigned we have tokenization issues...
@@ -63,7 +64,8 @@ fast_tokenizer = PreTrainedTokenizerFast(
     sep_token="[SEP]",
     mask_token="[MASK]",
     # Add them here to ensure they are skipped when decoding with skip_special_tokens is set to True
-    additional_special_tokens=unassigned_special_tokens,
+    additional_special_tokens=unassigned_special_tokens
+    + ["[end-of-document]", "[RAW]", "[MSA]", "[RAW-WITH-MSA-POS]", "[SEQ-STRUCT-SEP]"],
 )
 
 # Test the tokenizer
@@ -88,7 +90,7 @@ ids = tokens["input_ids"]
 print(ids)
 
 # Assert tests
-assert len(ids) == 3, "The number of encoded sequences should be 2."
+assert len(ids) == 3, "The number of encoded sequences should be 3."
 assert (
     ids[0][0] == fast_tokenizer.bos_token_id
 ), "The first token of the first sequence should be the CLS token."
@@ -101,8 +103,8 @@ assert ids[1][1] == fast_tokenizer.convert_tokens_to_ids(
 assert (
     ids[0][-1] == fast_tokenizer.sep_token_id
 ), "The last token of the first sequence should be the EOS token."
-assert (ids[0] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 3 sep tokens"
-assert (ids[1] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 3 sep tokens"
+assert (ids[0] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 4 sep tokens"
+assert (ids[1] == fast_tokenizer.sep_token_id).sum() == 4, "Expected 4 sep tokens"
 
 
 print("Tokens:", tokens)
