@@ -31,6 +31,10 @@ class ProteinDatasetConfig:
     max_tokens: Optional[int] = 5000
     shuffle: bool = (True,)
     include_doc_hashes: bool = False
+    sequence_col: str = "sequences"
+    structure_tokens_col: str = "structure_tokens"
+    is_aligned: bool = False
+    preprocessor: str = "fasta"  # TODO: use some kind of constant typing
 
     def set_global_args(
         self,
@@ -41,18 +45,6 @@ class ProteinDatasetConfig:
         self.max_tokens = max_tokens
         self.shuffle = shuffle
         self.include_doc_hashes = include_doc_hashes
-
-
-class FastaDatasetConfig(ProteinDatasetConfig):
-    preprocessor: Callable = preprocess_fasta_data
-
-
-class ParquetSequenceDatasetConfig(ProteinDatasetConfig):
-    preprocessor: Callable = preprocess_parquet_sequence_data
-    sequence_col: str = "sequences"
-
-
-# class ProteinMultimodalDatasetConfig(ParquetSequenceDatasetConfig):
 
 
 def sample_to_max_tokens(
@@ -227,7 +219,7 @@ def _subsample_and_tokenize_protein_data(
 
 def preprocess_fasta_data(
     example: Dict[str, Any],
-    cfg,
+    cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     lines = example["text"].split("\n")
@@ -277,31 +269,42 @@ def backbone_coords_from_example(example):
     return coords
 
 
-def preprocess_parquet_multimodal_data(
+def preprocess_parquet_with_structure_tokens(
     example: Dict[str, Any],
-    cfg,
+    cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     # TODO: configure whether or not to use alignments, structure tokens col, etc.
     max_sequences_to_preprocess = cfg.max_tokens // 10
-    if "3di_sequences" in example:
-        structure_tokens = example["3di_sequences"]
-    elif "msta_3di" in example:
-        structure_tokens = [s.replace("-", "") for s in example["msta_3di"]]
-    else:
-        structure_tokens = None
+    sequence_iterator = example[cfg.sequence_col]
+    structure_tokens_iterator = example[cfg.structure_tokens_col]
     sequence_ids = random_subsample(
         len(sequence_iterator),
         max_sequences_to_preprocess,
     )
     sequences = [sequence_iterator[i] for i in sequence_ids]
-    structure_tokens = [structure_tokens[i] for i in sequence_ids]
-    if "N" in example:
+    # we assume sequence processing and structure token processing are consistent.
+    # later we will check that everything ends up the same length - which is important
+    # because otherwise incorrect config could easily lead to misalignment
+    structure_tokens = [
+        convert_sequence_with_positions(
+            structure_tokens_iterator[i],
+            keep_gaps=cfg.keep_gaps,
+            keep_insertions=cfg.keep_insertions,
+            to_upper=cfg.to_upper,
+        )
+        for i in sequence_ids
+    ]
+    if "N" in example and not cfg.is_aligned:
+        assert not any(["-" in seq for seq in sequences]) and not any(
+            ["-" in seq for seq in structure_tokens]
+        )
         coords = backbone_coords_from_example(example)
         coords = [coords[i] for i in sequence_ids]
         plddts = example["plddts"]
         plddts = [plddts[i] for i in sequence_ids]
     else:
+        # TODO: support aligned coords, plddts
         coords = None
         plddts = None
 
@@ -317,7 +320,7 @@ def preprocess_parquet_multimodal_data(
 
 def preprocess_parquet_sequence_data(
     example: Dict[str, Any],
-    cfg,
+    cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     sequence_iterator = example["sequences"]
@@ -334,6 +337,17 @@ def preprocess_parquet_sequence_data(
     )
 
 
+def get_preprocessor(preprocessor: str):
+    if preprocessor == "fasta":
+        return preprocess_fasta_data
+    elif preprocessor == "parquet_sequence":
+        return preprocess_parquet_sequence_data
+    elif preprocessor == "parquet_structure_tokens":
+        return preprocess_parquet_with_structure_tokens
+    else:
+        raise ValueError(f"Unknown preprocessor {preprocessor}")
+
+
 def preprocess_protein_data(
     example: Dict[str, Any],
     cfg: ProteinDatasetConfig,
@@ -341,7 +355,7 @@ def preprocess_protein_data(
 ) -> Dict[str, Any]:
     # N.B. for stockholm format we need to check that sequences aren't split over
     # multiple lines
-    tokenized = cfg.preprocessor(example, cfg, tokenizer)
+    tokenized = get_preprocessor(cfg.preprocessor)(example, cfg, tokenizer)
     if cfg.identifier_col is not None:
         tokenized["identifier"] = example[cfg.identifier_col]
     if cfg.include_doc_hashes:
