@@ -16,7 +16,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         self.num_samples = num_samples
         self.sampling_kwargs = sampling_kwargs or {}
 
-    def on_val_epoch_end(self, trainer, model):
+    def on_validation_epoch_end(self, trainer, model):
         # run on val epoch end rather than train to stay in sync with other validation metrics
         if trainer.is_global_zero:
             # https://lightning.ai/docs/pytorch/stable/visualize/logging_advanced.html#rank-zero-only
