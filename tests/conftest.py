@@ -10,20 +10,6 @@ import rootutils
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
-from transformers import PreTrainedTokenizerFast
-
-
-@pytest.fixture()
-def profam_tokenizer():
-    tokenizer = PreTrainedTokenizerFast(
-        tokenizer_file="src/data/components/profam_tokenizer.json",
-        unk_token="[UNK]",
-        pad_token="[PAD]",
-        bos_token="[start-of-document]",
-        sep_token="[SEP]",
-        mask_token="[MASK]",
-    )
-    return tokenizer
 
 from src.constants import BASEDIR
 from src.data.proteingym import load_gym_dataset
