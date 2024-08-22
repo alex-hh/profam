@@ -3,7 +3,11 @@ from typing import Optional
 from transformers import GPT2Config, GPT2LMHeadModel, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
-from src.models.wrapper import TransformerWithSequencePositionEmbeddings
+from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
+
+
+class WrappedGP2LMHeadModel(WrappedHFModelWithPositionEmbeddingsMixin, GPT2LMHeadModel):
+    pass
 
 
 class GPT2SingleSequenceLitModule(BaseSingleSequenceLitModule):
@@ -43,20 +47,18 @@ class GPT2LitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
     ) -> None:
-        model = GPT2LMHeadModel(config)
-        if (
-            use_seq_pos
-        ):  # commenting out to check computation of inputs embeds is working
-            model = TransformerWithSequencePositionEmbeddings(
-                model,
-                model.transformer.wte,
+        if tokenizer.use_seq_pos:
+            # commenting out to check computation of inputs embeds is working
+            model = WrappedGP2LMHeadModel(
+                config,
+                "transformer.wte",
                 embedding_dim=config.hidden_size,
-                use_seq_pos=use_seq_pos,
-                max_seq_pos=max_seq_pos,
+                use_seq_pos=tokenizer.use_seq_pos,
+                max_seq_pos=tokenizer.max_seq_pos,
             )
+        else:
+            model = GPT2LMHeadModel(config)
         super().__init__(
             model,
             tokenizer,
@@ -67,5 +69,4 @@ class GPT2LitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
-            use_seq_pos=use_seq_pos,
         )

@@ -16,13 +16,10 @@ max_tokens: 8192
 data_dir: ../data
 val_dataset_names:
   - pfam_val
-tokenizer_path: src/data/components/profam_tokenizer.json
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 evaluate_gym: True
 evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
 count_doc_hashes: True # count the num times each document gets sampled
-use_seq_pos: True  # embed sequence relative position
-max_seq_pos: 2048  # maximum sequence position
 ignore_gaps: false
