@@ -1,3 +1,4 @@
+import bisect
 import hashlib
 import itertools
 from typing import Any, Callable, Dict, List, Optional
@@ -33,6 +34,7 @@ class ProteinDatasetConfig:
     include_doc_hashes: bool = False
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
+    interleave_structure_tokens: bool = False
     is_aligned: bool = False
     preprocessor: str = "fasta"  # TODO: use some kind of constant typing
 
@@ -54,6 +56,8 @@ def sample_to_max_tokens(
     shuffle=True,
     seed: Optional[int] = None,
     drop_first: bool = False,
+    extra_tokens_per_sequence: int = 1,  # just [SEP] for default sequences (this includes eos)
+    extra_tokens_per_document: int = 2,
 ):
     rng = np.random.default_rng(seed)
     # TODO: implement keep first, drop first
@@ -75,12 +79,14 @@ def sample_to_max_tokens(
 
     if max_tokens is not None:
         cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
+            itertools.accumulate(
+                [len(s) + extra_tokens_per_sequence for s in sequences]
+            )
         )  # +1 for separator
         insertion_point = bisect.bisect_left(
             cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
+            max_tokens - extra_tokens_per_document,
+        )  # -2 for doc start tokens
     else:
         insertion_point = len(sequences)
     if extra_arrays is None:
@@ -193,6 +199,8 @@ def _subsample_and_tokenize_protein_data(
         if cfg.interleave_structure_tokens
         else cfg.max_tokens,
         shuffle=cfg.shuffle,
+        extra_tokens_per_sequence=2 if cfg.interleave_structure_tokens else 1,
+        extra_tokens_per_document=tokenizer.num_start_tokens,
     )
     positions, coords, plddts, structure_tokens = extra_arrays
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
