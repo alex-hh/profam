@@ -9,7 +9,7 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
-from src.data.preprocessing import preprocess_protein_data
+from src.data.preprocessing import preprocess_protein_data, ProteinDatasetConfig
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
