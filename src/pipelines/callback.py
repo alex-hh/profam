@@ -29,4 +29,4 @@ class SamplingEvaluationPipelineCallback(Callback):
             all_metrics = {
                 f"{self.evaluator.name}/{k}": v for k, v in mean_results.items()
             }
-            trainer.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)
+            model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)
