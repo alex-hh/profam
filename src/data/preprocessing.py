@@ -103,17 +103,14 @@ def _tokenize_protein_data(
         document_type=cfg.document_type,
         padding="max_length",
         max_length=cfg.max_tokens,
+        coords=coords,
+        plddts=plddts,
         add_final_sep=True,
     )
     # tokenized.input_ids is flat now
     tokenized.data["ds_name"] = cfg.name
     tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
 
-    if coords is not None:
-        # TODO: if cfg.load_structure is True maybe create null coords?
-        tokenized.data["coords"] = coords
-    if plddts is not None:
-        tokenized.data["plddts"] = plddts
     return tokenized.data  # a dict
 
 

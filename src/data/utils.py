@@ -32,6 +32,7 @@ class ProteinDatasetConfig:
     document_tag: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
+    interleave_structure_tokens: bool = False
     # global arguments that will get overridden in load_protein_dataset
     max_tokens: Optional[int] = 5000
     shuffle: bool = (True,)
@@ -91,29 +92,6 @@ class CustomDataCollator:
             str_obj.text = str_vals
             batch[str_key] = str_obj
         return batch
-
-
-def get_flat_seq_pos_from_positions(
-    positions,
-    max_seq_pos: int = 1024,
-    prepend_index=0,
-    append_index=0,
-    sep_index=0,
-    num_start_tokens=1,
-    num_end_tokens=1,
-):
-    # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
-    if len(positions) > 0:
-        flat_positions = [prepend_index] * num_start_tokens
-        for sequence_positions in positions[:-1]:
-            # add 1 so that sep doesnt have same position index
-            flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
-            flat_positions.append(sep_index)
-        flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
-        flat_positions += [append_index] * num_end_tokens
-        return flat_positions
-    else:
-        return []
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):

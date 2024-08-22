@@ -19,6 +19,7 @@ def test_sequence_of_sequence_tokenization(profam_tokenizer):
 
 
 def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
+    # TODO: make this use encode sequences and test encode decode
     example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]
     example_3dis = [s.lower() for s in example_sequences]
     sequences = [
