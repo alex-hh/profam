@@ -125,11 +125,14 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         )
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:
-        output_path = os.path.join(
-            self.pipeline_directory, instance_id, model_id, "sequences.fa"
-        )
-        retval = os.path.isfile(output_path)
-        return retval
+        if not self.save_to_file:
+            return False
+        else:
+            output_path = os.path.join(
+                self.pipeline_directory, instance_id, model_id, "sequences.fa"
+            )
+            retval = os.path.isfile(output_path)
+            return retval
 
     def has_all_generations(self, model_id: str) -> None:
         return all(
@@ -189,19 +192,21 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     def run_sampling(self, model, model_name, evaluator, rerun: bool = False, **kwargs):
         instance_ids = self.instance_ids()
         for instance_id in instance_ids:
+            print("Running sampling for instance", instance_id)
             protein_document = self.load_protein_document(instance_id)
             if rerun or not self.has_generations(instance_id, model_name):
                 print(f"Running generations for instance: {instance_id}", flush=True)
                 outputs_dir = os.path.join(
                     self.pipeline_directory, instance_id, model_name
                 )
-                os.makedirs(outputs_dir, exist_ok=True)
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
                 generated_sequences = evaluator.run_sampling(
                     model, protein_document, self.num_generations, **kwargs
                 )
-                self.save_generations(generated_sequences, outputs_dir)
+                if self.save_to_file:
+                    os.makedirs(outputs_dir, exist_ok=True)
+                    self.save_generations(generated_sequences, outputs_dir)
 
     def run_evaluation(
         self, model_name: str, evaluator: SamplingEvaluator, rerun: bool = False

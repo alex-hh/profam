@@ -10,3 +10,4 @@ venvPF/
 wandb
 .git
 nohup.out
+.pytest_cache

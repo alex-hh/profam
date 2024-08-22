@@ -1,7 +1,7 @@
 _target_: src.evaluators.hmmer.PFAMProfileHMM
 seed: 52
-pfam_hmm_dir: "../data/pfam_hmms"
-pfam_database: "../data/pfam/Pfam-A.hmm"
+pfam_hmm_dir: "${data.data_dir}/pfam/hmms"
+pfam_database: "${data.data_dir}/pfam/Pfam-A.hmm"
 keep_gaps: False
 keep_insertions: True
 to_upper: True
