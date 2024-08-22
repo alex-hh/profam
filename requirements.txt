@@ -9,6 +9,7 @@ async-timeout==4.0.3
 attrs==23.2.0
 autopage==0.5.2
 biotite==0.41.2
+biopython==1.78
 certifi==2024.2.2
 cfgv==3.4.0
 charset-normalizer==3.3.2
@@ -100,6 +101,7 @@ stack-data==0.6.3
 stevedore==5.2.0
 sympy==1.12
 tokenizers==0.19.1
+tmtools==0.2.0
 tomli==2.0.1
 torch==2.3.0
 torchmetrics==1.4.0
