@@ -80,7 +80,7 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
     def __init__(
         self,
         name,
-        E=1000,
+        E=1e8,
         num_reference: int = 1000,
         hit_threshold_for_metrics=0.001,
         **kwargs,
@@ -121,8 +121,10 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
         ]
         hits = next(pyhmmer.hmmsearch(hmm, sequences, E=self.E, incE=self.E))
         evalues = {}
+        print("evalues", evalues)
         for hit in hits.reported:
             evalues[hit.name] = hit.evalue
+
         evalues = [
             evalues[name] for name in names
         ]  # not actually necessary here since we take average but poss helpful

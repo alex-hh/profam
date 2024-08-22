@@ -264,7 +264,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         # (this makes more sense for callbacks...)
         # TODO: handle storing of outputs on evaluator side possibly?
         # 1. produce intermediate outputs (e.g. generated sequences) by running model on inputs
-        del self.generations[model_name]
+        self.generations[model_name] = {}
         self.run_sampling(
             model, model_name, evaluator, rerun=rerun_model, **sampling_kwargs
         )

@@ -5,7 +5,7 @@ pfam_database: "${data.data_dir}/pfam/Pfam-A.hmm"
 keep_gaps: False
 keep_insertions: True
 to_upper: True
-E: 1000
+E: 100000000
 max_tokens: 8192
 hit_threshold_for_metrics: 0.001
 name: "pfam_profile_hmm"  # n.b. if we change config we should change name otherwise we will overwrite the old results
