@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
-from src.data import utils as data_utils
+from src.data.preprocessing import sample_to_max_tokens
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
@@ -89,7 +89,7 @@ def load_msa_for_row(
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     if keep_wt:
         raise NotImplementedError()
-    sampled_seqs = data_utils.sample_to_max_tokens(
+    sampled_seqs = sample_to_max_tokens(
         seqs,
         seed=seed,
         drop_first=drop_wt,

@@ -1,5 +1,5 @@
 from src.data.fasta import read_fasta_sequences
-from src.data.utils import sample_to_max_tokens
+from src.data.preprocessing import sample_to_max_tokens
 
 
 def test_encode_decode(profam_tokenizer_seqpos, pfam_fasta_text):
@@ -48,7 +48,7 @@ def test_sequence_of_sequence_tokenization(profam_tokenizer_seqpos):
     ).any()
 
 
-def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
+def test_interleaved_sequence_structure_tokenization(profam_tokenizer_seqpos):
     # TODO: make this use encode sequences and test encode decode
     example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]
     example_3dis = [s.lower() for s in example_sequences]
@@ -57,9 +57,9 @@ def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
         for seq_3d, seq in zip(example_sequences, example_3dis)
     ]
     concatenated_sequence = (
-        "[RAW]" + profam_tokenizer.bos_token + "[SEP]".join(sequences) + "[SEP]"
+        "[RAW]" + profam_tokenizer_seqpos.bos_token + "[SEP]".join(sequences) + "[SEP]"
     )
-    tokenized = profam_tokenizer(
+    tokenized = profam_tokenizer_seqpos(
         concatenated_sequence,
         return_tensors="pt",
         truncation=False,
@@ -69,6 +69,6 @@ def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
     )
     assert (
         tokenized.input_ids
-        == profam_tokenizer.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")
+        == profam_tokenizer_seqpos.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")
     ).sum() == len(example_sequences)
     # TODO: test aa mask

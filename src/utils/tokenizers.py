@@ -176,7 +176,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_end_tokens=num_end_tokens,
             )
             tokenized.data["seq_pos"] = seq_pos
-            assert seq_pos.shape[0] == tokenized.input_ids[0]
+            assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
 
         if coords is not None:
             tokenized.data["coords"] = torch.from_numpy(
@@ -187,7 +187,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     num_end_tokens=num_end_tokens,
                 )
             )
-            assert tokenized.data["coords"].shape[0] == tokenized.input_ids[0]
+            assert tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
 
         if plddts is not None:
             tokenized.data["plddts"] = torch.from_numpy(
@@ -198,7 +198,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     num_end_tokens=num_end_tokens,
                 )
             )
-            assert tokenized.data["plddts"].shape[0] == tokenized.input_ids[0]
+            assert tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
 
         tokenized.data["aa_mask"] = torch.isin(
             tokenized.input_ids, torch.tensor(self.aa_tokens)

@@ -1,6 +1,7 @@
 import bisect
 import hashlib
 import itertools
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -27,16 +28,17 @@ class ProteinDatasetConfig:
     minimum_sequences: Optional[int] = None
     document_tag: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
-    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
-    # global arguments that will get overridden in load_protein_dataset
-    max_tokens: Optional[int] = 5000
-    shuffle: bool = (True,)
-    include_doc_hashes: bool = False
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
     interleave_structure_tokens: bool = False
     is_aligned: bool = False
     preprocessor: str = "fasta"  # TODO: use some kind of constant typing
+    is_parquet: bool = False
+    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
+    # global arguments that will get overridden in load_protein_dataset
+    max_tokens: Optional[int] = 5000
+    shuffle: bool = (True,)
+    include_doc_hashes: bool = False
 
     def set_global_args(
         self,
