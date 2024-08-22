@@ -102,6 +102,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
 
+    @property
+    def aa_tokens(self):
+        return self.convert_tokens_to_ids(list("ACDEFGHIKLMNPQRSTVWY"))
+
     def encode_sequences(
         self,
         sequences,
@@ -183,6 +187,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             )
             assert tokenized.data["plddts"].shape[0] == tokenized.input_ids[0]
 
+        tokenized.data["aa_mask"] = torch.isin(
+            tokenized.input_ids, torch.tensor(self.aa_tokens)
+        )
         # TODO: handle nans
         # TODO: return sequence start and end positions?
         return tokenized

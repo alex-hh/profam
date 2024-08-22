@@ -96,6 +96,7 @@ def _tokenize_protein_data(
     positions: Optional[List[List[int]]] = None,
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
+    aa_masks: Optional[List[np.ndarray]] = None,
 ):
     tokenized = tokenizer.encode_sequences(
         sequences,
@@ -106,6 +107,7 @@ def _tokenize_protein_data(
         coords=coords,
         plddts=plddts,
         add_final_sep=True,
+        aa_masks=aa_masks,
     )
     # tokenized.input_ids is flat now
     tokenized.data["ds_name"] = cfg.name
@@ -158,13 +160,14 @@ def _subsample_and_tokenize_protein_data(
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
     if cfg.interleave_structure_tokens:
         sequences = [
-            seq + tokenizer.convert_tokens_to_ids("[3DI-AA-SEP]") + seq_3d
+            seq + "[3DI-AA-SEP]" + seq_3d
             for seq, seq_3d in zip(sequences, structure_tokens)
         ]
         coords = [
             np.concatenate([xyz, np.nan((1, 4, 3)), xyz], axis=0) for xyz in coords
         ]
         plddts = [vals + [np.nan] + vals for vals in plddts]
+
     tokenized = _tokenize_protein_data(
         sequences,
         cfg=cfg,

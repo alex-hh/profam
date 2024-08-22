@@ -41,3 +41,4 @@ def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
         tokenized.input_ids
         == profam_tokenizer.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")
     ).sum() == len(example_sequences)
+    # TODO: test aa mask
