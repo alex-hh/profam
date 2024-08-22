@@ -21,8 +21,14 @@ echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-cd /state/partition1/ProFam_data
-echo "pwd: $(pwd)" && echo "ls: $(ls)"
+echo "ls /state/partition1/:"
+ls /state/partition1
+echo "ls /state/partition1/ProFam_data/:"
+ls /state/partition1/ProFam_data/
+echo "ls /state/partition1/ProFam_data/openfold/uniclust30_filtered_parquet/:"
+ls /state/partition1/ProFam_data/openfold/uniclust30_filtered_parquet
+echo "ls /state/partition1/ProFam_data/ec/ec_fastas/:"
+ls /state/partition1/ProFam_data/ec/ec_fastas
 cd $ROOT_DIR
 conda activate venvPF
 source /share/apps/source_files/python/python-3.11.9.source

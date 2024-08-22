@@ -52,7 +52,7 @@ def get_atom_coords_residuewise(atoms: List[str], struct: biotite.structure.Atom
     return apply_residue_wise(struct, struct, filterfn)
 
 
-def load_structure(fpath, chain=None):
+def load_structure(fpath, chain=None, extra_fields=None):
     """
     Modified from esm inverse folding utils to not remove O
     Args:
@@ -64,11 +64,11 @@ def load_structure(fpath, chain=None):
     if fpath.endswith("cif"):
         with open(fpath) as fin:
             pdbxf = pdbx.PDBxFile.read(fin)
-        structure = pdbx.get_structure(pdbxf, model=1)
+        structure = pdbx.get_structure(pdbxf, model=1, extra_fields=extra_fields)
     elif fpath.endswith("pdb"):
         with open(fpath) as fin:
             pdbf = pdb.PDBFile.read(fin)
-        structure = pdb.get_structure(pdbf, model=1)
+        structure = pdb.get_structure(pdbf, model=1, extra_fields=extra_fields)
     bbmask = custom_filter_backbone(structure)
     # bbmask = filter_backbone(structure)
     structure = structure[bbmask]

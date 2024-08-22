@@ -16,8 +16,6 @@ import os
 import re
 from contextlib import contextmanager
 
-import pandas as pd
-
 
 @contextmanager
 def gzread(filename, encoding=None):
@@ -72,11 +70,19 @@ def read_fasta_sequences(lines, keep_gaps=True, keep_insertions=True, to_upper=F
 
 
 def convert_sequence_with_positions(
-    seq, keep_gaps=True, keep_insertions=True, to_upper=False
+    seq,
+    keep_gaps=True,
+    keep_insertions=True,
+    to_upper=False,
+    use_msa_pos: bool = True,
 ):
     """
-    Get positions relative to sequence. For alignments position is relative to match states.
-    i.e. insertions have the same position as the previous match state.
+    Get positions relative to sequence.
+    For alignments, if use_msa_pos is True, the positions are relative to the alignment columns
+    (match states). Insertions have the same position index as the previous match state.
+
+    If use_msa_pos is False, or the sequence is unaligned,
+    positions are relative to the retained sequence - ignored insertions dont contribute
 
     TODO: write test
 
@@ -96,6 +102,7 @@ def convert_sequence_with_positions(
             if aa == ".":
                 # dont keep gaps in insert columns: we can modify later if we ever want to use
                 continue
+            # at this point we have any amino acid character (match or insert) or a match gap
             # TODO: check for valid characters
             upper = aa.upper()
             if upper == aa or keep_insertions:
@@ -104,13 +111,25 @@ def convert_sequence_with_positions(
                     match_index += 1
                     is_match.append(True)
                 else:
+                    assert aa != "."
+                    # insertion
+                    if not use_msa_pos:
+                        match_index += 1
                     is_match.append(False)
                 positions.append(match_index)
                 sequence += upper
-        elif aa == "-":
-            match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
+            # otherwise we're not keeping insertions in which case we pass
 
-    assert len(positions) == len(sequence) and len(sequence) == len(is_match)
+        elif aa == "-":
+            if use_msa_pos:
+                match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
+
+    assert len(positions) == len(
+        sequence
+    ), f"positions length {len(positions)} != sequence length {len(sequence)}"
+    assert len(sequence) == len(
+        is_match
+    ), f"sequenc length {len(sequence)} != is_match length {len(is_match)}"
     return sequence, positions, is_match
 
 
