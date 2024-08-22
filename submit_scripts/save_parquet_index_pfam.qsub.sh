@@ -1,7 +1,7 @@
 #!/bin/bash
-#$ -l tmem=16G
-#$ -l h_vmem=16G
-#$ -l h_rt=47:55:30
+#$ -l tmem=4G
+#$ -l h_vmem=4G
+#$ -l h_rt=23:55:30
 #$ -S /bin/bash
 #$ -N parqIdx
 #$ -t 1
@@ -23,7 +23,7 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/data_creation_scripts/save_parquet_index.py \
---identifier_col "accession" \
---data_file_pattern "/SAN/orengolab/cath_plm/ProFam/data/pfam/shuffled_parquets/*.parquet" \
---index_file_path "/SAN/orengolab/cath_plm/ProFam/data/pfam/shuffled_parquets/index.csv"
+"/SAN/orengolab/cath_plm/ProFam/data/pfam/shuffled_parquets/index.csv" \
+"/SAN/orengolab/cath_plm/ProFam/data/pfam/shuffled_parquets/*.parquet" \
+--identifier_col "fam_id"
 date

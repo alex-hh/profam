@@ -14,7 +14,12 @@ def main(args):
         files = glob.glob(args.data_file_pattern)
         f.write("identifier,parquet_file\n")
         for i, file in enumerate(files):
-            df = pd.read_parquet(file)
+            try:
+                df = pd.read_parquet(file)
+            except Exception as e:
+                print("error", file)
+                print(e)
+                continue
             for _, row in df.iterrows():
                 f.write(f"{row[args.identifier_col]},{os.path.basename(file)}\n")
             print(i, "complete")
