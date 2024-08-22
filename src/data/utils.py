@@ -12,41 +12,13 @@ from transformers import DataCollatorForLanguageModeling
 from src.data.preprocessing import preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 
+# TODO: add things like sequence col, structure col, etc.
+# TODO: be careful around loading coords if using alignment - how can we test for this?
 
-# TODO: in future we might actually want standalone dataset class for
-# more flexible customisation (e.g. mapping uniprot ids via db)
-@dataclass
-class ProteinDatasetConfig:
-    name: str
-    keep_gaps: bool = False
-    data_path_pattern: Optional[str] = None
-    holdout_data_files: Optional[str] = None
-    holdout_identifiers: Optional[List[str]] = None
-    identifier_col: Optional[str] = None
-    data_path_file: Optional[str] = None
-    keep_insertions: bool = False
-    to_upper: bool = False
-    file_repeats: int = 1
-    is_parquet: bool = False
-    minimum_sequences: Optional[int] = None
-    document_tag: str = "[RAW]"
-    truncate_after_n_sequences: Optional[int] = None
-    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
-    interleave_structure_tokens: bool = False
-    # global arguments that will get overridden in load_protein_dataset
-    max_tokens: Optional[int] = 5000
-    shuffle: bool = (True,)
-    include_doc_hashes: bool = False
-
-    def set_global_args(
-        self,
-        max_tokens: int,
-        shuffle: bool,
-        include_doc_hashes: bool,
-    ):
-        self.max_tokens = max_tokens
-        self.shuffle = shuffle
-        self.include_doc_hashes = include_doc_hashes
+# class AFDBDatasetConfig(ProteinDatasetConfig):
+#     processor:
+#     is_parquet: True
+#     sequence_col
 
 
 class StringObject:
