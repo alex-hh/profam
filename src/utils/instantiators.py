@@ -35,14 +35,15 @@ def instantiate_callbacks(
 
     # we put extra callbacks first so that they are called first
     # otherwise we can't control order.
-    for _, cb_conf in extra_callbacks_cfg.items():
-        if isinstance(cb_conf, DictConfig) and "_target_" in cb_conf:
-            log.info(f"Instantiating callback <{cb_conf._target_}>")
-            callbacks.append(hydra.utils.instantiate(cb_conf))
-        else:
-            raise ValueError(
-                "Callback config must be a dict config with a _target_ key!"
-            )
+    if extra_callbacks_cfg is not None:
+        for _, cb_conf in extra_callbacks_cfg.items():
+            if isinstance(cb_conf, DictConfig) and "_target_" in cb_conf:
+                log.info(f"Instantiating callback <{cb_conf._target_}>")
+                callbacks.append(hydra.utils.instantiate(cb_conf))
+            else:
+                raise ValueError(
+                    "Callback config must be a dict config with a _target_ key!"
+                )
 
     for _, cb_conf in callbacks_cfg.items():
         if isinstance(cb_conf, DictConfig) and "_target_" in cb_conf:
