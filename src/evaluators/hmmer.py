@@ -129,9 +129,7 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
                 evalues[name] for name in names
             ]  # not actually necessary here since we take average but poss helpful
             evalue = np.mean(evalues)
-            hit_percentage = (
-                np.array(evalues) < self.hit_threshold_for_metrics
-            ).mean()
+            hit_percentage = (np.array(evalues) < self.hit_threshold_for_metrics).mean()
         else:
             evalue = self.E
             hit_percentage = 0.0
@@ -145,7 +143,6 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
             "ref_evalue": ref_evalue,
             "hit_percentage": hit_percentage,
         }
-
 
 
 class PFAMProfileHMM(PFAMHMMERMixin, ProfileHMMEvaluator):
