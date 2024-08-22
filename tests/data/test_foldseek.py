@@ -30,3 +30,8 @@ def test_foldseek_backbone_loading(foldseek_df):
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)
             assert np.allclose(coords, recons_coords)
             assert len(coords) == len(seq)
+
+
+def test_foldseek_interleaved_tokenization(foldseek_interleaved_structure_sequence_batch):
+    print(foldseek_interleaved_structure_sequence_batch["input_ids"])
+    assert 0 == 1

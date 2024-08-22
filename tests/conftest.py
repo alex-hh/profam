@@ -92,28 +92,30 @@ def proteingym_batch(profam_tokenizer_seqpos):
 
 
 @pytest.fixture()
-def foldseek_batch(profam_tokenizer_seqpos)
+def foldseek_interleaved_structure_sequence_batch(profam_tokenizer_seqpos):
     cfg = ProteinDatasetConfig(
         name="foldseek",
         keep_gaps=False,
-        data_path_pattern="foldseek_struct/3.parquet",
+        data_path_pattern="foldseek_struct/0.parquet",
         keep_insertions=True,
         to_upper=True,
         is_parquet=True,
+        interleave_structure_tokens=True,
+        structure_tokens_col="msta_3di",
+        is_aligned=False,
+        preprocessor="parquet_structure_tokens",
     )
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer_seqpos,
         max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        use_seq_pos=True,
-        max_seq_pos=2048,
         shuffle=False,
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer_seqpos, mlm=False)
     return collator([datapoint])
-    )
+
 
 @pytest.fixture()
 def pfam_batch(profam_tokenizer):
@@ -130,8 +132,6 @@ def pfam_batch(profam_tokenizer):
         tokenizer=profam_tokenizer,
         max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        use_seq_pos=True,
-        max_seq_pos=2048,
         shuffle=False,
     )
     datapoint = next(iter(data))
