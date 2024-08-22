@@ -1,5 +1,6 @@
 import os
 import shutil
+from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -115,6 +116,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         save_to_file: bool = True,
     ):
         self.num_generations = num_generations
+        self.generations = defaultdict(dict)
         print(
             f"Initialised pipeline ID {pipeline_id} num generations {num_generations}"
         )
@@ -126,7 +128,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:
         if not self.save_to_file:
-            return False
+            return (
+                model_id in self.generations
+                and instance_id in self.generations[model_id]
+            )
         else:
             output_path = os.path.join(
                 self.pipeline_directory, instance_id, model_id, "sequences.fa"
@@ -176,18 +181,27 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             metrics["validation_id"] = evaluator.name
             self.add_result(evaluator.name, instance_id, model_id, metrics)
 
-    def save_generations(self, sequences: List[str], outputs_dir: str) -> None:
-        fasta.output_fasta(
-            [f"seq{i}" for i in range(len(sequences))],
-            sequences,
-            os.path.join(outputs_dir, "sequences.fa"),
-        )
+    def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
+        if self.save_to_file:
+            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+            os.makedirs(outputs_dir, exist_ok=True)
+            fasta.output_fasta(
+                [f"seq{i}" for i in range(len(sequences))],
+                sequences,
+                os.path.join(outputs_dir, "sequences.fa"),
+            )
+        else:
+            self.generations[model_name][instance_id] = sequences
 
     def load_generations(self, instance_id: str, model_id: str) -> List[str]:
-        outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_id)
-        fasta_file = os.path.join(outputs_dir, "sequences.fa")
-        _, sequences = fasta.read_fasta(fasta_file)
-        return sequences
+        if self.save_to_file:
+            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_id)
+            fasta_file = os.path.join(outputs_dir, "sequences.fa")
+            _, sequences = fasta.read_fasta(fasta_file)
+            return sequences
+        else:
+            sequences = self.generations[model_id][instance_id]
+            return sequences
 
     def run_sampling(self, model, model_name, evaluator, rerun: bool = False, **kwargs):
         instance_ids = self.instance_ids()
@@ -196,17 +210,12 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             protein_document = self.load_protein_document(instance_id)
             if rerun or not self.has_generations(instance_id, model_name):
                 print(f"Running generations for instance: {instance_id}", flush=True)
-                outputs_dir = os.path.join(
-                    self.pipeline_directory, instance_id, model_name
-                )
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
                 generated_sequences = evaluator.run_sampling(
                     model, protein_document, self.num_generations, **kwargs
                 )
-                if self.save_to_file:
-                    os.makedirs(outputs_dir, exist_ok=True)
-                    self.save_generations(generated_sequences, outputs_dir)
+                self.save_generations(instance_id, model_name, generated_sequences)
 
     def run_evaluation(
         self, model_name: str, evaluator: SamplingEvaluator, rerun: bool = False
@@ -252,8 +261,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     ):
         """Run the validation pipeline for a given model and set of validations."""
         # TODO: instead of looping twice we could just loop once and evaluate as we go...
+        # (this makes more sense for callbacks...)
         # TODO: handle storing of outputs on evaluator side possibly?
         # 1. produce intermediate outputs (e.g. generated sequences) by running model on inputs
+        del self.generations[model_name]
         self.run_sampling(
             model, model_name, evaluator, rerun=rerun_model, **sampling_kwargs
         )
