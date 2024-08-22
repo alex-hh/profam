@@ -55,7 +55,7 @@ def load_checkpoint(checkpoint_dir, **kwargs):
             add_special_tokens=True,
             add_final_sep=True,
             add_bos_token=True,
-            add_document_type_token=True,
+            add_document_token=True,
             use_seq_pos=cfg.data.use_seq_pos,
             max_seq_pos=cfg.data.max_seq_pos,
             max_tokens=cfg.data.max_tokens,
@@ -692,11 +692,11 @@ class BaseFamilyLitModule(BaseLitModule):
         greedy: bool = False,
         fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
         temperature: Optional[float] = None,
-        document_type: str = "[RAW]",
+        document_token: str = "[RAW]",
     ):
         # TODO: encode sequence prompt and get sequence pos if necessary.
         tokenized = self.tokenizer.encode_sequences(
-            sequence_prompt, positions=position_indices, document_type=document_type
+            sequence_prompt, positions=position_indices, document_token=document_token
         )
         if "seq_pos" in tokenized.data:
             seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
@@ -711,7 +711,7 @@ class BaseFamilyLitModule(BaseLitModule):
             greedy=greedy,
             fixed_length=fixed_length,
             temperature=temperature,
-            sample_gaps=document_type == "[MSA]",
+            sample_gaps=document_token == "[MSA]",
         )
         return self.tokenizer.decode_tokens(encoded)
 

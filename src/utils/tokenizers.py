@@ -88,7 +88,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self,
         *args,
         add_bos_token: bool = True,
-        add_document_type_token: bool = True,
+        add_document_token: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
@@ -96,10 +96,8 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
-        self.add_document_type_token = add_document_type_token
-        self.num_start_tokens = int(self.add_bos_token) + int(
-            self.add_document_type_token
-        )
+        self.add_document_token = add_document_token
+        self.num_start_tokens = int(self.add_bos_token) + int(self.add_document_token)
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
@@ -122,12 +120,13 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self,
         sequences,
         positions: Optional[List[int]] = None,
-        document_type="[RAW]",
+        document_token="[RAW]",
         padding="longest",
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
         coords: Optional[List[np.ndarray]] = None,
         plddts: Optional[List[np.ndarray | List]] = None,
+        # TODO: allow custom fill value for coord / plddt padding?
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
@@ -136,11 +135,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             concatenated_seqs += self.sep_token
         if self.add_bos_token:
             concatenated_seqs = self.bos_token + concatenated_seqs
-        if document_type is not None:
-            concatenated_seqs = document_type + concatenated_seqs
+        if document_token is not None:
+            concatenated_seqs = document_token + concatenated_seqs
         else:
             assert (
-                not self.add_document_type_token
+                not self.add_document_token
             ), "Document type token expected but not provided"
         num_end_tokens = int(add_final_sep)
         tokenized = self(

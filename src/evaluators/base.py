@@ -20,7 +20,7 @@ class SamplingEvaluator:
         keep_insertions: bool = True,
         to_upper: bool = True,
         use_msa_pos: bool = True,
-        document_type: str = "[RAW]",
+        document_token: str = "[RAW]",
     ):
         self.name = name
         self.seed = seed
@@ -30,7 +30,7 @@ class SamplingEvaluator:
         self.keep_insertions = keep_insertions
         self.to_upper = to_upper
         self.use_msa_pos = use_msa_pos
-        self.document_type = document_type
+        self.document_token = document_token
 
     def evaluate_samples(
         self,
@@ -138,7 +138,7 @@ class SamplingEvaluator:
         prompt = self.build_prompt(protein_document)
         inputs = self.build_inputs_from_prompt(prompt, num_samples)
         samples = model.sample_seqs(
-            **inputs, document_type=self.document_type, **model_kwargs
+            **inputs, document_token=self.document_token, **model_kwargs
         )
         return samples
 

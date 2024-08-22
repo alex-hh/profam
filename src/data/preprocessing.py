@@ -26,7 +26,7 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     minimum_sequences: Optional[int] = None
-    document_tag: str = "[RAW]"
+    document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
@@ -107,7 +107,9 @@ def check_array_lengths(*arrays):  # TODO: name better!
         else:
             sequence_lengths.append(tuple([len(seq) for seq in arr]))
 
-    assert all(l == sequence_lengths[0] for l in sequence_lengths)
+    assert all(
+        l == sequence_lengths[0] for l in sequence_lengths
+    ), f"{sequence_lengths} not all equal"
     return sequence_lengths
 
 
@@ -132,7 +134,7 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
 
 def random_subsample(arr, n, seed: Optional[int] = None):
     rnd = np_random(seed)
-    return rnd.choice(arr, n, replace=False)
+    return rnd.choice(arr, min(n, len(arr)), replace=False)
 
 
 def _tokenize_protein_data(
@@ -142,18 +144,16 @@ def _tokenize_protein_data(
     positions: Optional[List[List[int]]] = None,
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
-    aa_masks: Optional[List[np.ndarray]] = None,
 ):
     tokenized = tokenizer.encode_sequences(
         sequences,
         positions=positions,
-        document_type=cfg.document_type,
+        document_token=cfg.document_token,
         padding="max_length",
         max_length=cfg.max_tokens,
         coords=coords,
         plddts=plddts,
         add_final_sep=True,
-        aa_masks=aa_masks,
     )
     # tokenized.input_ids is flat now
     tokenized.data["ds_name"] = cfg.name
@@ -171,7 +171,7 @@ def _subsample_and_tokenize_protein_data(
     structure_tokens: Optional[List[str]] = None,
 ):
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if cfg.use_seq_pos:
+    if tokenizer.use_seq_pos:
         sequences = []
         positions = []
         for seq in itertools.islice(sequence_iterator, cfg.truncate_after_n_sequences):
@@ -205,6 +205,7 @@ def _subsample_and_tokenize_protein_data(
         extra_tokens_per_document=tokenizer.num_start_tokens,
     )
     positions, coords, plddts, structure_tokens = extra_arrays
+
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
     if cfg.interleave_structure_tokens:
         sequences = [
@@ -212,7 +213,8 @@ def _subsample_and_tokenize_protein_data(
             for seq, seq_3d in zip(sequences, structure_tokens)
         ]
         coords = [
-            np.concatenate([xyz, np.nan((1, 4, 3)), xyz], axis=0) for xyz in coords
+            np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
+            for xyz in coords
         ]
         plddts = [vals + [np.nan] + vals for vals in plddts]
 
@@ -246,9 +248,9 @@ def preprocess_fasta_data(
     sequence_iterator = read_fasta_sequences(
         lines,
         # preserve original sequences before getting positions
-        keep_gaps=True if cfg.use_seq_pos else cfg.keep_gaps,
-        keep_insertions=True if cfg.use_seq_pos else cfg.keep_insertions,
-        to_upper=False if cfg.use_seq_pos else cfg.to_upper,
+        keep_gaps=True if tokenizer.use_seq_pos else cfg.keep_gaps,
+        keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
+        to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
     )
     return _subsample_and_tokenize_protein_data(
         sequence_iterator,
@@ -271,10 +273,10 @@ def backbone_coords_from_example(example):
         oxys,
     ):
         recons_coords = np.zeros((len(seq), 4, 3))
-        recons_coords[:, 0] = n.reshape(-1, 3)
-        recons_coords[:, 1] = ca.reshape(-1, 3)
-        recons_coords[:, 2] = c.reshape(-1, 3)
-        recons_coords[:, 3] = o.reshape(-1, 3)
+        recons_coords[:, 0] = np.array(n).reshape(-1, 3)
+        recons_coords[:, 1] = np.array(ca).reshape(-1, 3)
+        recons_coords[:, 2] = np.array(c).reshape(-1, 3)
+        recons_coords[:, 3] = np.array(o).reshape(-1, 3)
         coords.append(recons_coords)
     return coords
 
@@ -289,7 +291,7 @@ def preprocess_parquet_with_structure_tokens(
     sequence_iterator = example[cfg.sequence_col]
     structure_tokens_iterator = example[cfg.structure_tokens_col]
     sequence_ids = random_subsample(
-        len(sequence_iterator),
+        np.arange(len(sequence_iterator)),
         max_sequences_to_preprocess,
     )
     sequences = [sequence_iterator[i] for i in sequence_ids]
@@ -302,7 +304,7 @@ def preprocess_parquet_with_structure_tokens(
             keep_gaps=cfg.keep_gaps,
             keep_insertions=cfg.keep_insertions,
             to_upper=cfg.to_upper,
-        )
+        )[0]
         for i in sequence_ids
     ]
     if "N" in example and not cfg.is_aligned:

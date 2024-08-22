@@ -9,7 +9,7 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
-from src.data.preprocessing import preprocess_protein_data, ProteinDatasetConfig
+from src.data.preprocessing import ProteinDatasetConfig, preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
@@ -150,7 +150,17 @@ def load_protein_dataset(
     for i, item in enumerate(dataset.take(3)):
         print(f"  Item {i + 1}:")
         for key, value in item.items():
-            print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
+            if isinstance(value, str):
+                value_to_print = value[:100]
+            elif isinstance(value, list):
+                # TODO: if its a list of lists we want to print only first few elements
+                if isinstance(value[0], list):
+                    value_to_print = f"[{value[0][:10]},...]"
+                else:
+                    value_to_print = f"{value[:3]}..." if len(value) > 3 else value
+            else:
+                value_to_print = value
+            print(f"    {key}: {value_to_print}")
         print()
 
     if cfg.holdout_identifiers:

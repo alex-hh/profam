@@ -21,11 +21,11 @@ from src.utils.tokenizers import ProFamTokenizer
 def tokenize_msa(
     sample,
     tokenizer: ProFamTokenizer,
-    document_tag: Optional[str] = "[RAW]",
+    document_token: Optional[str] = "[RAW]",
 ):
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     tokenized = tokenizer.encode_sequences(
-        sample["MSA"], document_type=document_tag, add_final_sep=False
+        sample["MSA"], document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
     if tokenizer.use_seq_pos:
@@ -61,12 +61,12 @@ def tokenize(
     sample,
     tokenizer: PreTrainedTokenizerFast,
     mutant_bos_token="sep",
-    document_tag="[RAW]",
+    document_token="[RAW]",
 ):
     sample = tokenize_msa(
         sample,
         tokenizer,
-        document_tag=document_tag,
+        document_token=document_token,
     )
     sample = tokenize_completions(
         sample,
@@ -176,7 +176,7 @@ def load_gym_dataset(
             tokenize,
             tokenizer=tokenizer,
             mutant_bos_token=mutant_bos_token,
-            document_tag="[MSA]" if keep_gaps else "[RAW]",
+            document_token="[MSA]" if keep_gaps else "[RAW]",
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],

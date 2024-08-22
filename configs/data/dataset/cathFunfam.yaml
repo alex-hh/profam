@@ -9,4 +9,4 @@ is_parquet: false
 keep_gaps: false
 to_upper: true
 keep_insertions: true
-document_tag: "[RAW]"
+document_token: "[RAW]"

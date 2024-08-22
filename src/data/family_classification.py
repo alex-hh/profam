@@ -24,7 +24,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
             tokenize,
             tokenizer=tokenizer,
             mutant_bos_token="sep",  # todo check this
-            document_tag="[RAW]",
+            document_token="[RAW]",
         ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],

@@ -13,7 +13,11 @@ from omegaconf import DictConfig, open_dict
 
 from src.constants import BASEDIR
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import CustomDataCollator, ProteinDatasetConfig, load_protein_dataset
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
 from src.utils.tokenizers import ProFamTokenizer
 
 
