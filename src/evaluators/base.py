@@ -131,6 +131,9 @@ class SamplingEvaluator:
             print(
                 f"Warning: self.num_samples ({self.num_samples}) overriden by num_samples ({num_samples})"
             )
+            assert (
+                num_samples >= self.num_samples
+            ), f"Expecting at least {self.num_samples} samples"
 
         prompt = self.build_prompt(protein_document)
         inputs = self.build_inputs_from_prompt(prompt, num_samples)

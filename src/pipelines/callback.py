@@ -5,15 +5,12 @@ from lightning.pytorch.callbacks import Callback
 
 
 class SamplingEvaluationPipelineCallback(Callback):
-    def __init__(
-        self, pipeline, evaluator, num_samples, sampling_kwargs: Optional[Dict] = None
-    ):
+    def __init__(self, pipeline, evaluator, sampling_kwargs: Optional[Dict] = None):
         self.pipeline = pipeline
         assert (
             not self.pipeline.save_to_file
         ), "Pipeline should not save to file during callback"
         self.evaluator = evaluator
-        self.num_samples = num_samples
         self.sampling_kwargs = sampling_kwargs or {}
 
     def on_validation_epoch_end(self, trainer, model):

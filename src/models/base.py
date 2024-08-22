@@ -665,8 +665,10 @@ class BaseFamilyLitModule(BaseLitModule):
         padded_outputs = torch.full(
             (num_samples, max_output_length), self.tokenizer.pad_token_id
         )
-        for i, o in enumerate(all_outputs):
-            padded_outputs[i : i + o.shape[0], : o.shape[1]] = o
+        start_ix = 0
+        for o in all_outputs:
+            padded_outputs[start_ix : start_ix + o.shape[0], : o.shape[1]] = o
+            start_ix += o.shape[0]
 
         return padded_outputs
 
@@ -687,11 +689,11 @@ class BaseFamilyLitModule(BaseLitModule):
             sequence_prompt, positions=position_indices, document_type=document_type
         )
         if "seq_pos" in tokenized.data:
-            seq_pos = tokenized.data["seq_pos"].unsqueeze(0)
+            seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
         else:
             seq_pos = None
         encoded = self._sample_seqs(
-            tokenized.input_ids.unsqueeze(0),
+            tokenized.input_ids.unsqueeze(0).to(self.device),
             num_samples,
             input_seq_pos=seq_pos,
             batch_size=batch_size,
@@ -701,7 +703,6 @@ class BaseFamilyLitModule(BaseLitModule):
             temperature=temperature,
             sample_gaps=document_type == "[MSA]",
         )
-        # print("samples shape", encoded.shape)
         return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(

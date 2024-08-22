@@ -115,6 +115,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         save_to_file: bool = True,
     ):
         self.num_generations = num_generations
+        print(
+            f"Initialised pipeline ID {pipeline_id} num generations {num_generations}"
+        )
         super().__init__(
             pipeline_id,
             benchmark_directory=benchmark_directory,
