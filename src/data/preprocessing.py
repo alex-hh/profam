@@ -4,11 +4,53 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from src.data.dataclasses import ProteinDatasetConfig
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
-from src.data.utils import sample_to_max_tokens
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
+
+
+def sample_to_max_tokens(
+    sequences,
+    extra_arrays: Optional[List[List[Any] | np.ndarray]] = None,
+    max_tokens: Optional[int] = None,
+    shuffle=True,
+    seed: Optional[int] = None,
+    drop_first: bool = False,
+):
+    rng = np.random.default_rng(seed)
+    # TODO: implement keep first, drop first
+    if drop_first:
+        sequences = sequences[1:]
+        if extra_arrays is not None:
+            extra_arrays = [
+                arr[1:] if arr is not None else None for arr in extra_arrays
+            ]
+
+    if shuffle:
+        perm = rng.permutation(len(sequences))
+        sequences = [sequences[i] for i in perm]
+        if extra_arrays is not None:
+            extra_arrays = [
+                [arr[i] for i in perm] if arr is not None else None
+                for arr in extra_arrays
+            ]
+
+    if max_tokens is not None:
+        cumulative_lengths = list(
+            itertools.accumulate([len(s) + 1 for s in sequences])
+        )  # +1 for separator
+        insertion_point = bisect.bisect_left(
+            cumulative_lengths,
+            max_tokens - 2,
+        )  # -2 for doc start and end tokens
+    else:
+        insertion_point = len(sequences)
+    if extra_arrays is None:
+        return sequences[:insertion_point]
+    else:
+        return sequences[:insertion_point], [
+            arr[:insertion_point] if arr is not None else None for arr in extra_arrays
+        ]
 
 
 def check_array_lengths(*arrays):  # TODO: name better!
@@ -49,7 +91,7 @@ def random_subsample(arr, n, seed: Optional[int] = None):
 
 def _tokenize_protein_data(
     sequences: List[str],
-    cfg: ProteinDatasetConfig,
+    cfg,
     tokenizer: ProFamTokenizer,
     positions: Optional[List[List[int]]] = None,
     coords: Optional[List[np.ndarray]] = None,
@@ -77,7 +119,7 @@ def _tokenize_protein_data(
 
 def _subsample_and_tokenize_protein_data(
     sequence_iterator,
-    cfg: ProteinDatasetConfig,
+    cfg,
     tokenizer: ProFamTokenizer,
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
@@ -139,7 +181,7 @@ def _subsample_and_tokenize_protein_data(
 
 def preprocess_fasta_data(
     example: Dict[str, Any],
-    cfg: ProteinDatasetConfig,
+    cfg,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     lines = example["text"].split("\n")
@@ -191,7 +233,7 @@ def backbone_coords_from_example(example):
 
 def preprocess_parquet_data(
     example: Dict[str, Any],
-    cfg: ProteinDatasetConfig,
+    cfg,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     if "3di_sequences" in example:
@@ -231,7 +273,7 @@ def preprocess_parquet_data(
 
 def preprocess_protein_data(
     example: Dict[str, Any],
-    cfg: ProteinDatasetConfig,
+    cfg,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     # N.B. for stockholm format we need to check that sequences aren't split over

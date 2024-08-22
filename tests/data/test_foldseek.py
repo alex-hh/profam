@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from src.data.pdb import get_atom_coords_residuewise, load_structure
-from src.data.utils import backbone_coords_from_example
+from src.data.preprocessing import backbone_coords_from_example
 
 
 @pytest.fixture

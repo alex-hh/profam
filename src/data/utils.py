@@ -1,16 +1,14 @@
-import bisect
 import glob
-import itertools
 import os
 import random
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import numpy as np
-import torch
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
+from dataclasses import dataclass
 from src.data.preprocessing import preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -116,34 +114,6 @@ def get_flat_seq_pos_from_positions(
         return flat_positions
     else:
         return []
-
-
-def get_seq_pos_from_positions(
-    input_ids,
-    positions,
-    pad_token_id,
-    max_seq_pos: int = 1024,
-    num_start_tokens=1,
-    num_end_tokens=1,
-):
-    assert input_ids.ndim == 1
-    seq_pos = torch.zeros_like(input_ids)
-    flat_pos = get_flat_seq_pos_from_positions(
-        positions,
-        max_seq_pos=max_seq_pos,
-        prepend_index=0,
-        append_index=0,
-        sep_index=0,
-        num_start_tokens=num_start_tokens,  # TODO: handle better
-        num_end_tokens=num_end_tokens,
-    )
-    pad_any = torch.argwhere(input_ids == pad_token_id)
-    if pad_any.any():
-        pad_start = pad_any.min()
-    else:
-        pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = torch.tensor(flat_pos)
-    return seq_pos
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -254,47 +224,3 @@ def load_protein_dataset(
     ).filter(filter_example)
 
     return dataset
-
-
-def sample_to_max_tokens(
-    sequences,
-    extra_arrays: Optional[List[List[Any] | np.ndarray]] = None,
-    max_tokens: Optional[int] = None,
-    shuffle=True,
-    seed: Optional[int] = None,
-    drop_first: bool = False,
-):
-    rng = np.random.default_rng(seed)
-    # TODO: implement keep first, drop first
-    if drop_first:
-        sequences = sequences[1:]
-        if extra_arrays is not None:
-            extra_arrays = [
-                arr[1:] if arr is not None else None for arr in extra_arrays
-            ]
-
-    if shuffle:
-        perm = rng.permutation(len(sequences))
-        sequences = [sequences[i] for i in perm]
-        if extra_arrays is not None:
-            extra_arrays = [
-                [arr[i] for i in perm] if arr is not None else None
-                for arr in extra_arrays
-            ]
-
-    if max_tokens is not None:
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
-    else:
-        insertion_point = len(sequences)
-    if extra_arrays is None:
-        return sequences[:insertion_point]
-    else:
-        return sequences[:insertion_point], [
-            arr[:insertion_point] if arr is not None else None for arr in extra_arrays
-        ]

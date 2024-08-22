@@ -2,10 +2,37 @@ from typing import List, Optional
 
 from transformers import PreTrainedTokenizerFast
 
-from src.data.utils import get_seq_pos_from_positions
 from src.utils import RankedLogger
 
 log = RankedLogger(__name__, rank_zero_only=True)
+
+
+def get_seq_pos_from_positions(
+    input_ids,
+    positions,
+    pad_token_id,
+    max_seq_pos: int = 1024,
+    num_start_tokens=1,
+    num_end_tokens=1,
+):
+    assert input_ids.ndim == 1
+    seq_pos = torch.zeros_like(input_ids)
+    flat_pos = get_flat_seq_pos_from_positions(
+        positions,
+        max_seq_pos=max_seq_pos,
+        prepend_index=0,
+        append_index=0,
+        sep_index=0,
+        num_start_tokens=num_start_tokens,  # TODO: handle better
+        num_end_tokens=num_end_tokens,
+    )
+    pad_any = torch.argwhere(input_ids == pad_token_id)
+    if pad_any.any():
+        pad_start = pad_any.min()
+    else:
+        pad_start = input_ids.shape[0]
+    seq_pos[:pad_start] = torch.tensor(flat_pos)
+    return seq_pos
 
 
 class ProFamTokenizer(PreTrainedTokenizerFast):

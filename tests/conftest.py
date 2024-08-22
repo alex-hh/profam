@@ -7,12 +7,13 @@ import rootutils
 from hydra import compose, initialize
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
-from transformers import PreTrainedTokenizerFast
+
+from src.utils.tokenizers import ProFamTokenizer
 
 
 @pytest.fixture()
 def profam_tokenizer():
-    tokenizer = PreTrainedTokenizerFast(
+    tokenizer = ProFamTokenizer(
         tokenizer_file="src/data/components/profam_tokenizer.json",
         unk_token="[UNK]",
         pad_token="[PAD]",
