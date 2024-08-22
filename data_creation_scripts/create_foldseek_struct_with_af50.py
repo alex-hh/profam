@@ -293,17 +293,17 @@ def make_job_list(
                 if not skip_af50:  # this is the af50 representative
                     af50_members = af50_dict.get(member, [])
                     for af50_member in af50_members:
-                        if af50_member.uniprot_id != member:
-                            zip_filename = af2zip[af50_member]
-                            afdb_id = f"AF-{af50_member}-F1-model_v4"
-                            pdb_lookup[zip_filename].append(afdb_id)
-                            cluster_membership[cluster_id].append(afdb_id)
-                            metadata_lookup[afdb_id] = {
-                                "cluster_id": cluster_id,
-                                "accession": af50_member,
-                                "is_foldseek_representative": False,
-                                "is_af50_representative": False,
-                            }
+                        assert af50_member != member
+                        zip_filename = af2zip[af50_member]
+                        afdb_id = f"AF-{af50_member}-F1-model_v4"
+                        pdb_lookup[zip_filename].append(afdb_id)
+                        cluster_membership[cluster_id].append(afdb_id)
+                        metadata_lookup[afdb_id] = {
+                            "cluster_id": cluster_id,
+                            "accession": af50_member,
+                            "is_foldseek_representative": False,
+                            "is_af50_representative": False,
+                        }
 
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
