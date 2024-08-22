@@ -32,7 +32,7 @@ class ProteinDatasetConfig:
     structure_tokens_col: str = "structure_tokens"
     interleave_structure_tokens: bool = False
     is_aligned: bool = False
-    preprocessor: str = "fasta"  # TODO: use some kind of constant typing
+    preprocessor: Optional[str] = "fasta"  # TODO: use some kind of constant typing
     is_parquet: bool = False
     use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
     # global arguments that will get overridden in load_protein_dataset
@@ -145,6 +145,7 @@ def _tokenize_protein_data(
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
 ):
+    print("Tokenizing sequences", sequences)
     tokenized = tokenizer.encode_sequences(
         sequences,
         positions=positions,
@@ -209,7 +210,7 @@ def _subsample_and_tokenize_protein_data(
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
     if cfg.interleave_structure_tokens:
         sequences = [
-            seq + tokenizer.seq_struct_sep_token + seq_3d
+            seq_3d + tokenizer.seq_struct_sep_token + seq
             for seq, seq_3d in zip(sequences, structure_tokens)
         ]
         coords = [
@@ -293,10 +294,15 @@ def preprocess_parquet_with_structure_tokens(
     max_sequences_to_preprocess = cfg.max_tokens // 10
     sequence_iterator = example[cfg.sequence_col]
     structure_tokens_iterator = example[cfg.structure_tokens_col]
-    sequence_ids = random_subsample(
-        np.arange(len(sequence_iterator)),
-        max_sequences_to_preprocess,
-    )
+    if cfg.shuffle:
+        sequence_ids = random_subsample(
+            np.arange(len(sequence_iterator)),
+            max_sequences_to_preprocess,
+        )
+    else:
+        sequence_ids = np.arange(
+            min(max_sequences_to_preprocess, len(sequence_iterator))
+        )
     sequences = [sequence_iterator[i] for i in sequence_ids]
     # we assume sequence processing and structure token processing are consistent.
     # later we will check that everything ends up the same length - which is important
@@ -307,7 +313,7 @@ def preprocess_parquet_with_structure_tokens(
             keep_gaps=cfg.keep_gaps,
             keep_insertions=cfg.keep_insertions,
             to_upper=cfg.to_upper,
-        )[0]
+        )[0].lower()
         for i in sequence_ids
     ]
     if "N" in example and not cfg.is_aligned:
@@ -341,10 +347,13 @@ def preprocess_parquet_sequence_data(
     sequence_iterator = example["sequences"]
     max_sequences_to_preprocess = cfg.max_tokens // 10
     # n.b. this also shuffles
-    sequences = random_subsample(
-        sequence_iterator,
-        max_sequences_to_preprocess,
-    )
+    if cfg.shuffle:
+        sequences = random_subsample(
+            sequence_iterator,
+            max_sequences_to_preprocess,
+        )
+    else:
+        sequences = sequence_iterator[:max_sequences_to_preprocess]
     return _subsample_and_tokenize_protein_data(
         sequences,
         cfg=cfg,

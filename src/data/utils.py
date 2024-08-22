@@ -176,11 +176,12 @@ def load_protein_dataset(
         )
         return filter_num_seqs and filter_identifier
 
-    dataset = dataset.map(
-        preprocess_protein_data,
-        batched=False,
-        remove_columns=dataset.column_names,  # preprocess returns anything that should be kept
-        fn_kwargs={"cfg": cfg, "tokenizer": tokenizer},
-    ).filter(filter_example)
+    if cfg.preprocessor is not None:
+        dataset = dataset.map(
+            preprocess_protein_data,
+            batched=False,
+            remove_columns=dataset.column_names,  # preprocess returns anything that should be kept
+            fn_kwargs={"cfg": cfg, "tokenizer": tokenizer},
+        ).filter(filter_example)
 
     return dataset
