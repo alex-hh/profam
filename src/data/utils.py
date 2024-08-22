@@ -1,6 +1,7 @@
 import glob
 import os
 import random
+from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
@@ -8,7 +9,6 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
-from dataclasses import dataclass
 from src.data.preprocessing import preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 

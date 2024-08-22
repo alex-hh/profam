@@ -22,8 +22,8 @@ def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
     example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]
     example_3dis = [s.lower() for s in example_sequences]
     sequences = [
-        seq + "SEQ-STRUCT-SEP" + seq_3d
-        for seq, seq_3d in zip(example_sequences, example_3dis)
+        seq_3d + "[SEQ-STRUCT-SEP]" + seq
+        for seq_3d, seq in zip(example_sequences, example_3dis)
     ]
     concatenated_sequence = (
         "[RAW]" + profam_tokenizer.bos_token + "[SEP]".join(sequences) + "[SEP]"
@@ -36,5 +36,7 @@ def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
         padding="max_length",
         add_special_tokens=False,
     )
-    print(tokenized.input_ids)
-    assert 1 == 0
+    assert (
+        tokenized.input_ids
+        == profam_tokenizer.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")
+    ).sum() == len(example_sequences)

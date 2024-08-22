@@ -4,7 +4,7 @@ https://huggingface.co/learn/nlp-course/chapter6/4?fw=pt
 """
 import json
 
-from tokenizers import Tokenizer, decoders, models, processors
+from tokenizers import Tokenizer, models
 from tokenizers.pre_tokenizers import WhitespaceSplit
 from transformers import PreTrainedTokenizerFast
 
