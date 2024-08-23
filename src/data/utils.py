@@ -205,7 +205,9 @@ def load_protein_dataset(
         dataset = dataset.map(
             wrapped_preprocess,
             batched=False,
-            remove_columns=dataset.column_names,  # preprocess returns anything that should be kept
+            remove_columns=[
+                c for c in dataset.column_names if c != "plddts"
+            ],  # preprocess returns anything that should be kept, but we need to be careful in case of clashes
         ).filter(filter_example)
 
     return dataset

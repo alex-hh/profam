@@ -61,6 +61,12 @@ def test_foldseek_interleaved_tokenization(
     batch_seqs = foldseek_interleaved_structure_sequence_datapoint["sequences"][
         :num_sequences_in_batch
     ]
+    batch_coords = backbone_coords_from_example(
+        foldseek_interleaved_structure_sequence_datapoint
+    )[:num_sequences_in_batch]
+    batch_plddts = foldseek_interleaved_structure_sequence_datapoint["plddts"][
+        :num_sequences_in_batch
+    ]
     batch_3dis = [
         s.replace("-", "").lower()
         for s in foldseek_interleaved_structure_sequence_datapoint["msta_3di"][
@@ -99,3 +105,48 @@ def test_foldseek_interleaved_tokenization(
         ]
         == stitched_tokens
     ).all()
+
+    sep_locations = torch.argwhere(
+        foldseek_interleaved_structure_sequence_batch["input_ids"][0]
+        == profam_tokenizer.sep_token_id
+    ).flatten()
+    struct_sep_locations = torch.argwhere(
+        foldseek_interleaved_structure_sequence_batch["input_ids"][0]
+        == profam_tokenizer.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")
+    ).flatten()
+    assert (
+        sep_locations.shape[0]
+        == struct_sep_locations.shape[0]
+        == num_sequences_in_batch
+    )
+    struct_start_index = profam_tokenizer.num_start_tokens
+
+    for i in range(num_sequences_in_batch):
+        struct_end_index = struct_sep_locations[i]
+        seq_start_index = struct_end_index + 1
+        seq_end_index = sep_locations[i]
+        assert (
+            foldseek_interleaved_structure_sequence_batch["coords"][
+                0, struct_start_index:struct_end_index
+            ]
+            == torch.from_numpy(batch_coords[i])
+        ).all()
+        assert (
+            foldseek_interleaved_structure_sequence_batch["plddts"][
+                0, seq_start_index:seq_end_index
+            ]
+            == torch.tensor(batch_plddts[i])
+        ).all()
+        assert (
+            foldseek_interleaved_structure_sequence_batch["coords"][
+                0, seq_start_index:seq_end_index
+            ]
+            == torch.from_numpy(batch_coords[i])
+        ).all()
+        assert (
+            foldseek_interleaved_structure_sequence_batch["plddts"][
+                0, seq_start_index:seq_end_index
+            ]
+            == torch.tensor(batch_plddts[i])
+        ).all()
+        struct_start_index = sep_locations[i] + 1
