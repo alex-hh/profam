@@ -234,9 +234,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         sequences,
         positions: Optional[List[int]] = None,
         bos_token="[SEP]",
+        eos_token="[SEP]",
     ):
+        assert isinstance(sequences, list)
         tokenized = self(
-            [bos_token + seq + self.sep_token for seq in sequences],
+            [bos_token + seq + eos_token for seq in sequences],
             return_tensors="pt",
             padding="longest",
             truncation=False,
@@ -255,7 +257,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         seq_positions,
                         pad_token_id=self.pad_token_id,
                         max_seq_pos=self.max_seq_pos,
-                        num_start_tokens=1,  # just bos_token (no document tag because we are completing prompt)
+                        num_start_tokens=1
+                        if bos_token
+                        else 0,  # just bos_token (no document tag because we are completing prompt)
+                        num_end_tokens=1 if eos_token else 0,
                     )
                 )
             tokenized.data["seq_pos"] = stack(all_positions)
