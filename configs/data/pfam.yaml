@@ -16,11 +16,9 @@ max_tokens: 8192
 data_dir: ../data
 val_dataset_names:
   - pfam_val
-gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
+gym_dms_ids: ${constants.gym.val_assay_list}
 evaluate_gym: True
 evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
-count_doc_hashes: True # count the num times each document gets sampled
-ignore_gaps: false
 use_filtered_gym_msas: true
