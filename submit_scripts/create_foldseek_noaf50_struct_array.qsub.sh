@@ -9,7 +9,7 @@
 #$ -wd ~/profam
 #$ -tc 500
 #$ -j y
-#$ -l hf:avx2=yes  # for foldmason
+#$ -l avx2=yes  # for foldmason
 
 date
 hostname
