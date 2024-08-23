@@ -9,7 +9,10 @@
 #$ -wd ~/profam
 #$ -tc 500
 #$ -j y
+#$ -l hf:avx2=yes  # for foldmason
+
 date
+hostname
 # conda activate venvPF
 # n.b. if we set minimum foldseek cluster size to 1, we might need more memory
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID
