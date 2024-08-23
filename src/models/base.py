@@ -186,8 +186,8 @@ class BaseLitModule(LightningModule):
             ),
         )
         has_3di = (
-            batch["input_ids"]
-            .isin(
+            torch.isin(
+                batch["input_ids"],
                 torch.tensor(
                     self.tokenizer.convert_tokens_to_ids(
                         [aa.lower() for aa in aa_letters]
