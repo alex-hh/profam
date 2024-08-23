@@ -14,13 +14,13 @@
 date
 hostname
 # conda activate venvPF
-# n.b. if we set minimum foldseek cluster size to 1, we might need more memory
-SCRATCH_DIR=/scratch0/$USER/$JOB_ID
-mkdir -p ${SCRATCH_DIR}/data
-cp /SAN/bioinf/afdb_domain/zipmaker/zip_index $SCRATCH_DIR/data
+
 file_prefix=$((SGE_TASK_ID - 1))
 output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/${file_prefix}.parquet"
 if [ ! -f $output_file ]; then
+    SCRATCH_DIR=/scratch0/$USER/$JOB_ID
+    mkdir -p ${SCRATCH_DIR}/data
+    cp /SAN/bioinf/afdb_domain/zipmaker/zip_index $SCRATCH_DIR/data
     echo "Output file not found: $output_file"
     source ~/source_files/afenv.source
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
