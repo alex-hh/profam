@@ -204,9 +204,7 @@ def load_protein_dataset(
     if cfg.preprocessor is not None:
         if dataset.column_names is not None:
             # preprocess returns anything that should be kept, but we need to be careful in case of clashes
-            remove_columns = [
-                c for c in dataset.column_names if c != "plddts"
-            ]
+            remove_columns = [c for c in dataset.column_names if c != "plddts"]
         else:
             # How does column_names become none? maybe in the load text version?
             remove_columns = None
