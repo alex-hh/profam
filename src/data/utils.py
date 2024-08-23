@@ -56,9 +56,11 @@ class CustomDataCollator:
         string_data_keys = set(k for obs in string_data for k in obs.keys())
         batch = self.base_collator(non_string_data)
         if self.ignore_gaps:
-            batch["labels"] = batch["labels"][
+            batch["labels"][
                 batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")
             ] = -100
+        # dont predict mask tokens.
+        batch["labels"][batch["labels"] == self.tokenizer.mask_token_id] = -100
         for str_key in string_data_keys:
             str_vals = [obs.get(str_key, "") for obs in string_data]
             str_obj = StringObject()
