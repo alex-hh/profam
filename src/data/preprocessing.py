@@ -1,5 +1,4 @@
 import bisect
-import hashlib
 import itertools
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -38,11 +37,12 @@ class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
         self.preprocessor = "parquet_sequence"
 
 
+# TODO: make sure we can handle an aligned version - test
 @dataclass
 class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
-    interleave_structure_tokens: bool = False
+    interleave_structure_tokens: bool = False  # when would we want false?
     is_aligned: bool = False
 
     def __post_init__(self):

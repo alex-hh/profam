@@ -1,0 +1,9 @@
+_target_: src.data.preprocessing.ParquetSequencePreprocessorConfig
+keep_insertions: true
+to_upper: true
+keep_gaps: false
+document_token: "[RAW]"
+max_tokens: ${globals.max_tokens}
+shuffle: ${globals.shuffle}
+truncate_after_n_sequences: null
+use_msa_pos: false

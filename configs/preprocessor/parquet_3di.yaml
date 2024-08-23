@@ -1,0 +1,12 @@
+_target_: src.data.preprocessing.ParquetStructureTokensPreprocessorConfig
+keep_insertions: false
+to_upper: false
+keep_gaps: false
+document_token: "[MSA]"
+max_tokens: ${globals.max_tokens}
+shuffle: ${globals.shuffle}
+structure_tokens_col: "msta_3di"
+is_aligned: false
+truncate_after_n_sequences: null
+use_msa_pos: true
+interleave_structure_tokens: true
