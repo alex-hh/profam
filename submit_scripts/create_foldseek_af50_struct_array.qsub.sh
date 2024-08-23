@@ -20,8 +20,12 @@ echo "Created scratch dir"
 ls /scratch0/$USER/$JOB_ID
 cp /SAN/bioinf/afdb_domain/zipmaker/zip_index $SCRATCH_DIR/data
 cp /SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv $SCRATCH_DIR/data
-source ~/source_files/afenv.source
-export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
-python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --num_processes 1 --minimum_foldseek_cluster_size 1 --parquet_ids $((SGE_TASK_ID - 1)) --run_foldmason
-rm -rf ${SCRATCH_DIR}/data
-date
+file_prefix=$((SGE_TASK_ID - 1))
+output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/${file_prefix}.parquet"
+if [ ! -f $output_file ]; then
+    echo "Output file not found: $output_file"
+    source ~/source_files/afenv.source
+    export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
+    python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --num_processes 1 --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --run_foldmason
+    rm -rf ${SCRATCH_DIR}/data
+fi
