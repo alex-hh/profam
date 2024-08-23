@@ -812,6 +812,8 @@ class BaseFamilyLitModule(BaseLitModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
         forward_kwargs = self.get_forward_kwargs(batch)
+        # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
+        # or perhaps we can just use reduction none?
         outputs = self(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],

@@ -89,7 +89,7 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
 @dataclass
 class ProteinDatasetConfig:
     name: str
-    preprocessor: BasePreprocessorConfig
+    preprocessor: Optional[BasePreprocessorConfig] = None
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
     holdout_identifiers: Optional[List[str]] = None

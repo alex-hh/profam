@@ -18,7 +18,13 @@ class BasePreprocessorConfig:
     keep_gaps: bool = False
     document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
-    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
+    use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
+
+
+@dataclass
+class NullPreprocessorConfig(BasePreprocessorConfig):
+    def __post_init__(self):
+        self.preprocessor = None
 
 
 @dataclass
@@ -298,12 +304,11 @@ def preprocess_parquet_with_structure_tokens(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
 ) -> Dict[str, Any]:
-    assert cfg.is_parquet
     # TODO: configure whether or not to use alignments, structure tokens col, etc.
     max_sequences_to_preprocess = (max_tokens or 1e8) // 10
     sequence_iterator = example[cfg.sequence_col]
     structure_tokens_iterator = example[cfg.structure_tokens_col]
-    if cfg.shuffle:
+    if shuffle:
         sequence_ids = random_subsample(
             np.arange(len(sequence_iterator)),
             max_sequences_to_preprocess,
@@ -358,7 +363,6 @@ def preprocess_parquet_sequence_data(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
 ) -> Dict[str, Any]:
-    assert cfg.is_parquet
     sequence_iterator = example["sequences"]
     max_sequences_to_preprocess = max_tokens // 10
     # n.b. this also shuffles

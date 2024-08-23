@@ -51,11 +51,11 @@ def stitch_tokens(tokenizer, struct_tokens, seq_tokens):
 def test_foldseek_interleaved_tokenization(
     foldseek_interleaved_structure_sequence_batch,
     foldseek_interleaved_structure_sequence_datapoint,
-    profam_tokenizer_seqpos,
+    profam_tokenizer,
 ):
     num_sequences_in_batch = (
         foldseek_interleaved_structure_sequence_batch["input_ids"]
-        == profam_tokenizer_seqpos.sep_token_id
+        == profam_tokenizer.sep_token_id
     ).sum()
 
     batch_seqs = foldseek_interleaved_structure_sequence_datapoint["sequences"][
@@ -69,27 +69,27 @@ def test_foldseek_interleaved_tokenization(
     ]
     # TODO: make a proper test by stitching together manually encoded sequences and 3dis
     individual_seq_tokens = [
-        profam_tokenizer_seqpos.encode_completions(
+        profam_tokenizer.encode_completions(
             [s], bos_token="", eos_token=""
         ).input_ids[0]
         for s in batch_seqs
     ]
     individual_3d_tokens = [
-        profam_tokenizer_seqpos.encode_completions(
+        profam_tokenizer.encode_completions(
             [s_3d], bos_token="", eos_token=""
         ).input_ids[0]
         for s_3d in batch_3dis
     ]
     stitched_tokens = torch.tensor(
-        profam_tokenizer_seqpos.convert_tokens_to_ids(
-            ["[RAW]", profam_tokenizer_seqpos.bos_token]
+        profam_tokenizer.convert_tokens_to_ids(
+            ["[RAW]", profam_tokenizer.bos_token]
         )
     )
     stitched_tokens = torch.cat(
         [
             stitched_tokens,
             stitch_tokens(
-                profam_tokenizer_seqpos, individual_3d_tokens, individual_seq_tokens
+                profam_tokenizer, individual_3d_tokens, individual_seq_tokens
             ),
         ],
         dim=0,
