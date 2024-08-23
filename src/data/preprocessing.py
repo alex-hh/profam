@@ -11,44 +11,42 @@ from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
 
-# TODO: in future we might actually want standalone dataset class for
-# more flexible customisation (e.g. mapping uniprot ids via db)
 @dataclass
-class ProteinDatasetConfig:
-    name: str
-    keep_gaps: bool = False
-    data_path_pattern: Optional[str] = None
-    holdout_data_files: Optional[str] = None
-    holdout_identifiers: Optional[List[str]] = None
-    identifier_col: Optional[str] = None
-    data_path_file: Optional[str] = None
+class BasePreprocessorConfig:
+    preprocessor: str = ""  # TODO: handle this better
     keep_insertions: bool = False
     to_upper: bool = False
-    file_repeats: int = 1
-    minimum_sequences: Optional[int] = None
+    keep_gaps: bool = False
     document_token: str = "[RAW]"
+    max_tokens: Optional[int] = 5000
+    shuffle: bool = True
     truncate_after_n_sequences: Optional[int] = None
+    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
+
+
+@dataclass
+class FastaPreprocessorConfig(BasePreprocessorConfig):
+    def __post_init__(self):
+        self.preprocessor = "fasta"
+
+
+@dataclass
+class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
+    sequence_col: str = "sequences"
+
+    def __post_init__(self):
+        self.preprocessor = "parquet_sequence"
+
+
+@dataclass
+class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
     interleave_structure_tokens: bool = False
     is_aligned: bool = False
-    preprocessor: Optional[str] = "fasta"  # TODO: use some kind of constant typing
-    is_parquet: bool = False
-    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
-    # global arguments that will get overridden in load_protein_dataset
-    max_tokens: Optional[int] = 5000
-    shuffle: bool = (True,)
-    include_doc_hashes: bool = False
 
-    def set_global_args(
-        self,
-        max_tokens: int,
-        shuffle: bool,
-        include_doc_hashes: bool,
-    ):
-        self.max_tokens = max_tokens
-        self.shuffle = shuffle
-        self.include_doc_hashes = include_doc_hashes
+    def __post_init__(self):
+        self.preprocessor = "parquet_structure_tokens"
 
 
 def sample_to_max_tokens(
@@ -235,7 +233,7 @@ def _subsample_and_tokenize_protein_data(
 
 def preprocess_fasta_data(
     example: Dict[str, Any],
-    cfg: ProteinDatasetConfig,
+    cfg: FastaPreprocessorConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     lines = example["text"].split("\n")
@@ -287,9 +285,10 @@ def backbone_coords_from_example(example):
 
 def preprocess_parquet_with_structure_tokens(
     example: Dict[str, Any],
-    cfg: ProteinDatasetConfig,
+    cfg: ParquetStructureTokensPreprocessorConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
+    assert cfg.is_parquet
     # TODO: configure whether or not to use alignments, structure tokens col, etc.
     max_sequences_to_preprocess = cfg.max_tokens // 10
     sequence_iterator = example[cfg.sequence_col]
@@ -341,9 +340,10 @@ def preprocess_parquet_with_structure_tokens(
 
 def preprocess_parquet_sequence_data(
     example: Dict[str, Any],
-    cfg: ProteinDatasetConfig,
+    cfg: ParquetSequencePreprocessorConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
+    assert cfg.is_parquet
     sequence_iterator = example["sequences"]
     max_sequences_to_preprocess = cfg.max_tokens // 10
     # n.b. this also shuffles
@@ -374,15 +374,10 @@ def get_preprocessor(preprocessor: str):
 
 def preprocess_protein_data(
     example: Dict[str, Any],
-    cfg: ProteinDatasetConfig,
+    cfg: BasePreprocessorConfig,
     tokenizer: ProFamTokenizer,
 ) -> Dict[str, Any]:
     # N.B. for stockholm format we need to check that sequences aren't split over
     # multiple lines
     tokenized = get_preprocessor(cfg.preprocessor)(example, cfg, tokenizer)
-    if cfg.identifier_col is not None:
-        tokenized["identifier"] = example[cfg.identifier_col]
-    if cfg.include_doc_hashes:
-        # identify documents by a hash of the first 512 characters
-        tokenized["doc_hash"] = hashlib.md5(example["text"][:512].encode()).hexdigest()
     return tokenized

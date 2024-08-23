@@ -1,4 +1,5 @@
 import glob
+import hashlib
 import os
 import random
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
-from src.data.preprocessing import ProteinDatasetConfig, preprocess_protein_data
+from src.data.preprocessing import BasePreprocessorConfig, preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
@@ -83,6 +84,24 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
         assert lines[end - 1][0] != ">"
         sampled_lines.extend(lines[start:end])
     return sampled_lines
+
+
+@dataclass
+class ProteinDatasetConfig:
+    name: str
+    preprocessor: BasePreprocessorConfig
+    data_path_pattern: Optional[str] = None
+    holdout_data_files: Optional[str] = None
+    holdout_identifiers: Optional[List[str]] = None
+    identifier_col: Optional[str] = None
+    data_path_file: Optional[str] = None
+    file_repeats: int = 1
+    minimum_sequences: Optional[int] = None
+    include_doc_hashes: bool = (
+        False  # TODO: replace this including metrics with identifier col / file name
+    )
+    is_parquet: bool = False
+    shuffle: bool = True
 
 
 def load_protein_dataset(
@@ -176,12 +195,25 @@ def load_protein_dataset(
         )
         return filter_num_seqs and filter_identifier
 
+    def wrapped_preprocess(example):
+        example = preprocess_protein_data(
+            example, cfg.preprocessor, tokenizer=tokenizer
+        )
+        if cfg.identifier_col is not None:
+            example["identifier"] = example[cfg.identifier_col]
+        if cfg.include_doc_hashes:
+            # TODO: move to using identifier / filename instead (affects metrics)
+            # identify documents by a hash of the first 512 characters
+            example["doc_hash"] = hashlib.md5(
+                example["text"][:512].encode()
+            ).hexdigest()
+        return example
+
     if cfg.preprocessor is not None:
         dataset = dataset.map(
-            preprocess_protein_data,
+            wrapped_preprocess,
             batched=False,
             remove_columns=dataset.column_names,  # preprocess returns anything that should be kept
-            fn_kwargs={"cfg": cfg, "tokenizer": tokenizer},
         ).filter(filter_example)
 
     return dataset

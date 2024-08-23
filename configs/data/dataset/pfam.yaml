@@ -8,5 +8,7 @@ is_parquet: true
 keep_gaps: false
 to_upper: true
 keep_insertions: true
-document_tag: "[MSA]"
+document_tag: "[RAW-WITH-MSA-POS]"
 use_msa_pos: true
+preprocessor: "parquet_sequence"
+is_aligned: false
