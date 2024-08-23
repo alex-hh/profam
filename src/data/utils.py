@@ -97,9 +97,6 @@ class ProteinDatasetConfig:
     data_path_file: Optional[str] = None
     file_repeats: int = 1
     minimum_sequences: Optional[int] = None
-    include_doc_hashes: bool = (
-        False  # TODO: replace this including metrics with identifier col / file name
-    )
     is_parquet: bool = False
     shuffle: bool = True
 
@@ -107,10 +104,9 @@ class ProteinDatasetConfig:
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
-    max_tokens: Optional[int] = 5000,
     data_dir="../data",
     split="train",
-    include_doc_hashes: bool = False,
+    max_tokens: Optional[int] = None,
     shuffle: bool = True,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
@@ -123,12 +119,6 @@ def load_protein_dataset(
             data_files = [
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
-
-    cfg.set_global_args(
-        max_tokens=max_tokens,
-        shuffle=shuffle,
-        include_doc_hashes=include_doc_hashes,
-    )
 
     if cfg.holdout_data_files is not None:
         assert isinstance(cfg.holdout_data_files, list) or isinstance(
@@ -156,6 +146,7 @@ def load_protein_dataset(
         )
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
+        # TODO: load identifier?
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -197,16 +188,17 @@ def load_protein_dataset(
 
     def wrapped_preprocess(example):
         example = preprocess_protein_data(
-            example, cfg.preprocessor, tokenizer=tokenizer
+            example,
+            cfg.preprocessor,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
         )
+        example["ds_name"] = cfg.name
+        # TODO: get identifier for fasta files...
         if cfg.identifier_col is not None:
-            example["identifier"] = example[cfg.identifier_col]
-        if cfg.include_doc_hashes:
-            # TODO: move to using identifier / filename instead (affects metrics)
-            # identify documents by a hash of the first 512 characters
-            example["doc_hash"] = hashlib.md5(
-                example["text"][:512].encode()
-            ).hexdigest()
+            example["identifier"] = cfg.name + "/" + example[cfg.identifier_col]
+
         return example
 
     if cfg.preprocessor is not None:

@@ -17,8 +17,6 @@ class BasePreprocessorConfig:
     to_upper: bool = False
     keep_gaps: bool = False
     document_token: str = "[RAW]"
-    max_tokens: Optional[int] = 5000
-    shuffle: bool = True
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
 
@@ -142,20 +140,20 @@ def _tokenize_protein_data(
     positions: Optional[List[List[int]]] = None,
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
+    max_tokens: Optional[int] = None,
 ):
-    print("Tokenizing sequences", sequences)
     tokenized = tokenizer.encode_sequences(
         sequences,
         positions=positions,
         document_token=cfg.document_token,
         padding="max_length",
-        max_length=cfg.max_tokens,
+        max_length=max_tokens,
         coords=coords,
         plddts=plddts,
         add_final_sep=True,
     )
     # tokenized.input_ids is flat now
-    tokenized.data["ds_name"] = cfg.name
+    # n.b. this is after subsampling so not very informative
     tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
 
     return tokenized.data  # a dict
@@ -168,7 +166,12 @@ def _subsample_and_tokenize_protein_data(
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
     structure_tokens: Optional[List[str]] = None,
+    max_tokens: Optional[int] = None,
+    shuffle: bool = True,
+    interleave_structure_tokens: bool = False,
 ):
+    if max_tokens is None:
+        raise NotImplementedError("Need to implement max_tokens=None case")
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
     if tokenizer.use_seq_pos:
         sequences = []
@@ -196,17 +199,15 @@ def _subsample_and_tokenize_protein_data(
         sequences,
         extra_arrays=extra_arrays,
         # TODO: we need to subtract the cost of the extra sep tokens also.
-        max_tokens=cfg.max_tokens // 2
-        if cfg.interleave_structure_tokens
-        else cfg.max_tokens,
-        shuffle=cfg.shuffle,
-        extra_tokens_per_sequence=2 if cfg.interleave_structure_tokens else 1,
+        max_tokens=max_tokens // 2 if interleave_structure_tokens else max_tokens,
+        shuffle=shuffle,
+        extra_tokens_per_sequence=2 if interleave_structure_tokens else 1,
         extra_tokens_per_document=tokenizer.num_start_tokens,
     )
     positions, coords, plddts, structure_tokens = extra_arrays
 
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
-    if cfg.interleave_structure_tokens:
+    if interleave_structure_tokens:
         sequences = [
             seq_3d + tokenizer.seq_struct_sep_token + seq
             for seq, seq_3d in zip(sequences, structure_tokens)
@@ -227,6 +228,7 @@ def _subsample_and_tokenize_protein_data(
         positions=positions,
         coords=coords,
         plddts=plddts,
+        max_tokens=max_tokens,
     )
     return tokenized
 
@@ -235,17 +237,21 @@ def preprocess_fasta_data(
     example: Dict[str, Any],
     cfg: FastaPreprocessorConfig,
     tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    shuffle: bool = True,
 ) -> Dict[str, Any]:
     lines = example["text"].split("\n")
     if not len(lines[-1]):
         lines = lines[:-1]
     # min 2 lines per seq, assume at least 10 tks per line
-    max_fasta_lines_to_preprocess = cfg.max_tokens // 5  # upper bound on lines to proc.
+    max_fasta_lines_to_preprocess = (
+        max_tokens or 1e8
+    ) // 5  # upper bound on lines to proc.
     if len(lines) > max_fasta_lines_to_preprocess:
         lines = subsample_fasta_lines(
             lines,
             max_fasta_lines_to_preprocess,
-            shuffle=cfg.shuffle,
+            shuffle=shuffle,
         )
     sequence_iterator = read_fasta_sequences(
         lines,
@@ -258,6 +264,8 @@ def preprocess_fasta_data(
         sequence_iterator,
         cfg=cfg,
         tokenizer=tokenizer,
+        max_tokens=max_tokens,
+        shuffle=shuffle,
     )
 
 
@@ -287,10 +295,12 @@ def preprocess_parquet_with_structure_tokens(
     example: Dict[str, Any],
     cfg: ParquetStructureTokensPreprocessorConfig,
     tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    shuffle: bool = True,
 ) -> Dict[str, Any]:
     assert cfg.is_parquet
     # TODO: configure whether or not to use alignments, structure tokens col, etc.
-    max_sequences_to_preprocess = cfg.max_tokens // 10
+    max_sequences_to_preprocess = (max_tokens or 1e8) // 10
     sequence_iterator = example[cfg.sequence_col]
     structure_tokens_iterator = example[cfg.structure_tokens_col]
     if cfg.shuffle:
@@ -335,6 +345,9 @@ def preprocess_parquet_with_structure_tokens(
         coords=coords,
         plddts=plddts,
         structure_tokens=structure_tokens,
+        max_tokens=max_tokens,
+        shuffle=shuffle,
+        interleave_structure_tokens=cfg.interleave_structure_tokens,
     )
 
 
@@ -342,12 +355,14 @@ def preprocess_parquet_sequence_data(
     example: Dict[str, Any],
     cfg: ParquetSequencePreprocessorConfig,
     tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    shuffle: bool = True,
 ) -> Dict[str, Any]:
     assert cfg.is_parquet
     sequence_iterator = example["sequences"]
-    max_sequences_to_preprocess = cfg.max_tokens // 10
+    max_sequences_to_preprocess = max_tokens // 10
     # n.b. this also shuffles
-    if cfg.shuffle:
+    if shuffle:
         sequences = random_subsample(
             sequence_iterator,
             max_sequences_to_preprocess,
@@ -358,6 +373,8 @@ def preprocess_parquet_sequence_data(
         sequences,
         cfg=cfg,
         tokenizer=tokenizer,
+        max_tokens=max_tokens,
+        shuffle=shuffle,
     )
 
 
@@ -376,8 +393,12 @@ def preprocess_protein_data(
     example: Dict[str, Any],
     cfg: BasePreprocessorConfig,
     tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    shuffle: bool = True,
 ) -> Dict[str, Any]:
     # N.B. for stockholm format we need to check that sequences aren't split over
     # multiple lines
-    tokenized = get_preprocessor(cfg.preprocessor)(example, cfg, tokenizer)
+    tokenized = get_preprocessor(cfg.preprocessor)(
+        example, cfg, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+    )
     return tokenized

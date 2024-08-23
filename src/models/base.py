@@ -430,7 +430,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.dataset_sample_counts = {}
-        self.doc_hash_counts = {}
+        self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
 
@@ -869,20 +869,18 @@ class BaseFamilyLitModule(BaseLitModule):
                     on_epoch=True,
                 )
 
-            if "doc_hash" in batch:
-                for i, (dataset, doc_hash) in enumerate(
-                    zip(batch["ds_name"].text, batch["doc_hash"].text)
+            if "identifier" in batch:
+                for i, (dataset, doc_id) in enumerate(
+                    zip(batch["ds_name"].text, batch["identifier"].text)
                 ):
-                    self.doc_hash_counts[dataset] = self.doc_hash_counts.get(
-                        dataset, {}
-                    )
-                    self.doc_hash_counts[dataset][doc_hash] = (
-                        self.doc_hash_counts[dataset].get(doc_hash, 0) + 1
+                    self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
+                    self.doc_id_counts[dataset][doc_id] = (
+                        self.doc_id_counts[dataset].get(doc_id, 0) + 1
                     )
                 self.log_dict(
                     {
                         f"{k}_max_sampled_doc": max(v.values())
-                        for k, v in self.doc_hash_counts.items()
+                        for k, v in self.doc_id_counts.items()
                     },
                     on_step=False,
                     on_epoch=True,
