@@ -352,13 +352,17 @@ def create_foldseek_parquets(
         # 2302908 clusterss
         parquet_ids = range(231)
     for parquet_id in parquet_ids:
+        scratch_zip_index = os.path.join(scratch_dir, "zip_index")
+        scratch_af50 = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
+        zip_index = scratch_zip_index if os.path.isfile(scratch_zip_index) else "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
+        af50_path = scratch_af50 if os.path.isfile(scratch_af50) else "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
         pdb_lookup, metadata_lookup, cluster_membership = make_job_list(
             parquet_id,
             save_dir=save_dir,
             minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
             skip_af50=skip_af50,
-            zip_index_file=os.path.join(scratch_dir, "zip_index"),
-            af50_path=os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv"),
+            zip_index_file=zip_index,
+            af50_path=af50_path,
         )
         extract_pdbs_for_parquet(
             pdb_lookup=pdb_lookup,
