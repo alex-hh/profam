@@ -185,17 +185,12 @@ class BaseLitModule(LightningModule):
                 + self.tokenizer.all_special_tokens
             ),
         )
-        has_3di = (
-            torch.isin(
-                batch["input_ids"],
-                torch.tensor(
-                    self.tokenizer.convert_tokens_to_ids(
-                        [aa.lower() for aa in aa_letters]
-                    )
-                ).to(batch["input_ids"])
-            )
-            .any()
-        )
+        has_3di = torch.isin(
+            batch["input_ids"],
+            torch.tensor(
+                self.tokenizer.convert_tokens_to_ids([aa.lower() for aa in aa_letters])
+            ).to(batch["input_ids"]),
+        ).any()
         accuracy_3di = accuracy_from_outputs(
             outputs,
             batch["labels"],
