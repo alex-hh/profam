@@ -69,9 +69,9 @@ def test_foldseek_interleaved_tokenization(
     ]
     # TODO: make a proper test by stitching together manually encoded sequences and 3dis
     individual_seq_tokens = [
-        profam_tokenizer.encode_completions(
-            [s], bos_token="", eos_token=""
-        ).input_ids[0]
+        profam_tokenizer.encode_completions([s], bos_token="", eos_token="").input_ids[
+            0
+        ]
         for s in batch_seqs
     ]
     individual_3d_tokens = [
@@ -81,9 +81,7 @@ def test_foldseek_interleaved_tokenization(
         for s_3d in batch_3dis
     ]
     stitched_tokens = torch.tensor(
-        profam_tokenizer.convert_tokens_to_ids(
-            ["[RAW]", profam_tokenizer.bos_token]
-        )
+        profam_tokenizer.convert_tokens_to_ids(["[RAW]", profam_tokenizer.bos_token])
     )
     stitched_tokens = torch.cat(
         [

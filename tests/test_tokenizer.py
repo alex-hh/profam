@@ -26,10 +26,7 @@ def test_encode_decode(profam_tokenizer, pfam_fasta_text):
 def test_sequence_of_sequence_tokenization(profam_tokenizer):
     example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]
     concatenated_sequence = (
-        "[RAW]"
-        + profam_tokenizer.bos_token
-        + "[SEP]".join(example_sequences)
-        + "[SEP]"
+        "[RAW]" + profam_tokenizer.bos_token + "[SEP]".join(example_sequences) + "[SEP]"
     )
     tokenized = profam_tokenizer(
         concatenated_sequence,
@@ -40,9 +37,7 @@ def test_sequence_of_sequence_tokenization(profam_tokenizer):
         add_special_tokens=False,
     )
     # TODO: extend...
-    assert tokenized.input_ids[0, 0] == profam_tokenizer.convert_tokens_to_ids(
-        "[RAW]"
-    )
+    assert tokenized.input_ids[0, 0] == profam_tokenizer.convert_tokens_to_ids("[RAW]")
     assert not (
         tokenized["input_ids"] == profam_tokenizer.convert_tokens_to_ids("[UNK]")
     ).any()

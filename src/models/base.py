@@ -14,7 +14,7 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
-from src.constants import BASEDIR
+from src.constants import BASEDIR, aa_letters
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,
@@ -166,6 +166,113 @@ class BaseLitModule(LightningModule):
             prog_bar=True,
         )
 
+    @torch.no_grad()
+    def log_metrics(
+        self, batch, outputs, step_name, log_global: bool = False, log_ds: bool = False
+    ):
+        # N.B. actually val logging is a bit different because of this ds name thing
+        loss = outputs.loss
+        if not log_global and not log_ds:
+            return
+
+        aa_accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                ["-"]
+                + [aa.lower() for aa in aa_letters]
+                + self.tokenizer.all_special_tokens
+            ),
+        )
+        has_3di = (
+            batch["input_ids"]
+            .isin(
+                torch.tensor(
+                    self.tokenizer.convert_tokens_to_ids(
+                        [aa.lower() for aa in aa_letters]
+                    )
+                ).to(batch["input_ids"])
+            )
+            .any()
+        )
+        accuracy_3di = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                ["-"] + aa_letters + self.tokenizer.all_special_tokens
+            ),
+        )
+        if log_ds:
+            # n.b. this assumes a batch only contains a single dataset - only true during val!
+            ds_name = (
+                batch["ds_name"][0]
+                if isinstance(batch["ds_name"], list)
+                else batch["ds_name"].text[0]
+            )
+            self.log(
+                f"{step_name}/{ds_name}/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            self.log(
+                f"{step_name}/{ds_name}/aa_accuracy",
+                aa_accuracy,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            if has_3di:
+                self.log(
+                    f"{step_name}/{ds_name}/3di_accuracy",
+                    accuracy_3di,
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=False,
+                    add_dataloader_idx=False,
+                )
+        if log_global:
+            # log the loss again with generic name for the sake of model checkpointing
+            self.log(
+                f"{step_name}/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=True,
+            )
+            # n.b. this might be biased for batch size > 1
+            self.log(
+                f"{step_name}/{ds_name}/ppl",
+                torch.exp(loss),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            self.log(
+                f"{step_name}/aa_accuracy",
+                aa_accuracy,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            if has_3di:
+                self.log(
+                    f"{step_name}/3di_accuracy",
+                    accuracy_3di,
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=False,
+                    add_dataloader_idx=False,
+                )
+
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
@@ -177,37 +284,7 @@ class BaseLitModule(LightningModule):
             **forward_kwargs,
         )
         loss = outputs.loss
-        # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log(
-            "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
-        )
-        # https://huggingface.co/docs/transformers/perplexity
-        # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round
-        with torch.no_grad():
-            self.log(
-                "train/ppl",
-                torch.exp(loss),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-            )
-            self.log(
-                "train/n_seqs",
-                (batch["input_ids"] == self.tokenizer.sep_token_id)
-                .float()
-                .sum(axis=1)
-                .mean()
-                .item(),
-                on_step=True,
-                on_epoch=False,
-            )
+        self.log_metrics(batch, outputs, "train", log_global=True, log_ds=False)
         return loss
 
     def on_before_optimizer_step(self, optimizer):
@@ -224,11 +301,6 @@ class BaseLitModule(LightningModule):
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        ds_name = (
-            batch["ds_name"][0]
-            if isinstance(batch["ds_name"], list)
-            else batch["ds_name"].text[0]
-        )
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -245,54 +317,14 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
-        self.log(
-            f"val/{ds_name}/loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        if dataloader_idx == 0:
-            # log the loss again with generic name for the sake of model checkpointing
-            self.log(
-                f"val/loss",
-                loss,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=True,
-            )
-
-        self.log(
-            f"val/{ds_name}/accuracy",
-            accuracy,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        # n.b. this might be biased for batch size > 1
-        self.log(
-            f"val/{ds_name}/ppl",
-            torch.exp(loss),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
+        self.log_metrics(
+            batch, outputs, "val", log_global=dataloader_idx == 0, log_ds=True
         )
         return loss
 
     def test_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        ds_name = batch["ds_name"].text[0]
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -306,35 +338,8 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
-        self.log(
-            f"test/{ds_name}/loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        # n.b. this might be biased for batch size > 1
-        self.log(
-            f"test/{ds_name}/ppl",
-            torch.exp(loss),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        self.log(
-            f"test/{ds_name}/accuracy",
-            accuracy,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
+        self.log_metrics(
+            batch, outputs, "test", log_global=dataloader_idx == 0, log_ds=True
         )
         return loss
 
@@ -813,7 +818,7 @@ class BaseFamilyLitModule(BaseLitModule):
     ) -> torch.Tensor:
         forward_kwargs = self.get_forward_kwargs(batch)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
-        # or perhaps we can just use reduction none?
+        # one option would be to write our own versions of classes llike llamaforcausallm
         outputs = self(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],

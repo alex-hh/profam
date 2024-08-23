@@ -53,8 +53,9 @@ def accuracy_from_outputs(
         The accuracy of the target sequence.
     """
     labels = labels.clone()
-    for token_id in ignore_token_ids:
-        labels[labels == token_id] = ignore_index
+    if ignore_token_ids is not None:
+        ignore_token_ids = torch.tensor(ignore_token_ids).to(labels.device)
+        labels[torch.isin(labels, ignore_token_ids)] = ignore_index
     logits = model_outputs.logits
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
