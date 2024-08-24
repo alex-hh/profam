@@ -31,16 +31,18 @@ class PromptBuilder:
         self,
         preprocessor: BasePreprocessorConfig,
         tokenizer: ProFamTokenizer,
+        max_tokens: int,
         seed: Optional[int] = None,
     ):
         self.preprocessor = preprocessor
         self.tokenizer = tokenizer
         self.seed = seed
+        self.max_tokens = max_tokens
         self.interleave_structure_sequence = preprocessor.get(
             "interleave_structure_tokens", False
         )
 
-    def __call__(self, protein_document, max_tokens: int):
+    def __call__(self, protein_document):
         if self.interleave_structure_sequence:
             max_tokens = max_tokens // 2  # TODO: account for sep
         return subsample_and_tokenize_protein_data(

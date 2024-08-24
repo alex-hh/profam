@@ -4,9 +4,6 @@ import numpy as np
 
 from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
-from src.data.utils import random_subsample, sample_to_max_tokens
-
-# class MultipleEvaluator:
 
 
 class SamplingEvaluator:
@@ -52,30 +49,6 @@ class SamplingEvaluator:
     ) -> Dict[str, float]:
         raise NotImplementedError("should be implemented on child class")
 
-    def build_prompt(self, protein_document: ProteinDocument):
-        sequences = random_subsample(
-            protein_document.sequences, self.max_tokens // 10, seed=self.seed
-        )
-        max_len = max([len(seq) for seq in sequences])
-        sequences = []
-        positions = []
-
-        # TODO: subsample before convert sequence with positions.
-        for sequence in protein_document.sequences:
-            seq, pos, _ = convert_sequence_with_positions(
-                sequence,
-                keep_gaps=self.keep_gaps,
-                keep_insertions=self.keep_insertions,
-                to_upper=self.to_upper,
-                use_msa_pos=self.use_msa_pos,
-            )
-            sequences.append(seq)
-            positions.append(pos)
-        sequences, positions = sample_to_max_tokens(
-            sequences, positions, self.max_tokens - max_len, seed=self.seed
-        )
-        return sequences, positions
-
     def sample_document(
         self,
         protein_document: ProteinDocument,
@@ -101,27 +74,11 @@ class SamplingEvaluator:
         ]
         return reference_sequences
 
-    # TODO: think about how to handle multimodal prompt...
-    def build_inputs_from_prompt(self, prompt, num_samples: int):
-        if isinstance(prompt, list) and isinstance(prompt[0], str):
-            return {"sequence_prompt": prompt, "num_samples": num_samples}
-        elif isinstance(prompt, tuple) and isinstance(prompt[0], list):
-            return {
-                "sequence_prompt": prompt[0],
-                "position_indices": prompt[1],
-                "num_samples": num_samples,
-            }
-        else:
-            raise ValueError("Prompt should be a list of strings or a tuple of lists")
-
-    # TODO: I think this should be a method on the model, that both the pipeline
-    # and the evaluator can call. Different models might build prompt differently
-    # based on their configuration - this should not be a function of evaluator configuration.
-    # The only issue is that in some cases we want to share the same prompt when comparing
-    # different models...this is a little tricky.
-    # TODO: handle kwargs like document tag...
     def run_sampling(
-        self, model, protein_document, num_samples: Optional[int] = None, **model_kwargs
+        self,
+        sampler,
+        protein_document,
+        num_samples: Optional[int] = None,
     ):
         num_samples = num_samples or self.num_samples
         assert num_samples is not None, "num_samples should be provided"
@@ -137,18 +94,14 @@ class SamplingEvaluator:
                 num_samples >= self.num_samples
             ), f"Expecting at least {self.num_samples} samples"
 
-        prompt = self.build_prompt(protein_document)
-        inputs = self.build_inputs_from_prompt(prompt, num_samples)
-        samples = model.sample_seqs(
-            **inputs, document_token=self.document_token, **model_kwargs
-        )
+        samples = sampler.sample_seqs(protein_document, num_samples)
         return samples
 
     def __call__(
         self,
-        model,
+        sampler,
         protein_document: ProteinDocument,
         num_samples: int,
     ):
-        samples = self.run_sampling(model, protein_document, num_samples)
+        samples = self.run_sampling(sampler, protein_document, num_samples)
         return self.evaluate_samples(protein_document, samples)
