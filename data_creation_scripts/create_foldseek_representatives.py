@@ -243,7 +243,6 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
 def create_foldseek_parquets(
     save_dir,
     scratch_dir,
-    cluster_path,
     use_af50_representatives=False,
     parquet_ids=None,
     num_processes=None,
@@ -258,6 +257,7 @@ def create_foldseek_parquets(
     print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
     af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     for parquet_id in parquet_ids:
+        print("Processing parquet id", parquet_id, flush=True)
         pdb_lookup, cluster_ids = make_job_list(
             parquet_id,
             cluster_path=af50_path if use_af50_representatives else cluster_path,
@@ -284,12 +284,17 @@ if __name__ == "__main__":
     parser.add_argument("scratch_dir")
     parser.add_argument("--af50", action="store_true")
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
+    parser.add_argument("--num_processes", type=int, default=None)
     args = parser.parse_args()
 
     if args.af50:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_representatives/"
     else:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives/"
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives_example/"
+
+    if args.num_processes is None:
+        args.num_processes = os.cpu_count()
+    print("Num cpus", os.cpu_count(), flush=True)
 
     create_foldseek_parquets(
         save_dir=save_dir,
