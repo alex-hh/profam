@@ -5,6 +5,7 @@
 
 defaults:
   - /extra_callbacks@extra_callbacks.esmfold: esmfold
+  - /preprocessor@extra_callbacks.esmfold.pipeline.preprocessor: foldseek_3di
   - override /callbacks: default_with_shuffle
   - override /data: foldseek
   - override /model: llama_tiny

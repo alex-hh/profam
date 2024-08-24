@@ -11,15 +11,17 @@ data_weights:
   foldseek_3di: 0.5
 dataset_cfgs:
   foldseek:
-    data_path_pattern: foldseek_struct/1*.parquet
+    data_path_pattern: foldseek_struct/*.parquet
   foldseek_val:
     name: foldseek_val
     data_path_pattern: foldseek_struct/0.parquet
+    holdout_data_files: foldseek_struct/0.parquet
   foldseek_3di:
-    data_path_pattern: foldseek_struct/1*.parquet
+    data_path_pattern: foldseek_struct/*.parquet
   foldseek_3di_val:
     name: foldseek_with_3di_val
     data_path_pattern: foldseek_struct/0.parquet
+    holdout_data_files: foldseek_struct/0.parquet
 batch_size: 22
 max_tokens: 8192
 data_dir: ../data

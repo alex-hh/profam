@@ -2,6 +2,7 @@ _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
 defaults:
   - /pipeline: foldseek
   - /evaluator: esmfold
+  - /preprocessor: null  # n.b. must be set
 evaluator:
   num_samples: null
 sampling_kwargs:
