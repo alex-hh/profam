@@ -21,7 +21,7 @@ max_tokens: 8192
 data_dir: ../data
 val_dataset_names:
   - interpro
-gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
+gym_dms_ids: ${constants.val_assay_list}
 evaluate_gym: True
 evaluate_ec_class: false
 evaluate_ec_cluster_class: true

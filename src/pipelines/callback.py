@@ -5,9 +5,8 @@ from typing import Dict, Optional
 from lightning.pytorch.callbacks import Callback
 
 from src.data.preprocessing import BasePreprocessorConfig
-from src.data.utils import PromptBuilder
 from src.evaluators.base import SamplingEvaluator
-from src.models.samplers import ProFamSampler
+from src.models.inference import ProFamSampler, PromptBuilder
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 

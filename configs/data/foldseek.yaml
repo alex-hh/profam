@@ -24,11 +24,11 @@ dataset_cfgs:
     holdout_data_files: foldseek_struct/0.parquet
 batch_size: 22
 max_tokens: 8192
-data_dir: ../data
+data_dir: ${paths.data_dir}
 val_dataset_names:
   - foldseek_val
   - foldseek_3di_val
-gym_dms_ids: ${constants.gym.val_assay_list}
+gym_dms_ids: ${constants.val_assay_list}
 evaluate_gym: True
 evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores

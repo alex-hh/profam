@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: "parquet_sequence"
+  - /preprocessor: "parquet_raw"
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: foldseek
 data_path_pattern: foldseek_struct/*.parquet

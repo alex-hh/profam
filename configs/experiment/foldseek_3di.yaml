@@ -5,7 +5,7 @@
 
 defaults:
   - /extra_callbacks@extra_callbacks.esmfold: esmfold
-  - /preprocessor@extra_callbacks.esmfold.pipeline.preprocessor: foldseek_3di
+  - override /preprocessor@extra_callbacks.esmfold.preprocessor: parquet_3di
   - override /callbacks: default_with_shuffle
   - override /data: foldseek
   - override /model: llama_tiny
@@ -17,7 +17,7 @@ seed: 12345
 extra_callbacks:
   esmfold:
     pipeline:
-      evaluation_parquet: ${data.dataset_configs.foldseek_val.data_path_pattern}
+      evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
 
 trainer:
   min_epochs: 10
