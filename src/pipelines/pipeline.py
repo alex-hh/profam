@@ -148,6 +148,12 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             ]
         )
 
+    def validate_configs(self, sampler_config, evaluator_config):
+        # save configs to appropriate directory.
+        # if rerunning, we check that the configs match, otherwise we raise
+        # an exception. (TODO: allow overriding with an ignore_config_mismatch flag).
+        raise NotImplementedError()
+
     def load_protein_document(self, instance_id):
         raise NotImplementedError()
 
@@ -211,10 +217,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         sampler,
         evaluator,
         verbose: bool = True,
-        rerun_sampling: bool = False,
-        rerun_evaluation: bool = True,
+        rerun_sampler: bool = False,
+        rerun_evaluator: bool = True,
         sampling_only: bool = False,
-        **kwargs,
     ):
         instance_ids = self.instance_ids()
         for instance_id in instance_ids:
@@ -222,7 +227,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 "Running evaluation pipeline for instance", instance_id, verbose=verbose
             )
             protein_document = self.load_protein_document(instance_id)
-            if rerun_sampling or not self.has_generations(instance_id, sampler.name):
+            if rerun_sampler or not self.has_generations(instance_id, sampler.name):
                 maybe_print(
                     f"Running generations for instance: {instance_id}",
                     verbose=verbose,
@@ -231,7 +236,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
                 generated_sequences = evaluator.run_sampling(
-                    sampler, protein_document, self.num_generations, **kwargs
+                    sampler,
+                    protein_document,
+                    self.num_generations,
                 )
                 self.save_generations(instance_id, sampler.name, generated_sequences)
             else:
@@ -244,7 +251,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                         instance_id=instance_id,
                         evaluator=evaluator,
                         protein_document=protein_document,
-                        rerun_evaluator=rerun_evaluation,
+                        rerun_evaluator=rerun_evaluator,
                     )
                 except Exception as e:
                     print("Failed to run validation on instance", instance_id)
