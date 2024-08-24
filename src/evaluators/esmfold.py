@@ -57,6 +57,7 @@ def load_residues(pdb_file):
 class ESMFoldSamplingEvaluator(SamplingEvaluator):
     # TODO: run on single device in multi-gpu setting? or figure out how to distribute?
     # TODO: support caching structure predictions for prompt.
+    # TODO: support multimodal prompt.
     def __init__(
         self,
         name,

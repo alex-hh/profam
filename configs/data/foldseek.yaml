@@ -1,0 +1,34 @@
+_target_: src.data.hf_protein_datamodule.ProteinDataModule
+# https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
+defaults:
+  - dataset@dataset_cfgs.foldseek: foldseek
+  - dataset@dataset_cfgs.foldseek_3di: foldseek_with_3di
+  - dataset@dataset_cfgs.foldseek_val: foldseek
+  - dataset@dataset_cfgs.foldseek_3di_val: foldseek_with_3di
+  - _self_
+data_weights:
+  foldseek: 0.5
+  foldseek_3di: 0.5
+dataset_cfgs:
+  foldseek:
+    data_path_pattern: foldseek_struct/1*.parquet
+  foldseek_val:
+    name: foldseek_val
+    data_path_pattern: foldseek_struct/0.parquet
+  foldseek_3di:
+    data_path_pattern: foldseek_struct/1*.parquet
+  foldseek_3di_val:
+    name: foldseek_with_3di_val
+    data_path_pattern: foldseek_struct/0.parquet
+batch_size: 22
+max_tokens: 8192
+data_dir: ../data
+val_dataset_names:
+  - foldseek_val
+  - foldseek_3di_val
+gym_dms_ids: ${constants.gym.val_assay_list}
+evaluate_gym: True
+evaluate_ec_class: false
+num_workers: null # None means use all available CPU cores
+gym_data_dir: ProteinGym
+use_filtered_gym_msas: true

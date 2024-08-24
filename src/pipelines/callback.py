@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from typing import Dict, Optional
 
@@ -19,6 +20,7 @@ class SamplingEvaluationPipelineCallback(Callback):
             # https://lightning.ai/docs/pytorch/stable/visualize/logging_advanced.html#rank-zero-only
             # Q: how does logging work across ranks? if i log only from rank 0, what happens?
             all_metrics = defaultdict(list)
+            t0 = time.time()
             results_df = self.pipeline.run(
                 model,
                 "profam_model",
@@ -27,7 +29,9 @@ class SamplingEvaluationPipelineCallback(Callback):
                 verbose=False,
             )
             mean_results = results_df.mean().to_dict()
+            t1 = time.time()
             all_metrics = {
                 f"{self.evaluator.name}/{k}": v for k, v in mean_results.items()
             }
+            all_metrics[f"{self.evaluator.name}/time"] = t1 - t0
             model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)

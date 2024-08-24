@@ -39,6 +39,7 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
         return ProteinDocument(
             identifier=instance_id,
             sequences=protein_example["sequences"],
-            accessions=protein_example.get("accessions", None),
+            accessions=protein_example["accessions"],
             backbone_coords=backbone_coords_from_example(protein_example),
+            plddts=protein_example["plddts"],
         )
