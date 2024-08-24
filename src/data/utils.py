@@ -25,39 +25,6 @@ from src.utils.tokenizers import ProFamTokenizer
 #     sequence_col
 
 
-class PromptBuilder:
-    def __init__(
-        self,
-        preprocessor: BasePreprocessorConfig,
-        tokenizer: ProFamTokenizer,
-        max_tokens: int,
-        seed: Optional[int] = None,
-    ):
-        self.preprocessor = preprocessor
-        self.tokenizer = tokenizer
-        self.seed = seed
-        self.max_tokens = max_tokens
-        self.interleave_structure_sequence = preprocessor.get(
-            "interleave_structure_tokens", False
-        )
-
-    def __call__(self, protein_document):
-        if self.interleave_structure_sequence:
-            max_tokens = max_tokens // 2  # TODO: account for sep
-        return subsample_and_tokenize_protein_data(
-            protein_document.sequences,
-            cfg=self.preprocessor,
-            tokenizer=self.tokenizer,
-            coords=protein_document.backbone_coords,
-            plddts=protein_document.plddts,
-            structure_tokens=protein_document.structure_tokens,
-            max_tokens=max_tokens,
-            shuffle=True,
-            seed=self.seed,
-            interleave_structure_tokens=self.interleave_structure_sequence,
-        )  # a dictionary
-
-
 class StringObject:
     """
     Custom class to allow for

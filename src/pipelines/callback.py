@@ -18,6 +18,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         evaluator: SamplingEvaluator,
         preprocessor: BasePreprocessorConfig,
         max_tokens: int = 8192,
+        seed: Optional[int] = None,
         sampling_kwargs: Optional[Dict] = None,
     ):
         self.pipeline = pipeline
@@ -28,6 +29,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         self.sampling_kwargs = sampling_kwargs or {}
         self.preprocessor = preprocessor
         self.max_tokens = max_tokens
+        self.seed = seed
 
     def on_validation_epoch_end(self, trainer, model):
         # run on val epoch end rather than train to stay in sync with other validation metrics
@@ -35,7 +37,10 @@ class SamplingEvaluationPipelineCallback(Callback):
             "profam_sampler",
             model,
             prompt_builder=PromptBuilder(
-                self.preprocessor, model.tokenizer, max_tokens=self.max_tokens
+                self.preprocessor,
+                model.tokenizer,
+                max_tokens=self.max_tokens,
+                seed=self.seed,
             ),
             sampling_kwargs=self.sampling_kwargs,
         )
