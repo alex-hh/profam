@@ -19,8 +19,8 @@ class PromptBuilder:
         self.preprocessor = preprocessor
         self.seed = seed
         self.max_tokens = max_tokens
-        self.interleave_structure_sequence = preprocessor.get(
-            "interleave_structure_tokens", False
+        self.interleave_structure_sequence = getattr(
+            preprocessor, "interleave_structure_tokens", False
         )
 
     def __call__(self, protein_document: ProteinDocument, tokenizer: ProFamTokenizer):

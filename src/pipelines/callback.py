@@ -32,12 +32,13 @@ class SamplingEvaluationPipelineCallback(Callback):
 
     def on_validation_epoch_end(self, trainer, model):
         # run on val epoch end rather than train to stay in sync with other validation metrics
+        if trainer.sanity_checking:
+            return
         sampler = ProFamSampler(
             "profam_sampler",
             model,
             prompt_builder=PromptBuilder(
                 self.preprocessor,
-                model.tokenizer,
                 max_tokens=self.max_tokens,
                 seed=self.seed,
             ),
