@@ -59,6 +59,7 @@ class SamplingEvaluator:
         max_len = max([len(seq) for seq in sequences])
         sequences = []
         positions = []
+
         # TODO: subsample before convert sequence with positions.
         for sequence in protein_document.sequences:
             seq, pos, _ = convert_sequence_with_positions(
@@ -100,6 +101,7 @@ class SamplingEvaluator:
         ]
         return reference_sequences
 
+    # TODO: think about how to handle multimodal prompt...
     def build_inputs_from_prompt(self, prompt, num_samples: int):
         if isinstance(prompt, list) and isinstance(prompt[0], str):
             return {"sequence_prompt": prompt, "num_samples": num_samples}

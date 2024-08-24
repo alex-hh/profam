@@ -15,7 +15,8 @@ class ProteinDocument:
     sequences: List[str]
     accessions: List[str]
     plddts: Optional[List[float]] = None
-    backbone_coords: Optional[np.ndarray] = None
+    backbone_coords: Optional[List[np.ndarray]] = None
+    structure_tokens: Optional[List[str]] = None
     prompt_indices: Optional[
         List[int]
     ] = None  # indices of sequences selected for prompt

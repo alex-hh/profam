@@ -10,7 +10,11 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
-from src.data.preprocessing import BasePreprocessorConfig, preprocess_protein_data
+from src.data.preprocessing import (
+    BasePreprocessorConfig,
+    preprocess_protein_data,
+    subsample_and_tokenize_protein_data,
+)
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
@@ -20,6 +24,37 @@ from src.utils.tokenizers import ProFamTokenizer
 #     processor:
 #     is_parquet: True
 #     sequence_col
+
+
+class PromptBuilder:
+    def __init__(
+        self,
+        preprocessor: BasePreprocessorConfig,
+        tokenizer: ProFamTokenizer,
+        seed: Optional[int] = None,
+    ):
+        self.preprocessor = preprocessor
+        self.tokenizer = tokenizer
+        self.seed = seed
+        self.interleave_structure_sequence = preprocessor.get(
+            "interleave_structure_tokens", False
+        )
+
+    def __call__(self, protein_document, max_tokens: int):
+        if self.interleave_structure_sequence:
+            max_tokens = max_tokens // 2  # TODO: account for sep
+        return subsample_and_tokenize_protein_data(
+            protein_document.sequences,
+            cfg=self.preprocessor,
+            tokenizer=self.tokenizer,
+            coords=protein_document.backbone_coords,
+            plddts=protein_document.plddts,
+            structure_tokens=protein_document.structure_tokens,
+            max_tokens=max_tokens,
+            shuffle=True,
+            seed=self.seed,
+            interleave_structure_tokens=self.interleave_structure_sequence,
+        )  # a dictionary
 
 
 class StringObject:

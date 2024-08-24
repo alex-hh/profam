@@ -63,7 +63,7 @@ def sample_to_max_tokens(
     extra_tokens_per_sequence: int = 1,  # just [SEP] for default sequences (this includes eos)
     extra_tokens_per_document: int = 2,
 ):
-    rng = np.random.default_rng(seed)
+    rnd = np_random(seed)
     # TODO: implement keep first, drop first
     if drop_first:
         sequences = sequences[1:]
@@ -73,7 +73,7 @@ def sample_to_max_tokens(
             ]
 
     if shuffle:
-        perm = rng.permutation(len(sequences))
+        perm = rnd.permutation(len(sequences))
         sequences = [sequences[i] for i in perm]
         if extra_arrays is not None:
             extra_arrays = [
@@ -165,7 +165,7 @@ def _tokenize_protein_data(
     return tokenized.data  # a dict
 
 
-def _subsample_and_tokenize_protein_data(
+def subsample_and_tokenize_protein_data(
     sequence_iterator,
     cfg,
     tokenizer: ProFamTokenizer,
@@ -174,6 +174,7 @@ def _subsample_and_tokenize_protein_data(
     structure_tokens: Optional[List[str]] = None,
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
+    seed: Optional[int] = None,
     interleave_structure_tokens: bool = False,
 ):
     if max_tokens is None:
@@ -207,6 +208,7 @@ def _subsample_and_tokenize_protein_data(
         # TODO: we need to subtract the cost of the extra sep tokens also.
         max_tokens=max_tokens // 2 if interleave_structure_tokens else max_tokens,
         shuffle=shuffle,
+        seed=seed,
         extra_tokens_per_sequence=2 if interleave_structure_tokens else 1,
         extra_tokens_per_document=tokenizer.num_start_tokens,
     )
@@ -266,7 +268,7 @@ def preprocess_fasta_data(
         keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
         to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
     )
-    return _subsample_and_tokenize_protein_data(
+    return subsample_and_tokenize_protein_data(
         sequence_iterator,
         cfg=cfg,
         tokenizer=tokenizer,
@@ -343,7 +345,7 @@ def preprocess_parquet_with_structure_tokens(
         coords = None
         plddts = None
 
-    return _subsample_and_tokenize_protein_data(
+    return subsample_and_tokenize_protein_data(
         sequences,
         cfg=cfg,
         tokenizer=tokenizer,
@@ -373,7 +375,7 @@ def preprocess_parquet_sequence_data(
         )
     else:
         sequences = sequence_iterator[:max_sequences_to_preprocess]
-    return _subsample_and_tokenize_protein_data(
+    return subsample_and_tokenize_protein_data(
         sequences,
         cfg=cfg,
         tokenizer=tokenizer,
