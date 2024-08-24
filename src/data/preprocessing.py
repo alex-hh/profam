@@ -225,7 +225,7 @@ def _subsample_and_tokenize_protein_data(
         assert isinstance(plddts[0], list)
         assert isinstance(positions[0], list)
         positions = [pos + [0] + pos for pos in positions]
-        plddts = [vals + [np.nan] + vals for vals in plddts]
+        plddts = [vals + [100.0] + vals for vals in plddts]
 
     tokenized = _tokenize_protein_data(
         sequences,

@@ -1,10 +1,18 @@
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 
+from src.constants import BASEDIR
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 from src.data.preprocessing import backbone_coords_from_example
+from src.data.utils import (
+    CustomDataCollator,
+    ProteinDatasetConfig,
+    load_protein_dataset,
+)
 
 
 @pytest.fixture
@@ -150,3 +158,40 @@ def test_foldseek_interleaved_tokenization(
             == torch.tensor(batch_plddts[i])
         ).all()
         struct_start_index = sep_locations[i] + 1
+
+
+def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
+    profam_tokenizer.mask_below_plddt = 90
+    cfg = ProteinDatasetConfig(
+        name="foldseek",
+        preprocessor=parquet_3di_processor,
+        data_path_pattern="foldseek_struct/0.parquet",
+        is_parquet=True,
+    )
+    data = load_protein_dataset(
+        cfg,
+        tokenizer=profam_tokenizer,
+        max_tokens=2048,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        shuffle=False,
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    batch = collator([datapoint])
+
+    assert (
+        torch.where(batch["plddt_mask"], batch["plddts"], torch.tensor(-1e6)).max() < 90
+    )
+    assert (
+        torch.where(batch["plddt_mask"], batch["labels"], torch.tensor(-100)) == -100
+    ).all()
+    assert (
+        torch.where(
+            batch["plddt_mask"], batch["input_ids"], profam_tokenizer.mask_token_id
+        )
+        == profam_tokenizer.mask_token_id
+    ).all()
+    assert not (
+        batch["input_ids"][0][batch["aa_mask"][0]] == profam_tokenizer.mask_token_id
+    ).any()
+    assert not batch["plddts"].isnan().any()
