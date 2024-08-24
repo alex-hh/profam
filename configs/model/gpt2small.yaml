@@ -4,7 +4,7 @@ num_warmup_steps: 1000
 lr: 1e-4
 config:
   _target_: transformers.GPT2Config
-  vocab_size: 65
+  vocab_size: 66
   n_embd: 768
   n_head: 12
   n_layer: 12

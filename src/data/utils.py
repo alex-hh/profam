@@ -9,11 +9,7 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
-from src.data.preprocessing import (
-    BasePreprocessorConfig,
-    preprocess_protein_data,
-    subsample_and_tokenize_protein_data,
-)
+from src.data.preprocessing import BasePreprocessorConfig, preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
@@ -126,11 +122,15 @@ def load_protein_dataset(
             ]
 
     if cfg.holdout_data_files is not None:
-        assert isinstance(cfg.holdout_data_files, list) or isinstance(
-            cfg.holdout_data_files, ListConfig
-        ), f"holdout files is {type(cfg.holdout_data_files)} not list"
+        if isinstance(cfg.holdout_data_files, str):
+            holdout_files = [cfg.holdout_data_files]
+        else:
+            assert isinstance(cfg.holdout_data_files, list) or isinstance(
+                cfg.holdout_data_files, ListConfig
+            ), f"holdout files is {type(cfg.holdout_data_files)} not list"
+            holdout_files = cfg.holdout_data_files
         all_files = len(data_files)
-        data_files = [f for f in data_files if f not in cfg.holdout_data_files]
+        data_files = [f for f in data_files if f not in holdout_files]
         print("Excluding", all_files - len(data_files), "holdout files")
 
     assert isinstance(data_files, list)
@@ -160,22 +160,22 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    print("Verifying dataset content:")
-    for i, item in enumerate(dataset.take(3)):
-        print(f"  Item {i + 1}:")
-        for key, value in item.items():
-            if isinstance(value, str):
-                value_to_print = value[:100]
-            elif isinstance(value, list):
-                # TODO: if its a list of lists we want to print only first few elements
-                if isinstance(value[0], list):
-                    value_to_print = f"[{value[0][:10]},...]"
-                else:
-                    value_to_print = f"{value[:3]}..." if len(value) > 3 else value
-            else:
-                value_to_print = value
-            print(f"    {key}: {value_to_print}")
-        print()
+    # print("Verifying dataset content:")
+    # for i, item in enumerate(dataset.take(3)):
+    #     print(f"  Item {i + 1}:")
+    #     for key, value in item.items():
+    #         if isinstance(value, str):
+    #             value_to_print = value[:100]
+    #         elif isinstance(value, list):
+    #             # TODO: if its a list of lists we want to print only first few elements
+    #             if isinstance(value[0], list):
+    #                 value_to_print = f"[{value[0][:10]},...]"
+    #             else:
+    #                 value_to_print = f"{value[:3]}..." if len(value) > 3 else value
+    #         else:
+    #             value_to_print = value
+    #         print(f"    {key}: {value_to_print}")
+    #     print()
 
     if cfg.holdout_identifiers:
         assert (
@@ -192,6 +192,15 @@ def load_protein_dataset(
         return filter_num_seqs and filter_identifier
 
     def wrapped_preprocess(example):
+        if cfg.identifier_col is not None:
+            try:
+                identifier = cfg.name + "/" + example[cfg.identifier_col]
+            except Exception as e:
+                # TODO: make sure columns are consistent
+                if cfg.identifier_col == "cluster_id" and "fam_id" in example:
+                    identifier = example["fam_id"]
+                else:
+                    raise e
         example = preprocess_protein_data(
             example,
             cfg.preprocessor,
@@ -199,24 +208,23 @@ def load_protein_dataset(
             max_tokens=max_tokens,
             shuffle=shuffle,
         )
+        if "coords" in example:
+            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+            example["coords"] = example["coords"].tolist()
+
         example["ds_name"] = cfg.name
         # TODO: get identifier for fasta files...
         if cfg.identifier_col is not None:
-            example["identifier"] = cfg.name + "/" + example[cfg.identifier_col]
+            example["identifier"] = identifier
 
         return example
 
     if cfg.preprocessor is not None:
-        if dataset.column_names is not None:
-            # preprocess returns anything that should be kept, but we need to be careful in case of clashes
-            remove_columns = [c for c in dataset.column_names if c != "plddts"]
-        else:
-            # How does column_names become none? maybe in the load text version?
-            remove_columns = None
         dataset = dataset.map(
             wrapped_preprocess,
             batched=False,
-            remove_columns=remove_columns,
+            remove_columns=dataset.column_names,
         ).filter(filter_example)
+        # n.b. coords is returned as a list...
 
     return dataset

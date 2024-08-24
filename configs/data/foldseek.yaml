@@ -29,7 +29,8 @@ val_dataset_names:
   - foldseek_val
   - foldseek_3di_val
 gym_dms_ids: ${constants.val_assay_list}
-evaluate_gym: True
+keep_gym_gaps: false
+evaluate_gym: true
 evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym

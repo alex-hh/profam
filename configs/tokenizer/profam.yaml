@@ -5,11 +5,11 @@ pad_token: "[PAD]"
 bos_token: "[start-of-document]"
 sep_token: "[SEP]"
 mask_token: "[MASK]"
-add_special_tokens: True
-add_final_sep: True
-add_bos_token: True
-add_document_type_token: True
-use_seq_pos: False
+add_special_tokens: true
+add_final_sep: true
+add_bos_token: true
+add_document_type_token: true
+use_seq_pos: true
 max_seq_pos: 1024
 max_tokens: ${data.max_tokens}
 max_below_plddt: 90  # 'very high' confidence in af browser
