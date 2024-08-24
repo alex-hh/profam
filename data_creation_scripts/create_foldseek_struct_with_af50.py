@@ -39,18 +39,22 @@ def make_af50_dictionary(af50_path, clusters_to_include=None):
     af50_dict = {}
     with open(af50_path, "r") as f:
         for line in f:
-            line = line.strip().split("\t")
-            rep_id = line[0]
-            entry_id = line[1]
-            # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
-            clu_flag = int(line[2])  # 1
-            # n.b. the 2s are duplicates of the other cluster dict
-            # n.b. we don't include the representative in its own cluster atm
-            if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
-                if rep_id not in af50_dict:
-                    af50_dict[rep_id] = []
-                af50_dict[rep_id].append(entry_id)
-            line_counter += 1
+            try:
+                line = line.strip().split("\t")
+                rep_id = line[0]
+                entry_id = line[1]
+                # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
+                clu_flag = int(line[2])  # 1
+                # n.b. the 2s are duplicates of the other cluster dict
+                # n.b. we don't include the representative in its own cluster atm
+                if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
+                    if rep_id not in af50_dict:
+                        af50_dict[rep_id] = []
+                    af50_dict[rep_id].append(entry_id)
+                line_counter += 1
+            except:
+                print("Error processing line", line, flush=True)
+                raise Exception()
     return af50_dict
 
 
@@ -63,7 +67,8 @@ def make_zip_dictionary(zip_index, accessions_to_include=None):
             line = line.strip().split("\t")
             afdb_id = line[0]
             uniprot_id = afdb_id.split("-")[1]
-            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4"
+            # todo just make this an if statement
+            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4", f"AFDB ID mismatch: {afdb_id} {uniprot_id}"
             zip_file = line[2]
             if accessions_to_include is None or uniprot_id in accessions_to_include:
                 af2zip[uniprot_id] = zip_file
@@ -279,7 +284,12 @@ def make_job_list(
             cluster_counter += 1
 
             for member in members:
-                zip_filename = af2zip[member]
+                try:
+                    zip_filename = af2zip[member]
+                except:
+                    print("Member not found in zip index", member, flush=True)
+                    continue
+
                 afdb_id = f"AF-{member}-F1-model_v4"
                 pdb_lookup[zip_filename].append(afdb_id)
                 metadata_lookup[afdb_id] = {
