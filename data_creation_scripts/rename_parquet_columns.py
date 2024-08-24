@@ -1,3 +1,4 @@
+import glob
 import os
 import pandas as pd
 
@@ -43,10 +44,11 @@ def process_parquet_files(file_list, old_column_name, new_column_name, output_di
     for file_path in file_list:
         rename_column_in_parquet(file_path, old_column_name, new_column_name, output_dir)
 
+
 # Example usage
 if __name__ == "__main__":
     # List of Parquet files
-    parquet_files = ['/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/0_copy.parquet']
+    parquet_files = glob.glob(['/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/*.parquet'])
 
     # Rename 'cluster_id' to 'fam_id' in each file
     process_parquet_files(parquet_files, old_column_name='cluster_id', new_column_name='fam_id', output_dir=None)

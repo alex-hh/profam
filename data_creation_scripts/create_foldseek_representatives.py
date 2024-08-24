@@ -29,7 +29,6 @@ import pyarrow.parquet as pq
 import zipfile
 import os
 from src.data.pdb import get_atom_coords_residuewise, load_structure
-import subprocess
 
 
 def get_af50_representatives(af50_path):
@@ -111,49 +110,41 @@ def get_foldseek_representatives(cluster_path):
     return representatives
 
 
-def get_cluster_ids(use_af50_representatives=False):
+def get_cluster_ids(cluster_path, use_af50_representatives=False):
     if use_af50_representatives:
-        return get_af50_representatives()
+        return get_af50_representatives(cluster_path)
     else:
-        return get_foldseek_representatives()
+        return get_foldseek_representatives(cluster_path)
 
 
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, verbose=False):
     # Save the pdbs to parquet
     results = []
     for cluster_id in clusters_to_save:
-        sequences = []
-        accessions = []
-        all_coords = {"N": [], "CA": [], "C": [], "O": []}
-        all_b_factors = []
-        cluster_filelist = []
+        afdb_id = f"AF-{cluster_id}-F1-model_v4"
+        pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
 
-        for afdb_id in clusters_to_save:
-            pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
-            cluster_filelist.append(pdb)
-            structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
-            coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
-            residue_identities = get_residues(structure)[1]
-            b_factors = structure.b_factor[get_residue_starts(structure)]
-            seq = "".join(
-                [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
-            )
-            all_b_factors.append(b_factors)
-            sequences.append(seq)
-            for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
-                all_coords[atom_name].append(coords[:, ix, :].flatten())
+        structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
+        coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
+        residue_identities = get_residues(structure)[1]
+        b_factors = structure.b_factor[get_residue_starts(structure)]
+        seq = "".join(
+            [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
+        )
+        coords = {}
+        for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
+            coords[atom_name] = coords[:, ix, :].flatten()
 
         # TODO: save representative?
         results.append(
             {
-                "sequences": sequences,
-                "fam_id": cluster_id,
-                "N": all_coords["N"],
-                "CA": all_coords["CA"],
-                "C": all_coords["C"],
-                "O": all_coords["O"],
-                "plddts": all_b_factors,
-                "accessions": accessions,
+                "sequence": seq,
+                "accession": cluster_id,
+                "N": coords["N"],
+                "CA": coords["CA"],
+                "C": coords["C"],
+                "O": coords["O"],
+                "plddts": b_factors,
             }
         )
 
@@ -182,10 +173,11 @@ def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
 
 def make_job_list(
     parquet_id,
+    cluster_path,
     use_af50_representatives=False,
     zip_index_file=None,
 ):
-    cluster_ids = get_cluster_ids(use_af50_representatives)
+    cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     rng = np.random.default_rng(seed=42)
@@ -251,24 +243,26 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
 def create_foldseek_parquets(
     save_dir,
     scratch_dir,
-    minimum_foldseek_cluster_size=1,
-    skip_af50=False,
+    cluster_path,
+    use_af50_representatives=False,
     parquet_ids=None,
     num_processes=None,
 ):
     if parquet_ids is None:
-        # 2302908 clusterss
-        parquet_ids = range(231)
+        if use_af50_representatives:
+            parquet_ids = range(52330)
+        else:
+            # 2302908 clusters
+            parquet_ids = range(2310)
 
     print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
+    af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     for parquet_id in parquet_ids:
         pdb_lookup, cluster_ids = make_job_list(
             parquet_id,
-            save_dir=save_dir,
-            minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
-            skip_af50=skip_af50,
+            cluster_path=af50_path if use_af50_representatives else cluster_path,
+            use_af50_representatives=use_af50_representatives,
             zip_index_file=os.path.join(scratch_dir, "zip_index"),
-            af50_path=os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv"),
         )
         extract_pdbs_for_parquet(
             pdb_lookup=pdb_lookup,
@@ -300,8 +294,6 @@ if __name__ == "__main__":
     create_foldseek_parquets(
         save_dir=save_dir,
         scratch_dir=args.scratch_dir,
-        minimum_foldseek_cluster_size=args.minimum_foldseek_cluster_size,
         parquet_ids=args.parquet_ids,
-        skip_af50=args.skip_af50,
         num_processes=args.num_processes,
     )
