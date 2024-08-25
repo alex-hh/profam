@@ -226,6 +226,7 @@ def make_job_list(
     zip_index_file=None,
     af50_path=None,
 ):
+    t0 = time.time()
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
 
@@ -276,6 +277,7 @@ def make_job_list(
     print("Building lookup", flush=True)
 
     t1 = time.time()
+    print("Finished reading files", t1 - t0, flush=True)
     for ix, cluster_id in enumerate(cluster_ids):
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
@@ -355,7 +357,7 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes=
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
     t1 = time.time()
-    print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)
+    print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)  # typically ~5000 seconds for 250 noaf50 clusters (1 hour)
 
 
 def create_foldseek_parquets(
