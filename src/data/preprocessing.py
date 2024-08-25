@@ -147,12 +147,13 @@ def _tokenize_protein_data(
     coords: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
     max_tokens: Optional[int] = None,
+    padding="max_length",
 ):
     tokenized = tokenizer.encode_sequences(
         sequences,
         positions=positions,
         document_token=cfg.document_token,
-        padding="max_length",
+        padding=padding,
         max_length=max_tokens,
         coords=coords,
         plddts=plddts,
@@ -173,6 +174,7 @@ def subsample_and_tokenize_protein_data(
     plddts: Optional[List[np.ndarray]] = None,
     structure_tokens: Optional[List[str]] = None,
     max_tokens: Optional[int] = None,
+    padding: str = "max_length",
     shuffle: bool = True,
     seed: Optional[int] = None,
     interleave_structure_tokens: bool = False,
@@ -240,6 +242,7 @@ def subsample_and_tokenize_protein_data(
         coords=coords,
         plddts=plddts,
         max_tokens=max_tokens,
+        padding=padding,
     )
     return tokenized
 

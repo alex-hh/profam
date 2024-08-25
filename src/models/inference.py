@@ -41,6 +41,7 @@ class PromptBuilder:
             shuffle=True,
             seed=self.seed,
             interleave_structure_tokens=self.interleave_structure_sequence,
+            padding="longest",
         )  # a dictionary
         return batch
 
