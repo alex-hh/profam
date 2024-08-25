@@ -62,7 +62,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         ):  # commenting out to check computation of inputs embeds is working
             model = WrappedLlamaForCausalLM(
                 config,
-                token_embedder="model.embed_tokens",
+                token_embedder="model.embed_tokens",  # todo use self.get_input_embeddings()??
                 embedding_dim=config.hidden_size,
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
