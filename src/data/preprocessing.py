@@ -19,6 +19,7 @@ class BasePreprocessorConfig:
     document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
+    batched: bool = False
 
 
 @dataclass

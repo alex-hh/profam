@@ -222,7 +222,7 @@ def load_protein_dataset(
     if cfg.preprocessor is not None:
         dataset = dataset.map(
             wrapped_preprocess,
-            batched=False,
+            batched=cfg.preprocessor.batched,
             remove_columns=dataset.column_names,
         ).filter(filter_example)
         # n.b. coords is returned as a list...
