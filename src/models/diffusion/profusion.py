@@ -6,7 +6,7 @@ from torch import nn
 from src.models.diffusion.gaussian_diffusion import GaussianDiffusion
 from src.models.diffusion.resample import UniformSampler
 from src.models.diffusion.wrapper import WrappedHFProFusionModel
-from src.models.utils import accuracy_from_outputs
+from src.models.utils import UpdatedDynamicCache, accuracy_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -62,9 +62,14 @@ class ProFusionLitModule(BaseFamilyLitModule):
             {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
         )
         if is_train:
+            # coords and timestep are created in the training step
             return forward_kwargs
         else:
-            forward_kwargs["coords"] = self.get_coords(batch)
+            forward_kwargs["coords"] = batch["coords"]
+            forward_kwargs["timestep"] = torch.zeros(
+                (batch["input_ids"].shape[0], batch["input_ids"].shape[1]),
+                device=self.device,
+            ).long()
             return forward_kwargs
 
     def get_forward_kwargs_for_kv_cache(
@@ -113,6 +118,96 @@ class ProFusionLitModule(BaseFamilyLitModule):
         else:
             raise NotImplementedError("only kv cache version implemented for profusion")
 
+    def _sample_coords_kv_cache(
+        self,
+        input_ids,
+        num_samples,
+        input_coords,
+        length: int,  # to generate
+        batch_size: int = 1,
+        input_seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
+        noise: Optional[torch.Tensor] = None,
+        clip_denoised: bool = True,
+        denoised_fn=None,
+        cond_fn=None,
+        token_id_for_completion=None,
+    ):
+        """N.B. whereas autoregressive sampling extends the sequence by a variable amount,
+        Profusion sampling requires a pre-specified length.
+
+        Sep token should be included in inputs.
+        """
+        assert input_ids.shape[0] == 1 and input_ids.ndim == 2
+        if input_seq_pos is not None:
+            assert input_seq_pos.shape == input_ids.shape
+        assert input_coords.shape[:2] == input_ids.shape
+        input_L = input_ids.shape[-1]
+        all_outputs = []
+        if self.use_seq_pos:
+            assert input_seq_pos is not None
+        forward_kwargs = self.get_forward_kwargs(batch={"seq_pos": input_seq_pos})
+        outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
+        past_key_values = (
+            outputs.past_key_values
+        )  # just a tuple of tensors - doesn't get extended
+        token_id_for_completion = (
+            token_id_for_completion or self.tokenizer.mask_token_id
+        )
+        for batch_start in range(0, num_samples, batch_size):
+            num_samples_this_iter = min(batch_size, num_samples - batch_start)
+            coords_shape = (
+                num_samples_this_iter,
+                length,
+                self.num_atoms,
+                3,
+            )
+            # TODO: figure out the appropriate extension of input_seq_pos
+            assert (
+                completion_seq_pos is not None and completion_seq_pos.shape[1] == length
+            )
+            cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            cache.batch_repeat_interleave(num_samples_this_iter)
+            # c.f. p_sample_loop_progressive
+            def model_forward_wrapper(x, t, **kwargs):
+                # TODO: we need to handle the fact that the diffusion bit has
+                # a different shape (it's a slice of the full model).
+                # TODO: we can also exploit kv caching here: then we won't need cooncatenation
+                # TODO: handle rescaling, rotation, etc.
+                timestep = t.unsqueeze(-1).expand(
+                    num_samples_this_iter, length
+                )  # already scaled
+                outputs = self.model(
+                    coords=torch.cat(x, dim=1),
+                    input_ids=torch.full(
+                        (num_samples_this_iter, length),
+                        token_id_for_completion,
+                        device=self.device,
+                    ).long(),
+                    timestep=timestep,
+                    output_hidden_states=True,
+                    seq_pos=completion_seq_pos,
+                    past_key_values=cache,
+                    use_cache=True,
+                    **kwargs,
+                )
+                emb = outputs.hidden_states[-1]
+                eps = self.diffusion_head(emb)
+                return eps
+
+            all_outputs.append(
+                self.diffusion.p_sample_loop(
+                    model_forward_wrapper,
+                    coords_shape,
+                    noise=noise,
+                    device=self.device,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    cond_fn=cond_fn,
+                )
+            )
+        return torch.cat(all_outputs, dim=0)
+
     def _sample_coords(
         self,
         input_ids,
@@ -121,6 +216,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         length: int,  # to generate
         batch_size: int = 1,
         input_seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
         noise: Optional[torch.Tensor] = None,
         clip_denoised: bool = True,
         denoised_fn=None,
@@ -148,10 +244,13 @@ class ProFusionLitModule(BaseFamilyLitModule):
                 3,
             )
             # TODO: figure out the appropriate extension of input_seq_pos
-            raise NotImplementedError("need to extend input_seq_pos")
-            seq_pos = torch.cat(
+            assert (
+                completion_seq_pos is not None and completion_seq_pos.shape[1] == length
+            )
+            batch_seq_pos = torch.cat(
                 [
                     input_seq_pos.expand(num_samples_this_iter, -1),
+                    completion_seq_pos.expand(num_samples_this_iter, -1),
                 ]
             )
             batch_input_coords = input_coords.expand(num_samples_this_iter, -1, -1, -1)
@@ -164,7 +263,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
                 # TODO: we can also exploit kv caching here: then we won't need cooncatenation
                 # TODO: handle rescaling, rotation, etc.
                 timestep = t.unsqueeze(-1).expand(
-                    num_samples_this_iter, length
+                    num_samples_this_iter, length + input_L
                 )  # already scaled
                 outputs = self.model(
                     coords=torch.cat([batch_input_coords, x], dim=1),
@@ -181,10 +280,11 @@ class ProFusionLitModule(BaseFamilyLitModule):
                     ),
                     timestep=timestep,
                     output_hidden_states=True,
+                    seq_pos=batch_seq_pos,
                     **kwargs,
                 )
                 emb = outputs.hidden_states[-1]
-                eps = self.diffusion_head(emb)
+                eps = self.diffusion_head(emb)[:, input_L:]
                 return eps
 
             all_outputs.append(
@@ -229,6 +329,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
             assert t.shape == (bsz,)
             timestep = self._scale_timesteps(t).unsqueeze(-1).expand(bsz, L)
             xt = self.diffusion.q_sample(coords, t, noise=noise)
+            xt = torch.where(coords_mask, xt, coords)
 
         outputs = self(
             input_ids=batch["input_ids"],

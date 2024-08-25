@@ -461,6 +461,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
         forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+        # TODO: actually use this forward pass...
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -574,6 +575,8 @@ class BaseFamilyLitModule(BaseLitModule):
         assert (
             input_ids.ndim == 2 and completion_ids.ndim == 3
         ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
+        if self.use_seq_pos:
+            assert input_seq_pos is not None
         if use_cache:
             return self._score_seqs_kv_cache(
                 input_ids,
