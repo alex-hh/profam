@@ -145,13 +145,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_final_sep: bool = True,
         coords: Optional[List[np.ndarray]] = None,
         plddts: Optional[List[np.ndarray | List]] = None,
+        sep_token: Optional[str] = None,
         # TODO: allow custom fill value for coord / plddt padding?
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
-        concatenated_seqs = self.sep_token.join(sequences)
+        sep_token = sep_token or self.sep_token
+        concatenated_seqs = sep_token.join(sequences)
         if add_final_sep:
-            concatenated_seqs += self.sep_token
+            concatenated_seqs += sep_token
         if self.add_bos_token:
             concatenated_seqs = self.bos_token + concatenated_seqs
         if document_token is not None:

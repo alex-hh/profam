@@ -137,20 +137,21 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, ve
             coords[atom_name] = coords[:, ix, :].flatten()
 
         # https://github.com/steineggerlab/foldseek/issues/273
-        # we'll save as lists so that existing loaders can be used.
-        # one idea would be to batch sequences into pseudo-documents, separated
+        # for preprocessing, one idea would be to batch sequences into pseudo-documents, separated
         # by an end-of-document token.
+        # during a batched map, we will get lists of items compatible with existing preprocessors.
+        # although we need to be careful about sep token.
 
         results.append(
             {
-                "sequences": [seq],
-                "accessions": [cluster_id],
-                "N": [coords["N"]],
-                "CA": [coords["CA"]],
-                "C": [coords["C"]],
-                "O": [coords["O"]],
-                "plddts": [b_factors],
-                "3dis": [seq_3di],
+                "sequence": seq,
+                "accession": cluster_id,
+                "N": coords["N"],
+                "CA": coords["CA"],
+                "C": coords["C"],
+                "O": coords["O"],
+                "plddt": b_factors,
+                "3di": seq_3di,
             }
         )
 

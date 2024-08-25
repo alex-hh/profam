@@ -19,7 +19,9 @@ class BasePreprocessorConfig:
     document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
-    batched: bool = False
+    batched: bool = False  # should map be called with batched=True
+    batch_size: int = 100  # TODO: add automatic chunk size inference?
+    sep_token: str = "[SEP]"
 
 
 @dataclass
@@ -158,6 +160,7 @@ def _tokenize_protein_data(
         coords=coords,
         plddts=plddts,
         add_final_sep=True,
+        sep_token=cfg.sep_token,
     )
     # tokenized.input_ids is flat now
     # n.b. this is after subsampling so not very informative
@@ -386,15 +389,37 @@ def preprocess_parquet_sequence_data(
     )
 
 
-def get_preprocessor(preprocessor: str):
+def single_protein_preprocessor(preprocessor):
+    """Wrap a preprocessing function to operate on BATCHES of single sequences."""
+
+    def wrapped(batch, cfg, tokenizer, **kwargs):
+        # actually this is more complicated than I thought
+        # we first need to chunk the batch, then apply the preprocessor
+        # -- not necessarily! if we don't chunk the batch, we will effectively
+        # end up subsampling sequences at each epoch; we therefore need to be
+        # careful about batch size but this is actually ok...
+        example = preprocessor(batch, cfg, tokenizer, **kwargs)
+        # we need to wrap the result in a list to make it a batch of size 1
+        return {k: [v] for k, v in example.items()}
+
+    return wrapped
+
+
+# single sequence preprocessing can use standard preprocessors by
+# application of appropriate preprocessor to BATCHES of examples (batched=True)
+def get_preprocessor(preprocessor: str, single_protein: bool = False):
     if preprocessor == "fasta":
-        return preprocess_fasta_data
+        fn = preprocess_fasta_data
     elif preprocessor == "parquet_sequence":
-        return preprocess_parquet_sequence_data
+        fn = preprocess_parquet_sequence_data
     elif preprocessor == "parquet_structure_tokens":
-        return preprocess_parquet_with_structure_tokens
+        fn = preprocess_parquet_with_structure_tokens
     else:
         raise ValueError(f"Unknown preprocessor {preprocessor}")
+    if single_protein:
+        return single_protein_preprocessor(fn)
+    else:
+        return fn
 
 
 def preprocess_protein_data(
@@ -406,7 +431,9 @@ def preprocess_protein_data(
 ) -> Dict[str, Any]:
     # N.B. for stockholm format we need to check that sequences aren't split over
     # multiple lines
-    tokenized = get_preprocessor(cfg.preprocessor)(
+    if cfg.single_protein:
+        assert cfg.batched, "Single protein preprocessor requires batched=True"
+    tokenized = get_preprocessor(cfg.preprocessor, single_protein=cfg.single_protein)(
         example, cfg, tokenizer, max_tokens=max_tokens, shuffle=shuffle
     )
     return tokenized

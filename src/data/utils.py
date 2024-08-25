@@ -2,7 +2,7 @@ import glob
 import os
 import random
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 from datasets import Dataset, load_dataset
@@ -99,7 +99,11 @@ class ProteinDatasetConfig:
     file_repeats: int = 1
     minimum_sequences: Optional[int] = None
     is_parquet: bool = False
-    shuffle: bool = True
+    # shuffle: bool = True  # globally specified
+    stream: bool = True
+    column_name_mapping: Optional[Dict] = None
+    # renaming
+    # https://huggingface.co/docs/datasets/en/stream#rename-remove-and-cast
 
 
 def load_protein_dataset(
@@ -141,12 +145,13 @@ def load_protein_dataset(
         f"({cfg.file_repeats} repeats), "
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
+
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
             data_files=data_files,
             split=split,
-            streaming=True,
+            streaming=cfg.stream,
             verification_mode="no_checks",
         )
     else:
@@ -156,9 +161,15 @@ def load_protein_dataset(
             "text",
             data_files=data_files,
             split=split,
-            streaming=True,
+            streaming=cfg.stream,
             sample_by="document",
         )
+
+    if cfg.column_name_mapping is not None:
+        for old_name, new_name in cfg.column_name_mapping.items():
+            # https://huggingface.co/docs/datasets/en/stream#rename-remove-and-cast
+            dataset = dataset.rename_column(old_name, new_name)
+
     print("Dataset n shards", dataset.n_shards)
     print("Verifying dataset content:")
     for i, item in enumerate(dataset.take(3)):
@@ -191,8 +202,11 @@ def load_protein_dataset(
         )
         return filter_num_seqs and filter_identifier
 
-    def wrapped_preprocess(example):
+    def wrapped_preprocess(example, is_batched=False):
         if cfg.identifier_col is not None:
+            assert (
+                not is_batched
+            ), "Batched preprocessing not supported with identifiers"
             try:
                 identifier = cfg.name + "/" + example[cfg.identifier_col]
             except Exception as e:
@@ -201,6 +215,7 @@ def load_protein_dataset(
                     identifier = example["fam_id"]
                 else:
                     raise e
+
         example = preprocess_protein_data(
             example,
             cfg.preprocessor,
@@ -220,10 +235,18 @@ def load_protein_dataset(
         return example
 
     if cfg.preprocessor is not None:
+        # TODO: add document separator; write tests.
+        # a map is an instruction for converting an example to a new example.
+        # it should return a datapoint dict.
+        # a batched map is an instruction for converting a set of examples to a
+        # new set of examples (not necessarily of the same size). it should return a dict of lists,
+        # where the length of the lists determines the size of the new set of examples.
         dataset = dataset.map(
             wrapped_preprocess,
             batched=cfg.preprocessor.batched,
             remove_columns=dataset.column_names,
+            is_batched=cfg.preprocessor.batched,
+            batch_size=cfg.preprocessor.batch_size,
         ).filter(filter_example)
         # n.b. coords is returned as a list...
 
