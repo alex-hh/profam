@@ -25,7 +25,9 @@ class PromptBuilder:
 
     def __call__(self, protein_document: ProteinDocument, tokenizer: ProFamTokenizer):
         if self.interleave_structure_sequence:
-            max_tokens = max_tokens // 2  # TODO: account for sep
+            max_tokens = self.max_tokens // 2  # TODO: account for sep
+        else:
+            max_tokens = self.max_tokens
         return subsample_and_tokenize_protein_data(
             protein_document.sequences,
             cfg=self.preprocessor,
