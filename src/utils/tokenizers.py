@@ -144,6 +144,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
         coords: Optional[List[np.ndarray]] = None,
+        coords_mask: Optional[List[np.ndarray]] = None,
         plddts: Optional[List[np.ndarray | List]] = None,
         # TODO: allow custom fill value for coord / plddt padding?
     ):
@@ -206,6 +207,16 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     pad_to_length=max_length if padding == "max_length" else None,
                 )
             )
+            tokenized.data["coords_mask"] = torch.from_numpy(
+                concatenate_pad_array(
+                    coords_mask,
+                    fill_value=0,
+                    num_start_tokens=self.num_start_tokens,
+                    num_end_tokens=num_end_tokens,
+                    pad_to_length=max_length if padding == "max_length" else None,
+                )
+            )
+            assert coords_mask.shape == coords.shape
             assert (
                 tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
@@ -234,6 +245,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 tokenized.data["plddt_mask"] = plddt_mask
                 tokenized.data["input_ids"][plddt_mask] = self.mask_token_id
                 tokenized.data["coords"][plddt_mask] = np.nan
+                tokenized.data["coords_mask"][plddt_mask] = 0.0
 
         # TODO: handle nans
         # TODO: return sequence start and end positions?

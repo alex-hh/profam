@@ -145,6 +145,7 @@ def _tokenize_protein_data(
     tokenizer: ProFamTokenizer,
     positions: Optional[List[List[int]]] = None,
     coords: Optional[List[np.ndarray]] = None,
+    coords_mask: Optional[List[np.ndarray]] = None,
     plddts: Optional[List[np.ndarray]] = None,
     max_tokens: Optional[int] = None,
 ):
@@ -155,6 +156,7 @@ def _tokenize_protein_data(
         padding="max_length",
         max_length=max_tokens,
         coords=coords,
+        coords_mask=coords_mask,
         plddts=plddts,
         add_final_sep=True,
     )
@@ -213,6 +215,9 @@ def subsample_and_tokenize_protein_data(
         extra_tokens_per_document=tokenizer.num_start_tokens,
     )
     positions, coords, plddts, structure_tokens = extra_arrays
+    coords_mask = [
+        np.ones_like(c) for c in coords
+    ]  # TODO: allow inputting missing coords?
 
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
     if interleave_structure_tokens:
@@ -223,6 +228,9 @@ def subsample_and_tokenize_protein_data(
         coords = [
             np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
             for xyz in coords
+        ]
+        coords_mask = [
+            np.concatenate([m, np.zeros((1, 4, 3)), m], axis=0) for m in coords_mask
         ]
         assert isinstance(plddts[0], list)
         if tokenizer.use_seq_pos:
@@ -236,6 +244,7 @@ def subsample_and_tokenize_protein_data(
         tokenizer=tokenizer,
         positions=positions,
         coords=coords,
+        coords_mask=coords_mask,
         plddts=plddts,
         max_tokens=max_tokens,
     )
