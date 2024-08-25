@@ -132,9 +132,9 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, ve
         seq = "".join(
             [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
         )
-        coords = {}
+        coords_dict = {}
         for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
-            coords[atom_name] = coords[:, ix, :].flatten()
+            coords_dict[atom_name] = coords[:, ix, :].flatten()
 
         # https://github.com/steineggerlab/foldseek/issues/273
         # for preprocessing, one idea would be to batch sequences into pseudo-documents, separated
@@ -146,10 +146,10 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, ve
             {
                 "sequence": seq,
                 "accession": cluster_id,
-                "N": coords["N"],
-                "CA": coords["CA"],
-                "C": coords["C"],
-                "O": coords["O"],
+                "N": coords_dict["N"],
+                "CA": coords_dict["CA"],
+                "C": coords_dict["C"],
+                "O": coords_dict["O"],
                 "plddt": b_factors,
                 "3di": seq_3di,
             }
