@@ -41,4 +41,7 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
             accessions=protein_example["accessions"],
             backbone_coords=backbone_coords_from_example(protein_example),
             plddts=protein_example["plddts"],
+            structure_tokens=[
+                s.replace("-", "").lower() for s in protein_example["msta_3di"]
+            ],
         )
