@@ -82,10 +82,18 @@ def make_cluster_db(
     minimum_foldseek_cluster_size=1,
 ):
     engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
+    Base.metadata.drop_all(engine, tables=[Protein.__table__])
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine)
     session = Session()
+    # Query the table
+    entries = session.query(Protein).all()
+
+    # Print the entries
+    print("Current entries in the database:")
+    for entry in entries:
+        print(f"uniprot_id: {entry.uniprot_id}, foldseek_cluster_id: {entry.foldseek_cluster_id}, af50_cluster_id: {entry.af50_cluster_id}, zip_filename: {entry.zip_filename}")
     print("Creating foldseek dataset", flush=True)
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     print("Number of clusters:", len(cluster_dict))
@@ -94,6 +102,7 @@ def make_cluster_db(
 
     t1 = time.time()
     # TODO: track failures.
+    session_tracker = []
     for ix, cluster_id in enumerate(cluster_dict.keys()):
         members = cluster_dict[cluster_id]
         if len(members) >= minimum_foldseek_cluster_size:
@@ -116,6 +125,7 @@ def make_cluster_db(
                         "zip_filename": "",
                     }
 
+                session_tracker.append(entry)
                 entry = Protein(**entry)
                 session.add(entry)
 
@@ -149,7 +159,12 @@ def make_cluster_db(
 
         if ix % 1000 == 0:
             print(f"Processed {ix} clusters", flush=True)
-            session.commit()
+            try:
+                session.commit()
+            except Exception as e:
+                print("Error committing")
+                print([e["uniprot_id"] for e in session_tracker])
+                raise e
 
     session.commit()
     session.close()
