@@ -169,16 +169,23 @@ class ProFusionLitModule(BaseFamilyLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        """If we just use fixed coords at positions for which we dont care about diffusion,
+        that should prevent those positions doing much to the diffusion loss.
+
+        We could explicitly mask such positions in the diffusion loss: this
+        would probably be a sensible idea: we need a coordinates mask anyway.
+        """
         forward_kwargs = self.get_forward_kwargs(batch, is_train=True)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
         coin_flip = torch.rand(1).item()
         bsz, L = batch["input_ids"].shape
-        x0 = self.get_coords(batch)
+        coords = batch["coords"]
+        coords_mask = batch["coords_mask"]
         if coin_flip < self.diffusion_loss_prob:
             noise = torch.zeros_like(batch["x0"])
             timestep = torch.zeros((bsz, L), device=self.device).long()
-            xt = x0
+            xt = coords
         else:
             noise = torch.randn_like(batch["x0"])
             # n.b. we can ignore weights since equal to 1
@@ -187,7 +194,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
             )  # weights is second retval, 1s for now
             assert t.shape == (bsz,)
             timestep = self._scale_timesteps(t).unsqueeze(-1).expand(bsz, L)
-            xt = self.diffusion.q_sample(x0, t, noise=noise)
+            xt = self.diffusion.q_sample(coords, t, noise=noise)
 
         outputs = self(
             input_ids=batch["input_ids"],
@@ -200,7 +207,9 @@ class ProFusionLitModule(BaseFamilyLitModule):
         )
         emb = outputs.hidden_states[-1]  # hidden states is a tuple
         noise_pred = self.diffusion_head(emb)
-        diffusion_loss = nn.MSELoss()(noise_pred, noise)
+        diffusion_loss = (
+            nn.MSELoss(reduction="none")(noise_pred, noise) * coords_mask.float()
+        ).sum() / coords_mask.sum()
         loss = outputs.loss
         if coin_flip < self.diffusion_loss_prob:
             loss = loss + self.diffusion_loss_weight * diffusion_loss
