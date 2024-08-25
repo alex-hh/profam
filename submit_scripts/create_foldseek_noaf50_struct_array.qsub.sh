@@ -1,7 +1,7 @@
 #!/bin/bash
-#$ -l tmem=8G
-#$ -l h_vmem=8G
-#$ -l h_rt=25:55:30
+#$ -l tmem=12G
+#$ -l h_vmem=12G
+#$ -l h_rt=35:55:30
 #$ -S /bin/bash
 #$ -t 1-1800  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100
 #$ -N foldseekF
@@ -24,7 +24,7 @@ if [ ! -f $output_file ]; then
     echo "Output file not found: $output_file"
     source ~/source_files/afenv.source
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
-    python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data  --skip_af50 --num_processes 1 --minimum_foldseek_cluster_size 10 --parquet_ids $file_prefix --run_foldmason
+    python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data  --skip_af50 --minimum_foldseek_cluster_size 10 --parquet_ids $file_prefix --run_foldmason
     # TODO: zip the scratch dir?, remove scratch dir
     rm -rf ${SCRATCH_DIR}/data
     date

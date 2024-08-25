@@ -52,9 +52,9 @@ def make_af50_dictionary(af50_path, clusters_to_include=None):
                         af50_dict[rep_id] = []
                     af50_dict[rep_id].append(entry_id)
                 line_counter += 1
-            except:
+            except Exception as e:
                 print("Error processing line", line, flush=True)
-                raise Exception()
+                raise e
     return af50_dict
 
 
@@ -321,7 +321,7 @@ def make_job_list(
     return pdb_lookup, metadata_lookup, cluster_membership
 
 
-def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes):
+def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes=None):
     seq_fail_counter = 0
     seq_success_counter = 0
     # Parallel extraction of pdb files
@@ -329,18 +329,26 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
     output_dir = os.path.join(scratch_dir, str(parquet_id))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        results = []
+
+    if num_processes is not None:
+        with multiprocessing.Pool(processes=num_processes) as pool:
+            results = []
+            for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
+                print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
+                result = pool.apply_async(
+                    extract_pdbs,
+                    args=(zip_filename, afdb_ids, output_dir, zip_index)
+                )
+                results.append(result)
+
+            for result in results:
+                success_count, fail_count = result.get()
+                seq_success_counter += success_count
+                seq_fail_counter += fail_count
+    else:
         for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
-            result = pool.apply_async(
-                extract_pdbs,
-                args=(zip_filename, afdb_ids, output_dir, zip_index)
-            )
-            results.append(result)
-
-        for result in results:
-            success_count, fail_count = result.get()
+            success_count, fail_count = extract_pdbs(zip_filename, afdb_ids, output_dir, zip_index)
             seq_success_counter += success_count
             seq_fail_counter += fail_count
 
