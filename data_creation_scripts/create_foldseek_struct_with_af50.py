@@ -31,7 +31,7 @@ import zipfile
 import os
 from src.data.fasta import read_fasta
 from src.data.pdb import get_atom_coords_residuewise, load_structure
-import subprocess
+from src.tools.foldmason import run_foldmason
 
 
 def make_af50_dictionary(af50_path, clusters_to_include=None):
@@ -112,18 +112,6 @@ def make_cluster_dictionary(cluster_path):
             if line_counter % 100000 == 0:
                 print("Processed", line_counter, "lines for cluster dictionary", flush=True)
     return cluster_dict
-
-
-def run_foldmason(filelist, output_dir, tmp_dir):
-    cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
-    
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"FoldMason stdout: {result.stdout}", flush=True)
-    except subprocess.CalledProcessError as e:
-        print(f"FoldMason execution failed: {e}", flush=True)
-        print(f"FoldMason stderr: {e.stderr}", flush=True)
-        raise
 
 
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):

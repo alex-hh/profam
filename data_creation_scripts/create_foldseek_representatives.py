@@ -29,6 +29,7 @@ import pyarrow.parquet as pq
 import zipfile
 import os
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.tools.foldseek import convert_pdbs_to_3di
 
 
 def get_af50_representatives(af50_path):
@@ -120,10 +121,10 @@ def get_cluster_ids(cluster_path, use_af50_representatives=False):
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, verbose=False):
     # Save the pdbs to parquet
     results = []
-    for cluster_id in clusters_to_save:
-        afdb_id = f"AF-{cluster_id}-F1-model_v4"
-        pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
-
+    pdb_files = [os.path.join(scratch_dir, str(parquet_id), f"AF-{cluster_id}-F1-model_v4" + ".pdb") for cluster_id in clusters_to_save]
+    structure_tokens = convert_pdbs_to_3di(pdb_files, os.path.join(scratch_dir, str(parquet_id), "foldseek_descriptors.tsv"))
+    assert len(structure_tokens) == len(pdb_files)
+    for cluster_id, seq_3di, pdb in zip(clusters_to_save, structure_tokens, pdb_files):
         structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
         coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
         residue_identities = get_residues(structure)[1]
@@ -135,16 +136,21 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, ve
         for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
             coords[atom_name] = coords[:, ix, :].flatten()
 
-        # TODO: save representative?
+        # https://github.com/steineggerlab/foldseek/issues/273
+        # we'll save as lists so that existing loaders can be used.
+        # one idea would be to batch sequences into pseudo-documents, separated
+        # by an end-of-document token.
+
         results.append(
             {
-                "sequence": seq,
-                "accession": cluster_id,
-                "N": coords["N"],
-                "CA": coords["CA"],
-                "C": coords["C"],
-                "O": coords["O"],
-                "plddts": b_factors,
+                "sequences": [seq],
+                "accessions": [cluster_id],
+                "N": [coords["N"]],
+                "CA": [coords["CA"]],
+                "C": [coords["C"]],
+                "O": [coords["O"]],
+                "plddts": [b_factors],
+                "3dis": [seq_3di],
             }
         )
 
