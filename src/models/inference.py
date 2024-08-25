@@ -54,7 +54,7 @@ class ProFamSampler:
         self.sampling_kwargs = sampling_kwargs
 
     def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
-        prompt = self.prompt_builder.build_prompt(
+        prompt = self.prompt_builder(
             protein_document, self.model.tokenizer
         )
         return self.model._sample_seqs(
