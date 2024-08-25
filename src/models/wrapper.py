@@ -27,6 +27,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         super().__init__(config)
         self.use_seq_pos = use_seq_pos
         # TODO: avoid re-tracking - does this happen automatically?
+        # TODO: use model.get_input_embeddings()
         self.token_embedder = nested_getattr(self, token_embedder)
         self.require_seq_pos = require_seq_pos
         self.max_seq_pos = max_seq_pos
