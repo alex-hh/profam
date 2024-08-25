@@ -116,55 +116,89 @@ class ProFusionLitModule(BaseFamilyLitModule):
     def _sample_coords(
         self,
         input_ids,
-        coords,
-        length: int,
+        num_samples,
+        input_coords,
+        length: int,  # to generate
         batch_size: int = 1,
         input_seq_pos: Optional[torch.LongTensor] = None,
         noise: Optional[torch.Tensor] = None,
         clip_denoised: bool = True,
         denoised_fn=None,
         cond_fn=None,
+        token_id_for_completion=None,
     ):
         """N.B. whereas autoregressive sampling extends the sequence by a variable amount,
         Profusion sampling requires a pre-specified length.
         """
         assert input_ids.shape[0] == 1 and input_ids.ndim == 2
-        assert batch_size == 1, "batch_size > 1 not supported yet"
-        coords_shape = (
-            input_ids.shape[0],
-            length,
-        ) + self.coords_shape  # e.g. 4,3; 1,3;...
-
-        raise NotImplementedError("need to build input_ids, seq_pos, coords")
-
-        model_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
-
-        # c.f. p_sample_loop_progressive
-        def model_forward_wrapper(x, t, **kwargs):
-            # TODO: we need to handle the fact that the diffusion bit has
-            # a different shape (it's a slice of the full model).
-            # TODO: we can also exploit kv caching here.
-            outputs = self.model(
-                coords=build_coords(coords, x),
-                input_ids=input_ids,
-                timestep=t,
-                output_hidden_states=True,
-                **kwargs,
-            )
-            emb = outputs.hidden_states[-1]
-            eps = self.diffusion_head(emb)
-            return eps
-
-        return self.diffusion.p_sample_loop(
-            model_forward_wrapper,
-            coords_shape,
-            noise=noise,
-            model_kwargs=model_kwargs,  # TODO construct this carefully.
-            device=self.device,
-            clip_denoised=clip_denoised,
-            denoised_fn=denoised_fn,
-            cond_fn=cond_fn,
+        if input_seq_pos is not None:
+            assert input_seq_pos.shape == input_ids.shape
+        assert input_coords.shape[:2] == input_ids.shape
+        input_L = input_ids.shape[-1]
+        all_outputs = []
+        token_id_for_completion = (
+            token_id_for_completion or self.tokenizer.mask_token_id
         )
+        for batch_start in range(0, num_samples, batch_size):
+            num_samples_this_iter = min(batch_size, num_samples - batch_start)
+            coords_shape = (
+                num_samples_this_iter,
+                length,
+                self.num_atoms,
+                3,
+            )
+            # TODO: figure out the appropriate extension of input_seq_pos
+            raise NotImplementedError("need to extend input_seq_pos")
+            seq_pos = torch.cat(
+                [
+                    input_seq_pos.expand(num_samples_this_iter, -1),
+                ]
+            )
+            batch_input_coords = input_coords.expand(num_samples_this_iter, -1, -1, -1)
+            batch_input_ids = input_ids.expand(num_samples_this_iter, -1)
+            # model_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+            # c.f. p_sample_loop_progressive
+            def model_forward_wrapper(x, t, **kwargs):
+                # TODO: we need to handle the fact that the diffusion bit has
+                # a different shape (it's a slice of the full model).
+                # TODO: we can also exploit kv caching here: then we won't need cooncatenation
+                # TODO: handle rescaling, rotation, etc.
+                timestep = t.unsqueeze(-1).expand(
+                    num_samples_this_iter, length
+                )  # already scaled
+                outputs = self.model(
+                    coords=torch.cat([batch_input_coords, x], dim=1),
+                    input_ids=torch.cat(
+                        [
+                            batch_input_ids,
+                            torch.full(
+                                (num_samples_this_iter, length),
+                                token_id_for_completion,
+                                device=self.device,
+                            ).long(),
+                        ],
+                        dim=1,
+                    ),
+                    timestep=timestep,
+                    output_hidden_states=True,
+                    **kwargs,
+                )
+                emb = outputs.hidden_states[-1]
+                eps = self.diffusion_head(emb)
+                return eps
+
+            all_outputs.append(
+                self.diffusion.p_sample_loop(
+                    model_forward_wrapper,
+                    coords_shape,
+                    noise=noise,
+                    device=self.device,
+                    clip_denoised=clip_denoised,
+                    denoised_fn=denoised_fn,
+                    cond_fn=cond_fn,
+                )
+            )
+        return torch.cat(all_outputs, dim=0)
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
