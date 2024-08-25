@@ -1,6 +1,8 @@
+from typing import List, Optional
+
 import torch
 from torch import nn
-from typing import Optional, List
+
 from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
@@ -10,7 +12,7 @@ class WrappedHFProFusionModel(WrappedHFModelWithPositionEmbeddingsMixin):
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
     N.B. timestep conditioning in diffusion transformer is performed via adaptive layer norm ...
 
-    this is also used in alphafold 3 
+    this is also used in alphafold 3
     'we initialise the activations from the single embedding, use a variant of Adaptive Layernorm'
     '[27] for the single conditioning and logit biasing for the pair conditioning.'
 
@@ -39,7 +41,7 @@ class WrappedHFProFusionModel(WrappedHFModelWithPositionEmbeddingsMixin):
             max_seq_pos=max_seq_pos,
             require_seq_pos=require_seq_pos,
         )
-        self.coords_embedding = nn.Linear(num_atoms*3, embedding_dim, bias=False)
+        self.coords_embedding = nn.Linear(num_atoms * 3, embedding_dim, bias=False)
         self.timestep_embedding = nn.Embedding(num_timesteps, embedding_dim)
 
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
@@ -49,15 +51,26 @@ class WrappedHFProFusionModel(WrappedHFModelWithPositionEmbeddingsMixin):
         inputs = super().prepare_inputs_for_generation(input_ids, **kwargs)
         if input_ids.shape[-1] != kwargs["timestep"].shape[-1]:
             # we have incremented input ids but not timestep
-            assert (
-                inputs["input_ids"].shape[-1] == 1
-            )
+            assert inputs["input_ids"].shape[-1] == 1
             # just provide a single new value
             assert kwargs["timestep"].ndim == 2  # b, l
             bsz = kwargs["timestep"].shape[0]
-            inputs["timestep"] = torch.full((bsz, 1,), 0).to(kwargs["timestep"])
+            inputs["timestep"] = torch.full(
+                (
+                    bsz,
+                    1,
+                ),
+                0,
+            ).to(kwargs["timestep"])
             assert kwargs["coords"].ndim == 4  # b, l, n, 3
-            inputs["coords"] = torch.full((bsz,1,)+kwargs["coords"].shape[-2:], 0).to(kwargs["coords"])
+            inputs["coords"] = torch.full(
+                (
+                    bsz,
+                    1,
+                )
+                + kwargs["coords"].shape[-2:],
+                0,
+            ).to(kwargs["coords"])
         else:
             inputs["coords"] = kwargs["coords"]
             inputs["timestep"] = kwargs["timestep"]
@@ -71,7 +84,9 @@ class WrappedHFProFusionModel(WrappedHFModelWithPositionEmbeddingsMixin):
         coords: Optional[torch.FloatTensor] = None,
         timestep: Optional[torch.LongTensor] = None,
     ):
-        inputs_embeds = super().embed_inputs(input_ids, seq_pos=seq_pos)  # position and token embeddings
+        inputs_embeds = super().embed_inputs(
+            input_ids, seq_pos=seq_pos
+        )  # position and token embeddings
         if coords is not None:
             coords_embeds = self.coords_embedding(coords)
             inputs_embeds += coords_embeds
@@ -88,7 +103,9 @@ class WrappedHFProFusionModel(WrappedHFModelWithPositionEmbeddingsMixin):
         seq_pos: Optional[torch.LongTensor] = None,  # added this line for PFLM
         coords: Optional[torch.FloatTensor] = None,
         timestep: Optional[torch.LongTensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,  # q. what is position_ids? oh its for position embedding
+        position_ids: Optional[
+            torch.LongTensor
+        ] = None,  # q. what is position_ids? oh its for position embedding
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         use_cache: Optional[bool] = None,
@@ -100,7 +117,9 @@ class WrappedHFProFusionModel(WrappedHFModelWithPositionEmbeddingsMixin):
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
-        inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos, coords=coords, timestep=timestep)
+        inputs_embeds = self.embed_inputs(
+            input_ids, seq_pos=seq_pos, coords=coords, timestep=timestep
+        )
         return super().forward(
             input_ids=None,
             attention_mask=attention_mask,

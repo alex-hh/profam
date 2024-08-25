@@ -3,7 +3,9 @@ from typing import Dict, Optional
 import torch
 from torch import nn
 
+from src.models.diffusion.gaussian_diffusion import GaussianDiffusion
 from src.models.diffusion.resample import UniformSampler
+from src.models.diffusion.wrapper import WrappedHFProFusionModel
 from src.models.utils import accuracy_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -19,8 +21,8 @@ class ProFusionLitModule(BaseFamilyLitModule):
 
     def __init__(
         self,
-        model,
-        diffusion,
+        model: WrappedHFProFusionModel,
+        diffusion: GaussianDiffusion,
         tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
@@ -30,6 +32,8 @@ class ProFusionLitModule(BaseFamilyLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         diffusion_loss_weight: float = 1.0,
+        diffusion_loss_prob: float = 1.0,
+        num_atoms: int = 1,
     ):
         super().__init__(
             model,
@@ -43,6 +47,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         )
         self.diffusion = diffusion
         self.diffusion_loss_weight = diffusion_loss_weight
+        self.diffusion_loss_prob = diffusion_loss_prob
         self.schedule_sampler = UniformSampler(diffusion)
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
@@ -50,6 +55,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
+        self.num_atoms = num_atoms
 
     def get_forward_kwargs(self, batch, is_train: bool = False):
         forward_kwargs = (
@@ -61,27 +67,51 @@ class ProFusionLitModule(BaseFamilyLitModule):
             forward_kwargs["coords"] = self.get_coords(batch)
             return forward_kwargs
 
-    def _score_seqs_kv_cache(
+    def get_forward_kwargs_for_kv_cache(
         self,
-        input_ids,
-        completion_ids,
-        seq_pos: Optional[torch.LongTensor] = None,
-        completion_seq_pos: Optional[torch.LongTensor] = None,
-        batch_size: int = 1,
-        verbose: bool = False,
+        completion_seq_pos: Optional[torch.LongTensor],
+        coords: Optional[torch.FloatTensor] = None,
+        timestep: Optional[torch.LongTensor] = None,
+        **kwargs,
     ):
-        raise NotImplementedError("forward kwargs likely wrong")
+        # if coords and timestep are not provided, we can pass defaults
+        forward_kwargs = super().get_forward_kwargs_for_kv_cache(
+            completion_seq_pos, **kwargs
+        )
+        bsz, L = completion_seq_pos.shape
+        if coords is None:
+            forward_kwargs["coords"] = torch.zeros(
+                bsz, L, self.num_atoms, 3, device=self.device
+            )
+        if timestep is None:
+            forward_kwargs["timestep"] = torch.zeros(bsz, L, device=self.device).long()
+        return forward_kwargs
 
-    def _score_seqs_no_cache(
+    def score_seqs(
         self,
         input_ids,
         completion_ids,
+        use_cache: bool = True,
         batch_size: int = 1,
-        seq_pos: Optional[torch.LongTensor] = None,
+        input_seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
-        verbose: bool = False,
     ):
-        raise NotImplementedError("forward kwargs likely wrong")
+        assert (
+            input_ids.shape[0] == 1
+        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
+        assert (
+            input_ids.ndim == 2 and completion_ids.ndim == 3
+        ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
+        if use_cache:
+            return self._score_seqs_kv_cache(
+                input_ids,
+                completion_ids,
+                batch_size=batch_size,
+                seq_pos=input_seq_pos,
+                completion_seq_pos=completion_seq_pos,
+            )
+        else:
+            raise NotImplementedError("only kv cache version implemented for profusion")
 
     def _sample_coords(
         self,
@@ -142,21 +172,29 @@ class ProFusionLitModule(BaseFamilyLitModule):
         forward_kwargs = self.get_forward_kwargs(batch, is_train=True)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
-        bsz = batch["input_ids"].shape[0]
-        noise = torch.randn_like(batch["x0"])
-        # n.b. we can ignore weights since equal to 1
-        print(t, t.shape)
-        t, _ = self.schedule_sampler.sample(
-            bsz, self.device
-        )  # weights is second retval, 1s for now
+        coin_flip = torch.rand(1).item()
+        bsz, L = batch["input_ids"].shape
         x0 = self.get_coords(batch)
-        xt = self.diffusion.q_sample(x0, t, noise=noise)
+        if coin_flip < self.diffusion_loss_prob:
+            noise = torch.zeros_like(batch["x0"])
+            timestep = torch.zeros((bsz, L), device=self.device).long()
+            xt = x0
+        else:
+            noise = torch.randn_like(batch["x0"])
+            # n.b. we can ignore weights since equal to 1
+            t, _ = self.schedule_sampler.sample(
+                bsz, self.device
+            )  # weights is second retval, 1s for now
+            assert t.shape == (bsz,)
+            timestep = self._scale_timesteps(t).unsqueeze(-1).expand(bsz, L)
+            xt = self.diffusion.q_sample(x0, t, noise=noise)
+
         outputs = self(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],
             labels=batch["labels"],
             output_hidden_states=True,
-            timestep=self._scale_timesteps(t),
+            timestep=timestep,
             coords=xt,
             **forward_kwargs,
         )
@@ -164,7 +202,8 @@ class ProFusionLitModule(BaseFamilyLitModule):
         noise_pred = self.diffusion_head(emb)
         diffusion_loss = nn.MSELoss()(noise_pred, noise)
         loss = outputs.loss
-        loss = loss + self.diffusion_loss_weight * diffusion_loss
+        if coin_flip < self.diffusion_loss_prob:
+            loss = loss + self.diffusion_loss_weight * diffusion_loss
         # labels have -100 at padding positions due to collater
         accuracy = accuracy_from_outputs(
             outputs,

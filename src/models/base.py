@@ -437,6 +437,14 @@ class BaseFamilyLitModule(BaseLitModule):
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
+    def get_forward_kwargs_for_kv_cache(
+        self, completion_seq_pos: Optional[torch.LongTensor] = None, **kwargs
+    ):
+        if self.use_seq_pos:
+            return {"seq_pos": completion_seq_pos}
+        else:
+            return {}
+
     def _score_seqs_kv_cache(
         self,
         input_ids,
@@ -445,6 +453,7 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
+        **kwargs,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
@@ -466,14 +475,15 @@ class BaseFamilyLitModule(BaseLitModule):
             ].reshape(
                 -1, L
             )  # b_mut, L
-            forward_kwargs = {}
-            if self.use_seq_pos:
-                this_seq_pos = completion_seq_pos[
-                    :, batch_start : batch_start + batch_size
-                ].reshape(
-                    -1, L
-                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
-                forward_kwargs["seq_pos"] = this_seq_pos
+            # TODO: could we automatically construct seq pos rather than relying on passed completion_seq_pos?
+            this_seq_pos = completion_seq_pos[
+                :, batch_start : batch_start + batch_size
+            ].reshape(
+                -1, L
+            )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+            forward_kwargs = self.get_forward_kwargs_for_kv_cache(
+                completion_seq_pos=this_seq_pos, **kwargs
+            )
 
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
