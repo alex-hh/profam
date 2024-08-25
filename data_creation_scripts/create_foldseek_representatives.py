@@ -189,6 +189,7 @@ def make_job_list(
     # shuffle first so that we de-correlate cluster identities in parquet files
     rng = np.random.default_rng(seed=42)
     rng.shuffle(cluster_ids)
+    print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
 
     parquet_size = 1000  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
@@ -250,6 +251,7 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
 def create_foldseek_parquets(
     save_dir,
     scratch_dir,
+    cluster_path,
     use_af50_representatives=False,
     parquet_ids=None,
     num_processes=None,
@@ -261,7 +263,6 @@ def create_foldseek_parquets(
             # 2302908 clusters
             parquet_ids = range(2310)
 
-    print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
     af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     for parquet_id in parquet_ids:
         print("Processing parquet id", parquet_id, flush=True)
@@ -306,6 +307,7 @@ if __name__ == "__main__":
     create_foldseek_parquets(
         save_dir=save_dir,
         scratch_dir=args.scratch_dir,
+        cluster_path=args.cluster_path,
         parquet_ids=args.parquet_ids,
         num_processes=args.num_processes,
     )
