@@ -32,6 +32,7 @@ def rename_column_in_parquet(file_path, old_column_name, new_column_name, output
     # Save the updated DataFrame back to Parquet without saving the index
     df.to_parquet(output_file_path, index=False)
 
+
 def process_parquet_files(file_list, old_column_name, new_column_name, output_dir=None):
     """
     Processes a list of Parquet files, renaming a specific column in each file.
@@ -48,7 +49,9 @@ def process_parquet_files(file_list, old_column_name, new_column_name, output_di
 # Example usage
 if __name__ == "__main__":
     # List of Parquet files
-    parquet_files = glob.glob(['/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/*.parquet'])
+    data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
+    print("Data directory: (set DATA_DIR env var to override)", data_dir)
+    parquet_files = glob.glob(os.path.join(data_dir, 'foldseek_struct/*.parquet'))
 
     # Rename 'cluster_id' to 'fam_id' in each file
     process_parquet_files(parquet_files, old_column_name='cluster_id', new_column_name='fam_id', output_dir=None)
