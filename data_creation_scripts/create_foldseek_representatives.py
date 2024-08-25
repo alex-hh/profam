@@ -298,7 +298,7 @@ if __name__ == "__main__":
     if args.af50:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_representatives/"
     else:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives_example/"
+        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives/"
 
     if args.num_processes is None:
         args.num_processes = os.cpu_count()
