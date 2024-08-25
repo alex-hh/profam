@@ -1,9 +1,7 @@
 #!/bin/bash
-#$ -l tmem=12G
-#$ -l h_vmem=12G
+#$ -l tmem=128G
+#$ -l h_vmem=128G
 #$ -l h_rt=25:55:30
-#$ -l gpu=true
-#$ -l hostname='bubba*'
 #$ -S /bin/bash
 #$ -N builddb
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/

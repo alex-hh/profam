@@ -99,13 +99,23 @@ def make_cluster_db(
         if len(members) >= minimum_foldseek_cluster_size:
 
             for member in members:
-                zip_filename = af2zip[member]       
-                entry = {
-                    "foldseek_cluster_id": cluster_id,
-                    "af50_cluster_id": member,
-                    "uniprot_id": member,
-                    "zip_filename": zip_filename,
-                }
+                try:
+                    zip_filename = af2zip[member]
+                    entry = {
+                        "foldseek_cluster_id": cluster_id,
+                        "af50_cluster_id": member,
+                        "uniprot_id": member,
+                        "zip_filename": zip_filename,
+                    }
+                except:
+                    print("Error looking up", member)
+                    entry = {
+                        "foldseek_cluster_id": cluster_id,
+                        "af50_cluster_id": member,
+                        "uniprot_id": member,
+                        "zip_filename": "",
+                    }
+
                 entry = Protein(**entry)
                 session.add(entry)
 
@@ -113,13 +123,23 @@ def make_cluster_db(
                     for af50_member in af50_dict[member]:
                         try:
                             assert not af50_member == member
-                            zip_filename = af2zip[af50_member]
-                            entry = {
-                                "foldseek_cluster_id": cluster_id,
-                                "af50_cluster_id": member,
-                                "uniprot_id": af50_member,
-                                "zip_filename": zip_filename,
-                            }
+                            try:
+                                zip_filename = af2zip[af50_member]
+                                entry = {
+                                    "foldseek_cluster_id": cluster_id,
+                                    "af50_cluster_id": member,
+                                    "uniprot_id": af50_member,
+                                    "zip_filename": zip_filename,
+                                }
+                            except:
+                                print("Error looking up", af50_member)
+                                entry = {
+                                    "foldseek_cluster_id": cluster_id,
+                                    "af50_cluster_id": member,
+                                    "uniprot_id": af50_member,
+                                    "zip_filename": "",
+                                }
+
                             entry = Protein(**entry)
                             session.add(entry)
                         except:
