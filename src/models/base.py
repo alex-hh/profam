@@ -78,6 +78,7 @@ def load_checkpoint(checkpoint_dir, **kwargs):
 
     model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
     model.load_state_dict(checkpoint)
+    model.eval()
     return model
 
 

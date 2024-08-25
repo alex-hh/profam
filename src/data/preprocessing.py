@@ -224,7 +224,9 @@ def subsample_and_tokenize_protein_data(
             np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
             for xyz in coords
         ]
-        assert isinstance(plddts[0], list)
+        assert isinstance(plddts[0], list) or isinstance(
+            plddts[0], np.ndarray
+        ), f"expected plddts to be list/array but got {type(plddts)} {plddts}"
         if tokenizer.use_seq_pos:
             assert isinstance(positions[0], list)
             positions = [pos + [0] + pos for pos in positions]

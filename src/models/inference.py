@@ -1,5 +1,7 @@
 from typing import Dict, Optional
 
+import torch
+
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     BasePreprocessorConfig,
@@ -28,7 +30,7 @@ class PromptBuilder:
             max_tokens = self.max_tokens // 2  # TODO: account for sep
         else:
             max_tokens = self.max_tokens
-        return subsample_and_tokenize_protein_data(
+        batch = subsample_and_tokenize_protein_data(
             protein_document.sequences,
             cfg=self.preprocessor,
             tokenizer=tokenizer,
@@ -40,6 +42,7 @@ class PromptBuilder:
             seed=self.seed,
             interleave_structure_tokens=self.interleave_structure_sequence,
         )  # a dictionary
+        return batch
 
 
 class ProFamSampler:
@@ -57,9 +60,10 @@ class ProFamSampler:
 
     def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
         prompt = self.prompt_builder(protein_document, self.model.tokenizer)
-        return self.model._sample_seqs(
-            prompt["input_ids"].unsqueeze(0).to(self.model.device),
-            num_samples=num_samples,
-            input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),
-            **self.sampling_kwargs
-        )
+        with torch.no_grad():  # prob unnecessary
+            return self.model._sample_seqs(
+                prompt["input_ids"].unsqueeze(0).to(self.model.device),
+                num_samples=num_samples,
+                input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),
+                **self.sampling_kwargs
+            )
