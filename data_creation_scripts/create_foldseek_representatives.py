@@ -254,7 +254,7 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
     t1 = time.time()
-    print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)
+    print(f"Extracted all pdbs for parquet {parquet_id} in", t1 - t0, "seconds", flush=True)
 
 
 def create_foldseek_parquets(
