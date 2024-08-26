@@ -91,11 +91,11 @@ def make_cluster_db(
     entries = session.query(Protein).all()
 
     # Print the entries
-    print("Current entries in the database:")
-    for entry in entries:
-        print(f"uniprot_id: {entry.uniprot_id}, foldseek_cluster_id: {entry.foldseek_cluster_id}, af50_cluster_id: {entry.af50_cluster_id}, zip_filename: {entry.zip_filename}")
+    print(f"Current entries in the database: {len(entries)}")
+    uniprot_ids_in_db = [e.uniprot_id for e in entries]
     print("Creating foldseek dataset", flush=True)
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
+    cluster_ids = sorted(list(cluster_dict.keys()))
     print("Number of clusters:", len(cluster_dict))
     af2zip = make_zip_dictionary()
     af50_dict = make_af50_dictionary()
@@ -103,7 +103,7 @@ def make_cluster_db(
     t1 = time.time()
     # TODO: track failures.
     session_tracker = []
-    for ix, cluster_id in enumerate(cluster_dict.keys()):
+    for ix, cluster_id in enumerate(cluster_ids):
         members = cluster_dict[cluster_id]
         if len(members) >= minimum_foldseek_cluster_size:
 
@@ -125,9 +125,10 @@ def make_cluster_db(
                         "zip_filename": "",
                     }
 
-                session_tracker.append(entry)
-                entry = Protein(**entry)
-                session.add(entry)
+                if entry["uniprot_id"] not in uniprot_ids_in_db:
+                    session_tracker.append(entry)
+                    entry = Protein(**entry)
+                    session.add(entry)
 
                 if member in af50_dict:
                     for af50_member in af50_dict[member]:
@@ -150,8 +151,10 @@ def make_cluster_db(
                                     "zip_filename": "",
                                 }
 
-                            entry = Protein(**entry)
-                            session.add(entry)
+                            if entry["uniprot_id"] not in uniprot_ids_in_db:
+                                session_tracker.append(entry)
+                                entry = Protein(**entry)
+                                session.add(entry)
                         except:
                             print("Error looking up", af50_member)
                 else:
