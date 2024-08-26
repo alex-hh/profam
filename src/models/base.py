@@ -615,7 +615,7 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["max_new_tokens"] = fixed_length
             generation_kwargs["eos_token_id"] = None
         else:
-            generation_kwargs["min_new_tokens"] = 1
+            generation_kwargs["min_new_tokens"] = 3  # for esmfold
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
             generation_kwargs["max_length"] = max_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id

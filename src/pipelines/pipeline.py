@@ -47,10 +47,10 @@ class BaseEvaluatorPipeline:
             self.results_df = pd.read_csv(results_path)
         else:
             self.results_df = pd.DataFrame(
-                columns=["validation_id", "model_id", "instance_id"]
+                columns=["evaluator", "sampler", "instance"]
             )
         self.results_df.set_index(
-            ["validation_id", "model_id", "instance_id"], inplace=True
+            ["evaluator", "sampler", "instance"], inplace=True
         )
 
     def has_result(self, validation_id: str, instance_id: str, model_id: str) -> bool:
@@ -74,7 +74,7 @@ class BaseEvaluatorPipeline:
             [
                 self.results_df,
                 pd.DataFrame([result]).set_index(
-                    ["validation_id", "model_id", "instance_id"]
+                    ["evaluator", "sampler", "instance"]
                 ),
             ]
         )
