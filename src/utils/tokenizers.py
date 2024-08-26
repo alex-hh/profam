@@ -218,7 +218,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     pad_to_length=max_length if padding == "max_length" else None,
                 )
             )
-            assert proteins.backbone_coords_masks.shape == proteins.backbone_coords.shape
+            assert (
+                proteins.backbone_coords_masks.shape == proteins.backbone_coords.shape
+            )
             assert (
                 tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"

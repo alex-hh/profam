@@ -57,7 +57,7 @@ class ProFamSequenceSampler(ProFamSampler):
         prompt = self.prompt_builder.build_prompt(
             protein_document, self.model.tokenizer
         )
-        tokens =  self.model._sample_seqs(
+        tokens = self.model._sample_seqs(
             prompt["input_ids"].unsqueeze(0).to(self.model.device),
             num_samples=num_samples,
             input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),

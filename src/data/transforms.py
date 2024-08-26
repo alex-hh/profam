@@ -1,7 +1,5 @@
 import bisect
-import importlib
 import itertools
-from functools import partial
 from typing import Optional
 
 import numpy as np
@@ -94,11 +92,13 @@ def interleave_structure_sequence(
     interleaved_positions = []
     interleaved_plddts = []
     interleaved_coords = []
+    interleaved_coords_masks = []
     total_tokens = tokenizer.num_start_tokens
-    for seq, seq_3d, xyz, plddts, positions in zip(
+    for seq, seq_3d, xyz, coords_mask, plddts, positions in zip(
         proteins.sequences,
         proteins.structure_tokens,
         proteins.backbone_coords,
+        proteins.backbone_coords_masks,
         proteins.plddts,
         proteins.positions,
     ):
@@ -116,6 +116,11 @@ def interleave_structure_sequence(
             interleaved_coords.append(
                 np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
             )
+            interleaved_coords_masks.append(
+                np.concatenate(
+                    [coords_mask, np.zeros((1, 4, 3)), np.zeros_like(xyz)], axis=0
+                )
+            )
         else:
             interleaved_sequences.append(seq + tokenizer.seq_struct_sep_token + seq_3d)
             interleaved_positions.append(positions + [0] + positions)
@@ -127,6 +132,11 @@ def interleave_structure_sequence(
             interleaved_coords.append(
                 np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
             )
+            interleaved_coords_masks.append(
+                np.concatenate(
+                    [np.zeros_like(xyz), np.zeros((1, 4, 3)), coords_mask], axis=0
+                )
+            )
 
         total_tokens += len(seq) + len(seq_3d) + 2  # +1 for each separator
 
@@ -135,6 +145,7 @@ def interleave_structure_sequence(
             interleaved_positions = interleaved_positions[:-1]
             interleaved_plddts = interleaved_plddts[:-1]
             interleaved_coords = interleaved_coords[:-1]
+            interleaved_coords_masks = interleaved_coords_masks[:-1]
             assert (
                 len(interleaved_sequences) > 0
             ), "Cannot fit any sequences in max_tokens"
@@ -146,6 +157,7 @@ def interleave_structure_sequence(
         positions=interleaved_positions,
         plddts=interleaved_plddts,
         backbone_coords=interleaved_coords,
+        backbone_coords_masks=interleaved_coords_masks,
         structure_tokens=None,
         validate_shapes=False,  # a hack because of special token in interleaved sequences
     )
