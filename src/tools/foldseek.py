@@ -14,5 +14,7 @@ def convert_pdbs_to_3di(pdb_files, output_file):
         print(f"FoldMason execution failed: {e}", flush=True)
         print(f"FoldMason stderr: {e.stderr}", flush=True)
         raise
-    mapping = pd.read_csv(output_file, sep="\t", names=["pdb", "aa", "3di", "ca"]).set_index("pdb")
+    mapping = pd.read_csv(
+        output_file, sep="\t", names=["pdb", "aa", "3di", "ca"]
+    ).set_index("pdb")
     return mapping.loc[filenames]["3di"].tolist()

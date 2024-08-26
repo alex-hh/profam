@@ -41,9 +41,9 @@ def get_af50_representatives(af50_path):
             # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
             clu_flag = int(line[2])  # 1
 
-            if (clu_flag == 1 or clu_flag == 2) and rep_id not in representatives:
+            if (clu_flag == 1 or clu_flag == 2):
                 representatives.append(rep_id)
-    return representatives
+    return sorted(set(representatives))
 
 
 def make_zip_dictionary(zip_index, accessions_to_include=None):
@@ -103,12 +103,11 @@ def get_foldseek_representatives(cluster_path):
         for line in f:
             line = line.strip().split("\t")
             rep_id = line[1]
-            if rep_id not in representatives:
-                representatives.append(rep_id)
+            representatives.append(rep_id)
             line_counter += 1
             if line_counter % 100000 == 0:
                 print("Processed", line_counter, "lines for cluster dictionary", flush=True)
-    return representatives
+    return sorted(set(representatives))
 
 
 def get_cluster_ids(cluster_path, use_af50_representatives=False):
@@ -183,8 +182,18 @@ def make_job_list(
     cluster_path,
     use_af50_representatives=False,
     zip_index_file=None,
+    cluster_ids_file: str = None,
 ):
-    cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
+    if cluster_ids_file is not None and os.path.isfile(cluster_ids_file):
+        with open(cluster_ids_file, "r") as f:
+            cluster_ids = [line.strip() for line in f]
+
+    else:
+        cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
+        if cluster_ids_file is not None:
+            with open(cluster_ids_file, "w") as f:
+                for cluster_id in cluster_ids:
+                    f.write(cluster_id +  "\n")
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     rng = np.random.default_rng(seed=42)
@@ -271,6 +280,7 @@ def create_foldseek_parquets(
             cluster_path=af50_path if use_af50_representatives else cluster_path,
             use_af50_representatives=use_af50_representatives,
             zip_index_file=os.path.join(scratch_dir, "zip_index"),
+            cluster_ids_file=os.path.join(save_dir, "cluser_ids.txt"),
         )
         extract_pdbs_for_parquet(
             pdb_lookup=pdb_lookup,
