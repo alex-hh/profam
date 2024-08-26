@@ -19,7 +19,11 @@ class BasePreprocessorConfig:
     document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
-    transforms: Optional[List[Any]] = None
+    # https://github.com/mit-ll-responsible-ai/hydra-zen/issues/182
+    transforms: Optional[
+        List[Any]
+    ] = None  # making callable raises an omegaconf validationerror: unsupported value type 'callable'
+    keep_columns: Optional[List[str]] = None
 
 
 @dataclass
@@ -100,28 +104,13 @@ def _tokenize_protein_data(
 
 def subsample_and_tokenize_protein_data(
     proteins: ProteinDocument,
-    cfg,
+    cfg: BasePreprocessorConfig,
     tokenizer: ProFamTokenizer,
     max_tokens: Optional[int] = None,
     padding: str = "max_length",
     shuffle: bool = True,
     seed: Optional[int] = None,
 ):
-    if max_tokens is None:
-        raise NotImplementedError("Need to implement max_tokens=None case")
-    # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if tokenizer.use_seq_pos:
-        proteins = transforms.convert_sequences_adding_positions(
-            proteins,
-            keep_gaps=cfg.keep_gaps,
-            keep_insertions=cfg.keep_insertions,
-            to_upper=cfg.to_upper,
-            use_msa_pos=cfg.use_msa_pos,
-            truncate_after_n_sequences=cfg.truncate_after_n_sequences,
-        )
-    else:
-        proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
-
     proteins = transforms.sample_to_max_tokens(
         proteins,
         tokenizer=tokenizer,
@@ -139,6 +128,26 @@ def subsample_and_tokenize_protein_data(
         padding=padding,
     )
     return tokenized
+
+
+def preprocess_protein_sequences(
+    proteins: ProteinDocument,
+    cfg: BasePreprocessorConfig,
+    tokenizer: ProFamTokenizer,
+):
+    # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
+    if tokenizer.use_seq_pos:
+        proteins = transforms.convert_sequences_adding_positions(
+            proteins,
+            keep_gaps=cfg.keep_gaps,
+            keep_insertions=cfg.keep_insertions,
+            to_upper=cfg.to_upper,
+            use_msa_pos=cfg.use_msa_pos,
+            truncate_after_n_sequences=cfg.truncate_after_n_sequences,
+        )
+    else:
+        proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
+    return proteins
 
 
 def preprocess_fasta_data(
@@ -171,11 +180,8 @@ def preprocess_fasta_data(
             to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
         )
     ]
-    proteins = ProteinDocument(
-        identifier="",  # TODO
-        sequences=sequences,
-        accessions=[f"seq{i}" for i in range(len(sequences))],
-    )
+    proteins = ProteinDocument(sequences=sequences)
+    proteins = preprocess_protein_sequences(proteins, cfg, tokenizer)
     return subsample_and_tokenize_protein_data(
         proteins,
         cfg=cfg,
@@ -254,13 +260,12 @@ def preprocess_parquet_with_structure_tokens(
         plddts = None
 
     proteins = ProteinDocument(
-        identifier="",  # TODO
         sequences=sequences,
-        accessions=[f"seq{i}" for i in range(len(sequences))],  # TODO
         plddts=plddts,
         backbone_coords=coords,
         structure_tokens=structure_tokens,
     )
+    proteins = preprocess_protein_sequences(proteins, cfg, tokenizer)
     return subsample_and_tokenize_protein_data(
         proteins,
         cfg=cfg,
@@ -288,11 +293,8 @@ def preprocess_parquet_sequence_data(
     else:
         sequences = sequence_iterator[:max_sequences_to_preprocess]
 
-    proteins = ProteinDocument(
-        identifier="",  # TODO
-        sequences=sequences,
-        accessions=[f"seq{i}" for i in range(len(sequences))],  # TODO
-    )
+    proteins = ProteinDocument(sequences=sequences)
+    proteins = preprocess_protein_sequences(proteins, cfg, tokenizer)
     return subsample_and_tokenize_protein_data(
         proteins,
         cfg=cfg,

@@ -42,15 +42,20 @@ def convert_sequences_adding_positions(
 # TODO: implement rotation, centering, scaling of coordinates
 def sample_to_max_tokens(
     proteins: ProteinDocument,
-    tokenizer: ProFamTokenizer,
     max_tokens: int,
+    tokenizer: Optional[ProFamTokenizer] = None,
     shuffle: bool = True,
     seed: Optional[int] = None,
     drop_first: bool = False,
+    extra_tokens_per_document: Optional[int] = None,
     **kwargs,
 ):
     extra_tokens_per_sequence = 1  # for separator. TODO infer from tokenizer?
-    extra_tokens_per_document = tokenizer.num_start_tokens
+    if tokenizer is not None:
+        extra_tokens_per_document = tokenizer.num_start_tokens
+    else:
+        assert extra_tokens_per_document is not None
+        extra_tokens_per_document = 2
     # extra_arrays = [positions, proteins.coords, proteins.plddts, proteins.structure_tokens]
     rnd = np_random(seed)
     # TODO: implement keep first, drop first
@@ -133,7 +138,6 @@ def interleave_structure_sequence(
             assert (
                 len(interleaved_sequences) > 0
             ), "Cannot fit any sequences in max_tokens"
-            print([len(s) for s in interleaved_sequences])
             break
 
     return proteins.clone(
@@ -151,9 +155,3 @@ def apply_transforms(transforms, proteins, tokenizer):
     for transform in transforms or []:
         proteins = transform(proteins, tokenizer=tokenizer)
     return proteins
-
-
-def instantiate_transform(transform_fn, **kwargs):
-    current_module_name = __name__
-    transform_fn = getattr(importlib.import_module(current_module_name), transform_fn)
-    return partial(transform_fn, **kwargs)

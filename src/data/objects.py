@@ -36,7 +36,7 @@ def check_array_lengths(*arrays):  # TODO: name better!
 @dataclass
 class ProteinDocument:
     sequences: List[str]
-    accessions: List[str]
+    accessions: Optional[List[str]] = None
     identifier: Optional[str] = None
     positions: Optional[List[List[int]]] = None
     plddts: Optional[List[np.ndarray]] = None
@@ -62,16 +62,15 @@ class ProteinDocument:
                 self.backbone_coords,
                 self.structure_tokens,
             )
-        assert len(self.sequences) == len(
-            self.accessions
-        ), f"{len(self.sequences)} != {len(self.accessions)}"
 
     def __getitem__(self, key):
         if isinstance(key, slice):
             return ProteinDocument(
                 identifier=self.identifier,
                 sequences=self.sequences[key],
-                accessions=self.accessions[key],
+                accessions=self.accessions[key]
+                if self.accessions is not None
+                else None,
                 positions=self.positions[key] if self.positions is not None else None,
                 plddts=self.plddts[key] if self.plddts is not None else None,
                 backbone_coords=self.backbone_coords[key]
@@ -85,7 +84,9 @@ class ProteinDocument:
             return ProteinDocument(
                 identifier=self.identifier,
                 sequences=[self.sequences[i] for i in key],
-                accessions=[self.accessions[i] for i in key],
+                accessions=[self.accessions[i] for i in key]
+                if self.accessions is not None
+                else None,
                 positions=[self.positions[i] for i in key]
                 if self.positions is not None
                 else None,
@@ -102,7 +103,7 @@ class ProteinDocument:
         elif isinstance(key, int):
             return Protein(
                 sequence=self.sequences[key],
-                accession=self.accessions[key],
+                accession=self.accessions[key] if self.accessions is not None else None,
                 positions=self.positions[key] if self.positions is not None else None,
                 plddt=self.plddts[key] if self.plddts is not None else None,
                 backbone_coords=self.backbone_coords[key]

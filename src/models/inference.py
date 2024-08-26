@@ -5,6 +5,7 @@ import torch
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     BasePreprocessorConfig,
+    preprocess_protein_sequences,
     subsample_and_tokenize_protein_data,
 )
 from src.models.base import BaseFamilyLitModule
@@ -21,27 +22,18 @@ class PromptBuilder:
         self.preprocessor = preprocessor
         self.seed = seed
         self.max_tokens = max_tokens
-        self.interleave_structure_sequence = getattr(
-            preprocessor, "interleave_structure_tokens", False
-        )
 
-    def __call__(self, protein_document: ProteinDocument, tokenizer: ProFamTokenizer):
-        if self.interleave_structure_sequence:
-            max_tokens = self.max_tokens // 2  # TODO: account for sep
-        else:
-            max_tokens = self.max_tokens
+    def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+        proteins = preprocess_protein_sequences(proteins, self.preprocessor, tokenizer)
+        max_length = max(len(seq) for seq in proteins.sequences)
         batch = subsample_and_tokenize_protein_data(
-            protein_document.sequences,
+            proteins,
             cfg=self.preprocessor,
             tokenizer=tokenizer,
-            coords=protein_document.backbone_coords,
-            plddts=protein_document.plddts,
-            structure_tokens=protein_document.structure_tokens,
-            max_tokens=max_tokens,
             shuffle=True,
             seed=self.seed,
-            interleave_structure_tokens=self.interleave_structure_sequence,
             padding="longest",
+            max_tokens=self.max_tokens - max_length,
         )  # a dictionary
         return batch
 

@@ -69,6 +69,7 @@ class ProteinDataModule(LightningDataModule):
         if not self._is_setup:
             train_datasets = []
             train_data_weights = []
+            train_dataset_names = []
             for data_key, dataset_config in self.dataset_cfgs.items():
                 if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
@@ -85,9 +86,11 @@ class ProteinDataModule(LightningDataModule):
                     # https://github.com/huggingface/datasets/pull/5735
                     train_datasets.append(dataset)
                     train_data_weights.append(self.data_weights[data_key])
+                    train_dataset_names.append(data_key)
             train_data_weights = [
                 w / sum(train_data_weights) for w in train_data_weights
             ]
+
             self.train_dataset = interleave_datasets(
                 train_datasets,
                 probabilities=train_data_weights,

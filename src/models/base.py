@@ -647,11 +647,8 @@ class BaseFamilyLitModule(BaseLitModule):
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
-            forward_kwargs = (
-                {"seq_pos": input_seq_pos.clone().expand(num_return_sequences, -1)}
-                if self.use_seq_pos
-                else {}
-            )
+            # TODO: understand how this gets reshaped...
+            forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
             # N.B. we need to be careful about generationconfig -- in particular eos token id
