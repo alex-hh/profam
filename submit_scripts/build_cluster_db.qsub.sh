@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -l tmem=128G
 #$ -l h_vmem=128G
-#$ -l h_rt=25:55:30
+#$ -l h_rt=128:55:30
 #$ -S /bin/bash
 #$ -N builddb
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
