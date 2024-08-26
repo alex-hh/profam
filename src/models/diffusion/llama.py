@@ -3,8 +3,8 @@ from typing import Optional
 from transformers import LlamaConfig, PreTrainedTokenizerFast
 
 from src.models.diffusion.gaussian_diffusion import GaussianDiffusion
-from src.models.diffusion.wrapper import WrappedHFProFusionModel
 from src.models.diffusion.profusion import ProFusionLitModule
+from src.models.diffusion.wrapper import WrappedHFProFusionModel
 
 
 class LlamaProfusion(ProFusionLitModule):

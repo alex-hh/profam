@@ -17,8 +17,7 @@ import torch
 from proteinsmc.self_consistency import utils
 from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
-from transformers.models.esm.openfold_utils.protein import Protein
-from transformers.models.esm.openfold_utils.protein import to_pdb
+from transformers.models.esm.openfold_utils.protein import Protein, to_pdb
 
 
 def convert_outputs_to_pdb(outputs):

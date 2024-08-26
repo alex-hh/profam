@@ -53,7 +53,9 @@ class ProFamSampler:
         self.prompt_builder = prompt_builder
         self.sampling_kwargs = sampling_kwargs
 
-    def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
+
+class ProFamSequenceSampler(ProFamSampler):
+    def sample(self, protein_document: ProteinDocument, num_samples: int):
         prompt = self.prompt_builder.build_prompt(
             protein_document, self.model.tokenizer
         )
@@ -63,3 +65,11 @@ class ProFamSampler:
             input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),
             **self.sampling_kwargs
         )
+
+
+class ProFusionStructureSampler(ProFamSampler):
+    pass
+
+
+class ProFusionJointSampler(ProFamSampler):
+    pass

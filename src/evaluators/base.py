@@ -94,7 +94,7 @@ class SamplingEvaluator:
                 num_samples >= self.num_samples
             ), f"Expecting at least {self.num_samples} samples"
 
-        samples = sampler.sample_seqs(protein_document, num_samples)
+        samples = sampler.sample(protein_document, num_samples)
         return samples
 
     def __call__(
