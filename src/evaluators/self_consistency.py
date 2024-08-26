@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+
 from src.data.objects import ProteinDocument
 from src.evaluators.base import SamplingEvaluator
 from src.tools.self_consistency.self_consistency import SelfConsistencyPDBEvaluator
