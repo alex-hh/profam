@@ -1,7 +1,7 @@
 import bisect
 import itertools
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -19,6 +19,7 @@ class BasePreprocessorConfig:
     document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
+    transforms: Optional[List[Callable]] = None
 
 
 @dataclass
