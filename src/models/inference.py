@@ -1,8 +1,11 @@
 from typing import Dict, Optional
 
+import torch
+
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     BasePreprocessorConfig,
+    preprocess_protein_sequences,
     subsample_and_tokenize_protein_data,
 )
 from src.models.base import BaseFamilyLitModule
@@ -19,25 +22,20 @@ class PromptBuilder:
         self.preprocessor = preprocessor
         self.seed = seed
         self.max_tokens = max_tokens
-        self.interleave_structure_sequence = getattr(
-            preprocessor, "interleave_structure_tokens", False
-        )
 
-    def __call__(self, protein_document: ProteinDocument, tokenizer: ProFamTokenizer):
-        if self.interleave_structure_sequence:
-            max_tokens = max_tokens // 2  # TODO: account for sep
-        return subsample_and_tokenize_protein_data(
-            protein_document.sequences,
+    def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+        proteins = preprocess_protein_sequences(proteins, self.preprocessor, tokenizer)
+        max_length = max(len(seq) for seq in proteins.sequences)
+        batch = subsample_and_tokenize_protein_data(
+            proteins,
             cfg=self.preprocessor,
             tokenizer=tokenizer,
-            coords=protein_document.backbone_coords,
-            plddts=protein_document.plddts,
-            structure_tokens=protein_document.structure_tokens,
-            max_tokens=max_tokens,
             shuffle=True,
             seed=self.seed,
-            interleave_structure_tokens=self.interleave_structure_sequence,
+            padding="longest",
+            max_tokens=self.max_tokens - max_length,
         )  # a dictionary
+        return batch
 
 
 class ProFamSampler:
@@ -59,12 +57,13 @@ class ProFamSequenceSampler(ProFamSampler):
         prompt = self.prompt_builder.build_prompt(
             protein_document, self.model.tokenizer
         )
-        return self.model._sample_seqs(
+        tokens =  self.model._sample_seqs(
             prompt["input_ids"].unsqueeze(0).to(self.model.device),
             num_samples=num_samples,
             input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),
             **self.sampling_kwargs
         )
+        return self.model.tokenizer.decode_tokens(tokens)
 
 
 class ProFusionStructureSampler(ProFamSampler):

@@ -1,6 +1,7 @@
 """This file prepares config fixtures for other tests."""
 
 import os
+from functools import partial
 from pathlib import Path
 
 import hydra
@@ -12,7 +13,7 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
 
 from src.constants import BASEDIR
-from src.data import preprocessing
+from src.data import preprocessing, transforms
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -99,8 +100,8 @@ def parquet_3di_processor():
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        interleave_structure_tokens=True,
         is_aligned=False,
+        transforms=[partial(transforms.interleave_structure_sequence, max_tokens=2048)],
     )
 
 
@@ -121,8 +122,20 @@ def proteingym_batch(profam_tokenizer):
 
 @pytest.fixture()
 def foldseek_interleaved_structure_sequence_batch(
-    profam_tokenizer, parquet_3di_processor
+    profam_tokenizer,
 ):
+    max_tokens = 2048
+    parquet_3di_processor = preprocessing.ParquetStructureTokensPreprocessorConfig(
+        structure_tokens_col="msta_3di",
+        keep_insertions=True,
+        to_upper=True,
+        keep_gaps=False,
+        use_msa_pos=False,
+        is_aligned=False,
+        transforms=[
+            partial(transforms.interleave_structure_sequence, max_tokens=max_tokens)
+        ],
+    )
     cfg = ProteinDatasetConfig(
         name="foldseek",
         preprocessor=parquet_3di_processor,
@@ -132,7 +145,7 @@ def foldseek_interleaved_structure_sequence_batch(
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=2048,
+        max_tokens=max_tokens,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
     )

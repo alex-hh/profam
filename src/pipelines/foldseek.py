@@ -1,7 +1,5 @@
 from typing import Dict
 
-import pandas as pd
-
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import backbone_coords_from_example
 from src.pipelines.mixins import ParquetMixin
@@ -12,6 +10,7 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
     def __init__(
         self,
         *args,
+        cluster_id_col: str = "fam_id",
         evaluation_parquet: str = None,
         evaluation_accessions_file: str = None,
         parquet_index: str = None,
@@ -20,7 +19,7 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
     ):
         super().__init__(
             *args,
-            instance_id_col="cluster_id",
+            instance_id_col=cluster_id_col,
             evaluation_parquet=evaluation_parquet,
             evaluation_accessions_file=evaluation_accessions_file,
             evaluation_accessions=evaluation_accessions,
@@ -42,4 +41,7 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
             accessions=protein_example["accessions"],
             backbone_coords=backbone_coords_from_example(protein_example),
             plddts=protein_example["plddts"],
+            structure_tokens=[
+                s.replace("-", "").lower() for s in protein_example["msta_3di"]
+            ],
         )

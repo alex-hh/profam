@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
-from src.data.preprocessing import sample_to_max_tokens
+from src.data.objects import ProteinDocument
+from src.data.transforms import sample_to_max_tokens
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
@@ -24,8 +25,9 @@ def tokenize_msa(
     document_token: Optional[str] = "[RAW]",
 ):
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
-    tokenized = tokenizer.encode_sequences(
-        sample["MSA"], document_token=document_token, add_final_sep=False
+    proteins = ProteinDocument(sequences=sample["MSA"])
+    tokenized = tokenizer.encode(
+        proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
     if tokenizer.use_seq_pos:
@@ -85,6 +87,7 @@ def load_msa_for_row(
     drop_wt=True,
     keep_gaps=False,
     use_filtered_msa: bool = False,
+    extra_tokens_per_document: int = 2,
 ):
     msa_file = os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"])
     if use_filtered_msa:
@@ -99,15 +102,25 @@ def load_msa_for_row(
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     if keep_wt:
         raise NotImplementedError()
-    sampled_seqs = sample_to_max_tokens(
-        seqs,
+    proteins = ProteinDocument(
+        identifier=msa_file,
+        sequences=seqs,
+        accessions=None,
+        positions=None,
+        plddts=None,
+        backbone_coords=None,
+        structure_tokens=None,
+    )
+    proteins = sample_to_max_tokens(
+        proteins,
         seed=seed,
         drop_first=drop_wt,
         max_tokens=max_tokens_for_msa,
+        extra_tokens_per_document=extra_tokens_per_document,
     )
-    assert len(sampled_seqs) > 0, "No sequences sampled - check max tokens"
-    print(f"Sampled {len(sampled_seqs)} sequences for MSA")
-    row["MSA"] = sampled_seqs
+    assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
+    print(f"Sampled {len(proteins.sequences)} sequences for MSA")
+    row["MSA"] = proteins.sequences
     return row
 
 
@@ -130,6 +143,7 @@ def build_gym_df(
     max_tokens: int = 5000,
     keep_gaps: bool = False,
     use_filtered_msa: bool = False,
+    extra_tokens_per_document: int = 2,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
@@ -142,6 +156,7 @@ def build_gym_df(
         max_tokens=max_tokens,
         keep_gaps=keep_gaps,
         use_filtered_msa=use_filtered_msa,
+        extra_tokens_per_document=extra_tokens_per_document,
     )
     df = df.apply(
         load_dms_scores_for_row,
@@ -182,6 +197,7 @@ def load_gym_dataset(
         max_tokens=max_tokens,
         keep_gaps=keep_gaps,
         use_filtered_msa=use_filtered_msa,
+        extra_tokens_per_document=tokenizer.num_start_tokens,
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     print("Loading gym dataset")
