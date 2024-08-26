@@ -1,11 +1,11 @@
-import bisect
-import itertools
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from src.data import transforms
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
+from src.data.objects import ProteinDocument
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
@@ -51,68 +51,6 @@ class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
 
     def __post_init__(self):
         self.preprocessor = "parquet_structure_tokens"
-
-
-def sample_to_max_tokens(
-    sequences,
-    extra_arrays: Optional[List[List[Any] | np.ndarray]] = None,
-    max_tokens: Optional[int] = None,
-    shuffle=True,
-    seed: Optional[int] = None,
-    drop_first: bool = False,
-    extra_tokens_per_sequence: int = 1,  # just [SEP] for default sequences (this includes eos)
-    extra_tokens_per_document: int = 2,
-):
-    rnd = np_random(seed)
-    # TODO: implement keep first, drop first
-    if drop_first:
-        sequences = sequences[1:]
-        if extra_arrays is not None:
-            extra_arrays = [
-                arr[1:] if arr is not None else None for arr in extra_arrays
-            ]
-
-    if shuffle:
-        perm = rnd.permutation(len(sequences))
-        sequences = [sequences[i] for i in perm]
-        if extra_arrays is not None:
-            extra_arrays = [
-                [arr[i] for i in perm] if arr is not None else None
-                for arr in extra_arrays
-            ]
-
-    if max_tokens is not None:
-        cumulative_lengths = list(
-            itertools.accumulate(
-                [len(s) + extra_tokens_per_sequence for s in sequences]
-            )
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - extra_tokens_per_document,
-        )  # -2 for doc start tokens
-    else:
-        insertion_point = len(sequences)
-    if extra_arrays is None:
-        return sequences[:insertion_point]
-    else:
-        return sequences[:insertion_point], [
-            arr[:insertion_point] if arr is not None else None for arr in extra_arrays
-        ]
-
-
-def check_array_lengths(*arrays):  # TODO: name better!
-    sequence_lengths = []
-    for arr in arrays:
-        if arr is None:
-            continue
-        else:
-            sequence_lengths.append(tuple([len(seq) for seq in arr]))
-
-    assert all(
-        l == sequence_lengths[0] for l in sequence_lengths
-    ), f"{sequence_lengths} not all equal"
-    return sequence_lengths
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -167,82 +105,41 @@ def _tokenize_protein_data(
 
 
 def subsample_and_tokenize_protein_data(
-    sequence_iterator,
+    proteins: ProteinDocument,
     cfg,
     tokenizer: ProFamTokenizer,
-    coords: Optional[List[np.ndarray]] = None,
-    plddts: Optional[List[np.ndarray]] = None,
-    structure_tokens: Optional[List[str]] = None,
     max_tokens: Optional[int] = None,
     padding: str = "max_length",
     shuffle: bool = True,
     seed: Optional[int] = None,
-    interleave_structure_tokens: bool = False,
 ):
     if max_tokens is None:
         raise NotImplementedError("Need to implement max_tokens=None case")
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
     if tokenizer.use_seq_pos:
-        sequences = []
-        positions = []
-        for seq in itertools.islice(sequence_iterator, cfg.truncate_after_n_sequences):
-            seq, pos, _ = convert_sequence_with_positions(
-                seq,
-                keep_gaps=cfg.keep_gaps,
-                keep_insertions=cfg.keep_insertions,
-                to_upper=cfg.to_upper,
-            )
-            sequences.append(seq)
-            positions.append(pos)
+        proteins = transforms.convert_sequences_adding_positions(
+            proteins,
+            keep_gaps=cfg.keep_gaps,
+            keep_insertions=cfg.keep_insertions,
+            to_upper=cfg.to_upper,
+            truncate_after_n_sequences=cfg.truncate_after_n_sequences,
+        )
     else:
-        sequences = [
-            seq
-            for seq in itertools.islice(
-                sequence_iterator, cfg.truncate_after_n_sequences
-            )
-        ]  # necessary for fasta iterator...
-        positions = None
+        proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
 
-    extra_arrays = [positions, coords, plddts, structure_tokens]
-    sequences, extra_arrays = sample_to_max_tokens(
-        sequences,
-        extra_arrays=extra_arrays,
-        # TODO: we need to subtract the cost of the extra sep tokens also.
-        max_tokens=max_tokens // 2 if interleave_structure_tokens else max_tokens,
+    proteins = transforms.sample_to_max_tokens(
+        proteins,
+        tokenizer=tokenizer,
+        max_tokens=max_tokens,
         shuffle=shuffle,
         seed=seed,
-        extra_tokens_per_sequence=2 if interleave_structure_tokens else 1,
-        extra_tokens_per_document=tokenizer.num_start_tokens,
     )
-    positions, coords, plddts, structure_tokens = extra_arrays
-
-    check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
-    if interleave_structure_tokens:
-        sequences = [
-            seq_3d + tokenizer.seq_struct_sep_token + seq
-            for seq, seq_3d in zip(sequences, structure_tokens)
-        ]
-        coords = [
-            np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
-            for xyz in coords
-        ]
-        # when we do read_parquet we might get array instead of lists
-        # whereas hf dataset retains list format
-        assert isinstance(plddts[0], list) or isinstance(
-            plddts[0], np.ndarray
-        ), f"expected plddts to be list/array but got {type(plddts)} {plddts}"
-        plddts = [np.concatenate([np.array(vals), np.full((1,), 100.), np.array(vals)]) for vals in plddts]
-        if tokenizer.use_seq_pos:
-            assert isinstance(positions[0], list)
-            positions = [pos + [0] + pos for pos in positions]
+    proteins = transforms.apply_transforms(cfg.transforms, proteins, tokenizer)
 
     tokenized = _tokenize_protein_data(
-        sequences,
+        proteins,
         cfg=cfg,
         tokenizer=tokenizer,
-        positions=positions,
-        coords=coords,
-        plddts=plddts,
         max_tokens=max_tokens,
         padding=padding,
     )
@@ -269,15 +166,23 @@ def preprocess_fasta_data(
             max_fasta_lines_to_preprocess,
             shuffle=shuffle,
         )
-    sequence_iterator = read_fasta_sequences(
-        lines,
-        # preserve original sequences before getting positions
-        keep_gaps=True if tokenizer.use_seq_pos else cfg.keep_gaps,
-        keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
-        to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
+    sequences = [
+        seq
+        for seq in read_fasta_sequences(
+            lines,
+            # preserve original sequences before getting positions
+            keep_gaps=True if tokenizer.use_seq_pos else cfg.keep_gaps,
+            keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
+            to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
+        )
+    ]
+    proteins = ProteinDocument(
+        identifier="",  # TODO
+        sequences=sequences,
+        accessions=[f"seq{i}" for i in range(len(sequences))],
     )
     return subsample_and_tokenize_protein_data(
-        sequence_iterator,
+        proteins,
         cfg=cfg,
         tokenizer=tokenizer,
         max_tokens=max_tokens,
@@ -353,16 +258,20 @@ def preprocess_parquet_with_structure_tokens(
         coords = None
         plddts = None
 
+    proteins = ProteinDocument(
+        identifier=example[cfg.identifier_col],
+        sequences=sequences,
+        accessions=[f"seq{i}" for i in range(len(sequences))],  # TODO
+        plddts=plddts,
+        backbone_coords=coords,
+        structure_tokens=structure_tokens,
+    )
     return subsample_and_tokenize_protein_data(
-        sequences,
+        proteins,
         cfg=cfg,
         tokenizer=tokenizer,
-        coords=coords,
-        plddts=plddts,
-        structure_tokens=structure_tokens,
         max_tokens=max_tokens,
         shuffle=shuffle,
-        interleave_structure_tokens=cfg.interleave_structure_tokens,
     )
 
 
@@ -383,8 +292,14 @@ def preprocess_parquet_sequence_data(
         )
     else:
         sequences = sequence_iterator[:max_sequences_to_preprocess]
+
+    proteins = ProteinDocument(
+        identifier=example[cfg.identifier_col],
+        sequences=sequences,
+        accessions=[f"seq{i}" for i in range(len(sequences))],  # TODO
+    )
     return subsample_and_tokenize_protein_data(
-        sequences,
+        proteins,
         cfg=cfg,
         tokenizer=tokenizer,
         max_tokens=max_tokens,

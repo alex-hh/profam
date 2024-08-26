@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
-from src.data.preprocessing import sample_to_max_tokens
+from src.data.objects import ProteinDocument
+from src.data.transforms import sample_to_max_tokens
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
@@ -99,15 +100,24 @@ def load_msa_for_row(
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     if keep_wt:
         raise NotImplementedError()
-    sampled_seqs = sample_to_max_tokens(
-        seqs,
+    proteins = ProteinDocument(
+        identifier=msa_file,
+        sequences=seqs,
+        accessions=None,
+        positions=None,
+        plddts=None,
+        backbone_coords=None,
+        structure_tokens=None,
+    )
+    proteins = sample_to_max_tokens(
+        proteins,
         seed=seed,
         drop_first=drop_wt,
         max_tokens=max_tokens_for_msa,
     )
-    assert len(sampled_seqs) > 0, "No sequences sampled - check max tokens"
-    print(f"Sampled {len(sampled_seqs)} sequences for MSA")
-    row["MSA"] = sampled_seqs
+    assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
+    print(f"Sampled {len(proteins.sequences)} sequences for MSA")
+    row["MSA"] = proteins.sequences
     return row
 
 
