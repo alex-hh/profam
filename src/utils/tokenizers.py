@@ -206,7 +206,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     fill_value=np.nan,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,
-                    pad_to_length=max_length if padding == "max_length" else None,
+                    pad_to_length=tokenized.input_ids.shape[-1],
                 )
             )
             assert (
@@ -223,7 +223,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     fill_value=100.0,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,
-                    pad_to_length=max_length if padding == "max_length" else None,
+                    pad_to_length=tokenized.input_ids.shape[-1],
                 )
             )
             assert (
