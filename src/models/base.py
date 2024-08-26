@@ -647,7 +647,7 @@ class BaseFamilyLitModule(BaseLitModule):
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
-            # TODO: understand how this gets reshaped...
+            # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
             forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample

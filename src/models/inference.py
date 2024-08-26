@@ -54,9 +54,10 @@ class ProFamSampler:
     def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
         prompt = self.prompt_builder(protein_document, self.model.tokenizer)
         with torch.no_grad():  # prob unnecessary
-            return self.model._sample_seqs(
+            tokens = self.model._sample_seqs(
                 prompt["input_ids"].unsqueeze(0).to(self.model.device),
                 num_samples=num_samples,
                 input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),
                 **self.sampling_kwargs
             )
+            return self.model.tokenizer.decode_tokens(tokens)
