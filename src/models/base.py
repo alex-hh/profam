@@ -181,7 +181,7 @@ class BaseLitModule(LightningModule):
             batch["labels"],
             ignore_index=-100,
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-"]
+                ["-", "X", "x"]
                 + [aa.lower() for aa in aa_letters]
                 + self.tokenizer.all_special_tokens
             ),
@@ -197,7 +197,7 @@ class BaseLitModule(LightningModule):
             batch["labels"],
             ignore_index=-100,
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-"] + aa_letters + self.tokenizer.all_special_tokens
+                ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
             ),
         )
         if log_ds:
@@ -619,7 +619,7 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
             generation_kwargs["max_length"] = max_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
-        bad_aas = ["X"]
+        bad_aas = ["X", "x"]
         if not sample_gaps:
             bad_aas.append("-")
         if structure_tokens:
