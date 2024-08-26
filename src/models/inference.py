@@ -1,7 +1,5 @@
 from typing import Dict, Optional
 
-import torch
-
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     BasePreprocessorConfig,
