@@ -74,7 +74,11 @@ def concatenate_pad_array(
         full_length = pad_to_length
     else:
         full_length = (
-            sum(len(a) for a in array_list) + num_start_tokens + num_end_tokens
+            sum(len(a) for a in array_list)
+            + num_start_tokens
+            + num_end_tokens
+            + len(array_list)
+            - 1  # sep tokens
         )
     if isinstance(array_list[0], list):
         full_array = np.full((full_length,), fill_value)
