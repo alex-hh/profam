@@ -320,6 +320,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
             noise = torch.zeros_like(batch["x0"])
             timestep = torch.zeros((bsz, L), device=self.device).long()
             xt = coords
+            coords_mask = torch.zeros_like(coords_mask)  # just affects loss
         else:
             noise = torch.randn_like(batch["x0"])
             # n.b. we can ignore weights since equal to 1
