@@ -6,6 +6,7 @@ import torch
 from torch import stack
 from transformers import PreTrainedTokenizerFast
 
+from src.data.objects import ProteinDocument
 from src.utils import RankedLogger
 
 log = RankedLogger(__name__, rank_zero_only=True)
@@ -139,21 +140,18 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     def aa_tokens(self):
         return self.convert_tokens_to_ids(list("ACDEFGHIKLMNPQRSTVWY"))
 
-    def encode_sequences(
+    def encode(
         self,
-        sequences,
-        positions: Optional[List[int]] = None,
+        proteins: ProteinDocument,
         document_token="[RAW]",
         padding="longest",
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
-        coords: Optional[List[np.ndarray]] = None,
-        plddts: Optional[List[np.ndarray | List]] = None,
         # TODO: allow custom fill value for coord / plddt padding?
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
-        concatenated_seqs = self.sep_token.join(sequences)
+        concatenated_seqs = self.sep_token.join(proteins.sequences)
         if add_final_sep:
             concatenated_seqs += self.sep_token
         if self.add_bos_token:
@@ -182,13 +180,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
         if self.use_seq_pos:
-            if positions is None:
+            if proteins.positions is None:
                 log.warning(
                     "Using seq_pos but positions not provided. Using default positions."
                 )
                 # +1 to match convert_sequence_with_positions
                 # get_seq_pos_from_positions adds another offset
-                positions = [list(range(1, len(seq) + 1)) for seq in sequences]
+                positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
+            else:
+                positions = proteins.positions
             seq_pos = get_seq_pos_from_positions(
                 tokenized.input_ids,
                 positions,
@@ -200,10 +200,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["seq_pos"] = seq_pos
             assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
 
-        if coords is not None:
+        if proteins.backbone_coords is not None:
             tokenized.data["coords"] = torch.from_numpy(
                 concatenate_pad_array(
-                    coords,
+                    proteins.backbone_coords,
                     fill_value=np.nan,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,
@@ -217,10 +217,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         tokenized.data["aa_mask"] = torch.isin(
             tokenized.input_ids, torch.tensor(self.aa_tokens)
         )
-        if plddts is not None:
+        if proteins.plddts is not None:
             tokenized.data["plddts"] = torch.from_numpy(
                 concatenate_pad_array(
-                    plddts,
+                    proteins.plddts,
                     fill_value=100.0,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,

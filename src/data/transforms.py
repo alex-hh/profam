@@ -17,6 +17,7 @@ def convert_sequences_adding_positions(
     keep_gaps: bool = False,
     keep_insertions: bool = True,
     to_upper: bool = True,
+    use_msa_pos: bool = False,
     truncate_after_n_sequences: Optional[int] = None,
     **kwargs,
 ):
@@ -28,9 +29,11 @@ def convert_sequences_adding_positions(
             keep_gaps=keep_gaps,
             keep_insertions=keep_insertions,
             to_upper=to_upper,
+            use_msa_pos=use_msa_pos,
         )
+        sequences.append(seq)
         positions.append(pos)
-    return ProteinDocument.clone(
+    return proteins.clone(
         sequences=sequences,
         positions=positions,
     )
@@ -52,11 +55,7 @@ def sample_to_max_tokens(
     rnd = np_random(seed)
     # TODO: implement keep first, drop first
     if drop_first:
-        sequences = sequences[1:]
-        if extra_arrays is not None:
-            extra_arrays = [
-                arr[1:] if arr is not None else None for arr in extra_arrays
-            ]
+        proteins = proteins[1:]
 
     if shuffle:
         perm = rnd.permutation(len(proteins))
@@ -65,17 +64,17 @@ def sample_to_max_tokens(
     if max_tokens is not None:
         cumulative_lengths = list(
             itertools.accumulate(
-                [len(s) + extra_tokens_per_sequence for s in sequences]
+                [len(s) + extra_tokens_per_sequence for s in proteins.sequences]
             )
         )  # +1 for separator
         insertion_point = bisect.bisect_left(
             cumulative_lengths,
             max_tokens - extra_tokens_per_document,
-        )  # -2 for doc start tokens
+        )
     else:
-        insertion_point = len(sequences)
-
-    return proteins[:insertion_point]
+        insertion_point = len(proteins)
+    proteins = proteins[:insertion_point]
+    return proteins
 
 
 def interleave_structure_sequence(
@@ -96,12 +95,13 @@ def interleave_structure_sequence(
         proteins.structure_tokens,
         proteins.backbone_coords,
         proteins.plddts,
+        proteins.positions,
     ):
         # TODO: monitor max_tokens
         assert len(seq) == len(seq_3d) == len(xyz) == len(plddts)
         assert isinstance(positions, list)
         if coin_flip < structure_first_prob:
-            interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token, +seq)
+            interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token + seq)
             interleaved_positions.append(positions + [0] + positions)
             interleaved_plddts.append(
                 np.concatenate(
@@ -109,10 +109,10 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz]), axis=0
+                np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
             )
         else:
-            interleaved_sequences.append(seq + tokenizer.seq_struct_sep_token, +seq_3d)
+            interleaved_sequences.append(seq + tokenizer.seq_struct_sep_token + seq_3d)
             interleaved_positions.append(positions + [0] + positions)
             interleaved_plddts.append(
                 np.concatenate(
@@ -120,7 +120,7 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz]), axis=0
+                np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
             )
 
         total_tokens += len(seq) + len(seq_3d) + 2  # +1 for each separator
@@ -133,14 +133,17 @@ def interleave_structure_sequence(
             assert (
                 len(interleaved_sequences) > 0
             ), "Cannot fit any sequences in max_tokens"
+            print([len(s) for s in interleaved_sequences])
             break
 
     return proteins.clone(
+        accessions=[f"seq{i}" for i in range(len(interleaved_sequences))],
         sequences=interleaved_sequences,
         positions=interleaved_positions,
         plddts=interleaved_plddts,
         backbone_coords=interleaved_coords,
         structure_tokens=None,
+        validate_shapes=False,  # a hack because of special token in interleaved sequences
     )
 
 

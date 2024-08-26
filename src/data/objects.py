@@ -35,13 +35,14 @@ def check_array_lengths(*arrays):  # TODO: name better!
 # TODO: consider how to represent masks
 @dataclass
 class ProteinDocument:
-    identifier: str
     sequences: List[str]
     accessions: List[str]
+    identifier: Optional[str] = None
     positions: Optional[List[List[int]]] = None
     plddts: Optional[List[np.ndarray]] = None
     backbone_coords: Optional[List[np.ndarray]] = None
     structure_tokens: Optional[List[str]] = None
+    validate_shapes: bool = True
 
     @classmethod
     def from_fasta_str(cls, identifier: str, fasta_str: str):
@@ -54,46 +55,60 @@ class ProteinDocument:
         return cls(identifier, sequences, accessions)
 
     def __post_init__(self):
-        check_array_lengths(
-            self.sequences,
-            self.accessions,
-            self.plddts,
-            self.backbone_coords,
-            self.structure_tokens,
-        )
+        if self.validate_shapes:
+            check_array_lengths(
+                self.sequences,
+                self.plddts,
+                self.backbone_coords,
+                self.structure_tokens,
+            )
+        assert len(self.sequences) == len(
+            self.accessions
+        ), f"{len(self.sequences)} != {len(self.accessions)}"
 
     def __getitem__(self, key):
         if isinstance(key, slice):
             return ProteinDocument(
-                self.identifier,
-                self.sequences[key],
-                self.accessions[key],
-                self.plddts[key] if self.plddts is not None else None,
-                self.backbone_coords[key] if self.backbone_coords is not None else None,
-                self.structure_tokens[key]
+                identifier=self.identifier,
+                sequences=self.sequences[key],
+                accessions=self.accessions[key],
+                positions=self.positions[key] if self.positions is not None else None,
+                plddts=self.plddts[key] if self.plddts is not None else None,
+                backbone_coords=self.backbone_coords[key]
+                if self.backbone_coords is not None
+                else None,
+                structure_tokens=self.structure_tokens[key]
                 if self.structure_tokens is not None
                 else None,
             )
         elif isinstance(key, np.ndarray) or isinstance(key, list):
             return ProteinDocument(
-                self.identifier,
-                [self.sequences[i] for i in key],
-                [self.accessions[i] for i in key],
-                [self.plddts[i] for i in key] if self.plddts is not None else None,
-                [self.backbone_coords[i] for i in key]
+                identifier=self.identifier,
+                sequences=[self.sequences[i] for i in key],
+                accessions=[self.accessions[i] for i in key],
+                positions=[self.positions[i] for i in key]
+                if self.positions is not None
+                else None,
+                plddts=[self.plddts[i] for i in key]
+                if self.plddts is not None
+                else None,
+                backbone_coords=[self.backbone_coords[i] for i in key]
                 if self.backbone_coords is not None
                 else None,
-                [self.structure_tokens[i] for i in key]
+                structure_tokens=[self.structure_tokens[i] for i in key]
                 if self.structure_tokens is not None
                 else None,
             )
         elif isinstance(key, int):
             return Protein(
-                self.sequences[key],
-                self.accessions[key],
-                self.plddts[key] if self.plddts is not None else None,
-                self.backbone_coords[key] if self.backbone_coords is not None else None,
-                self.structure_tokens[key]
+                sequence=self.sequences[key],
+                accession=self.accessions[key],
+                positions=self.positions[key] if self.positions is not None else None,
+                plddt=self.plddts[key] if self.plddts is not None else None,
+                backbone_coords=self.backbone_coords[key]
+                if self.backbone_coords is not None
+                else None,
+                structure_tokens=self.structure_tokens[key]
                 if self.structure_tokens is not None
                 else None,
             )
@@ -105,18 +120,27 @@ class ProteinDocument:
 
     @property
     def has_all_structure_arrays(self):
-        return all(
+        has_arrays = [
             arr is not None
             for arr in [self.plddts, self.backbone_coords, self.structure_tokens]
+        ]
+        missing_arrays_msg = " ".join(
+            [
+                f"{name}: {missing}"
+                for name, missing in zip(["plddts", "coords", "tokens"], has_arrays)
+            ]
         )
+        # print(f"Missing arrays: {missing_arrays_msg}")
+        return all(has_arrays)
 
     def clone(self, **kwargs):
         return ProteinDocument(
-            kwargs.get("identifier", self.identifier),
-            kwargs.get("sequences", self.sequences),
-            kwargs.get("accessions", self.accessions),
-            kwargs.get("positions", self.positions),
-            kwargs.get("plddts", self.plddts),
-            kwargs.get("backbone_coords", self.backbone_coords),
-            kwargs.get("structure_tokens", self.structure_tokens),
+            identifier=kwargs.get("identifier", self.identifier),
+            sequences=kwargs.get("sequences", self.sequences),
+            accessions=kwargs.get("accessions", self.accessions),
+            positions=kwargs.get("positions", self.positions),
+            plddts=kwargs.get("plddts", self.plddts),
+            backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
+            structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
+            validate_shapes=kwargs.get("validate_shapes", self.validate_shapes),
         )

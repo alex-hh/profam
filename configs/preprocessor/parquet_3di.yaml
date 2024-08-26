@@ -1,3 +1,7 @@
+defaults:
+  transforms:
+    - interleave_structure_sequence
+
 _target_: src.data.preprocessing.ParquetStructureTokensPreprocessorConfig
 keep_insertions: false
 to_upper: false
@@ -7,4 +11,3 @@ structure_tokens_col: "msta_3di"
 is_aligned: false
 truncate_after_n_sequences: null
 use_msa_pos: true
-interleave_structure_tokens: true

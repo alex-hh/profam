@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -19,6 +19,7 @@ class BasePreprocessorConfig:
     document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
+    transforms: Optional[List[Callable]] = None
 
 
 @dataclass
@@ -46,7 +47,6 @@ class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
 class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
-    interleave_structure_tokens: bool = False  # when would we want false?
     is_aligned: bool = False
 
     def __post_init__(self):
@@ -78,28 +78,22 @@ def random_subsample(arr, n, seed: Optional[int] = None):
 
 
 def _tokenize_protein_data(
-    sequences: List[str],
+    proteins: ProteinDocument,
     cfg,
     tokenizer: ProFamTokenizer,
-    positions: Optional[List[List[int]]] = None,
-    coords: Optional[List[np.ndarray]] = None,
-    plddts: Optional[List[np.ndarray]] = None,
     max_tokens: Optional[int] = None,
     padding="max_length",
 ):
-    tokenized = tokenizer.encode_sequences(
-        sequences,
-        positions=positions,
+    tokenized = tokenizer.encode(
+        proteins,
         document_token=cfg.document_token,
         padding=padding,
         max_length=max_tokens,
-        coords=coords,
-        plddts=plddts,
         add_final_sep=True,
     )
     # tokenized.input_ids is flat now
     # n.b. this is after subsampling so not very informative
-    tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
+    tokenized.data["total_num_sequences"] = len(proteins)  # below length threshold
 
     return tokenized.data  # a dict
 
@@ -122,6 +116,7 @@ def subsample_and_tokenize_protein_data(
             keep_gaps=cfg.keep_gaps,
             keep_insertions=cfg.keep_insertions,
             to_upper=cfg.to_upper,
+            use_msa_pos=cfg.use_msa_pos,
             truncate_after_n_sequences=cfg.truncate_after_n_sequences,
         )
     else:
@@ -259,7 +254,7 @@ def preprocess_parquet_with_structure_tokens(
         plddts = None
 
     proteins = ProteinDocument(
-        identifier=example[cfg.identifier_col],
+        identifier="",  # TODO
         sequences=sequences,
         accessions=[f"seq{i}" for i in range(len(sequences))],  # TODO
         plddts=plddts,

@@ -223,7 +223,9 @@ def load_protein_dataset(
         dataset = dataset.map(
             wrapped_preprocess,
             batched=False,
-            remove_columns=dataset.column_names,
+            remove_columns=[
+                c for c in dataset.column_names if c != "plddts"
+            ],  # should be necessary - bug?
         ).filter(filter_example)
         # n.b. coords is returned as a list...
 

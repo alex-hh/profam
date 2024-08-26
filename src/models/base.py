@@ -643,11 +643,12 @@ class BaseFamilyLitModule(BaseLitModule):
 
         assert input_ids.ndim == 2  # b, L
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
+        assert input_seq_pos.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             forward_kwargs = (
-                {"seq_pos": input_seq_pos.expand(num_return_sequences, -1)}
+                {"seq_pos": input_seq_pos.clone().expand(num_return_sequences, -1)}
                 if self.use_seq_pos
                 else {}
             )
@@ -683,38 +684,38 @@ class BaseFamilyLitModule(BaseLitModule):
 
         return padded_outputs
 
-    def sample_seqs(
-        self,
-        sequence_prompt: List[str],
-        num_samples,
-        position_indices: Optional[List[int]] = None,
-        batch_size: int = 1,
-        include_prompt_in_output: bool = False,
-        greedy: bool = False,
-        fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
-        temperature: Optional[float] = None,
-        document_token: str = "[RAW]",
-    ):
-        # TODO: encode sequence prompt and get sequence pos if necessary.
-        tokenized = self.tokenizer.encode_sequences(
-            sequence_prompt, positions=position_indices, document_token=document_token
-        )
-        if "seq_pos" in tokenized.data:
-            seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
-        else:
-            seq_pos = None
-        encoded = self._sample_seqs(
-            tokenized.input_ids.unsqueeze(0).to(self.device),
-            num_samples,
-            input_seq_pos=seq_pos,
-            batch_size=batch_size,
-            include_prompt_in_output=include_prompt_in_output,
-            greedy=greedy,
-            fixed_length=fixed_length,
-            temperature=temperature,
-            sample_gaps=document_token == "[MSA]",
-        )
-        return self.tokenizer.decode_tokens(encoded)
+    # def sample_seqs(
+    #     self,
+    #     sequence_prompt: List[str],
+    #     num_samples,
+    #     position_indices: Optional[List[int]] = None,
+    #     batch_size: int = 1,
+    #     include_prompt_in_output: bool = False,
+    #     greedy: bool = False,
+    #     fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
+    #     temperature: Optional[float] = None,
+    #     document_token: str = "[RAW]",
+    # ):
+    # # TODO: encode sequence prompt and get sequence pos if necessary.
+    # tokenized = self.tokenizer.encode_sequences(
+    #     sequence_prompt, positions=position_indices, document_token=document_token
+    # )
+    # if "seq_pos" in tokenized.data:
+    #     seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
+    # else:
+    #     seq_pos = None
+    # encoded = self._sample_seqs(
+    #     tokenized.input_ids.unsqueeze(0).to(self.device),
+    #     num_samples,
+    #     input_seq_pos=seq_pos,
+    #     batch_size=batch_size,
+    #     include_prompt_in_output=include_prompt_in_output,
+    #     greedy=greedy,
+    #     fixed_length=fixed_length,
+    #     temperature=temperature,
+    #     sample_gaps=document_token == "[MSA]",
+    # )
+    # return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]

@@ -25,8 +25,9 @@ def tokenize_msa(
     document_token: Optional[str] = "[RAW]",
 ):
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
-    tokenized = tokenizer.encode_sequences(
-        sample["MSA"], document_token=document_token, add_final_sep=False
+    proteins = ProteinDocument(sequences=sample["MSA"])
+    tokenized = tokenizer.encode(
+        proteins.sequences, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
     if tokenizer.use_seq_pos:
