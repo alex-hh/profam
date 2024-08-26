@@ -102,9 +102,8 @@ def make_cluster_db(
 
     t1 = time.time()
     # TODO: track failures.
-    session_tracker = []
     for ix, cluster_id in enumerate(cluster_ids):
-        members = cluster_dict[cluster_id]
+        members = cluster_dict.pop(cluster_id)
         if len(members) >= minimum_foldseek_cluster_size:
 
             for member in members:
@@ -126,7 +125,6 @@ def make_cluster_db(
                     }
 
                 if entry["uniprot_id"] not in uniprot_ids_in_db:
-                    session_tracker.append(entry)
                     entry = Protein(**entry)
                     session.add(entry)
 
@@ -152,7 +150,6 @@ def make_cluster_db(
                                 }
 
                             if entry["uniprot_id"] not in uniprot_ids_in_db:
-                                session_tracker.append(entry)
                                 entry = Protein(**entry)
                                 session.add(entry)
                         except:
@@ -166,7 +163,6 @@ def make_cluster_db(
                 session.commit()
             except Exception as e:
                 print("Error committing")
-                print([e["uniprot_id"] for e in session_tracker])
                 raise e
 
     session.commit()
