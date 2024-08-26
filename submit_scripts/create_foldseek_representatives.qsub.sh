@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -l tmem=12G
 #$ -l h_vmem=12G
-#$ -l h_rt=25:55:30
+#$ -l h_rt=58:55:30
 #$ -l gpu=true
 #$ -S /bin/bash
 #$ -N foldseekF
