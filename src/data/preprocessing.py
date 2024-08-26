@@ -43,14 +43,15 @@ class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
 
 # TODO: make sure we can handle an aligned version - test
 @dataclass
-class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
+class ParquetStructureSequencePreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
-    interleave_structure_tokens: bool = False  # when would we want false?
+    interleave_structure_sequence: bool = False  # when would we want false?
+    structure_first_prob: float = 1.0
     is_aligned: bool = False
 
     def __post_init__(self):
-        self.preprocessor = "parquet_structure_tokens"
+        self.preprocessor = "parquet_structure_sequence"
 
 
 def sample_to_max_tokens(
@@ -177,7 +178,8 @@ def subsample_and_tokenize_protein_data(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
     seed: Optional[int] = None,
-    interleave_structure_tokens: bool = False,
+    interleave_structure_sequence: bool = False,
+    structure_first_prob: float = 0.5,
 ):
     if max_tokens is None:
         raise NotImplementedError("Need to implement max_tokens=None case")
@@ -208,35 +210,67 @@ def subsample_and_tokenize_protein_data(
         sequences,
         extra_arrays=extra_arrays,
         # TODO: we need to subtract the cost of the extra sep tokens also.
-        max_tokens=max_tokens // 2 if interleave_structure_tokens else max_tokens,
+        max_tokens=max_tokens // 2 if interleave_structure_sequence else max_tokens,
         shuffle=shuffle,
         seed=seed,
-        extra_tokens_per_sequence=2 if interleave_structure_tokens else 1,
+        extra_tokens_per_sequence=2 if interleave_structure_sequence else 1,
         extra_tokens_per_document=tokenizer.num_start_tokens,
     )
     positions, coords, plddts, structure_tokens = extra_arrays
-    coords_mask = [
-        np.ones_like(c) for c in coords
-    ]  # TODO: allow inputting missing coords?
 
     check_array_lengths(sequences, positions, coords, plddts, structure_tokens)
-    if interleave_structure_tokens:
-        sequences = [
-            seq_3d + tokenizer.seq_struct_sep_token + seq
-            for seq, seq_3d in zip(sequences, structure_tokens)
-        ]
-        coords = [
-            np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
-            for xyz in coords
-        ]
-        coords_mask = [
-            np.concatenate([m, np.zeros((1, 4, 3)), m], axis=0) for m in coords_mask
-        ]
-        assert isinstance(plddts[0], list)
+    if interleave_structure_sequence:
+        assert isinstance(plddts[0], list) or isinstance(plddts[0], np.ndarray)
+        coin_flip = np.random.rand()
+        if coin_flip < structure_first_prob:
+            sequences = [
+                seq_3d + tokenizer.seq_struct_sep_token + seq
+                for seq, seq_3d in zip(sequences, structure_tokens)
+            ]
+            coords = [
+                np.concatenate(
+                    [xyz, np.full((1, 4, 3), np.nan), np.full_like(xyz, np.nan)], axis=0
+                )
+                for xyz in coords
+            ]
+            coords_mask = [
+                np.concatenate(
+                    [np.ones_like(xyz), np.zeros((1, 4, 3)), np.zeros_like(xyz)], axis=0
+                )
+                for xyz in coords
+            ]
+            plddts = [
+                np.concatenate(
+                    [np.array(vals), np.full((1,), 100.0), np.full_like(vals, 100.0)]
+                )
+                for vals in plddts
+            ]
+        else:
+            sequences = [
+                seq + tokenizer.seq_struct_sep_token + seq_3d
+                for seq, seq_3d in zip(sequences, structure_tokens)
+            ]
+            coords = [
+                np.concatenate(
+                    [np.full_like(xyz, np.nan), np.full((1, 4, 3), np.nan), xyz], axis=0
+                )
+                for xyz in coords
+            ]
+            coords_mask = [
+                np.concatenate(
+                    [np.zeros_like(xyz), np.zeros((1, 4, 3)), np.ones_like(xyz)], axis=0
+                )
+                for xyz in coords
+            ]
+            plddts = [
+                np.concatenate(
+                    [np.full_like(vals, 100.0), np.full((1,), 100.0), np.array(vals)]
+                )
+                for vals in plddts
+            ]
         if tokenizer.use_seq_pos:
             assert isinstance(positions[0], list)
             positions = [pos + [0] + pos for pos in positions]
-        plddts = [vals + [100.0] + vals for vals in plddts]
 
     tokenized = _tokenize_protein_data(
         sequences,
@@ -309,9 +343,9 @@ def backbone_coords_from_example(example):
     return coords
 
 
-def preprocess_parquet_with_structure_tokens(
+def preprocess_parquet_with_structure(
     example: Dict[str, Any],
-    cfg: ParquetStructureTokensPreprocessorConfig,
+    cfg: ParquetStructureSequencePreprocessorConfig,
     tokenizer: ProFamTokenizer,
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
@@ -399,8 +433,8 @@ def get_preprocessor(preprocessor: str):
         return preprocess_fasta_data
     elif preprocessor == "parquet_sequence":
         return preprocess_parquet_sequence_data
-    elif preprocessor == "parquet_structure_tokens":
-        return preprocess_parquet_with_structure_tokens
+    elif preprocessor == "parquet_structure_sequence":
+        return preprocess_parquet_with_structure
     else:
         raise ValueError(f"Unknown preprocessor {preprocessor}")
 

@@ -1,4 +1,4 @@
-_target_: src.data.preprocessing.ParquetStructureTokensPreprocessorConfig
+_target_: src.data.preprocessing.ParquetStructureSequencePreprocessorConfig
 keep_insertions: false
 to_upper: false
 keep_gaps: false
