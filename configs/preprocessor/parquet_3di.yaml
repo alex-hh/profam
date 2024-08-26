@@ -1,7 +1,5 @@
 defaults:
-  transforms:
-    - interleave_structure_sequence
-
+  - transforms: [interleave_structure_sequence]
 _target_: src.data.preprocessing.ParquetStructureTokensPreprocessorConfig
 keep_insertions: false
 to_upper: false

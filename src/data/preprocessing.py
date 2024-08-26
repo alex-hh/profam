@@ -19,7 +19,7 @@ class BasePreprocessorConfig:
     document_token: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
-    transforms: Optional[List[Callable]] = None
+    transforms: Optional[List[Any]] = None
 
 
 @dataclass
@@ -289,7 +289,7 @@ def preprocess_parquet_sequence_data(
         sequences = sequence_iterator[:max_sequences_to_preprocess]
 
     proteins = ProteinDocument(
-        identifier=example[cfg.identifier_col],
+        identifier="",  # TODO
         sequences=sequences,
         accessions=[f"seq{i}" for i in range(len(sequences))],  # TODO
     )

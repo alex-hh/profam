@@ -1,4 +1,4 @@
-_target_: src.data.transforms.instantiate_transform
-transform_fn: interleave_structure_sequence
+# _target_: src.data.transforms.instantiate_transform
+transform_fn: "interleave_structure_sequence"
 max_tokens: ${data.max_tokens}
 structure_first_prob: 1.0

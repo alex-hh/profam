@@ -148,7 +148,7 @@ def interleave_structure_sequence(
 
 
 def apply_transforms(transforms, proteins, tokenizer):
-    for transform in transforms:
+    for transform in transforms or []:
         proteins = transform(proteins, tokenizer=tokenizer)
     return proteins
 
