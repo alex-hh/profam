@@ -594,6 +594,7 @@ class BaseFamilyLitModule(BaseLitModule):
         greedy: bool = False,
         temperature: Optional[float] = None,
         sample_gaps: bool = False,
+        structure_tokens: bool = False,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -621,6 +622,10 @@ class BaseFamilyLitModule(BaseLitModule):
         bad_aas = ["X"]
         if not sample_gaps:
             bad_aas.append("-")
+        if structure_tokens:
+            bad_aas = bad_aas + aa_letters
+        else:
+            bad_aas = bad_aas + [aa.lower() for aa in aa_letters]
 
         # each 'word' is treated as a list of tokens
         generation_kwargs["bad_words_ids"] = [
