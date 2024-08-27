@@ -46,6 +46,8 @@ class CustomDataCollator:
         self.ignore_gaps = ignore_gaps
 
     def __call__(self, examples):
+        # TODO: maybe I have an issue with blending data with different keys?
+        # need to handle either in collator or by standardising in tokenizer.
         non_string_data = [
             {k: v for k, v in e.items() if not isinstance(v, str)} for e in examples
         ]
@@ -53,7 +55,13 @@ class CustomDataCollator:
             {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
         ]
         string_data_keys = set(k for obs in string_data for k in obs.keys())
-        batch = self.base_collator(non_string_data)
+        try:
+            batch = self.base_collator(non_string_data)
+        except Exception as e:
+            print("Error in collator")
+            print(string_data)
+            # print(non_string_data)
+            raise e
         if self.ignore_gaps:
             batch["labels"][
                 batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")
