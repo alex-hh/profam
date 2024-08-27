@@ -240,14 +240,19 @@ def load_protein_dataset(
         return example
 
     if cfg.preprocessor is not None:
-        dataset = dataset.map(
-            wrapped_preprocess,
-            batched=False,
-            remove_columns=[
+        if dataset.column_names is not None:
+            # Q: what causes None? maybe loading text rather than parquet
+            remove_columns = [
                 c
                 for c in dataset.column_names
                 if c not in (cfg.preprocessor.keep_columns or [])
-            ],  # shouldnt be necessary but is for plddts - bug?
+            ]  # shouldnt be necessary but is for plddts - bug?
+        else:
+            remove_columns = None
+        dataset = dataset.map(
+            wrapped_preprocess,
+            batched=False,
+            remove_columns=remove_columns,
         ).filter(filter_example)
         # n.b. coords is returned as a list...
 
