@@ -28,7 +28,7 @@ def tokenize_msa(
     proteins = ProteinDocument(sequences=sample["MSA"])
     tokenized = tokenizer.encode(
         proteins, document_token=document_token, add_final_sep=False
-    )  # sep gets added in completion bos
+    )  # sep gets added in completion bos. TODO: more natural to add here.
     sample["input_ids"] = tokenized.input_ids.squeeze()
     if tokenizer.use_seq_pos:
         sample["seq_pos"] = tokenized.data["seq_pos"]

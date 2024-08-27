@@ -49,6 +49,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         self.diffusion = diffusion
         self.diffusion_loss_weight = diffusion_loss_weight
         self.diffusion_loss_prob = diffusion_loss_prob
+        self.diffusion_head = nn.Linear(model.config.hidden_size, len(atom_names) * 3)
         self.schedule_sampler = UniformSampler(diffusion)
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
@@ -162,6 +163,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
             assert input_seq_pos.shape == input_ids.shape
         assert input_coords.shape[:2] == input_ids.shape
         input_L = input_ids.shape[-1]
+        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         all_outputs = []
         if self.use_seq_pos:
             assert input_seq_pos is not None
@@ -173,6 +175,18 @@ class ProFusionLitModule(BaseFamilyLitModule):
         token_id_for_completion = (
             token_id_for_completion or self.tokenizer.mask_token_id
         )
+        completions = self.tokenizer.encode_completions(
+            ["[MASK]" * length], bos_token="", eos_token=""
+        )
+        if completion_seq_pos is None:
+            completion_seq_pos = completions["seq_pos"]
+            completion_ids = completions["input_ids"]
+            assert completion_ids.shape == completion_seq_pos.shape
+            assert completion_ids.shape[-1] == length
+            assert (completion_ids == self.tokenizer.mask_token_id).all()
+        else:
+            raise NotImplementedError("completion seq pos must be None currently")
+
         for batch_start in range(0, num_samples, batch_size):
             num_samples_this_iter = min(batch_size, num_samples - batch_start)
             coords_shape = (
@@ -180,10 +194,6 @@ class ProFusionLitModule(BaseFamilyLitModule):
                 length,
                 self.num_atoms,
                 3,
-            )
-            # TODO: figure out the appropriate extension of input_seq_pos
-            assert (
-                completion_seq_pos is not None and completion_seq_pos.shape[1] == length
             )
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
             cache.batch_repeat_interleave(num_samples_this_iter)
@@ -197,12 +207,8 @@ class ProFusionLitModule(BaseFamilyLitModule):
                     num_samples_this_iter, length
                 )  # already scaled
                 outputs = self.model(
-                    coords=torch.cat(x, dim=1),
-                    input_ids=torch.full(
-                        (num_samples_this_iter, length),
-                        token_id_for_completion,
-                        device=self.device,
-                    ).long(),
+                    coords=x,
+                    input_ids=completion_ids,
                     timestep=timestep,
                     output_hidden_states=True,
                     seq_pos=completion_seq_pos,
@@ -211,7 +217,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
                     **kwargs,
                 )
                 emb = outputs.hidden_states[-1]
-                eps = self.diffusion_head(emb)
+                eps = self.diffusion_head(emb).view(-1, length, self.num_atoms, 3)
                 return eps
 
             all_outputs.append(

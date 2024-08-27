@@ -134,7 +134,6 @@ def convert_sequence_with_positions(
 def fasta_generator(
     filepath,
     encoding=None,
-    return_dict=False,
     keep_insertions=True,
     keep_gaps=True,
     to_upper=False,
@@ -150,7 +149,6 @@ def fasta_generator(
 def read_fasta(
     filepath,
     return_dict=False,
-    encoding=None,
     keep_insertions=True,
     keep_gaps=True,
     to_upper=False,
