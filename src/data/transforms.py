@@ -82,6 +82,16 @@ def sample_to_max_tokens(
     return proteins
 
 
+def fill_missing_fields(proteins: ProteinDocument):
+    if not proteins.has_all_structure_arrays:
+        proteins = proteins.fill_missing_structure_arrays(
+            coords_fill=np.nan,
+            plddts_fill=100.0,
+            tokens_fill="[MASK]",
+        )
+    return proteins
+
+
 def interleave_structure_sequence(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,

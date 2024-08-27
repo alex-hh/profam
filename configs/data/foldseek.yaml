@@ -12,6 +12,8 @@ data_weights:
 dataset_cfgs:
   foldseek:
     data_path_pattern: foldseek_struct/*.parquet
+    preprocessor:
+      return_all_fields: true
   foldseek_val:
     name: foldseek_val
     data_path_pattern: foldseek_struct/0.parquet

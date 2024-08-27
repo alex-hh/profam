@@ -55,7 +55,13 @@ class CustomDataCollator:
             {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
         ]
         string_data_keys = set(k for obs in string_data for k in obs.keys())
-        batch = self.base_collator(non_string_data)
+        try:
+            batch = self.base_collator(non_string_data)
+        except Exception as e:
+            print("Error in collator")
+            print(string_data)
+            # print(non_string_data)
+            raise e
         if self.ignore_gaps:
             batch["labels"][
                 batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")

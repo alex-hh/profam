@@ -134,6 +134,20 @@ class ProteinDocument:
         # print(f"Missing arrays: {missing_arrays_msg}")
         return all(has_arrays)
 
+    def fill_missing_structure_arrays(
+        self, coords_fill=np.nan, plddts_fill=np.nan, tokens_fill="[MASK]"
+    ):
+        assert isinstance(tokens_fill, str)
+        return self.clone(
+            plddts=self.plddts
+            or [np.full(len(seq), plddts_fill) for seq in self.sequences],
+            backbone_coords=self.backbone_coords
+            or [np.full((len(seq), 4, 3), coords_fill) for seq in self.sequences],
+            structure_tokens=self.structure_tokens
+            or [tokens_fill * len(seq) for seq in self.sequences],
+            validate_shapes=False,  # because of mask in strs -- TODO: figure out how to deal with this
+        )
+
     def clone(self, **kwargs):
         return ProteinDocument(
             identifier=kwargs.get("identifier", self.identifier),

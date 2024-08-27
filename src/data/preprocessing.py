@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -24,6 +24,9 @@ class BasePreprocessorConfig:
         List[Any]
     ] = None  # making callable raises an omegaconf validationerror: unsupported value type 'callable'
     keep_columns: Optional[List[str]] = None
+    return_all_fields: bool = (
+        False  # if true return default values for coords etc if not being used
+    )
 
 
 @dataclass
@@ -118,6 +121,8 @@ def subsample_and_tokenize_protein_data(
         shuffle=shuffle,
         seed=seed,
     )
+    if cfg.return_all_fields:
+        proteins = transforms.fill_missing_fields(proteins)
     proteins = transforms.apply_transforms(cfg.transforms, proteins, tokenizer)
 
     tokenized = _tokenize_protein_data(
