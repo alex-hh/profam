@@ -1,10 +1,13 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
+import biotite.structure.io as strucio
 import numpy as np
+from biotite import structure as struc
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residue_starts, get_residues
 
+from src.constants import BACKBONE_ATOMS
 from src.data.fasta import read_fasta_lines
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 
@@ -27,8 +30,27 @@ class Protein:
                 np.ones_like(self.backbone_coords),
             )
 
-    def to_pdb():
-        raise NotImplementedError()
+    def to_pdb(self, pdb_file):
+        atoms = []
+        # TODO: consider saving position information
+        for res_ix, (aa, res_coords) in enumerate(
+            zip(self.sequence, self.backbone_coords)
+        ):
+            res_name = ProteinSequence.convert_letter_1to3(aa)
+            for atom_ix, atom_name in enumerate(BACKBONE_ATOMS):
+                atom = struc.Atom(
+                    coord=res_coords[atom_ix],
+                    chain_id="A",
+                    res_id=res_ix + 1,
+                    res_name=res_name,
+                    hetero=False,
+                    atom_name=atom_name,
+                    element=atom_name[0],
+                    b_factor=self.plddt[res_ix] if self.plddt is not None else None,
+                )
+                atoms.append(atom)
+        arr = struc.array(atoms)
+        strucio.save_structure(pdb_file, arr)
 
     @classmethod
     def from_pdb(cls, pdb_file, plddt_from_bfactor: bool = False, chain="A"):
@@ -52,6 +74,19 @@ class Protein:
             backbone_coords=coords,
             plddts=plddts,  # TODO: check this is an array
         )
+
+    def __eq__(self, other):
+        fields = [
+            "sequence",
+            "accession",
+            "positions",
+            "plddt",
+            "backbone_coords",
+            "backbone_coords_mask",
+            "structure_tokens",
+        ]
+        matches = [getattr(self, f) == getattr(other, f) for f in fields]
+        return all(matches)
 
 
 def check_array_lengths(*arrays):  # TODO: name better!
