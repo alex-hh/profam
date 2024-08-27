@@ -1,7 +1,7 @@
 #!/bin/bash
-#$ -l tmem=15G
-#$ -l h_vmem=15G
-#$ -l h_rt=35:55:30
+#$ -l tmem=10G
+#$ -l h_vmem=10G
+#$ -l h_rt=38:55:30
 #$ -S /bin/bash
 #$ -t 1-1800  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100
 #$ -N foldseekF
