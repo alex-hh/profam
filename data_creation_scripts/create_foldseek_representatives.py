@@ -264,6 +264,7 @@ def create_foldseek_parquets(
     use_af50_representatives=False,
     parquet_ids=None,
     num_processes=None,
+    force_rerun=False,
 ):
     if parquet_ids is None:
         if use_af50_representatives:
@@ -274,26 +275,29 @@ def create_foldseek_parquets(
 
     af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     for parquet_id in parquet_ids:
-        print("Processing parquet id", parquet_id, flush=True)
-        pdb_lookup, cluster_ids = make_job_list(
-            parquet_id,
-            cluster_path=af50_path if use_af50_representatives else cluster_path,
-            use_af50_representatives=use_af50_representatives,
-            zip_index_file=os.path.join(scratch_dir, "zip_index"),
-            cluster_ids_file=os.path.join(save_dir, "cluser_ids.txt"),
-        )
-        extract_pdbs_for_parquet(
-            pdb_lookup=pdb_lookup,
-            scratch_dir=scratch_dir,
-            parquet_id=parquet_id,
-            num_processes=num_processes,
-        )
-        save_pdbs_to_parquet(
-            save_dir=save_dir,
-            scratch_dir=scratch_dir,
-            clusters_to_save=cluster_ids,
-            parquet_id=parquet_id,
-        )
+        if force_rerun or not os.path.isfile(os.path.join(save_dir, f"{parquet_id}.parquet")):
+            print("Processing parquet id", parquet_id, flush=True)
+            pdb_lookup, cluster_ids = make_job_list(
+                parquet_id,
+                cluster_path=af50_path if use_af50_representatives else cluster_path,
+                use_af50_representatives=use_af50_representatives,
+                zip_index_file=os.path.join(scratch_dir, "zip_index"),
+                cluster_ids_file=os.path.join(save_dir, "cluser_ids.txt"),
+            )
+            extract_pdbs_for_parquet(
+                pdb_lookup=pdb_lookup,
+                scratch_dir=scratch_dir,
+                parquet_id=parquet_id,
+                num_processes=num_processes,
+            )
+            save_pdbs_to_parquet(
+                save_dir=save_dir,
+                scratch_dir=scratch_dir,
+                clusters_to_save=cluster_ids,
+                parquet_id=parquet_id,
+            )
+        else:
+            print(f"Parquet {parquet_id} already exists", flush=True)
 
 
 if __name__ == "__main__":
@@ -303,6 +307,7 @@ if __name__ == "__main__":
     parser.add_argument("--af50", action="store_true")
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--num_processes", type=int, default=None)
+    parser.add_argument("--force_rerun", action="store_true")
     args = parser.parse_args()
 
     if args.af50:
