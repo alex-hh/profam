@@ -40,19 +40,31 @@ class CustomDataCollator:
     tensors with seq_len dimension, eg. dataset names
     """
 
-    def __init__(self, tokenizer, mlm=False, ignore_gaps: bool = False):
+    def __init__(
+        self,
+        tokenizer,
+        mlm=False,
+        ignore_gaps: bool = False,
+        feature_names: Optional[List[str]] = None,
+    ):
         self.tokenizer = tokenizer
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
         self.ignore_gaps = ignore_gaps
+        self.feature_names = feature_names
 
     def __call__(self, examples):
         # TODO: maybe I have an issue with blending data with different keys?
         # need to handle either in collator or by standardising in tokenizer.
+        def keep_feature(feature_name):
+            return self.feature_names is None or feature_name in self.feature_names
+
         non_string_data = [
-            {k: v for k, v in e.items() if not isinstance(v, str)} for e in examples
+            {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
+            for e in examples
         ]
         string_data = [
-            {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
+            {k: v for k, v in e.items() if isinstance(v, str) and keep_feature(k)}
+            for e in examples
         ]
         string_data_keys = set(k for obs in string_data for k in obs.keys())
         try:
