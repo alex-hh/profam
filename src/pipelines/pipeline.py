@@ -3,11 +3,12 @@ import shutil
 from collections import defaultdict
 from typing import Dict, List
 
+import numpy as np
 import pandas as pd
 
 from src import constants
 from src.data import fasta
-from src.data.objects import ProteinDocument
+from src.data.objects import Protein, ProteinDocument
 from src.evaluators.base import SamplingEvaluator
 from src.utils.utils import maybe_print
 
@@ -182,29 +183,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             metrics["evaluator"] = evaluator.name
             self.add_result(evaluator.name, instance_id, sampler_name, metrics)
 
-    def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
-        if self.save_to_file:
-            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
-            os.makedirs(outputs_dir, exist_ok=True)
-            fasta.output_fasta(
-                [f"seq{i}" for i in range(len(sequences))],
-                sequences,
-                os.path.join(outputs_dir, "sequences.fa"),
-            )
-        else:
-            self.generations[model_name][instance_id] = sequences
-
-    def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
-        if self.save_to_file:
-            outputs_dir = os.path.join(
-                self.pipeline_directory, instance_id, sampler_name
-            )
-            fasta_file = os.path.join(outputs_dir, "sequences.fa")
-            _, sequences = fasta.read_fasta(fasta_file)
-            return sequences
-        else:
-            sequences = self.generations[sampler_name][instance_id]
-            return sequences
+    def get_evaluation_kwargs(self, instance_id: str, model_name: str) -> Dict:
+        return {}
 
     def run(
         self,
@@ -229,14 +209,14 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
-                generated_sequences = evaluator.run_sampling(
+                generations = evaluator.run_sampling(
                     sampler,
                     protein_document,
                     self.num_generations,
                 )
-                self.save_generations(instance_id, sampler.name, generated_sequences)
+                self.save_generations(instance_id, sampler.name, generations)
             else:
-                generated_sequences = self.load_generations(instance_id, sampler.name)
+                generations = self.load_generations(instance_id, sampler.name)
 
             if not sampling_only:
                 try:
@@ -246,6 +226,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                         evaluator=evaluator,
                         protein_document=protein_document,
                         rerun_evaluator=rerun_evaluator,
+                        **self.get_evaluation_kwargs(instance_id, sampler.name),
                     )
                 except Exception as e:
                     print("Failed to run validation on instance", instance_id)
@@ -266,3 +247,70 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
         self.save_results()
         return combo_results
+
+
+class SequenceGenerationsPipeline(GenerationsEvaluatorPipeline):
+    def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
+        if self.save_to_file:
+            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+            os.makedirs(outputs_dir, exist_ok=True)
+            fasta.output_fasta(
+                [f"seq{i}" for i in range(len(sequences))],
+                sequences,
+                os.path.join(outputs_dir, "sequences.fa"),
+            )
+        else:
+            self.generations[model_name][instance_id] = sequences
+
+    def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
+        if self.save_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, instance_id, sampler_name
+            )
+            fasta_file = os.path.join(outputs_dir, "sequences.fa")
+            _, sequences = fasta.read_fasta(fasta_file)
+            return sequences
+        else:
+            sequences = self.generations[sampler_name][instance_id]
+            return sequences
+
+
+class StructureGenerationsPipeline(GenerationsEvaluatorPipeline):
+    # TODO: maybe this should be same as a joint generations pipeline.
+    def get_evaluation_kwargs(self, instance_id: str, model_name: str) -> Dict:
+        return {"pdb_files": self.pdb_file_list(instance_id, model_name)}
+
+    def pdb_file_list(self, instance_id, model_name: str):
+        outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+        return [
+            os.path.join(outputs_dir, f"sample{i}.pdb")
+            for i in range(self.num_generations)
+        ]
+
+    def save_generations(self, instance_id, model_name, coords: torch.Tensor) -> None:
+        assert coords.shape[0] == self.num_generations
+        if self.save_to_file:
+            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+            os.makedirs(outputs_dir, exist_ok=True)
+            for i in range(self.num_generations):
+                protein_coords = coords[i]
+                protein = Protein(
+                    sequence="A" * protein_coords.shape[0],
+                    backbone_coords=protein_coords,
+                )
+                protein.to_pdb(os.path.join(outputs_dir, f"sample{i}.pdb"))
+
+        else:
+            self.generations[model_name][
+                instance_id
+            ] = coords.cpu().numpy()  # maybe do this conversion earlier
+
+    def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
+        if self.save_to_file:
+            all_coords = []
+            for pdb_file in self.pdb_file_list(instance_id, sampler_name):
+                protein = Protein.from_pdb(pdb_file)
+                all_coords.append(protein.backbone_coords)
+            return np.stack(all_coords)
+        else:
+            return self.generations[sampler_name][instance_id]
