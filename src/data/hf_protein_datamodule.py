@@ -17,6 +17,15 @@ from src.data.utils import (
 )
 from src.utils.tokenizers import ProFamTokenizer
 
+DEFAULT_FEATURE_NAMES = [
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "ds_name",
+    "seq_pos",
+    "identifier",
+]
+
 
 class ProteinDataModule(LightningDataModule):
     def __init__(
@@ -39,6 +48,7 @@ class ProteinDataModule(LightningDataModule):
         evaluate_ec_cluster_class: bool = True,
         shuffle: bool = True,
         ignore_gaps: bool = False,
+        feature_names: Optional[List[str]] = None,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -59,8 +69,12 @@ class ProteinDataModule(LightningDataModule):
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer = tokenizer
         self.use_filtered_gym_msas = use_filtered_gym_msas
+        self.feature_names = feature_names or DEFAULT_FEATURE_NAMES
         self.collator = CustomDataCollator(
-            self.tokenizer, mlm=False, ignore_gaps=ignore_gaps
+            self.tokenizer,
+            mlm=False,
+            ignore_gaps=ignore_gaps,
+            feature_names=self.feature_names,
         )
         self._is_setup = False
 

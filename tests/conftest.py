@@ -102,6 +102,7 @@ def parquet_3di_processor():
         use_msa_pos=False,
         is_aligned=False,
         transforms=[partial(transforms.interleave_structure_sequence, max_tokens=2048)],
+        keep_columns=["plddts"],
     )
 
 
@@ -135,6 +136,7 @@ def foldseek_interleaved_structure_sequence_batch(
         transforms=[
             partial(transforms.interleave_structure_sequence, max_tokens=max_tokens)
         ],
+        keep_columns=["plddts"],
     )
     cfg = ProteinDatasetConfig(
         name="foldseek",
