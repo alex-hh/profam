@@ -9,7 +9,7 @@ import glob
 import logging
 import os
 import subprocess
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -158,7 +158,7 @@ class SelfConsistencyPDBEvaluator:
 
     def run_self_consistency_multi(
         self,
-        pdb_dir: str,
+        pdbs: List[str],
         output_dir: str,
         motif_mask: Optional[np.ndarray] = None,
     ):
@@ -166,9 +166,9 @@ class SelfConsistencyPDBEvaluator:
 
         self.seq_per_sample sequences per PDB are saved in a PDB-specific fasta.
         """
-        pdb_dir = os.path.abspath(pdb_dir)
-        pdbs = glob.glob(os.path.join(pdb_dir, "*.pdb"))
-        output_path = os.path.join(pdb_dir, "parsed_pdbs.jsonl")
+        pdb_dir = os.path.dirname(pdbs[0])
+        assert all([os.path.dirname(pdb) == pdb_dir for pdb in pdbs])
+        output_path = os.path.join(output_dir, "parsed_pdbs.jsonl")
 
         if not os.path.isdir(os.path.join(output_dir, "seqs")):
             process = subprocess.Popen(
