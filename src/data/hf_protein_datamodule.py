@@ -84,6 +84,10 @@ class ProteinDataModule(LightningDataModule):
                     # https://huggingface.co/docs/datasets/about_mapstyle_vs_iterable
                     # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                     # https://github.com/huggingface/datasets/pull/5735
+                    print(
+                        f"Dataset {data_key} keys in example batch",
+                        list(next(iter(dataset)).keys()),
+                    )
                     train_datasets.append(dataset)
                     train_data_weights.append(self.data_weights[data_key])
                     train_dataset_names.append(data_key)

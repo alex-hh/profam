@@ -14,6 +14,7 @@ dataset_cfgs:
     data_path_pattern: foldseek_struct/*.parquet
     preprocessor:
       return_all_fields: true
+      keep_columns: ["plddts"]  # very awkward that this is required...any way to remedy? rename plddts feature?
   foldseek_val:
     name: foldseek_val
     data_path_pattern: foldseek_struct/0.parquet
