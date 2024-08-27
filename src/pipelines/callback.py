@@ -27,6 +27,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         self.evaluator = evaluator
         self.sampling_kwargs = sampling_kwargs or {}
         self.preprocessor = preprocessor
+        assert self.preprocessor is not None
         self.max_tokens = max_tokens
         self.seed = seed
 

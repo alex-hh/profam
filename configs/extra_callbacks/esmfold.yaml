@@ -13,3 +13,4 @@ pipeline:
   evaluation_parquet: null
   evaluation_accessions_file: null
   max_instances: 50
+seed: 42  # for prompt builder
