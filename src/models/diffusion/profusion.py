@@ -1,8 +1,9 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from torch import nn
 
+from src.constants import BACKBONE_ATOMS
 from src.models.diffusion.gaussian_diffusion import GaussianDiffusion
 from src.models.diffusion.resample import UniformSampler
 from src.models.diffusion.wrapper import WrappedHFProFusionModel
@@ -33,7 +34,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         use_kv_cache_for_scoring: bool = True,
         diffusion_loss_weight: float = 1.0,
         diffusion_loss_prob: float = 1.0,
-        num_atoms: int = 1,
+        atom_names: List[str] = ["N", "CA", "C", "O"],  # which backbone atoms to model
     ):
         super().__init__(
             model,
@@ -55,7 +56,25 @@ class ProFusionLitModule(BaseFamilyLitModule):
         self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
-        self.num_atoms = num_atoms
+        self.atom_names = atom_names
+
+    @property
+    def num_atoms(self):
+        return len(self.atom_names)
+
+    def get_coords(self, all_coords):
+        return all_coords[..., [BACKBONE_ATOMS.index(a) for a in self.atom_names], :]
+
+    def build_coords(self, coords):
+        # fills in missing atoms with nans
+        assert coords.ndim == 4
+        all_coords = torch.full(
+            (coords.shape[0], coords.shape[1], len(BACKBONE_ATOMS), 3),
+        )
+        for i, atom_name in enumerate(self.atom_names):
+            idx = BACKBONE_ATOMS.index(atom_name)
+            all_coords[:, :, idx, :] = coords[:, :, i, :]
+        return all_coords
 
     def get_forward_kwargs(self, batch, is_train: bool = False):
         forward_kwargs = (
@@ -206,14 +225,14 @@ class ProFusionLitModule(BaseFamilyLitModule):
                     cond_fn=cond_fn,
                 )
             )
-        return torch.cat(all_outputs, dim=0)
+        return self.build_coords(torch.cat(all_outputs, dim=0))
 
-    def _sample_coords(
+    def _sample_coords_no_cache(
         self,
         input_ids,
         num_samples,
         input_coords,
-        length: int,  # to generate
+        length: int,
         batch_size: int = 1,
         input_seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
@@ -223,9 +242,6 @@ class ProFusionLitModule(BaseFamilyLitModule):
         cond_fn=None,
         token_id_for_completion=None,
     ):
-        """N.B. whereas autoregressive sampling extends the sequence by a variable amount,
-        Profusion sampling requires a pre-specified length.
-        """
         assert input_ids.shape[0] == 1 and input_ids.ndim == 2
         if input_seq_pos is not None:
             assert input_seq_pos.shape == input_ids.shape
@@ -298,7 +314,57 @@ class ProFusionLitModule(BaseFamilyLitModule):
                     cond_fn=cond_fn,
                 )
             )
-        return torch.cat(all_outputs, dim=0)
+        return self.build_coords(torch.cat(all_outputs, dim=0))
+
+    def _sample_coords(
+        self,
+        input_ids,
+        num_samples,
+        input_coords,
+        length: int,  # to generate
+        batch_size: int = 1,
+        input_seq_pos: Optional[torch.LongTensor] = None,
+        completion_seq_pos: Optional[torch.LongTensor] = None,
+        noise: Optional[torch.Tensor] = None,
+        clip_denoised: bool = True,
+        denoised_fn=None,
+        cond_fn=None,
+        token_id_for_completion=None,
+        use_cache: bool = True,
+    ):
+        """N.B. whereas autoregressive sampling extends the sequence by a variable amount,
+        Profusion sampling requires a pre-specified length.
+        """
+        if use_cache:
+            return self._sample_coords_kv_cache(
+                input_ids,
+                num_samples,
+                input_coords,
+                length,
+                batch_size=batch_size,
+                input_seq_pos=input_seq_pos,
+                completion_seq_pos=completion_seq_pos,
+                noise=noise,
+                clip_denoised=clip_denoised,
+                denoised_fn=denoised_fn,
+                cond_fn=cond_fn,
+                token_id_for_completion=token_id_for_completion,
+            )
+        else:
+            return self._sample_coords_no_cache(
+                input_ids,
+                num_samples,
+                input_coords,
+                length,
+                batch_size=batch_size,
+                input_seq_pos=input_seq_pos,
+                completion_seq_pos=completion_seq_pos,
+                noise=noise,
+                clip_denoised=clip_denoised,
+                denoised_fn=denoised_fn,
+                cond_fn=cond_fn,
+                token_id_for_completion=token_id_for_completion,
+            )
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int

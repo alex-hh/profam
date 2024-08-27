@@ -27,3 +27,6 @@ aa_letters = [
     "W",
     "Y",
 ]
+
+
+BACKBONE_ATOMS = ["N", "CA", "C", "O"]
