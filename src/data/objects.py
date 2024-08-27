@@ -66,26 +66,34 @@ class Protein:
             [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
         )
         if plddt_from_bfactor:
-            plddts = structure.b_factor[get_residue_starts(structure)]
+            plddt = structure.b_factor[get_residue_starts(structure)]
         else:
-            plddts = None
+            plddt = None
         return cls(
             sequence=seq,
             backbone_coords=coords,
-            plddts=plddts,  # TODO: check this is an array
+            plddt=plddt,  # TODO: check this is an array
         )
 
     def __eq__(self, other):
-        fields = [
+        eq_fields = [
             "sequence",
             "accession",
             "positions",
+            "structure_tokens",
+        ]
+        matches = [getattr(self, f) == getattr(other, f) for f in eq_fields]
+        arr_fiels = [
             "plddt",
             "backbone_coords",
             "backbone_coords_mask",
-            "structure_tokens",
         ]
-        matches = [getattr(self, f) == getattr(other, f) for f in fields]
+        for f in arr_fiels:
+            if getattr(self, f) is not None:
+                # tolerance corresponds to default precision in pdb file
+                matches.append(
+                    np.allclose(getattr(self, f), getattr(other, f), atol=1e-2)
+                )
         return all(matches)
 
 
