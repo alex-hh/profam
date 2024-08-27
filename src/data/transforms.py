@@ -3,6 +3,7 @@ import itertools
 from typing import Optional
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
@@ -171,6 +172,25 @@ def interleave_structure_sequence(
         structure_tokens=None,
         validate_shapes=False,  # a hack because of special token in interleaved sequences
     )
+
+
+def rotate_backbones(proteins: ProteinDocument, **kwargs):
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        rotation = R.random().as_matrix()
+        new_coords.append(rotation.apply(coords.reshpae(-1, 3)).reshape(-1, 4, 3))
+    return proteins.clone(backbone_coords=new_coords)
+
+
+def centre_backbones(proteins: ProteinDocument, **kwargs):
+    """Centres the coordinates, so that the centroid (average position) of the Ca atoms is at the origin."""
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        centroid = np.mean(coords[:, 1, :], axis=0)
+        new_coords.append(coords - centroid)
+    return proteins.clone(backbone_coords=new_coords)
 
 
 def apply_transforms(transforms, proteins, tokenizer):
