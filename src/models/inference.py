@@ -51,6 +51,9 @@ class ProFamSampler:
         self.prompt_builder = prompt_builder
         self.sampling_kwargs = sampling_kwargs
 
+    def to(self, device):
+        self.model.to(device)
+
     def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
         prompt = self.prompt_builder(protein_document, self.model.tokenizer)
         with torch.no_grad():  # prob unnecessary
