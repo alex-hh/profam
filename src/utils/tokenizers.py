@@ -1,3 +1,4 @@
+import math
 from typing import List, Optional
 
 import numpy as np
@@ -228,6 +229,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         tokenized.data["aa_mask"] = torch.isin(
             tokenized.input_ids, torch.tensor(self.aa_tokens)
         )
+        # is_interleaved = tokenized.data["aa_mask"].sum() < math.ceil(tokenized.input_ids.shape[0])/2
+        # another check could be whether ew have structure tokens as a separate array
+        is_interleaved = (tokenized.input_ids == self.seq_struct_sep_token_id).sum() > 0
         if proteins.plddts is not None:
             tokenized.data["plddts"] = torch.from_numpy(
                 concatenate_pad_array(
@@ -242,12 +246,17 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
             if self.mask_below_plddt is not None:
-                # only mask structure tokens
-                plddt_mask = (tokenized.data["plddts"] < self.mask_below_plddt) & ~(
-                    tokenized.data["aa_mask"]
-                )
+                # we therefore need a check for interleaving
+                if is_interleaved:
+                    # only mask structure tokens, not aas. coords should already be nan at aa tokens if interleaving
+                    plddt_mask = (tokenized.data["plddts"] < self.mask_below_plddt) & ~(
+                        tokenized.data["aa_mask"]
+                    )
+                    tokenized.data["input_ids"][plddt_mask] = self.mask_token_id
+                else:
+                    # in this case input ids correspond to aas everywhere, we assume currently.
+                    plddt_mask = tokenized.data["plddts"] < self.mask_below_plddt
                 tokenized.data["plddt_mask"] = plddt_mask
-                tokenized.data["input_ids"][plddt_mask] = self.mask_token_id
                 tokenized.data["coords"][plddt_mask] = np.nan
                 tokenized.data["coords_mask"][plddt_mask] = 0.0
 

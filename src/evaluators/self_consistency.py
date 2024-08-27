@@ -16,7 +16,7 @@ class SelfConsistencyEvaluator(SamplingEvaluator):
         sampling_temp: float = 0.1,
         calc_tm_score: bool = True,
         calc_rmsd: bool = True,
-        evaluate_native_seq: bool = False
+        evaluate_native_seq: bool = False,
     ):
         super().__init__(name, seed=seed, num_samples=num_samples)
         # this runs over saved pdb files containing designs
@@ -27,7 +27,7 @@ class SelfConsistencyEvaluator(SamplingEvaluator):
             sampling_temp=sampling_temp,
             calc_tm_score=calc_tm_score,
             calc_rmsd=calc_rmsd,
-            evaluate_native_seq=evaluate_native_seq
+            evaluate_native_seq=evaluate_native_seq,
         )
 
     def _evaluate_samples(
