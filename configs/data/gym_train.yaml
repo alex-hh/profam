@@ -23,4 +23,4 @@ evaluate_gym: True
 val_dataset_names:
   - gym_val
 num_workers: null # None means use all available CPU cores
-gym_data_dir: ${.data_dir}/ProteinGym
+gym_data_dir: ProteinGym
