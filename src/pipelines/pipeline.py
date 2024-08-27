@@ -46,12 +46,8 @@ class BaseEvaluatorPipeline:
         if self.save_to_file and os.path.exists(results_path):
             self.results_df = pd.read_csv(results_path)
         else:
-            self.results_df = pd.DataFrame(
-                columns=["evaluator", "sampler", "instance"]
-            )
-        self.results_df.set_index(
-            ["evaluator", "sampler", "instance"], inplace=True
-        )
+            self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
+        self.results_df.set_index(["evaluator", "sampler", "instance"], inplace=True)
 
     def has_result(self, validation_id: str, instance_id: str, model_id: str) -> bool:
         """Check if validation, instance, model combo is present in results df index."""
@@ -73,9 +69,7 @@ class BaseEvaluatorPipeline:
         self.results_df = pd.concat(
             [
                 self.results_df,
-                pd.DataFrame([result]).set_index(
-                    ["evaluator", "sampler", "instance"]
-                ),
+                pd.DataFrame([result]).set_index(["evaluator", "sampler", "instance"]),
             ]
         )
 
