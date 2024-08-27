@@ -18,6 +18,10 @@ class ProFusionLitModule(BaseFamilyLitModule):
     outputs of the same forward pass.
 
     x0 as diffusion targets; xt as diffusion inputs (fed to inputs_embeds).
+
+    n.b. we might want, alphafold style, to use a different network to actually
+    run diffusion, conditioned on some input embeddings (which would then need
+    to exclude any noisy coordinates), but include any fixed coordinates.
     """
 
     def __init__(
@@ -380,6 +384,14 @@ class ProFusionLitModule(BaseFamilyLitModule):
 
         We could explicitly mask such positions in the diffusion loss: this
         would probably be a sensible idea: we need a coordinates mask anyway.
+
+        AF3:
+        We apply a weighted aligned MSE loss to the denoised structure output from the Diffusion
+        Module. We first perform a rigid alignment of the ground truth to the denoised structure
+
+        then compute a weighted mse.
+
+        they also compute a bond loss, which is mse on bond lengths, and an lddt loss.
         """
         forward_kwargs = self.get_forward_kwargs(batch, is_train=True)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?

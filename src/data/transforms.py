@@ -194,11 +194,13 @@ def rotate_backbones(proteins: ProteinDocument, **kwargs):
 
 
 def centre_backbones(proteins: ProteinDocument, **kwargs):
-    """Centres the coordinates, so that the centroid (average position) of the Ca atoms is at the origin."""
+    """Centres the coordinates, so that the centroid (average position) of the backbone atoms is at the origin.
+    AF3 centres and then randomly translates (Alg 19.)
+    """
     new_coords = []
     for coords in proteins.backbone_coords:
         assert coords.ndim == 3  # l, 4, 3
-        centroid = np.mean(coords[:, 1, :], axis=0)
+        centroid = np.mean(coords)
         new_coords.append(coords - centroid)
     return proteins.clone(backbone_coords=new_coords)
 
