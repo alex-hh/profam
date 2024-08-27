@@ -23,7 +23,7 @@ trainer:
   min_epochs: 10
   max_epochs: 10000
   gradient_clip_val: 1.0
-  val_check_interval: 0.1  # TODO: set this appropriately...
+  val_check_interval: 100000  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
 
