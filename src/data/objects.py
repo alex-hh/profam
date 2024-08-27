@@ -2,19 +2,56 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
+from biotite.sequence import ProteinSequence
+from biotite.structure.residues import get_residue_starts, get_residues
 
 from src.data.fasta import read_fasta_lines
+from src.data.pdb import get_atom_coords_residuewise, load_structure
 
 
 @dataclass
 class Protein:
     sequence: str
-    accession: str
+    accession: Optional[str] = None
     positions: Optional[List[int]] = None
     plddt: Optional[np.ndarray] = None
     backbone_coords: Optional[np.ndarray] = None
     backbone_coords_mask: Optional[np.ndarray] = None
     structure_tokens: Optional[str] = None
+
+    def __post_init__(self):
+        if self.backbone_coords_mask is None and self.backbone_coords is not None:
+            self.backbone_coords_mask = np.where(
+                np.isnan(self.backbone_coords),
+                np.zeros_like(self.backbone_coords),
+                np.ones_like(self.backbone_coords),
+            )
+
+    def to_pdb():
+        raise NotImplementedError()
+
+    @classmethod
+    def from_pdb(cls, pdb_file, plddt_from_bfactor: bool = False, chain="A"):
+        # c.f. data_creation_scripts/create_foldseek_struct_with_af50.py
+        structure = load_structure(
+            pdb_file,
+            chain=chain,
+            extra_fields=["b_factor"] if plddt_from_bfactor else None,
+        )
+        coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)
+        residue_identities = get_residues(structure)[1]
+        seq = "".join(
+            [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
+        )
+        if plddt_from_bfactor:
+            plddts = structure.b_factor[get_residue_starts(structure)]
+        else:
+            plddts = None
+        return cls(
+            sequence=seq,
+            backbone_coords=coords,
+            plddts=plddts,  # TODO: check this is an array
+        )
 
 
 def check_array_lengths(*arrays):  # TODO: name better!
