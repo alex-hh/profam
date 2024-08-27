@@ -234,6 +234,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     protein_document,
                     self.num_generations,
                 )
+                sampler.to("cpu")
                 self.save_generations(instance_id, sampler.name, generated_sequences)
             else:
                 generated_sequences = self.load_generations(instance_id, sampler.name)
