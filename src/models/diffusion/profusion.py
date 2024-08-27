@@ -22,6 +22,10 @@ class ProFusionLitModule(BaseFamilyLitModule):
     n.b. we might want, alphafold style, to use a different network to actually
     run diffusion, conditioned on some input embeddings (which would then need
     to exclude any noisy coordinates), but include any fixed coordinates.
+
+    Embed noisy coordinates as well as fixed coordinates.
+    For slightly improved efficiency we could include fixed coordinates in the 'prompt' -
+    but this requires handling arbitrary orders.
     """
 
     def __init__(
