@@ -174,6 +174,16 @@ def interleave_structure_sequence(
     )
 
 
+def rescale_backbones(proteins: ProteinDocument, scale: float = 6.0, **kwargs):
+    # AF3 has a time-dependent scale (constant variance at all timesteps). They use 4 for t -0
+    # We can use a fixed scale for now.
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        new_coords.append(coords / scale)
+    return proteins.clone(backbone_coords=new_coords)
+
+
 def rotate_backbones(proteins: ProteinDocument, **kwargs):
     new_coords = []
     for coords in proteins.backbone_coords:
