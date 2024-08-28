@@ -5,6 +5,7 @@ defaults:
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - _self_
+  - data@dataset@dataset_cfgs.pfam: pfam
 
 tags: ["pfam", "llama_tiny"]
 ckpt_path: /mnt/disk2/cath_plm/profam/logs/train/runs/2024-08-16_11-07-13/checkpoints/last.ckpt
@@ -40,26 +41,27 @@ data:
   use_seq_pos: true
   max_seq_pos: 4098
   dataset_cfgs:
-    pfam_dom_msa:
+    pfam_msa:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: pfam_dom_msa
-      data_path_pattern: "pfam/parquets/Domain/*.parquet"
-      is_parquet: true
-      keep_gaps: true
-      to_upper: true
-      keep_insertions: true
-      file_repeats: 1
-      document_tag: "[MSA]"
-    pfam_dom_raw:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
-      name: pfam_dom_raw
-      data_path_pattern: "pfam/parquets/Domain/*.parquet"
+      data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
       is_parquet: true
       keep_gaps: false
       to_upper: true
       keep_insertions: true
       file_repeats: 1
+      document_tag: "[MSA]"
+    pfam_raw:
+      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      name: pfam_raw
+      data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
+      holdout_data_files: null
+      is_parquet: true
+      keep_gaps: false
+      to_upper: true
+      keep_insertions: true
       document_tag: "[RAW]"
+      use_msa_pos: false
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro

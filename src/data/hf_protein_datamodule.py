@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from transformers import PreTrainedTokenizerFast
 
 from src.data.family_classification import (
     load_classifier_dataset,
@@ -17,6 +16,7 @@ from src.data.utils import (
     ProteinDatasetConfig,
     load_protein_dataset,
 )
+from src.utils.tokenizers import ProFamTokenizer
 
 
 class ProteinDataModule(LightningDataModule):
@@ -24,7 +24,7 @@ class ProteinDataModule(LightningDataModule):
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
-        tokenizer_path: str,
+        tokenizer: ProFamTokenizer,
         data_dir: str,
         val_dataset_names: List[str],
         batch_size: int = 8,
@@ -39,8 +39,6 @@ class ProteinDataModule(LightningDataModule):
         evaluate_ec_cluster_class: bool = True,
         evaluate_pfam_class: bool = False,
         count_doc_hashes: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 1024,
         ignore_gaps: bool = False,
     ):
         super().__init__()
@@ -60,18 +58,7 @@ class ProteinDataModule(LightningDataModule):
         self.evaluate_pfam_class = evaluate_pfam_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
-        self.use_seq_pos = use_seq_pos
-        self.max_seq_pos = max_seq_pos  # max embed index for relative position
-        self.tokenizer_path = tokenizer_path
-        self.tokenizer = PreTrainedTokenizerFast(
-            tokenizer_file=tokenizer_path,
-            unk_token="[UNK]",
-            pad_token="[PAD]",
-            bos_token="[start-of-document]",
-            sep_token="[SEP]",
-            mask_token="[MASK]",
-            add_special_tokens=True,
-        )
+        self.tokenizer = tokenizer
         self.collator = CustomDataCollator(
             self.tokenizer, mlm=False, ignore_gaps=ignore_gaps
         )
@@ -91,8 +78,6 @@ class ProteinDataModule(LightningDataModule):
                         self.max_tokens,
                         data_dir=self.data_dir,
                         include_doc_hashes=self.count_doc_hashes,
-                        use_seq_pos=self.use_seq_pos,
-                        max_seq_pos=self.max_seq_pos,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
@@ -125,8 +110,6 @@ class ProteinDataModule(LightningDataModule):
                     self.tokenizer,
                     self.max_tokens,
                     data_dir=self.data_dir,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                 )
                 for v_ds_name in self.val_dataset_names
             ]
@@ -135,8 +118,6 @@ class ProteinDataModule(LightningDataModule):
                 self.tokenizer,
                 self.max_tokens,
                 data_dir=self.data_dir,
-                use_seq_pos=self.use_seq_pos,
-                max_seq_pos=self.max_seq_pos,
             )
             if self.evaluate_gym:
                 assert self.gym_dms_ids is not None
@@ -147,8 +128,6 @@ class ProteinDataModule(LightningDataModule):
                     max_mutated_sequences=self.max_gym_sequences,
                     gym_data_dir=self.gym_data_dir,
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                     keep_gaps=self.keep_gym_gaps,
                     num_proc=self.num_workers,
                 )
@@ -158,8 +137,6 @@ class ProteinDataModule(LightningDataModule):
                     "data/example_data/expasy_ec/*.fasta",
                     self.tokenizer,
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                 )
             if self.evaluate_ec_cluster_class:
                 self.ec_cluster_class_dataset = load_ec_cluster_classifier_dataset(
@@ -167,8 +144,6 @@ class ProteinDataModule(LightningDataModule):
                     fasta_dir="../data/ec/ec_fastas",
                     val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.use_seq_pos,
-                    max_seq_pos=self.max_seq_pos,
                 )
             if self.evaluate_pfam_class:
                 self.pfam_class_dataset = load_pfam_classification_dataset(

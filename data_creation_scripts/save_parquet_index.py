@@ -13,16 +13,10 @@ def main(args):
     with open(args.index_file_path, "w") as f:
         files = glob.glob(args.data_file_pattern)
         f.write("identifier,parquet_file\n")
-        for i, file in enumerate(files):
-            try:
-                df = pd.read_parquet(file)
-            except Exception as e:
-                print("error", file)
-                print(e)
-                continue
+        for file in files:
+            df = pd.read_parquet(file)
             for _, row in df.iterrows():
                 f.write(f"{row[args.identifier_col]},{os.path.basename(file)}\n")
-            print(i, "complete")
 
 
 if __name__ == "__main__":
