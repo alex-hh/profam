@@ -82,8 +82,8 @@ def make_cluster_db(
     minimum_foldseek_cluster_size=1,
 ):
     engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
-    Base.metadata.drop_all(engine, tables=[Protein.__table__])
-    Base.metadata.create_all(engine)
+    # Base.metadata.drop_all(engine, tables=[Protein.__table__])
+    # Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine)
     session = Session()
