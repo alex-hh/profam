@@ -21,7 +21,7 @@ tokenizer = Tokenizer(models.BPE(vocab=vocab, merges=[], unk_token="[UNK]"))
 tokenizer.pre_tokenizer = WhitespaceSplit()
 # https://discuss.huggingface.co/t/regular-tokens-vs-special-tokens/6187
 # special tokens are things that shouldnt be split
-unassigned_special_tokens = [f"[SP{i}]" for i in range(1, 11)]
+unassigned_special_tokens = [f"[SP{i}]" for i in range(3, 11)]
 special_tokens = [
     "[PAD]",
     "[start-of-document]",
@@ -29,6 +29,8 @@ special_tokens = [
     "[SEP]",
     "[MASK]",
     "[UNK]",
+    "[RAW]",
+    "[MSA]",
 ] + unassigned_special_tokens
 tokenizer.add_special_tokens(special_tokens)
 

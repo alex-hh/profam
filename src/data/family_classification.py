@@ -10,29 +10,27 @@ from functools import partial
 
 import pandas as pd
 from datasets import Dataset
-from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
 from src.data import utils as data_utils
 from src.data.proteingym import tokenize
+from src.utils.tokenizers import ProFamTokenizer
 
 
-def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_pos):
+def family_dataset_from_dict_list(dataset_list, tokenizer):
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
     dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
         partial(
             tokenize,
             tokenizer=tokenizer,
             mutant_bos_token="sep",  # todo check this
-            use_seq_pos=use_seq_pos,
-            max_seq_pos=max_seq_pos,
             document_tag="[RAW]",
         ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
     )
     columns = ["input_ids", "completion_ids", "family_labels", "ds_name", "family_id"]
-    if use_seq_pos:
+    if tokenizer.use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
     dataset.set_format(
@@ -43,13 +41,11 @@ def family_dataset_from_dict_list(dataset_list, tokenizer, use_seq_pos, max_seq_
 
 
 def load_classifier_dataset(
-    fasta_file_pattern: str,
-    tokenizer: PreTrainedTokenizerFast,
-    max_tokens: int = 10000,
-    max_seqs_to_predict: int = 10,
-    num_decoys_per_target: int = 5,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
+    fasta_file_pattern,
+    tokenizer: ProFamTokenizer,
+    max_tokens=10000,
+    max_seqs_to_predict=10,
+    num_decoys_per_target=5,
     seed=42,
 ):
     paths = sorted(glob.glob(fasta_file_pattern))
@@ -95,9 +91,7 @@ def load_classifier_dataset(
         }
         dataset_list.append(family_dict)
 
-    dataset = family_dataset_from_dict_list(
-        dataset_list, tokenizer, use_seq_pos, max_seq_pos
-    )
+    dataset = family_dataset_from_dict_list(dataset_list, tokenizer)
     return dataset
 
 
@@ -127,7 +121,7 @@ def get_prompt_from_ec_num(
 
 
 def load_ec_cluster_classifier_dataset(
-    tokenizer: PreTrainedTokenizerFast,
+    tokenizer: ProFamTokenizer,
     fasta_dir: str = "../data/ec/ec_fastas",
     val_df_path: str = "data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
     max_tokens=10000,
