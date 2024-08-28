@@ -7,13 +7,13 @@ import pandas as pd
 def main(args):
     df = pd.read_csv(args.index_file_path)
     num_unique_clusters = len(df["identifier"].unique())
-    maximum_cluster_size = df["cluster_size"].max()
-    minimum_cluster_size = df["cluster_size"].min()
+    print("Top 5 clusters by size:")
+    print(df.sort_values("cluster_size", ascending=False).head(5))
+    print("Bottom 5 clusters by size:")
+    print(df.sort_values("cluster_size", ascending=True).head(5))
     if num_unique_clusters != len(df):
         print("WARNING: some clusters are duplicated in the index file.")
     print(f"Total clusters {len(df)} (unique clusters: {num_unique_clusters})")
-    print(f"Maximum cluster size: {maximum_cluster_size}")
-    print(f"Minimum cluster size: {minimum_cluster_size}")
     print(f"Number of empty clusters: {len(df[df['cluster_size'] == 0])}")
     print(
         f"Mean cluster size {df['cluster_size'].mean()}, median {df['cluster_size'].median()}"

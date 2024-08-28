@@ -6,7 +6,9 @@ in agreement with the cluster dictionary.
 import argparse
 import glob
 import os
+
 import pandas as pd
+
 
 def make_af50_dictionary(af50_path, clusters_to_include=None):
     line_counter = 0
@@ -21,7 +23,9 @@ def make_af50_dictionary(af50_path, clusters_to_include=None):
                 clu_flag = int(line[2])  # 1
                 # n.b. the 2s are duplicates of the other cluster dict
                 # n.b. we don't include the representative in its own cluster atm
-                if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
+                if clu_flag == 1 and (
+                    clusters_to_include is None or rep_id in clusters_to_include
+                ):
                     if rep_id not in af50_dict:
                         af50_dict[rep_id] = []
                     af50_dict[rep_id].append(entry_id)
@@ -45,14 +49,23 @@ def make_cluster_dictionary(cluster_path):
             cluster_dict[rep_id].append(entry_id)
             line_counter += 1
             if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for cluster dictionary", flush=True)
+                print(
+                    "Processed",
+                    line_counter,
+                    "lines for cluster dictionary",
+                    flush=True,
+                )
     return cluster_dict
 
 
 def main(args):
-    cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
+    cluster_dict = make_cluster_dictionary(
+        "/SAN/orengolab/cath_plm/ProFam/afdb/1-AFDBClusters-entryId_repId_taxId.tsv"
+    )
     if args.include_af50:
-        af50_dict = make_af50_dictionary("/SAN/orengolab/cath_plm/ProFam/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv")
+        af50_dict = make_af50_dictionary(
+            "/SAN/orengolab/cath_plm/ProFam/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
+        )
     with open(args.index_file_path, "w") as f:
         files = glob.glob(args.data_file_pattern)
         print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
@@ -67,7 +80,9 @@ def main(args):
                         extra_members = af50_dict.get(af50_accession, [])
                         expected_accessions.extend(extra_members)
 
-                assert set(accessions) == set(expected_accessions), f"Accessions do not match for {row[args.identifier_col]}"
+                assert set(accessions) == set(
+                    expected_accessions
+                ), f"Accessions do not match for {row[args.identifier_col]}"
 
 
 if __name__ == "__main__":
