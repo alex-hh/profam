@@ -22,4 +22,3 @@ max_gym_sequences: null
 num_workers: 0  # None means use all available CPU cores
 gym_data_dir: example_data/ProteinGym
 use_filtered_gym_msas: false
-
