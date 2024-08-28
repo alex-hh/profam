@@ -68,7 +68,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
         save_structures: bool = False,
-        max_length: int = 1024,  # TODO look into cpu offloading...
+        max_length: int = 750,  # TODO look into cpu offloading...
         **kwargs,
     ):
         super().__init__(name, seed=seed, num_samples=num_samples, **kwargs)
