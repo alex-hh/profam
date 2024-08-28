@@ -19,6 +19,10 @@ the families are further split into val (used for hparam tuning) and test sets
 
 fastas are saved to:
 ../data/pfam/pfam_eval_splits/{val/test}/{clustered_split/random_split}/{fam}_{test/train}.fasta
+
+after this run:
+data_creation_scripts/pfam/train_test_split_pfam_parquets.py 
+to remove val and test families from the pfam training data
 """
 
 import os
@@ -58,8 +62,8 @@ def make_pfam_select_fam(pfam_select_fam_path, n_families=500):
     selected_families = random.sample(pfam_families, n_families)
 
     # Split selected families into validation and test sets
-    val_families = selected_families[:250]
-    test_families = selected_families[250:]
+    val_families = selected_families[:n_families//2]
+    test_families = selected_families[n_families//2:]
 
     with open(pfam_select_fam_path, 'w') as f:
         f.write('family_accession,split\n')

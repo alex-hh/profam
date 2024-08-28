@@ -13,9 +13,9 @@ and saves them in a parquet file.
 
 Subsequently run:
 scripts/shuffle_pfam_parquets.py
-data_creation_scripts/deduplicate_pfam.py
-data_creation_scripts/create_pfam_eval_fastas.py
-data_creation_scripts/train_test_split_pfam_parquets.py
+data_creation_scripts/pfam/deduplicate_pfam.py
+data_creation_scripts/pfam/create_pfam_eval_fastas.py
+data_creation_scripts/pfam/train_test_split_pfam_parquets.py
 """
 
 def read_end_lines(grepper_file):

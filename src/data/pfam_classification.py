@@ -61,7 +61,7 @@ def tokenize_pfam(
     msa_seqs = data_utils.sample_to_max_tokens(
         msa_seqs,
         seed=seed,
-        keep_first=True,
+        keep_first=False,
         drop_first=False,
 
 

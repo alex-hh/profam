@@ -923,14 +923,14 @@ class BaseFamilyLitModule(BaseLitModule):
                         warnings.warn(f"Warning: Eval seq has no positive family")
 
                 self.log(
-                    f"val/{val_name}_class_cr_ent",
+                    f"val/{val_name}_multiclass_cr_ent",
                     sum(ce_scores) / len(ce_scores),
                     on_step=False,
                     add_dataloader_idx=False,
                 )
 
                 self.log(
-                    f"val/{val_name}_class_acc",
+                    f"val/{val_name}_multiclass_acc",
                     sum(acc_scores) / len(acc_scores),
                     on_step=False,
                     add_dataloader_idx=False,
