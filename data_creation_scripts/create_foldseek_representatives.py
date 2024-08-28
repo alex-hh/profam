@@ -185,10 +185,12 @@ def make_job_list(
     cluster_ids_file: str = None,
 ):
     if cluster_ids_file is not None and os.path.isfile(cluster_ids_file):
+        print("Loading cluster ids file", flush=True)
         with open(cluster_ids_file, "r") as f:
             cluster_ids = [line.strip() for line in f]
 
     else:
+        print("Creating cluster ids file", flush=True)
         cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
         if cluster_ids_file is not None:
             with open(cluster_ids_file, "w") as f:
@@ -203,6 +205,7 @@ def make_job_list(
     parquet_size = 1000  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
+    print("Length of clusters to save", len(clusters_to_save), flush=True)
     cluster_ids = clusters_to_save[parquet_id]
 
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
@@ -282,7 +285,7 @@ def create_foldseek_parquets(
                 cluster_path=af50_path if use_af50_representatives else cluster_path,
                 use_af50_representatives=use_af50_representatives,
                 zip_index_file=os.path.join(scratch_dir, "zip_index"),
-                cluster_ids_file=os.path.join(save_dir, "cluser_ids.txt"),
+                cluster_ids_file=os.path.join(save_dir, "cluster_ids.txt"),
             )
             extract_pdbs_for_parquet(
                 pdb_lookup=pdb_lookup,
