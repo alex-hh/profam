@@ -184,6 +184,7 @@ def make_job_lists(
     zip_index_file=None,
     cluster_ids_file: str = None,
 ):
+    t1 = time.time()
     if cluster_ids_file is not None and os.path.isfile(cluster_ids_file):
         print("Loading cluster ids file", flush=True)
         with open(cluster_ids_file, "r") as f:
@@ -216,7 +217,6 @@ def make_job_lists(
 
     print("Building lookup", flush=True)
 
-    t1 = time.time()
     for ix, cluster_id in enumerate(cluster_ids):
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
@@ -226,7 +226,7 @@ def make_job_lists(
         pdb_lookup[zip_filename].append(afdb_id)
 
     t2 = time.time()
-    print("Built lookup in", t2 - t1, "seconds", flush=True)
+    print("Built job list in", t2 - t1, "seconds", flush=True)
     print("Number of zip files: ", len(pdb_lookup), flush=True)
     return pdb_lookup, all_cluster_ids
 
@@ -239,20 +239,29 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
     output_dir = os.path.join(scratch_dir, str(parquet_id))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        results = []
+    if num_processes is None:
         for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
-            result = pool.apply_async(
-                extract_pdbs,
-                args=(zip_filename, afdb_ids, output_dir, zip_index)
+            success_count, fail_count = extract_pdbs(
+                zip_filename, afdb_ids, output_dir, zip_index
             )
-            results.append(result)
-
-        for result in results:
-            success_count, fail_count = result.get()
             seq_success_counter += success_count
             seq_fail_counter += fail_count
+    else:
+        with multiprocessing.Pool(processes=num_processes) as pool:
+            results = []
+            for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
+                print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
+                result = pool.apply_async(
+                    extract_pdbs,
+                    args=(zip_filename, afdb_ids, output_dir, zip_index)
+                )
+                results.append(result)
+
+            for result in results:
+                success_count, fail_count = result.get()
+                seq_success_counter += success_count
+                seq_fail_counter += fail_count
 
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
@@ -316,10 +325,6 @@ if __name__ == "__main__":
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_representatives/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives/"
-
-    if args.num_processes is None:
-        args.num_processes = os.cpu_count()
-    print("Num cpus", os.cpu_count(), flush=True)
 
     create_foldseek_parquets(
         save_dir=save_dir,
