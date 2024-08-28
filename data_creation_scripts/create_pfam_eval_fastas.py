@@ -24,7 +24,7 @@ fastas are saved to:
 import os
 import pandas as pd
 import random
-import shutil
+
 
 
 def make_pfam_select_fam(pfam_select_fam_path, n_families=500):
@@ -109,19 +109,6 @@ def make_pfam_eval_fastas(selected_families, index_csv_path):
     index_df = pd.DataFrame(index_rows)
     index_df.to_csv(os.path.join(pfam_dir, index_csv_path), index=False)
 
-def remove_from_pfam():
-    pass
-
-def remove_from_foldseek():
-    pass
-
-def remove_from_g3d():
-    pass
-
-def remove_from_ec():
-    pass
-def remove_val_test_fams_from_training():
-    pass
 
 def add_uniprot_accessions_to_csv(csv_path, mapping_path, output_path):
 
@@ -133,7 +120,7 @@ def add_uniprot_accessions_to_csv(csv_path, mapping_path, output_path):
     print(f"Found uniprot accessions for {df2.Entry.notnull().sum()} out of {len(df2)}")
     df2.to_csv(output_path, index=False)
 
-def main():
+def sample_fams_make_fastas(pfam_dir, index_csv_path, mapping_path):
     pfam_select_fam_path = os.path.join(pfam_dir, 'eval_families_500.csv')
     n_families = 500
     if not os.path.exists(pfam_select_fam_path):
@@ -154,4 +141,8 @@ if __name__ == "__main__":
     index_csv_path = os.path.join(pfam_dir, "pfam_val_test_accessions.csv")
     mapping_path = os.path.join(pfam_dir, "val_test_uniprot_idmapping_2024_08_22.tsv")
 
-    main()
+    sample_fams_make_fastas(
+        pfam_dir=pfam_dir,
+        index_csv_path=index_csv_path,
+        mapping_path=mapping_path,
+    )

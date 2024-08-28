@@ -12,7 +12,7 @@ ckpt_path: /mnt/disk2/cath_plm/profam/logs/train/runs/2024-08-16_11-07-13/checkp
 seed: 12345
 
 trainer:
-  val_check_interval: 1.0
+  val_check_interval: 2.0
   target_tokens_per_batch: 256000
   min_epochs: 1000
   max_epochs: 10000
