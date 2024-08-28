@@ -207,7 +207,7 @@ def make_job_lists(
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
     print("Length of clusters to save", len(clusters_to_save), flush=True)
-    all_cluster_ids = [clusters_to_save[parquet_id] for parquet_id in parquet_ids]
+    all_cluster_ids = [clusters_to_save[parquet_id] for parquet_id in parquet_ids if parquet_id < len(clusters_to_save)]
 
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
     print("reading zip index from file", zip_index, flush=True)
