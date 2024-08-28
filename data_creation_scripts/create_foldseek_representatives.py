@@ -177,8 +177,8 @@ def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
     return sum(successes), len(successes) - sum(successes)
 
 
-def make_job_list(
-    parquet_id,
+def make_job_lists(
+    parquet_ids,
     cluster_path,
     use_af50_representatives=False,
     zip_index_file=None,
@@ -206,11 +206,11 @@ def make_job_list(
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
     print("Length of clusters to save", len(clusters_to_save), flush=True)
-    cluster_ids = clusters_to_save[parquet_id]
+    all_cluster_ids = [clusters_to_save[parquet_id] for parquet_id in parquet_ids]
 
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
     print("reading zip index from file", zip_index, flush=True)
-    af2zip = make_zip_dictionary(zip_index, cluster_ids)
+    af2zip = make_zip_dictionary(zip_index, [c for ids in all_cluster_ids for c in ids])
 
     pdb_lookup = defaultdict(list)
 
@@ -228,7 +228,7 @@ def make_job_list(
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
     print("Number of zip files: ", len(pdb_lookup), flush=True)
-    return pdb_lookup, cluster_ids
+    return pdb_lookup, all_cluster_ids
 
 
 def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes):
@@ -277,30 +277,29 @@ def create_foldseek_parquets(
             parquet_ids = range(2310)
 
     af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
-    for parquet_id in parquet_ids:
-        if force_rerun or not os.path.isfile(os.path.join(save_dir, f"{parquet_id}.parquet")):
-            print("Processing parquet id", parquet_id, flush=True)
-            pdb_lookup, cluster_ids = make_job_list(
-                parquet_id,
-                cluster_path=af50_path if use_af50_representatives else cluster_path,
-                use_af50_representatives=use_af50_representatives,
-                zip_index_file=os.path.join(scratch_dir, "zip_index"),
-                cluster_ids_file=os.path.join(save_dir, "cluster_ids.txt"),
-            )
-            extract_pdbs_for_parquet(
-                pdb_lookup=pdb_lookup,
-                scratch_dir=scratch_dir,
-                parquet_id=parquet_id,
-                num_processes=num_processes,
-            )
-            save_pdbs_to_parquet(
-                save_dir=save_dir,
-                scratch_dir=scratch_dir,
-                clusters_to_save=cluster_ids,
-                parquet_id=parquet_id,
-            )
-        else:
-            print(f"Parquet {parquet_id} already exists", flush=True)
+    parquets_to_save = [parquet_id for parquet_id in parquet_ids if force_rerun or not os.path.isfile(os.path.join(save_dir, f"{parquet_id}.parquet"))]
+    print("Parquets to save", parquets_to_save, flush=True)
+    pdb_lookup, all_cluster_ids = make_job_lists(
+        parquets_to_save,
+        cluster_path=af50_path if use_af50_representatives else cluster_path,
+        use_af50_representatives=use_af50_representatives,
+        zip_index_file=os.path.join(scratch_dir, "zip_index"),
+        cluster_ids_file=os.path.join(save_dir, "cluster_ids.txt"),
+    )
+    assert len(parquets_to_save) == len(all_cluster_ids)
+    for parquet_id, cluster_ids in zip(parquets_to_save, all_cluster_ids):
+        extract_pdbs_for_parquet(
+            pdb_lookup=pdb_lookup,
+            scratch_dir=scratch_dir,
+            parquet_id=parquet_id,
+            num_processes=num_processes,
+        )
+        save_pdbs_to_parquet(
+            save_dir=save_dir,
+            scratch_dir=scratch_dir,
+            clusters_to_save=cluster_ids,
+            parquet_id=parquet_id,
+        )
 
 
 if __name__ == "__main__":
