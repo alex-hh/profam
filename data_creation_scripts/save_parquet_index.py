@@ -24,6 +24,7 @@ def main(args):
                     print(f"Could not find representative {representative} in {row['accessions']} (file {file})")
                     raise
                 representative_sequence = row["sequences"][representative_index]
+                representative_sequence = ""
                 f.write(f"{row[args.identifier_col]},{os.path.basename(file)},{len(row['sequences'])},{len(representative_sequence)}\n")
 
 

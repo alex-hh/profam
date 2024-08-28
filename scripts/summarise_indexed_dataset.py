@@ -14,6 +14,7 @@ def main(args):
     print(f"Total clusters {len(df)} (unique clusters: {num_unique_clusters})")
     print(f"Maximum cluster size: {maximum_cluster_size}")
     print(f"Minimum cluster size: {minimum_cluster_size}")
+    print(f"Number of empty clusters: {len(df[df['cluster_size'] == 0])}")
     print(
         f"Mean cluster size {df['cluster_size'].mean()}, median {df['cluster_size'].median()}"
     )
