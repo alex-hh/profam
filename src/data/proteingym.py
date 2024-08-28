@@ -78,10 +78,20 @@ def tokenize(
 
 
 def load_msa_for_row(
-    row, seed, max_tokens, gym_data_dir, keep_wt=False, drop_wt=True, keep_gaps=False
+    row,
+    seed,
+    max_tokens,
+    gym_data_dir,
+    keep_wt=False,
+    drop_wt=True,
+    keep_gaps=False,
+    use_filtered_msa: bool = False,
 ):
+    msa_file = os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"])
+    if use_filtered_msa:
+        msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
     _, seqs = fasta.read_fasta(
-        os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
+        msa_file,
         keep_insertions=True,
         to_upper=True,
         keep_gaps=keep_gaps,
@@ -120,6 +130,7 @@ def build_gym_df(
     max_mutated_sequences: Optional[int] = None,
     max_tokens: int = 5000,
     keep_gaps: bool = False,
+    use_filtered_msa: bool = False,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
@@ -131,6 +142,7 @@ def build_gym_df(
         gym_data_dir=gym_data_dir,
         max_tokens=max_tokens,
         keep_gaps=keep_gaps,
+        use_filtered_msa=use_filtered_msa,
     )
     df = df.apply(
         load_dms_scores_for_row,
@@ -153,6 +165,7 @@ def load_gym_dataset(
     gym_data_dir: str = "data/example_data/ProteinGym",
     keep_gaps: bool = False,
     num_proc: Optional[int] = None,
+    use_filtered_msa: bool = False,
 ):
     """mutant_bos_token should almost always be sep.
 
@@ -169,6 +182,7 @@ def load_gym_dataset(
         max_mutated_sequences=max_mutated_sequences,
         max_tokens=max_tokens,
         keep_gaps=keep_gaps,
+        use_filtered_msa=use_filtered_msa,
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     print("Loading gym dataset")
