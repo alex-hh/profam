@@ -9,6 +9,6 @@ config:
   intermediate_size: 2048
   num_attention_heads: 8
   num_hidden_layers: 6
-  rope_theta: 10000
+  rope_theta: 500000
   max_position_embeddings: 8192  # used in llama rope implementation
   scoring_max_tokens: 10240
