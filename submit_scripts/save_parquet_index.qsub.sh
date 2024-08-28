@@ -3,7 +3,7 @@
 #$ -l h_vmem=8G
 #$ -l tmem=8G
 #$ -S /bin/bash
-#$ -N foldseekF
+#$ -N index_parquets
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd ~/profam
 #$ -j y

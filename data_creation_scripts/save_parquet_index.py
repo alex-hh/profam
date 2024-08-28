@@ -12,6 +12,7 @@ import pandas as pd
 def main(args):
     with open(args.index_file_path, "w") as f:
         files = glob.glob(args.data_file_pattern)
+        print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
         f.write("identifier,parquet_file,cluster_size,sequence_length\n")
         for file in files:
             df = pd.read_parquet(file)
