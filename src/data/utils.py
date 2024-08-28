@@ -31,7 +31,7 @@ class ProteinDatasetConfig:
     to_upper: bool = False
     file_repeats: int = 1
     is_parquet: bool = False
-    minimum_sequences: Optional[int] = None
+    minimum_sequences: Optional[int] = 1
     document_tag: str = "[RAW]"
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
