@@ -6,7 +6,7 @@ config:
   _target_: transformers.LlamaConfig
   vocab_size: 66
   hidden_size: 768
-  intermediate_size: 2048
+  intermediate_size: 3072
   num_attention_heads: 12
   num_hidden_layers: 6
   rope_theta: 10000
