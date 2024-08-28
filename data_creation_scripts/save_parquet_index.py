@@ -17,9 +17,9 @@ def main(args):
             df = pd.read_parquet(file)
             for _, row in df.iterrows():
                 representative = row[args.identifier_col]
-                representative_index = row["accessions"].index(representative)
+                representative_index = list(row["accessions"]).index(representative)
                 representative_sequence = row["sequences"][representative_index]
-                f.write(f"{row[args.identifier_col]},{os.path.basename(file)},{len(row(['sequences'])),{len(representative_sequence)}}\n")
+                f.write(f"{row[args.identifier_col]},{os.path.basename(file)},{len(row['sequences'])},{len(representative_sequence)}\n")
 
 
 if __name__ == "__main__":
