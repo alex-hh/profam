@@ -3,7 +3,7 @@ device: "cuda:0"  # TODO: check this works in distributed.
 max_tokens: 8192
 seed: 52
 name: esmfold
-half_precision: False
+half_precision: True
 num_samples: 100
 keep_gaps: False
 keep_insertions: True
