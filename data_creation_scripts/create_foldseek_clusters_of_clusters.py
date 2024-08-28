@@ -14,13 +14,8 @@ import pickle
 
 
 def load_parquet_index(index_file_path):
-    cluster_to_parquet = {}
-    with open(index_file_path, "r") as f:
-        for line in f:
-            if line.startswith("identifier,parquet_file"):
-                continue
-            identifier, parquet_file = line.strip().split(",")
-            cluster_to_parquet[identifier] = parquet_file
+    index_df = pd.read_csv(index_file_path).set_index("identifier")
+    cluster_to_parquet = index_df["parquet_file"].to_dict()
     return cluster_to_parquet
 
 
@@ -70,7 +65,7 @@ def main(args):
 
     if not os.path.exists(cluster_dict_pickle_path):
         print("Creating foldseek dataset", flush=True)
-        cluster_dict = make_cluster_dictionary(args.cluster_path)
+        cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
         print("Number of clusters:", len(cluster_dict))
         print("Saving cluster dictionary")
         with open(save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
@@ -84,7 +79,7 @@ def main(args):
     # shuffle first so that we de-correlate cluster identities in parquet files
     cluster_ids = sorted(list(cluster_dict.keys()))
     # 442338 clusters with >= 10 members
-    rng = np.random.default_rng(seed=42)
+    rng = np.random.default_rng(seed=83)  # may as well seed differently here than for other foldseek
     rng.shuffle(cluster_ids)
     print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
 
@@ -159,9 +154,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("parquet_id", type=int, default=0)
     parser.add_argument("index_file_path", type=str)
+    parser.add_argument("--parquet_id", type=int, default=0)
     parser.add_argument("--identifier_col", default="cluster_id")
     parser.add_argument("--with_structure", action="store_true")
     parser.add_argument("--skip_af50", action="store_true")
     parser.add_argument("--evalue_threshold", type=float, default=1e-3)
+    args = parser.parse_args()
+    main(args)

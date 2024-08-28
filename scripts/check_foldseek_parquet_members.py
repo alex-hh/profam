@@ -5,7 +5,6 @@ in agreement with the cluster dictionary.
 """
 import argparse
 import glob
-import os
 
 import pandas as pd
 
