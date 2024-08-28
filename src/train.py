@@ -62,16 +62,19 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     log.info(f"Instantiating datamodule <{cfg.data._target_}>")
-    datamodule: LightningDataModule = hydra.utils.instantiate(cfg.data)
-
-    log.info(f"Instantiating model <{cfg.model._target_}>")
-    model: LightningModule = hydra.utils.instantiate(
-        cfg.model, tokenizer=datamodule.tokenizer
+    datamodule: LightningDataModule = hydra.utils.instantiate(
+        cfg.data, tokenizer=tokenizer
     )
 
+    log.info(f"Instantiating model <{cfg.model._target_}>")
+    model: LightningModule = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
+
     log.info("Instantiating callbacks...")
-    callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
+    callbacks: List[Callback] = instantiate_callbacks(
+        cfg.get("callbacks"), extra_callbacks_cfg=cfg.get("extra_callbacks")
+    )
 
     log.info("Instantiating loggers...")
     logger: List[Logger] = instantiate_loggers(cfg.get("logger"))

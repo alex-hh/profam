@@ -11,7 +11,6 @@ data_weights:
 batch_size: 2
 max_tokens: 3000
 data_dir: data
-tokenizer_path: src/data/components/profam_tokenizer.json
 evaluate_gym: true
 evaluate_ec_class: false
 evaluate_ec_cluster_class: true
@@ -22,6 +21,5 @@ gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 max_gym_sequences: null
 num_workers: 0  # None means use all available CPU cores
 gym_data_dir: example_data/ProteinGym
-use_seq_pos: True  # embed sequence relative position
-max_seq_pos: 2048  # maximum sequence position
 use_filtered_gym_msas: false
+

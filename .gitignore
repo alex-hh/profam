@@ -1,5 +1,6 @@
 **/__pycache__/
 **/*.pyc
+benchmark_results/
 logs/
 .idea/
 *.DS_Store
@@ -9,3 +10,4 @@ venvPF/
 wandb
 .git
 nohup.out
+.pytest_cache
