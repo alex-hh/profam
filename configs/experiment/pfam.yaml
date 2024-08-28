@@ -5,7 +5,7 @@ defaults:
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - _self_
-  - data@dataset@dataset_cfgs.pfam: pfam
+
 
 tags: ["pfam", "llama_tiny"]
 ckpt_path: /mnt/disk2/cath_plm/profam/logs/train/runs/2024-08-16_11-07-13/checkpoints/last.ckpt
@@ -45,12 +45,15 @@ data:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: pfam_dom_msa
       data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
+      holdout_data_files: null
+      holdout_identifiers: null
+      identifier_col: null
       is_parquet: true
       keep_gaps: false
       to_upper: true
       keep_insertions: true
-      file_repeats: 1
       document_tag: "[MSA]"
+      use_msa_pos: true
     pfam_raw:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: pfam_raw
