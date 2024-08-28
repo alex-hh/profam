@@ -4,7 +4,7 @@ We'll probably still load cluster_dict into memory. But the db will allow us to 
 """
 import argparse
 import time
-from sqlalchemy import create_engine, Column, String
+from sqlalchemy import create_engine, inspect, Column, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -82,8 +82,7 @@ def make_cluster_db(
     minimum_foldseek_cluster_size=1,
 ):
     engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
-    # Base.metadata.drop_all(engine, tables=[Protein.__table__])
-    # Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine)  # create table if it doesn't exist
 
     Session = sessionmaker(bind=engine)
     session = Session()
