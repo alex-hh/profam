@@ -5,7 +5,6 @@ from typing import List, Optional
 import pandas as pd
 from datasets import Dataset
 from lightning import LightningDataModule
-from torch import stack
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
@@ -15,66 +14,10 @@ from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
     load_protein_dataset,
+    tokenize,
+    tokenize_completions,
+    tokenize_msa,
 )
-from src.utils.tokenizers import ProFamTokenizer
-
-
-def tokenize_msa(
-    sample,
-    tokenizer: ProFamTokenizer,
-    document_tag: Optional[str] = "[RAW]",
-):
-    # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
-    tokenized = tokenizer.encode_sequences(
-        sample["MSA"], document_type=document_tag, add_final_sep=False
-    )  # sep gets added in completion bos
-    sample["input_ids"] = tokenized.input_ids.squeeze()
-    if tokenizer.use_seq_pos:
-        sample["seq_pos"] = tokenized.data["seq_pos"]
-    return sample
-
-
-def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
-    if name == "bos":
-        return tokenizer.bos_token
-    elif name == "sep":
-        return tokenizer.sep_token
-    else:
-        pass
-
-
-def tokenize_completions(
-    sample,
-    tokenizer: ProFamTokenizer,
-    bos_token="sep",
-):
-    tokenized = tokenizer.encode_completions(
-        sample["completion_seqs"],
-        bos_token=get_token_from_name(bos_token, tokenizer),
-    )
-    sample["completion_ids"] = tokenized.input_ids
-    if tokenizer.use_seq_pos:
-        sample["completion_seq_pos"] = tokenized.data["seq_pos"]
-    return sample
-
-
-def tokenize(
-    sample,
-    tokenizer: PreTrainedTokenizerFast,
-    mutant_bos_token="sep",
-    document_tag="[RAW]",
-):
-    sample = tokenize_msa(
-        sample,
-        tokenizer,
-        document_tag=document_tag,
-    )
-    sample = tokenize_completions(
-        sample,
-        tokenizer,
-        bos_token=mutant_bos_token,
-    )
-    return sample
 
 
 def load_msa_for_row(
@@ -399,6 +342,8 @@ class GymMultiMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
+            use_seq_pos=self.use_seq_pos,
+            max_seq_pos=self.max_seq_pos,
         )
         self.train_dataset = self.train_dataset.shuffle(
             buffer_size=self.train_dataset.n_shards // dataset_cfg.file_repeats,
