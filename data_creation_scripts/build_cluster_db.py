@@ -82,46 +82,76 @@ def make_cluster_db(
     minimum_foldseek_cluster_size=1,
 ):
     engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
+    Base.metadata.drop_all(engine, tables=[Protein.__table__])
     Base.metadata.create_all(engine)
 
     Session = sessionmaker(bind=engine)
     session = Session()
+    # Query the table
+    entries = session.query(Protein).all()
+
+    # Print the entries
+    print(f"Current entries in the database: {len(entries)}")
+    uniprot_ids_in_db = [e.uniprot_id for e in entries]
     print("Creating foldseek dataset", flush=True)
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
+    cluster_ids = sorted(list(cluster_dict.keys()))
     print("Number of clusters:", len(cluster_dict))
     af2zip = make_zip_dictionary()
     af50_dict = make_af50_dictionary()
 
     t1 = time.time()
     # TODO: track failures.
-    for ix, cluster_id in enumerate(cluster_dict.keys()):
-        members = cluster_dict[cluster_id]
+    for ix, cluster_id in enumerate(cluster_ids):
+        members = cluster_dict.pop(cluster_id)
         if len(members) >= minimum_foldseek_cluster_size:
 
             for member in members:
-                zip_filename = af2zip[member]       
-                entry = {
-                    "foldseek_cluster_id": cluster_id,
-                    "af50_cluster_id": member,
-                    "uniprot_id": member,
-                    "zip_filename": zip_filename,
-                }
-                entry = Protein(**entry)
-                session.add(entry)
+                try:
+                    zip_filename = af2zip[member]
+                    entry = {
+                        "foldseek_cluster_id": cluster_id,
+                        "af50_cluster_id": member,
+                        "uniprot_id": member,
+                        "zip_filename": zip_filename,
+                    }
+                except:
+                    print("Error looking up", member)
+                    entry = {
+                        "foldseek_cluster_id": cluster_id,
+                        "af50_cluster_id": member,
+                        "uniprot_id": member,
+                        "zip_filename": "",
+                    }
+
+                if entry["uniprot_id"] not in uniprot_ids_in_db:
+                    entry = Protein(**entry)
+                    session.add(entry)
 
                 if member in af50_dict:
                     for af50_member in af50_dict[member]:
                         try:
                             assert not af50_member == member
-                            zip_filename = af2zip[af50_member]
-                            entry = {
-                                "foldseek_cluster_id": cluster_id,
-                                "af50_cluster_id": member,
-                                "uniprot_id": af50_member,
-                                "zip_filename": zip_filename,
-                            }
-                            entry = Protein(**entry)
-                            session.add(entry)
+                            try:
+                                zip_filename = af2zip[af50_member]
+                                entry = {
+                                    "foldseek_cluster_id": cluster_id,
+                                    "af50_cluster_id": member,
+                                    "uniprot_id": af50_member,
+                                    "zip_filename": zip_filename,
+                                }
+                            except:
+                                print("Error looking up", af50_member)
+                                entry = {
+                                    "foldseek_cluster_id": cluster_id,
+                                    "af50_cluster_id": member,
+                                    "uniprot_id": af50_member,
+                                    "zip_filename": "",
+                                }
+
+                            if entry["uniprot_id"] not in uniprot_ids_in_db:
+                                entry = Protein(**entry)
+                                session.add(entry)
                         except:
                             print("Error looking up", af50_member)
                 else:
@@ -129,7 +159,11 @@ def make_cluster_db(
 
         if ix % 1000 == 0:
             print(f"Processed {ix} clusters", flush=True)
-            session.commit()
+            try:
+                session.commit()
+            except Exception as e:
+                print("Error committing")
+                raise e
 
     session.commit()
     session.close()
