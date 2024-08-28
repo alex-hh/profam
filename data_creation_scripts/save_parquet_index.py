@@ -18,7 +18,11 @@ def main(args):
             df = pd.read_parquet(file)
             for _, row in df.iterrows():
                 representative = row[args.identifier_col]
-                representative_index = list(row["accessions"]).index(representative)
+                try:
+                    representative_index = list(row["accessions"]).index(representative)
+                except:
+                    print(f"Could not find representative {representative} in {row['accessions']} (file {file})")
+                    raise
                 representative_sequence = row["sequences"][representative_index]
                 f.write(f"{row[args.identifier_col]},{os.path.basename(file)},{len(row['sequences'])},{len(representative_sequence)}\n")
 
