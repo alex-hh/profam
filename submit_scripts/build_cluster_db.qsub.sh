@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=128G
-#$ -l h_vmem=128G
+#$ -l tmem=75G
+#$ -l h_vmem=75G
 #$ -l h_rt=128:55:30
 #$ -S /bin/bash
 #$ -N builddb

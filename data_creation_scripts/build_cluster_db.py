@@ -96,6 +96,7 @@ def make_cluster_db(
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     cluster_ids = sorted(list(cluster_dict.keys()))
     print("Number of clusters:", len(cluster_dict))
+    # TODO: save these?
     af2zip = make_zip_dictionary()
     af50_dict = make_af50_dictionary()
 
