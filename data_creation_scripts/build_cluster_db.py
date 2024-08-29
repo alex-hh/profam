@@ -79,6 +79,7 @@ def make_cluster_dictionary(cluster_path):
 
 
 def make_cluster_db(
+    start_index=0,
     minimum_foldseek_cluster_size=1,
 ):
     engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
@@ -103,6 +104,8 @@ def make_cluster_db(
     t1 = time.time()
     # TODO: track failures.
     for ix, cluster_id in enumerate(cluster_ids):
+        if ix < start_index:
+            continue
         members = cluster_dict.pop(cluster_id)
         if len(members) >= minimum_foldseek_cluster_size:
 
@@ -173,6 +176,7 @@ def make_cluster_db(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--start_index", default=0)
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     args = parser.parse_args()

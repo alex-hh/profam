@@ -11,5 +11,5 @@ date
 hostname
 # conda activate venvPF
 source ~/source_files/afenv.source
-python3 data_creation_scripts/build_cluster_db.py
+python3 data_creation_scripts/build_cluster_db.py $@
 date
