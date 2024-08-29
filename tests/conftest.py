@@ -34,7 +34,6 @@ def profam_tokenizer():
         bos_token="[start-of-document]",
         sep_token="[SEP]",
         mask_token="[MASK]",
-        add_special_tokens=True,
         use_seq_pos=True,
         max_seq_pos=2048,
         max_tokens=2048,
@@ -53,7 +52,6 @@ def profam_tokenizer_noseqpos():
         bos_token="[start-of-document]",
         sep_token="[SEP]",
         mask_token="[MASK]",
-        add_special_tokens=True,
         use_seq_pos=False,
         max_seq_pos=2048,
         max_tokens=2048,
@@ -94,7 +92,7 @@ def parquet_raw_sequence_processor():
 
 @pytest.fixture()
 def parquet_3di_processor():
-    return preprocessing.ParquetStructureTokensPreprocessorConfig(
+    return preprocessing.ParquetStructureSequencePreprocessorConfig(
         structure_tokens_col="msta_3di",
         keep_insertions=True,
         to_upper=True,
@@ -126,7 +124,7 @@ def foldseek_interleaved_structure_sequence_batch(
     profam_tokenizer,
 ):
     max_tokens = 2048
-    parquet_3di_processor = preprocessing.ParquetStructureTokensPreprocessorConfig(
+    parquet_3di_processor = preprocessing.ParquetStructureSequencePreprocessorConfig(
         structure_tokens_col="msta_3di",
         keep_insertions=True,
         to_upper=True,
