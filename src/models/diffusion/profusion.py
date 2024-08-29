@@ -112,6 +112,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         return causal_mask
 
     def make_sequence_bidirectional_attention_mask(self, input_ids):
+        """N.B. explicit masks are not currently compatible with flash attention."""
         min_dtype = torch.finfo(
             torch.float32
         ).min  # TODO: possibly infer dtype rather than hardcoding
@@ -127,7 +128,8 @@ class ProFusionLitModule(BaseFamilyLitModule):
         assert not (
             input_ids == self.tokenizer.seq_struct_sep_token_id
         ).any()  # not handled for now
-        # every sequence STARTS with a sep token according to this  - but in fact sep token comes at end
+        # we allow attention to all positions in the current sequence.
+        # we dont attent to the next sep token, which marks the start of the next sequence
         # so we might want to think carefully about this
         sequence_index = torch.cumsum(
             (input_ids == self.tokenizer.sep_token_id).float(), dim=-1
@@ -137,7 +139,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         )  # b, l, l
         causal_mask = causal_mask.masked_fill(
             same_sequence_mask[:, None], 0.0
-        )  # allow attention
+        )  # allow attention within sequence, while retaining causal attention between sequences
         return causal_mask
 
     def get_forward_kwargs(self, batch, is_train: bool = False):
