@@ -7,18 +7,17 @@ defaults:
 data_weights:
   pfam: 1.0
 dataset_cfgs:
-  pfam:
-    holdout_data_files: ["pfam/combined_parquets/Family_95000795_101711374.parquet"]
   pfam_val:
-    data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
+    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_names:
   - pfam_val
 gym_dms_ids: ${constants.val_assay_list}
-evaluate_gym: true
+evaluate_gym: false
 evaluate_ec_class: false
+evaluate_ec_cluster_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
 use_filtered_gym_msas: true

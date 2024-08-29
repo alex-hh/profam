@@ -5,6 +5,7 @@ defaults:
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - _self_
+  - data@dataset@dataset_cfgs.pfam: pfam
 
 tags: ["pfam", "llama_tiny"]
 
@@ -31,7 +32,6 @@ data:
     - ted_s50
     - interpro
     - gym_msas
-  count_doc_hashes: True # count the num times each document gets sampled
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "CALM1_HUMAN_Weile_2017", "DYR_ECOLI_Thompson_2019", "DLG4_RAT_McLaughlin_2012", "REV_HV1H2_Fernandes_2016", "TAT_HV1BR_Fernandes_2016", "RL40A_YEAST_Roscoe_2013", "P53_HUMAN_Giacomelli_2018_WT_Nutlin"]
   gym_data_dir: ../data/ProteinGym
   max_gym_sequences: 100
@@ -39,26 +39,27 @@ data:
   use_seq_pos: true
   max_seq_pos: 4098
   dataset_cfgs:
-    pfam_dom_msa:
+    pfam_msa:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: pfam_dom_msa
-      data_path_pattern: "pfam/parquets/Domain/*.parquet"
-      is_parquet: true
-      keep_gaps: true
-      to_upper: true
-      keep_insertions: true
-      file_repeats: 1
-      document_tag: "[MSA]"
-    pfam_dom_raw:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
-      name: pfam_dom_raw
-      data_path_pattern: "pfam/parquets/Domain/*.parquet"
+      data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
       is_parquet: true
       keep_gaps: false
       to_upper: true
       keep_insertions: true
       file_repeats: 1
+      document_tag: "[MSA]"
+    pfam_raw:
+      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      name: pfam_raw
+      data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
+      holdout_data_files: null
+      is_parquet: true
+      keep_gaps: false
+      to_upper: true
+      keep_insertions: true
       document_tag: "[RAW]"
+      use_msa_pos: false
     interpro:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
       name: interpro

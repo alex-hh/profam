@@ -192,14 +192,15 @@ class BaseLitModule(LightningModule):
                 self.tokenizer.convert_tokens_to_ids([aa.lower() for aa in aa_letters])
             ).to(batch["input_ids"]),
         ).any()
-        accuracy_3di = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
-            ),
-        )
+        if has_3di:
+            accuracy_3di = accuracy_from_outputs(
+                outputs,
+                batch["labels"],
+                ignore_index=-100,
+                ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                    ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
+                ),
+            )
         if log_ds:
             # n.b. this assumes a batch only contains a single dataset - only true during val!
             ds_name = (
@@ -899,8 +900,8 @@ class BaseFamilyLitModule(BaseLitModule):
         return loss
 
     def log_ds_sample_counts(self, batch):
-        sd_name = batch["ds_name"].text
-        for ds in sd_name:
+        ds_name = batch["ds_name"].text
+        for ds in ds_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
 
         self.log_dict(

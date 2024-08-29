@@ -2,6 +2,8 @@ defaults:
   - /preprocessor: "parquet_msa"
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: pfam_msa
-data_path_pattern: pfam/combined_parquets/*.parquet
+data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
 holdout_data_files: null
+holdout_identifiers: null
+identifier_col: 'fam_id'
 is_parquet: true

@@ -11,9 +11,9 @@ data_weights:
 batch_size: 2
 max_tokens: 3000
 data_dir: ${paths.data_dir}
-evaluate_gym: true
-evaluate_ec_class: false
-evaluate_ec_cluster_class: true
+evaluate_gym: false # not implemented yet
+evaluate_ec_class: false # not implemented yet
+evaluate_ec_cluster_class: false # not implemented yet
 val_dataset_names:
   - interpro
   - ec

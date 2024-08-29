@@ -13,18 +13,12 @@ data_weights:
   pfam_raw: 0.33
   pfam_msa: 0.33
 dataset_cfgs:
-  pfam:
-    holdout_data_files: ["pfam/combined_parquets/Family_95000795_101711374.parquet"]
   pfam_val:
-    data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
-  pfam_raw:
-    holdout_data_files: ["pfam/combined_parquets/Family_95000795_101711374.parquet"]
+    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
   pfam_val_raw:
-    data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
-  pfam_msa:
-    holdout_data_files: ["pfam/combined_parquets/Family_95000795_101711374.parquet"]
+    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
   pfam_val_msa:
-    data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
+    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
@@ -33,9 +27,9 @@ val_dataset_names:
   - pfam_val_raw
   - pfam_val_msa
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
-evaluate_gym: True
+evaluate_gym: false
 evaluate_ec_class: false
+evaluate_ec_cluster_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
-count_doc_hashes: True # count the num times each document gets sampled
 ignore_gaps: false
