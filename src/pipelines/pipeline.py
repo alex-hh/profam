@@ -40,6 +40,9 @@ class BaseEvaluatorPipeline:
     def instance_ids(self):
         raise NotImplementedError()
 
+    def reset(self):
+        self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
+
     def load_results(self) -> pd.DataFrame:
         """Load results dataframe from local disk location."""
         results_path = os.path.join(self.pipeline_directory, "results.csv")
