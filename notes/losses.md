@@ -67,7 +67,8 @@ In the Karras notation, for DDPM:
 $$c_{skip} = 1$$
 $$c_{out} = -\sigma $$
 
-I think to get full equivalence, you have to incorporate the expressions for sigma and for loss scaling.
+I think to get full equivalence, you have to incorporate the expressions for sigma and for loss scaling, and perhaps preprocessing
 
 
 MSE on $x_0$ vs MSE on $\epsilon$:
+Karras supp. has extensive derivations; but they require ode and sde knowledge.

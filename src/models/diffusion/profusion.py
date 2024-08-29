@@ -6,9 +6,73 @@ from torch import nn
 from src.constants import BACKBONE_ATOMS
 from src.models.diffusion.gaussian_diffusion import GaussianDiffusion
 from src.models.diffusion.resample import UniformSampler
+from src.models.diffusion.superimposition import rigid_align
 from src.models.diffusion.wrapper import WrappedHFProFusionModel
 from src.models.utils import UpdatedDynamicCache, accuracy_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
+
+
+class ProFusionCoordsDiffusion(nn.Module):
+    def __init__(
+        self,
+        emb_dim,
+        num_atoms,
+        diffusion: GaussianDiffusion,
+        diffusion_loss_prob: float = 1.0,
+    ):
+        self.diffusion_loss_prob = diffusion_loss_prob
+        self.diffusion = diffusion
+        self.diffusion_head = nn.Linear(emb_dim, num_atoms * 3)
+
+    def prepare_batch(self, batch):
+        coin_flip = torch.rand(1).item()
+        bsz, L = batch["input_ids"].shape
+        coords = batch["coords"]
+        coords_mask = batch["coords_mask"]
+        if coin_flip < self.diffusion_loss_prob:
+            noise = torch.zeros_like(batch["x0"])
+            timestep = torch.zeros((bsz, L), device=self.device).long()
+            xt = coords
+            coords_mask = torch.zeros_like(coords_mask)  # just affects loss
+        else:
+            noise = torch.randn_like(batch["x0"])
+            # n.b. we can ignore weights since equal to 1
+            t, _ = self.schedule_sampler.sample(
+                bsz, self.device
+            )  # weights is second retval, 1s for now
+            assert t.shape == (bsz,)
+            timestep = self._scale_timesteps(t).unsqueeze(-1).expand(bsz, L)
+            xt = self.diffusion.q_sample(coords, t, noise=noise)
+            xt = torch.where(coords_mask, xt, coords)
+
+        batch["xt"] = xt
+        batch["timestep"] = timestep
+        batch["noise"] = noise
+        batch["coords_mask"] = coords_mask  # updated
+        batch["coin_flip"] = coin_flip
+
+    def compute_loss(self, outputs, batch):
+        """Run a model forward pass, and compute the diffusion loss. Return model outputs and diffusion loss."""
+        emb = outputs.hidden_states[-1]  # hidden states is a tuple
+        noise_pred = self.diffusion_head(emb)
+        # ah - in AF the loss is not on the epsilon but on the denoised structure
+        # diffusion_loss = (
+        #     nn.MSELoss(reduction="none")(noise_pred, noise) * coords_mask.float()
+        # ).sum() / coords_mask.sum()
+
+        # TODO: check all inputs - is scale timestep correct for example? what shape should noise_pred be?
+        # t = batch["timestep"][:, 0]
+        x0_pred = self.diffusion._predict_xstart_from_eps(batch["xt"], t, noise_pred)
+        # TODO: these need to be flattened - although actually I think rigid_align can handle this
+        x0_pred_gt_aligned = rigid_align(batch["coords"], x0_pred)
+        if batch["coin_flip"] < self.diffusion_loss_prob:
+            diffusion_loss = (
+                nn.MSELoss(reduction="none")(x0_pred_gt_aligned, batch["coords"])
+                * batch["coords_mask"].float()
+            ).sum() / batch["coords_mask"].sum()
+        else:
+            diffusion_loss = torch.tensor(0.0, device=self.device)
+        return diffusion_loss
 
 
 class ProFusionLitModule(BaseFamilyLitModule):
@@ -31,7 +95,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
     def __init__(
         self,
         model: WrappedHFProFusionModel,
-        diffusion: GaussianDiffusion,
+        diffusion: ProFusionCoordsDiffusion,
         tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
@@ -41,7 +105,6 @@ class ProFusionLitModule(BaseFamilyLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         diffusion_loss_weight: float = 1.0,
-        diffusion_loss_prob: float = 1.0,
         atom_names: List[str] = ["N", "CA", "C", "O"],  # which backbone atoms to model
         bidirectional_within_sequence_attention: bool = False,
         use_explicit_causal_mask: bool = False,
@@ -58,8 +121,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         )
         self.diffusion = diffusion
         self.diffusion_loss_weight = diffusion_loss_weight
-        self.diffusion_loss_prob = diffusion_loss_prob
-        self.diffusion_head = nn.Linear(model.config.hidden_size, len(atom_names) * 3)
+        # self.diffusion_head = nn.Linear(model.config.hidden_size, len(atom_names) * 3)
         self.schedule_sampler = UniformSampler(diffusion)
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
@@ -142,7 +204,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         )  # allow attention within sequence, while retaining causal attention between sequences
         return causal_mask
 
-    def get_forward_kwargs(self, batch, is_train: bool = False):
+    def get_forward_kwargs(self, batch):
         forward_kwargs = (
             {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
         )
@@ -154,16 +216,17 @@ class ProFusionLitModule(BaseFamilyLitModule):
             forward_kwargs["attention_mask"] = self.make_causal_attention_mask(
                 batch["input_ids"]
             )
-        if is_train:
-            # coords and timestep are created in the training step
-            return forward_kwargs
+        if "xt" in batch:
+            # training time
+            forward_kwargs["coords"] = batch["xt"]
+            forward_kwargs["timestep"] = batch["timestep"]
         else:
             forward_kwargs["coords"] = batch["coords"]
             forward_kwargs["timestep"] = torch.zeros(
                 (batch["input_ids"].shape[0], batch["input_ids"].shape[1]),
                 device=self.device,
             ).long()
-            return forward_kwargs
+        return forward_kwargs
 
     def get_forward_kwargs_for_kv_cache(
         self,
@@ -462,47 +525,20 @@ class ProFusionLitModule(BaseFamilyLitModule):
 
         they also compute a bond loss, which is mse on bond lengths, and an lddt loss.
         """
+        self.training_step.prepare_batch(batch)
         forward_kwargs = self.get_forward_kwargs(batch, is_train=True)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
-        coin_flip = torch.rand(1).item()
-        bsz, L = batch["input_ids"].shape
-        coords = batch["coords"]
-        coords_mask = batch["coords_mask"]
-        if coin_flip < self.diffusion_loss_prob:
-            noise = torch.zeros_like(batch["x0"])
-            timestep = torch.zeros((bsz, L), device=self.device).long()
-            xt = coords
-            coords_mask = torch.zeros_like(coords_mask)  # just affects loss
-        else:
-            noise = torch.randn_like(batch["x0"])
-            # n.b. we can ignore weights since equal to 1
-            t, _ = self.schedule_sampler.sample(
-                bsz, self.device
-            )  # weights is second retval, 1s for now
-            assert t.shape == (bsz,)
-            timestep = self._scale_timesteps(t).unsqueeze(-1).expand(bsz, L)
-            xt = self.diffusion.q_sample(coords, t, noise=noise)
-            xt = torch.where(coords_mask, xt, coords)
 
         outputs = self(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],
             labels=batch["labels"],
             output_hidden_states=True,
-            timestep=timestep,
-            coords=xt,
             **forward_kwargs,
         )
-        emb = outputs.hidden_states[-1]  # hidden states is a tuple
-        noise_pred = self.diffusion_head(emb)
-        # ah - in AF the loss is not on the epsilon but on the denoised structure
-        diffusion_loss = (
-            nn.MSELoss(reduction="none")(noise_pred, noise) * coords_mask.float()
-        ).sum() / coords_mask.sum()
-        loss = outputs.loss
-        if coin_flip < self.diffusion_loss_prob:
-            loss = loss + self.diffusion_loss_weight * diffusion_loss
+        diffusion_loss = self.diffusion.compute_loss(outputs, batch)
+        loss = outputs.loss + self.diffusion_loss_weight * diffusion_loss
         # labels have -100 at padding positions due to collater
         accuracy = accuracy_from_outputs(
             outputs,
