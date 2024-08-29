@@ -161,7 +161,7 @@ def interleave_structure_sequence(
     )
 
 def replace_selenocysteine(proteins: ProteinDocument):
-    new_sequences = [seq.replace('U', 'C') for seq in proteins.sequences]
+    new_sequences = [seq.replace('U', 'C').replace('u', 'c') for seq in proteins.sequences]
     return proteins.clone(sequences=new_sequences)
 
 def apply_transforms(transforms, proteins, tokenizer):
