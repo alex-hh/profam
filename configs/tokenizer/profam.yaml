@@ -5,7 +5,6 @@ pad_token: "[PAD]"
 bos_token: "[start-of-document]"
 sep_token: "[SEP]"
 mask_token: "[MASK]"
-add_special_tokens: true
 add_final_sep: true
 add_bos_token: true
 add_document_type_token: true
