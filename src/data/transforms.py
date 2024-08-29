@@ -160,6 +160,9 @@ def interleave_structure_sequence(
         validate_shapes=False,  # a hack because of special token in interleaved sequences
     )
 
+def replace_selenocysteine(proteins: ProteinDocument):
+    new_sequences = [seq.replace('U', 'C') for seq in proteins.sequences]
+    return proteins.clone(sequences=new_sequences)
 
 def apply_transforms(transforms, proteins, tokenizer):
     for transform in transforms or []:
