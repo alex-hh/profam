@@ -48,17 +48,76 @@ def get_cluster_of_cluster_members(cluster_id, ddf, evalue_threshold=1e-3):
     return result["target_id"].tolist()
 
 
+def save_single_parquet(
+    cluster_ids,
+    output_file,
+    ddf,
+    parquet_index,
+    evalue_threshold=0.001,
+    minimum_cluster_size=1,
+    identifier_col="cluster_id",
+    with_structure=False,
+):
+    records = []
+
+    for cluster_id in cluster_ids:
+        # TODO: check if self-comparison is included in all-vs-all file. It is.
+        # TODO: verify that foldseek clusters are unique so there are no duplicates
+        # TODO: we actually have a problem with loading from parquets which is that the
+        # clusters with fewer than 10 members are not currently included in the parquet files.
+        # So to include these we need to manually load the corresponding pdb files.
+        cluster_of_cluster_members = get_cluster_of_cluster_members(cluster_id, ddf, evalue_threshold=evalue_threshold)
+        if len(cluster_of_cluster_members) >= minimum_cluster_size:  # this is at the foldseek level i guess rather than af50 level.
+            sequences = []
+            accessions = []
+            Ns = []
+            CAs = []
+            Cs = []
+            Os = []
+            is_foldseek_representative = []
+            is_af50_representative = []
+            plddts = []
+
+            for member_id in cluster_of_cluster_members:
+                parquet_file = parquet_index[member_id]
+                df = pd.read_parquet(parquet_file).set_index(identifier_col)
+                entry = df.loc[cluster_id]
+                sequences += entry["sequences"]
+                accessions += entry["accessions"]
+                is_foldseek_representative += entry["is_foldseek_representative"]
+                is_af50_representative += entry["is_af50_representative"]
+                if with_structure:
+                    Ns += entry["N"]
+                    CAs += entry["CA"]
+                    Cs += entry["C"]
+                    Os += entry["O"]
+                    plddts += entry["plddts"]
+
+            # TODO: should we run foldmason on these clusters of clusters? they might be too divergent...
+            assert len(set(accessions)) == len(accessions), "Accessions are not unique"
+            d = {
+                "fam_id": cluster_id,
+                "sequences": sequences,
+                "accessions": accessions,
+                
+                "is_foldseek_representative": is_foldseek_representative,
+                "is_af50_representative": is_af50_representative,
+            }
+            if with_structure:
+                d["N"] = Ns
+                d["CA"] = CAs
+                d["C"] = Cs
+                d["O"] = Os
+                d["plddts"] = plddts
+            records.append(d)
+        
+    df = pd.DataFrame(records)
+    df.to_parquet(output_file)
+
+
 def main(args):
-    if args.with_structure:
-        if args.skip_af50:
-            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_aug_struct"
-        else:
-            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_aug_af50_struct"
-    else:
-        if args.skip_af50:
-            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_aug"
-        else:
-            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_aug_af50"
+    save_dir = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/", args.output_folder)
+    os.makedirs(save_dir, exist_ok=True)
 
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
@@ -83,82 +142,45 @@ def main(args):
     rng.shuffle(cluster_ids)
     print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
 
-    parquet_size = 250 if args.skip_af50 else 100  # number of clusters to save in each parquet file
-    # What we want to do here is build a list of cluster ids to save within each parquet file.
-    clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
-    cluster_ids = clusters_to_save[args.parquet_id]
-
-    print(f"Saving {len(cluster_ids)} clusters to parquet file {args.parquet_id}", flush=True)
 
     # all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
     parquet_index = load_parquet_index(args.index_file_path)
     ddf = load_all_vs_all("/SAN/orengolab/cath_plm/ProFam/data/afdb/6-all-vs-all-similarity-queryId_targetId_eValue.tsv")
 
-    records = []
+    # What we want to do here is build a list of cluster ids to save within each parquet file.
+    clusters_to_save = [cluster_ids[i:i + args.parquet_size] for i in range(0, len(cluster_ids), args.parquet_size)]
 
-    for cluster_id in cluster_ids:
-        # TODO: check if self-comparison is included in all-vs-all file. It is.
-        # TODO: verify that foldseek clusters are unique so there are no duplicates
-        # TODO: we actually have a problem with loading from parquets which is that the
-        # clusters with fewer than 10 members are not currently included in the parquet files.
-        # So to include these we need to manually load the corresponding pdb files.
-        cluster_of_cluster_members = get_cluster_of_cluster_members(cluster_id, ddf, evalue_threshold=args.evalue_threshold)
-        if len(cluster_of_cluster_members) >= args.minimum_cluster_size:  # this is at the foldseek level i guess rather than af50 level.
-            sequences = []
-            accessions = []
-            Ns = []
-            CAs = []
-            Cs = []
-            Os = []
-            is_foldseek_representative = []
-            is_af50_representative = []
-            plddts = []
+    if args.parquet_id is None:
+        parquet_ids = range(len(clusters_to_save))
+    else:
+        parquet_ids = [args.parquet_id]
 
-            for member_id in cluster_of_cluster_members:
-                parquet_file = parquet_index[member_id]
-                df = pd.read_parquet(parquet_file).set_index(args.identifier_col)
-                entry = df.loc[cluster_id]
-                sequences += entry["sequences"]
-                accessions += entry["accessions"]
-                is_foldseek_representative += entry["is_foldseek_representative"]
-                is_af50_representative += entry["is_af50_representative"]
-                if args.with_structure:
-                    Ns += entry["N"]
-                    CAs += entry["CA"]
-                    Cs += entry["C"]
-                    Os += entry["O"]
-                    plddts += entry["plddts"]
-
-            # TODO: should we run foldmason on these clusters of clusters? they might be too divergent...
-            assert len(set(accessions)) == len(accessions), "Accessions are not unique"
-            d = {
-                "fam_id": cluster_id,
-                "sequences": sequences,
-                "accessions": accessions,
-                
-                "is_foldseek_representative": is_foldseek_representative,
-                "is_af50_representative": is_af50_representative,
-            }
-            if args.with_structure:
-                d["N"] = Ns
-                d["CA"] = CAs
-                d["C"] = Cs
-                d["O"] = Os
-                d["plddts"] = plddts
-            records.append(d)
-        
-    df = pd.DataFrame(records)
-    output_file = os.path.join(save_dir, f"{args.parquet_id}.parquet")
-    df.to_parquet(output_file)
+    for parquet_id in parquet_ids:
+        output_file = os.path.join(save_dir, f"{parquet_id}.parquet")
+        if args.force_rerun or not os.path.isfile(output_file):
+            cluster_ids = clusters_to_save[parquet_id]
+            print(f"Saving {len(cluster_ids)} clusters to parquet file {args.parquet_id}", flush=True)
+            save_single_parquet(
+                cluster_ids=cluster_ids,
+                output_file=output_file,
+                ddf=ddf,
+                parquet_index=parquet_index,
+                evalue_threshold=args.evalue_threshold,
+                minimum_cluster_size=args.minimum_cluster_size,
+                identifier_col=args.identifier_col,
+                with_structure=args.with_structure,
+            )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("index_file_path", type=str)
-    parser.add_argument("--parquet_id", type=int, default=0)
+    parser.add_argument("output_folder", type=str)
+    parser.add_argument("--parquet_id", type=int, default=None)
+    parser.add_argument("--parquet_size", type=int, default=100)
     parser.add_argument("--identifier_col", default="cluster_id")
     parser.add_argument("--with_structure", action="store_true")
-    parser.add_argument("--skip_af50", action="store_true")
     parser.add_argument("--evalue_threshold", type=float, default=1e-3)
+    parser.add_argument("--force_rerun", action="store_true")
     args = parser.parse_args()
     main(args)

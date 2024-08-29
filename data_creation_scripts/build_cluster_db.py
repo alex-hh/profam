@@ -82,6 +82,7 @@ def make_cluster_db(
     start_index=0,
     minimum_foldseek_cluster_size=1,
 ):
+    print(f"Creating foldseek database, starting from cluster index {start_index}", flush=True)
     engine = create_engine('sqlite:////SAN/orengolab/cath_plm/ProFam/data/foldseek_clusters.db')
     Base.metadata.create_all(engine)  # create table if it doesn't exist
 
