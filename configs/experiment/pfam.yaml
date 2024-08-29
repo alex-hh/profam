@@ -24,7 +24,6 @@ data:
   num_workers: 2
   max_tokens: 5000
   data_dir: ../data
-  tokenizer_path: src/data/components/profam_tokenizer.json
   evaluate_gym: True
   evaluate_ec_class: True
   evaluate_ec_cluster_class: True
@@ -38,12 +37,10 @@ data:
   gym_data_dir: ../data/ProteinGym
   max_gym_sequences: 100
   keep_gym_gaps: True
-  use_seq_pos: true
-  max_seq_pos: 4098
   dataset_cfgs:
     pfam_msa:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
-      name: pfam_dom_msa
+      name: pfam_msa
       data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
       holdout_data_files: null
       holdout_identifiers: null
@@ -92,8 +89,8 @@ data:
       document_tag: "[RAW]"
 
   data_weights:
-    pfam_dom_msa: 0.5
-    pfam_dom_raw: 0.5
+    pfam_msa: 0.5
+    pfam_raw: 0.5
 logger:
   wandb:
     tags: ${tags}

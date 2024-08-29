@@ -296,7 +296,7 @@ def load_protein_dataset(
             tokenized.data["identifier"] = example[cfg.identifier_col]
         tokenized.data["ds_name"] = cfg.name
         tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
-        if include_doc_hashes:
+        if include_doc_hashes and 'text' in example:
             # identify documents by a hash of the first 512 characters
             tokenized.data["doc_hash"] = hashlib.md5(
                 example["text"][:512].encode()

@@ -6,7 +6,8 @@ import pandas as pd
 from datasets import Dataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from transformers import PreTrainedTokenizerFast
+from src.utils.tokenizers import ProFamTokenizer
+
 
 from src.data import fasta
 from src.data import utils as data_utils
