@@ -27,6 +27,5 @@ evaluate_ec_class: false
 evaluate_ec_cluster_class: true
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
-count_doc_hashes: True # count the num times each document gets sampled
 ignore_gaps: false
 use_filtered_gym_msas: true

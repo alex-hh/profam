@@ -7,10 +7,8 @@ defaults:
 data_weights:
   pfam: 1.0
 dataset_cfgs:
-  pfam:
-    holdout_data_files: ["pfam/combined_parquets/Family_95000795_101711374.parquet"]
   pfam_val:
-    data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
+    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
