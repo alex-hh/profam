@@ -98,7 +98,7 @@ def _tokenize_protein_data(
         padding=padding,
         max_length=max_tokens,
         add_final_sep=True,
-        allow_unk=cfg.get('allow_unk', False)
+        allow_unk=cfg.get("allow_unk", False),
     )
     # tokenized.input_ids is flat now
     # n.b. this is after subsampling so not very informative
