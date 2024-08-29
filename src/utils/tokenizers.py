@@ -52,6 +52,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         padding="longest",
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
+        allow_unk: bool = False,
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
@@ -82,6 +83,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
+
+        if not allow_unk:
+            assert not (
+                tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
+            ).any(), "UNK tokens in input"
         if self.use_seq_pos:
             if positions is None:
                 log.warning(
@@ -99,8 +105,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_end_tokens=int(add_final_sep),
             )
             tokenized.data["seq_pos"] = seq_pos
-        # TODO: maybe return tokenized rather than just input ids.
-        # then we can add position encoding to tokenized.data
+
         return tokenized
 
     def encode_completions(

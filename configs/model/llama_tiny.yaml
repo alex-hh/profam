@@ -4,7 +4,7 @@ num_warmup_steps: 1000
 lr: 1e-4
 config:
   _target_: transformers.LlamaConfig
-  vocab_size: 41
+  vocab_size: 65
   hidden_size: 512
   intermediate_size: 2048
   num_attention_heads: 4
