@@ -4,9 +4,10 @@ Ho et al. diffusion models codebase:
 https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/utils.py
 """
 
+from typing import Dict
+
 import numpy as np
 import torch
-from typing import Dict
 
 
 def normal_kl(mean1, logvar1, mean2, logvar2):
@@ -44,7 +45,9 @@ def approx_standard_normal_cdf(x):
     A fast approximation of the cumulative distribution function of the
     standard normal.
     """
-    return 0.5 * (1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3))))
+    return 0.5 * (
+        1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3)))
+    )
 
 
 def discretized_gaussian_log_likelihood(x, *, means, log_scales):
@@ -71,7 +74,9 @@ def discretized_gaussian_log_likelihood(x, *, means, log_scales):
     log_probs = torch.where(
         x < -0.999,
         log_cdf_plus,
-        torch.where(x > 0.999, log_one_minus_cdf_min, torch.log(cdf_delta.clamp(min=1e-12))),
+        torch.where(
+            x > 0.999, log_one_minus_cdf_min, torch.log(cdf_delta.clamp(min=1e-12))
+        ),
     )
     assert log_probs.shape == x.shape
     return log_probs
@@ -97,19 +102,25 @@ def smooth_lddt_loss(x, x_gt, f_is_dna, f_is_rna):
 
     # Compute smooth LDDT penalty
     epsilon_lm = (
-        0.25 * (
-            torch.sigmoid(0.5 - delta_lm) +
-            torch.sigmoid(1.0 - delta_lm) +
-            torch.sigmoid(2.0 - delta_lm) +
-            torch.sigmoid(4.0 - delta_lm)
+        0.25
+        * (
+            torch.sigmoid(0.5 - delta_lm)
+            + torch.sigmoid(1.0 - delta_lm)
+            + torch.sigmoid(2.0 - delta_lm)
+            + torch.sigmoid(4.0 - delta_lm)
         )
-    ).mean(dim=-1)  # (b, L, L)
+    ).mean(
+        dim=-1
+    )  # (b, L, L)
 
     # Compute nucleotide inclusion radius
     f_is_nucleotide = f_is_dna + f_is_rna  # (b, L)
-    
-    c_lm = ((x_gt_dist.mean(dim=-1) < 30).float() * f_is_nucleotide[:, :, None] + 
-            (x_gt_dist.mean(dim=-1) < 15).float() * (1 - f_is_nucleotide[:, :, None]))  # (b, L, L)
+
+    c_lm = (x_gt_dist.mean(dim=-1) < 30).float() * f_is_nucleotide[:, :, None] + (
+        x_gt_dist.mean(dim=-1) < 15
+    ).float() * (
+        1 - f_is_nucleotide[:, :, None]
+    )  # (b, L, L)
 
     # Mask out the diagonal (self-comparisons)
     diag_mask = 1 - torch.eye(x.size(1), device=x.device).unsqueeze(0).unsqueeze(-1)
@@ -179,20 +190,16 @@ def between_residue_bond_loss(
 
     # The C-N bond to proline has slightly different length because of the ring.
     next_is_proline = aatype[..., 1:] == residue_constants.resname_to_idx["PRO"]
-    gt_length = (
-                    ~next_is_proline
-                ) * residue_constants.between_res_bond_length_c_n[
-                    0
-                ] + next_is_proline * residue_constants.between_res_bond_length_c_n[
-                    1
-                ]
+    gt_length = (~next_is_proline) * residue_constants.between_res_bond_length_c_n[
+        0
+    ] + next_is_proline * residue_constants.between_res_bond_length_c_n[1]
     gt_stddev = (
-                    ~next_is_proline
-                ) * residue_constants.between_res_bond_length_stddev_c_n[
-                    0
-                ] + next_is_proline * residue_constants.between_res_bond_length_stddev_c_n[
-                    1
-                ]
+        ~next_is_proline
+    ) * residue_constants.between_res_bond_length_stddev_c_n[
+        0
+    ] + next_is_proline * residue_constants.between_res_bond_length_stddev_c_n[
+        1
+    ]
 
     c_n_bond_length_error = torch.sqrt(eps + (c_n_bond_length - gt_length) ** 2)
     c_n_loss_per_residue = torch.nn.functional.relu(
@@ -221,9 +228,7 @@ def between_residue_bond_loss(
     ca_c_n_cos_angle = torch.sum(c_ca_unit_vec * c_n_unit_vec, dim=-1)
     gt_angle = residue_constants.between_res_cos_angles_ca_c_n[0]
     gt_stddev = residue_constants.between_res_bond_length_stddev_c_n[0]
-    ca_c_n_cos_angle_error = torch.sqrt(
-        eps + (ca_c_n_cos_angle - gt_angle) ** 2
-    )
+    ca_c_n_cos_angle_error = torch.sqrt(eps + (ca_c_n_cos_angle - gt_angle) ** 2)
     ca_c_n_loss_per_residue = torch.nn.functional.relu(
         ca_c_n_cos_angle_error - tolerance_factor_soft * gt_stddev
     )
@@ -238,9 +243,7 @@ def between_residue_bond_loss(
     c_n_ca_cos_angle = torch.sum((-c_n_unit_vec) * n_ca_unit_vec, dim=-1)
     gt_angle = residue_constants.between_res_cos_angles_c_n_ca[0]
     gt_stddev = residue_constants.between_res_cos_angles_c_n_ca[1]
-    c_n_ca_cos_angle_error = torch.sqrt(
-        eps + torch.square(c_n_ca_cos_angle - gt_angle)
-    )
+    c_n_ca_cos_angle_error = torch.sqrt(eps + torch.square(c_n_ca_cos_angle - gt_angle))
     c_n_ca_loss_per_residue = torch.nn.functional.relu(
         c_n_ca_cos_angle_error - tolerance_factor_soft * gt_stddev
     )

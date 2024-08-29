@@ -148,7 +148,7 @@ class ProteinDocument:
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
             self.backbone_coords_masks = [
                 np.where(np.isnan(xyz), np.zeros_like(xyz), np.ones_like(xyz))
-                for xyz in self.backcbone_coords
+                for xyz in self.backbone_coords
             ]
 
     def __getitem__(self, key):
