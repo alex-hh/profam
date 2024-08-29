@@ -7,7 +7,8 @@ from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
 class WrappedHFProFusionModel(WrappedHFModelWithPositionEmbeddingsMixin):
-    """Wrap a pre-trained model to add sequence-relative position embeddings.
+    """Wrap a pre-trained model to add sequence-relative position embeddings,
+    and to update position embeddings and timestep during generation.
 
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
     N.B. timestep conditioning in diffusion transformer is performed via adaptive layer norm ...
