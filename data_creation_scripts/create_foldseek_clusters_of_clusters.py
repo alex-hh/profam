@@ -16,6 +16,7 @@ import pickle
 
 def load_parquet_index(index_file_path):
     index_df = pd.read_csv(index_file_path).set_index("identifier")
+    print(index_df.head(), flush=True)
     cluster_to_parquet = index_df["parquet_file"].to_dict()
     return cluster_to_parquet
 
@@ -42,11 +43,11 @@ def load_all_vs_all(all_vs_all_path):
     return ddf
 
 
-def get_cluster_of_cluster_members(cluster_id, ddf, evalue_threshold=1e-3):
+def get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=1e-3):
     # Q. does a cluster id search against itself? A. yes
     # so what we should do is just find query is cluster_id
-    result = ddf[(ddf["query_id"]==cluster_id)&(ddf["evalue"]<=evalue_threshold)].compute()
-    return result["target_id"].tolist()
+    result = ddf[(ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)].compute()
+    return [result[result["query_id"] == cluster_id]["target_id"].tolist() for cluster_id in cluster_ids]
 
 
 def save_single_parquet(
@@ -62,13 +63,17 @@ def save_single_parquet(
 ):
     records = []
 
-    for cluster_id in cluster_ids:
+    t0 = time.time()
+    all_cluster_of_cluster_members = get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=evalue_threshold)
+    t1 = time.time()
+    print("Time to query all-vs-all:", t1 - t0, "seconds", flush=True)
+    assert len(all_cluster_of_cluster_members) == len(cluster_ids), "Mismatch in number of clusters"
+    for cluster_id, cluster_of_cluster_members in zip(cluster_ids, all_cluster_of_cluster_members):
         # TODO: check if self-comparison is included in all-vs-all file. It is.
         # TODO: verify that foldseek clusters are unique so there are no duplicates
         # TODO: we actually have a problem with loading from parquets which is that the
         # clusters with fewer than 10 members are not currently included in the parquet files.
         # So to include these we need to manually load the corresponding pdb files.
-        cluster_of_cluster_members = get_cluster_of_cluster_members(cluster_id, ddf, evalue_threshold=evalue_threshold)
         if len(cluster_of_cluster_members) >= minimum_cluster_size:  # this is at the foldseek level i guess rather than af50 level.
             sequences = []
             accessions = []
@@ -83,11 +88,8 @@ def save_single_parquet(
             for member_id in cluster_of_cluster_members:
                 parquet_file = os.path.join(parquet_dir, parquet_index[member_id])
                 df = pd.read_parquet(parquet_file).set_index(identifier_col)
-                try:
-                    entry = df.loc[cluster_id]
-                except KeyError:
-                    print(f"Could not find {cluster_id} in {parquet_file}")
-                    raise
+                entry = df.loc[member_id]
+
                 sequences += entry["sequences"].tolist()
                 accessions += entry["accessions"].tolist()
                 is_foldseek_representative += entry["is_foldseek_representative"].tolist()
