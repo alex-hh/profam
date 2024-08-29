@@ -172,6 +172,9 @@ def load_protein_dataset(
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         # TODO: load identifier?
+        assert (
+            cfg.holdout_identifiers is None
+        ), "Holdout identifiers not supported for fasta"
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -213,14 +216,8 @@ def load_protein_dataset(
 
     def wrapped_preprocess(example):
         if cfg.identifier_col is not None:
-            try:
-                identifier = cfg.name + "/" + example[cfg.identifier_col]
-            except Exception as e:
-                # TODO: make sure columns are consistent
-                if cfg.identifier_col == "cluster_id" and "fam_id" in example:
-                    identifier = example["fam_id"]
-                else:
-                    raise e
+            identifier = cfg.name + "/" + example[cfg.identifier_col]
+
         example = preprocess_protein_data(
             example,
             cfg.preprocessor,
