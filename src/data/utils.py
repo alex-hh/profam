@@ -15,11 +15,6 @@ from src.utils.tokenizers import ProFamTokenizer
 # TODO: add things like sequence col, structure col, etc.
 # TODO: be careful around loading coords if using alignment - how can we test for this?
 
-# class AFDBDatasetConfig(ProteinDatasetConfig):
-#     processor:
-#     is_parquet: True
-#     sequence_col
-
 
 class StringObject:
     """

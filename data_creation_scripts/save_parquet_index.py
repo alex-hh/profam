@@ -12,11 +12,19 @@ import pandas as pd
 def main(args):
     with open(args.index_file_path, "w") as f:
         files = glob.glob(args.data_file_pattern)
-        f.write("identifier,parquet_file\n")
+        print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
+        f.write("identifier,parquet_file,cluster_size,sequence_length\n")
         for file in files:
             df = pd.read_parquet(file)
             for _, row in df.iterrows():
-                f.write(f"{row[args.identifier_col]},{os.path.basename(file)}\n")
+                representative = row[args.identifier_col]
+                try:
+                    representative_index = list(row["accessions"]).index(representative)
+                    representative_sequence = row["sequences"][representative_index]
+                except:
+                    print(f"Could not find representative {representative} in {row['accessions']} (file {file})")
+                    representative_sequence = ""
+                f.write(f"{row[args.identifier_col]},{os.path.basename(file)},{len(row['sequences'])},{len(representative_sequence)}\n")
 
 
 if __name__ == "__main__":
