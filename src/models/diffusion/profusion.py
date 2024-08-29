@@ -496,6 +496,7 @@ class ProFusionLitModule(BaseFamilyLitModule):
         )
         emb = outputs.hidden_states[-1]  # hidden states is a tuple
         noise_pred = self.diffusion_head(emb)
+        # ah - in AF the loss is not on the epsilon but on the denoised structure
         diffusion_loss = (
             nn.MSELoss(reduction="none")(noise_pred, noise) * coords_mask.float()
         ).sum() / coords_mask.sum()

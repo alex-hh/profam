@@ -1,6 +1,8 @@
+import tempfile
+
 import numpy as np
 import pytest
-import tempfile
+
 from src.data.objects import Protein
 
 
@@ -12,7 +14,7 @@ def protein_object():
         sequence=seq,
         accession="",
         backbone_coords=coords,
-        plddt=np.random.rand(10)*100,
+        plddt=np.random.rand(10) * 100,
     )
 
 

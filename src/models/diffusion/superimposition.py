@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
+from Bio.SVDSuperimposer import SVDSuperimposer
 
 
 def _superimpose_np(reference, coords):
@@ -93,24 +94,21 @@ def superimpose(reference, coords, mask):
 
 
 # ChatGPT transcription of AF3 algorithm 28
-def weighted_rigid_align(x, x_gt, w):
+def rigid_align(x, x_gt):
     """
-    Perform weighted rigid alignment of two sets of 3D points.
+    Perform rigid alignment of two sets of 3D points.
 
     Parameters:
     x (torch.Tensor): Predicted coordinates, shape (b, L, 3).
     x_gt (torch.Tensor): Ground truth coordinates, shape (b, L, 3).
-    w (torch.Tensor): Weights for each point, shape (b, L).
 
     Returns:
     torch.Tensor: Aligned coordinates, shape (b, L, 3).
     """
 
     # Step 1 & 2: Compute weighted centroids (mean-centre positions)
-    mu = (w.unsqueeze(-1) * x).sum(dim=1) / w.sum(dim=1, keepdim=True)  # shape (b, 3)
-    mu_gt = (w.unsqueeze(-1) * x_gt).sum(dim=1) / w.sum(
-        dim=1, keepdim=True
-    )  # shape (b, 3)
+    mu = x.mean(dim=1)  # shape (b, 3)
+    mu_gt = x_gt.mean(dim=1)  # shape (b, 3)
 
     # Step 3 & 4: Center the points
     x_centered = x - mu.unsqueeze(1)  # shape (b, L, 3)
@@ -118,14 +116,14 @@ def weighted_rigid_align(x, x_gt, w):
 
     # Step 5: Compute the cross-covariance matrix
     cov_matrix = torch.einsum(
-        "bl,bli,blj->bij", w, x_gt_centered, x_centered
+        "bli,blj->bij", x_gt_centered, x_centered
     )  # shape (b, 3, 3)
 
     # Step 5: Singular value decomposition (SVD)
     U, S, Vt = torch.linalg.svd(cov_matrix, full_matrices=True)
     V = Vt.transpose(-2, -1)
 
-    # Step 6: Compute the optimal rotation matrix
+    # Step 6: Compute the optimal rotation matrix  # TODO: check this works correctly batched...
     R = torch.matmul(U, V)  # shape (b, 3, 3)
 
     # Step 7-9: Correct for reflection
@@ -139,6 +137,7 @@ def weighted_rigid_align(x, x_gt, w):
     )
 
     # Step 11: Apply the rotation and translation to align x with x_gt
+    # TODO: check this works correctly batched as well
     x_aligned = torch.matmul(x_centered, R.transpose(-2, -1)) + mu_gt.unsqueeze(1)
 
     return x_aligned

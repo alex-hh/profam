@@ -1,13 +1,13 @@
 """
-Helpers for various likelihood-based losses. These are ported from the original
-Ho et al. diffusion models codebase:
-https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/utils.py
+Diffusion losses from guided diffusion codebase plus AF3-inspired losses.
 """
 
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import torch
+
+from src.models.diffusion.superimposition import superimpose
 
 
 def normal_kl(mean1, logvar1, mean2, logvar2):
@@ -80,6 +80,34 @@ def discretized_gaussian_log_likelihood(x, *, means, log_scales):
     )
     assert log_probs.shape == x.shape
     return log_probs
+
+
+def superimposed_mse(x_gt, x, mask: Optional = None):
+    """
+    Compute the mean squared error between two sets of 3D points.
+
+    Parameters:
+    x_gt (torch.Tensor): Ground truth coordinates, shape (b, L, n, 3).
+    x (torch.Tensor): Predicted coordinates, shape (b, L, n, 3).
+
+    Returns:
+    torch.Tensor: Mean squared error.
+
+    # TODO: support a mask
+    """
+    is_flattened = False
+    mask = mask or torch.ones_like(x)
+    if x.ndim == 4:
+        init_shape = x.shape
+        is_flattened = True
+        x = x.flatten(start_dim=-2)
+        x_gt = x_gt.flatten(start_dim=-2)
+    assert x.ndim == 3 and x_gt.shape == x.shape
+
+    x_super, _ = superimpose(x_gt, x)
+    if is_flattened:
+        x_super = x_super.reshape(init_shape)
+    return (mask * ((x - x_super) ** 2).sum()) / mask.sum()
 
 
 # smooth lddt loss:
