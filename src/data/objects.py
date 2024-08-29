@@ -1,3 +1,4 @@
+import io
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -10,6 +11,18 @@ from biotite.structure.residues import get_residue_starts, get_residues
 from src.constants import BACKBONE_ATOMS
 from src.data.fasta import read_fasta_lines
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.models.diffusion.superimposition import _superimpose_np
+
+
+def plddt_to_color(plddt):
+    if plddt > 90:
+        return "#0053D6"
+    elif plddt > 70:
+        return "#65CBF3"
+    elif plddt > 50:
+        return "#FFDB13"
+    else:
+        return "#FF7D45"
 
 
 @dataclass
@@ -30,7 +43,48 @@ class Protein:
                 np.ones_like(self.backbone_coords),
             )
 
-    def to_pdb(self, pdb_file):
+    def clone(self, **kwargs):
+        return Protein(
+            sequence=kwargs.get("sequence", self.sequence),
+            accession=kwargs.get("accession", self.accession),
+            positions=kwargs.get("positions", self.positions),
+            plddt=kwargs.get("plddt", self.plddt),
+            backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
+            backbone_coords_mask=kwargs.get(
+                "backbone_coords_mask", self.backbone_coords_mask
+            ),
+            structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
+        )
+
+    def view_with_py3dmol(self, view):
+        view.addModel(self.to_pdb_str(), "pdb")
+        if self.plddt is not None:
+            for i, plddt_val in enumerate(list(self.plddt) * 4):
+                color = plddt_to_color(plddt_val)
+                view.setStyle(
+                    {"model": -1, "serial": i + 1}, {"cartoon": {"color": color}}
+                )
+
+    def view_superimposed_with_py3dmol(self, view, other, align: bool = True):
+        coords = self.backbone_coords
+        other_coords = other.backbone_coords
+        assert coords.shape == other_coords.shape
+        if align:
+            superimposed, rmsd = _superimpose_np(
+                coords.reshape((-1, 3)), other_coords.reshape((-1, 3))
+            )
+            superimposed = superimposed.reshape(other_coords.shape)
+            other = other.clone(backbone_coords=superimposed)
+
+        pdb_str = self.to_pdb_str()
+        view.addModel(pdb_str, "pdb")
+        view.setStyle({"model": -1}, {"cartoon": {"color": "blue"}})
+        # view.addModel(other.to_pdb_str(), "pdb")
+        # view.setStyle({'model': -1}, {'cartoon': {'color': 'red'}})
+        view.addModel(other.to_pdb_str(), "pdb")
+        view.setStyle({"model": -1}, {"cartoon": {"color": "red"}})
+
+    def to_pdb_file(self, pdb_file):
         atoms = []
         # TODO: consider saving position information
         for res_ix, (aa, res_coords) in enumerate(
@@ -38,6 +92,9 @@ class Protein:
         ):
             res_name = ProteinSequence.convert_letter_1to3(aa)
             for atom_ix, atom_name in enumerate(BACKBONE_ATOMS):
+                annots = (
+                    {"b_factor": self.plddt[res_ix]} if self.plddt is not None else {}
+                )
                 atom = struc.Atom(
                     coord=res_coords[atom_ix],
                     chain_id="A",
@@ -46,11 +103,18 @@ class Protein:
                     hetero=False,
                     atom_name=atom_name,
                     element=atom_name[0],
-                    b_factor=self.plddt[res_ix] if self.plddt is not None else None,
+                    **annots,
                 )
                 atoms.append(atom)
         arr = struc.array(atoms)
-        strucio.save_structure(pdb_file, arr)
+        pdb = strucio.pdb.PDBFile()
+        pdb.set_structure(arr)
+        pdb.write(pdb_file)
+
+    def to_pdb_str(self):
+        pdb_file_like = io.StringIO()
+        self.to_pdb_file(pdb_file_like)
+        return pdb_file_like.getvalue()
 
     @classmethod
     def from_pdb(cls, pdb_file, plddt_from_bfactor: bool = False, chain="A"):

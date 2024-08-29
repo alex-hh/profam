@@ -189,7 +189,7 @@ def rotate_backbones(proteins: ProteinDocument, **kwargs):
     for coords in proteins.backbone_coords:
         assert coords.ndim == 3  # l, 4, 3
         rotation = R.random().as_matrix()
-        new_coords.append(rotation.apply(coords.reshpae(-1, 3)).reshape(-1, 4, 3))
+        new_coords.append(rotation.apply(coords.reshape(-1, 3)).reshape(-1, 4, 3))
     return proteins.clone(backbone_coords=new_coords)
 
 
