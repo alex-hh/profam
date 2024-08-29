@@ -83,7 +83,11 @@ def save_single_parquet(
             for member_id in cluster_of_cluster_members:
                 parquet_file = os.path.join(parquet_dir, parquet_index[member_id])
                 df = pd.read_parquet(parquet_file).set_index(identifier_col)
-                entry = df.loc[cluster_id]
+                try:
+                    entry = df.loc[cluster_id]
+                except KeyError:
+                    print(f"Could not find {cluster_id} in {parquet_file}")
+                    raise
                 sequences += entry["sequences"].tolist()
                 accessions += entry["accessions"].tolist()
                 is_foldseek_representative += entry["is_foldseek_representative"].tolist()
@@ -162,7 +166,7 @@ def main(args):
         output_file = os.path.join(save_dir, f"{parquet_id}.parquet")
         if args.force_rerun or not os.path.isfile(output_file):
             cluster_ids = clusters_to_save[parquet_id]
-            print(f"Saving {len(cluster_ids)} clusters (loading member info from parquet dir {parquet_dir}) to parquet file {args.parquet_id}", flush=True)
+            print(f"Saving {len(cluster_ids)} clusters (loading member info from parquet dir {parquet_dir}) to parquet file {parquet_id}", flush=True)
             t0 = time.time()
             save_single_parquet(
                 cluster_ids=cluster_ids,
