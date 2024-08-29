@@ -174,7 +174,7 @@ def make_cluster_db(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start_index", default=0)
+    parser.add_argument("--start_index", default=0, type=int)
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     args = parser.parse_args()
 
