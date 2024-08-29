@@ -4,7 +4,8 @@ We'll probably still load cluster_dict into memory. But the db will allow us to 
 """
 import argparse
 import time
-from sqlalchemy import create_engine, inspect, Column, String
+from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy import create_engine, Column, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -93,7 +94,6 @@ def make_cluster_db(
 
     # Print the entries
     print(f"Current entries in the database: {len(entries)}")
-    uniprot_ids_in_db = [e.uniprot_id for e in entries]
     print("Creating foldseek dataset", flush=True)
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     cluster_ids = sorted(list(cluster_dict.keys()))
@@ -108,6 +108,8 @@ def make_cluster_db(
         if ix < start_index:
             continue
         members = cluster_dict.pop(cluster_id)
+        # handling upserts:
+        # https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#insert-on-conflict-upsert
         if len(members) >= minimum_foldseek_cluster_size:
 
             for member in members:
@@ -128,46 +130,41 @@ def make_cluster_db(
                         "zip_filename": "",
                     }
 
-                if entry["uniprot_id"] not in uniprot_ids_in_db:
-                    entry = Protein(**entry)
-                    session.add(entry)
+                stmt = insert(Protein.__table__).values(**entry)
+                stmt = stmt.on_conflict_do_nothing(index_elements=["uniprot_id"])
+                session.execute(stmt)
 
                 if member in af50_dict:
                     for af50_member in af50_dict[member]:
+                        assert not af50_member == member
                         try:
-                            assert not af50_member == member
-                            try:
-                                zip_filename = af2zip[af50_member]
-                                entry = {
-                                    "foldseek_cluster_id": cluster_id,
-                                    "af50_cluster_id": member,
-                                    "uniprot_id": af50_member,
-                                    "zip_filename": zip_filename,
-                                }
-                            except:
-                                print("Error looking up", af50_member)
-                                entry = {
-                                    "foldseek_cluster_id": cluster_id,
-                                    "af50_cluster_id": member,
-                                    "uniprot_id": af50_member,
-                                    "zip_filename": "",
-                                }
-
-                            if entry["uniprot_id"] not in uniprot_ids_in_db:
-                                entry = Protein(**entry)
-                                session.add(entry)
+                            zip_filename = af2zip[af50_member]
+                            entry = {
+                                "foldseek_cluster_id": cluster_id,
+                                "af50_cluster_id": member,
+                                "uniprot_id": af50_member,
+                                "zip_filename": zip_filename,
+                            }
                         except:
                             print("Error looking up", af50_member)
+                            entry = {
+                                "foldseek_cluster_id": cluster_id,
+                                "af50_cluster_id": member,
+                                "uniprot_id": af50_member,
+                                "zip_filename": "",
+                            }
+
+                        stmt = insert(Protein.__table__).values(**entry)
+                        stmt = stmt.on_conflict_do_nothing(index_elements=["uniprot_id"])
+                        session.execute(stmt)
+                        print("Error looking up", af50_member)
+
                 else:
                     print("No af50 members for", member)
 
         if ix % 1000 == 0:
             print(f"Processed {ix} clusters", flush=True)
-            try:
-                session.commit()
-            except Exception as e:
-                print("Error committing")
-                raise e
+            session.commit()
 
     session.commit()
     session.close()
@@ -179,7 +176,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--start_index", default=0)
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
-    parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     args = parser.parse_args()
 
-    make_cluster_db(minimum_foldseek_cluster_size=args.minimum_foldseek_cluster_size)
+    make_cluster_db(minimum_foldseek_cluster_size=args.minimum_foldseek_cluster_size, start_index=args.start_index)
