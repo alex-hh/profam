@@ -167,7 +167,7 @@ if __name__ == "__main__":
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_v2/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/"
-    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
+    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
     afdb_fasta_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences.fasta"
 
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
