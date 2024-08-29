@@ -1,7 +1,10 @@
 import time
+from typing import Any, Dict
 
+import torch
 from lightning.pytorch.callbacks import Callback, ThroughputMonitor
-from lightning.pytorch.utilities.rank_zero import rank_zero_only
+from lightning.pytorch.trainer.states import RunningStage
+from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
 from typing_extensions import override
 
 from src.utils import RankedLogger
@@ -62,6 +65,8 @@ class PrintCallback(Callback):
             log.info(f"Epoch {pl_module.current_epoch}, metrics:\t{metrics_msg}")
 
 
+# if getting a bug like this, upgrade lightning:
+# You set `Trainer(accumulate_grad_batches=31, log_every_n_steps=10)` but these are not divisible and thus will not log anything.
 class TokenThroughputMonitor(ThroughputMonitor):
     """Modified to compute samples / tokens sizes and skip validation throughput (for now.)"""
 
@@ -71,6 +76,7 @@ class TokenThroughputMonitor(ThroughputMonitor):
             length_fn=lambda x: x["input_ids"].shape[1] * x["input_ids"].shape[0],
         )
         self.run_on_validation = run_on_validation
+        self._samples: Dict[RunningStage, int] = {}
 
     @override
     @rank_zero_only
@@ -93,3 +99,51 @@ class TokenThroughputMonitor(ThroughputMonitor):
             super().on_validation_batch_end(
                 trainer, pl_module, outputs, batch, *args, **kwargs
             )
+
+    def _start(self, trainer: "Trainer") -> None:
+        stage = trainer.state.stage
+        assert stage is not None
+        self._throughputs[stage].reset()
+        self._lengths[stage] = 0
+        self._t0s[stage] = time.perf_counter()
+        self._samples[stage] = 0
+
+    @torch.inference_mode()  # in case `length_fn` or `batch_size_fn` computes grads
+    def _update(
+        self,
+        trainer: "Trainer",
+        pl_module: "LightningModule",
+        batch: Any,
+        iter_num: int,
+    ) -> None:
+        stage = trainer.state.stage
+        assert stage is not None
+        throughput = self._throughputs[stage]
+
+        if trainer.strategy.root_device.type == "cuda":
+            # required or else perf_counter() won't be correct
+            torch.cuda.synchronize()
+
+        elapsed = time.perf_counter() - self._t0s[stage]
+        if self.length_fn is not None:
+            self._lengths[stage] += self.length_fn(batch)
+
+        self._samples[stage] += self.batch_size_fn(batch)
+
+        if hasattr(pl_module, "flops_per_batch"):
+            flops_per_batch = pl_module.flops_per_batch
+        else:
+            rank_zero_warn(
+                "When using the `ThroughputMonitor`, you need to define a `flops_per_batch` attribute or property"
+                f" in {type(pl_module).__name__} to compute the FLOPs."
+            )
+            flops_per_batch = None
+
+        throughput.update(
+            time=elapsed,
+            batches=iter_num,
+            # this assumes that all iterations used the same batch size
+            samples=self._samples[stage],
+            lengths=None if self.length_fn is None else self._lengths[stage],
+            flops=flops_per_batch,
+        )

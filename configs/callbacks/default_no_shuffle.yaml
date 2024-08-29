@@ -1,4 +1,5 @@
 defaults:
+  - throughput
   - model_checkpoint
   - model_summary
   - rich_progress_bar
