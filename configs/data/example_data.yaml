@@ -10,7 +10,7 @@ data_weights:
   openfold_raw: 0.5
 batch_size: 2
 max_tokens: 3000
-data_dir: data
+data_dir: ${paths.data_dir}
 evaluate_gym: true
 evaluate_ec_class: false
 evaluate_ec_cluster_class: true
@@ -21,3 +21,4 @@ gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 max_gym_sequences: null
 num_workers: 0  # None means use all available CPU cores
 gym_data_dir: example_data/ProteinGym
+use_filtered_gym_msas: false

@@ -47,14 +47,13 @@ def run(cfg: DictConfig) -> None:
     )
     evaluator = hydra.utils.instantiate(cfg.evaluator)
     pipeline = hydra.utils.instantiate(cfg.pipeline)
-    model = hydra.utils.instantiate(cfg.pretrained_model)
+    sampler = hydra.utils.instantiate(cfg.sampler)
+    # TODO: save sampler config to results directory and verify that it matches on rerun.
     pipeline.run(
-        model,
-        cfg.pretrained_model.name,
+        sampler,
         evaluator=evaluator,
-        rerun_model=cfg.rerun_model,
+        rerun_sampler=cfg.rerun_sampler,
         rerun_evaluator=cfg.rerun_evaluator,
-        sampling_kwargs=cfg.pretrained_model.sampling_evaluator_kwargs,
     )
     # for hydra multirun memory management issues:
     gc.collect()

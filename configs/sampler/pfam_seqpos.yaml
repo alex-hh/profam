@@ -1,0 +1,16 @@
+defaults:
+ - /preprocessor@prompt_build.preprocessor: parquet_msa_pos
+
+_target_: src.models.inference.ProFamSampler
+name: pfam_seqpos
+prompt_builder:
+  _target_: src.models.inference.PromptBuilder
+  max_tokens: 8192
+  seed: 42
+
+model:
+  _target_: src.models.base.load_checkpoint
+  checkpoint_dir: outputs/pfam_train_seqpos
+
+sampling_kwargs:
+  batch_size: 1

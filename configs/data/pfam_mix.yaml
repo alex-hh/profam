@@ -27,7 +27,7 @@ dataset_cfgs:
     data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
 batch_size: 22
 max_tokens: 8192
-data_dir: ../data
+data_dir: ${paths.data_dir}
 val_dataset_names:
   - pfam_val
   - pfam_val_raw

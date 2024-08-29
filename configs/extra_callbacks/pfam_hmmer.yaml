@@ -9,3 +9,4 @@ sampling_kwargs:
 pipeline:
   num_generations: 9
   save_to_file: false
+seed: 42  # for prompt builder

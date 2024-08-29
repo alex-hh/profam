@@ -13,13 +13,12 @@ dataset_cfgs:
     data_path_pattern: pfam/combined_parquets/Family_95000795_101711374.parquet
 batch_size: 22
 max_tokens: 8192
-data_dir: ../data
+data_dir: ${paths.data_dir}
 val_dataset_names:
   - pfam_val
-gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
-evaluate_gym: True
+gym_dms_ids: ${constants.val_assay_list}
+evaluate_gym: true
 evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
-count_doc_hashes: True # count the num times each document gets sampled
-ignore_gaps: false
+use_filtered_gym_msas: true

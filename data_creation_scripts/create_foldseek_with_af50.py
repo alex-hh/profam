@@ -8,7 +8,6 @@ then iterate through the file.
 N.B. this runs very quickly.
 """
 import argparse
-import random
 import pickle
 import numpy as np
 import os

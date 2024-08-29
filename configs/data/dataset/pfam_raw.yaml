@@ -1,10 +1,7 @@
+defaults:
+  - /preprocessor: "parquet_raw"
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: pfam_raw
 data_path_pattern: pfam/combined_parquets/*.parquet
 holdout_data_files: null
 is_parquet: true
-keep_gaps: false
-to_upper: true
-keep_insertions: true
-document_tag: "[RAW]"
-use_msa_pos: false

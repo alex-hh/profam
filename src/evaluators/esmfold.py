@@ -57,6 +57,7 @@ def load_residues(pdb_file):
 class ESMFoldSamplingEvaluator(SamplingEvaluator):
     # TODO: run on single device in multi-gpu setting? or figure out how to distribute?
     # TODO: support caching structure predictions for prompt.
+    # TODO: support multimodal prompt.
     def __init__(
         self,
         name,
@@ -67,6 +68,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
         save_structures: bool = False,
+        max_length: int = 650,  # TODO look into cpu offloading...
         **kwargs,
     ):
         super().__init__(name, seed=seed, num_samples=num_samples, **kwargs)
@@ -80,6 +82,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.half_precision = half_precision
         self.use_precomputed_reference_structures = use_precomputed_reference_structures
         self.save_structures = save_structures
+        self.max_length = max_length
         if self.half_precision:
             print("Using half precision")
             self.esmfold = self.esmfold.half()
@@ -104,30 +107,37 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         ):
             ref_sequences, _ = self.build_prompt(protein_document)
             for seq in ref_sequences:
-                out = self.esmfold.infer(seq)
-                final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
-                # pdb_str = self.model.output_to_pdb(out)[0]
-                prompt_plddts.append(np.mean(out.plddt.cpu().numpy()))
-                reference_cas.append(
-                    final_atom_positions[0, ..., ca_index, :].cpu().numpy()
-                )
+                if len(seq) <= self.max_length:
+                    out = self.esmfold.infer(seq)
+                    final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
+                    # pdb_str = self.model.output_to_pdb(out)[0]
+                    prompt_plddts.append(np.mean(out.plddt.cpu().numpy()))
+                    reference_cas.append(
+                        final_atom_positions[0, ..., ca_index, :].cpu().numpy()
+                    )
         else:
+            ref_sequences = protein_document.sequences
             reference_cas = [
                 coords[:, 1, :] for coords in protein_document.backbone_coords
             ]
 
         sample_plddts = []
         all_tm_scores = []
+        num_samples_greater_than_max_length = 0
         for i, seq in enumerate(samples):
-            out = self.esmfold.infer(seq)
-            # pdb_str = self.model.output_to_pdb(out)[0]
-            final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
-            sample_ca = final_atom_positions[0, ..., ca_index, :].cpu().numpy()
-            sample_plddts.append(np.mean(out.plddt.cpu().numpy()))
-            tm_scores = []
-            for ref_seq, ref_ca in zip(ref_sequences, reference_cas):
-                tm_scores.append(calc_tm_score(ref_ca, sample_ca, ref_seq, seq))
-            all_tm_scores.append(tm_scores)
+            if len(seq) <= self.max_length:
+                out = self.esmfold.infer(seq)
+                # pdb_str = self.model.output_to_pdb(out)[0]
+                final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
+                sample_ca = final_atom_positions[0, ..., ca_index, :].cpu().numpy()
+                sample_plddts.append(np.mean(out.plddt.cpu().numpy()))
+                if len(reference_cas) > 0:
+                    tm_scores = []
+                    for ref_seq, ref_ca in zip(ref_sequences, reference_cas):
+                        tm_scores.append(calc_tm_score(ref_ca, sample_ca, ref_seq, seq))
+                    all_tm_scores.append(tm_scores)
+            else:
+                num_samples_greater_than_max_length += 1
             if self.save_structures:
                 pdb_str = self.esmfold.output_to_pdb(out)[0]
                 with open(os.path.join(output_dir, f"sample_{i}.pdb"), "w") as f:
@@ -138,4 +148,5 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             "sample_plddt": np.mean(sample_plddts),
             "min_tm_score": np.mean([min(tm_scores) for tm_scores in all_tm_scores]),
             "max_tm_score": np.mean([max(tm_scores) for tm_scores in all_tm_scores]),
+            "num_samples_greater_than_max_length": num_samples_greater_than_max_length,
         }

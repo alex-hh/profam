@@ -1,0 +1,7 @@
+_target_: src.data.preprocessing.FastaPreprocessorConfig
+keep_insertions: true
+to_upper: true
+keep_gaps: false
+document_token: "[RAW]"
+truncate_after_n_sequences: null
+use_msa_pos: false

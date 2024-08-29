@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pandas as pd
 
 
@@ -12,10 +14,12 @@ class ParquetMixin:
         evaluation_accessions_file: str = None,
         parquet_index: str = None,
         evaluation_accessions: list = None,
+        max_instances: Optional[int] = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.instance_id_col = instance_id_col
+        self.max_instances = max_instances
         if evaluation_parquet is not None:
             assert evaluation_accessions_file is None
             self.evaluation_df = pd.read_parquet(evaluation_parquet).set_index(
@@ -42,6 +46,10 @@ class ParquetMixin:
                 .set_index(self.instance_id_col)["parquet_file"]
                 .to_dict()
             )
+        if self.max_instances is not None:
+            self.evaluation_accessions = self.evaluation_accessions[
+                : self.max_instances
+            ]
 
     def get_protein_example(self, instance_id: str):
         if self.evaluation_df is not None:

@@ -1,3 +1,5 @@
+defaults:
+  - /preprocessor: "parquet_msa"
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: openfold_aligned
 data_path_pattern: openfold/uniclust30_filtered_parquet/*.parquet
@@ -5,7 +7,3 @@ holdout_data_files: null
 holdout_identifiers: null
 identifier_col: null
 is_parquet: true
-keep_gaps: true
-to_upper: false
-keep_insertions: false
-document_tag: "[MSA]"

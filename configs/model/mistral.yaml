@@ -1,7 +1,7 @@
 _target_: src.models.mistral_lit_module.MistralLitModule
 config:
   _target_: transformers.MistralConfig
-  vocab_size: 41
+  vocab_size: 66
   hidden_size: 128
   intermediate_size: 512
   num_hidden_layers: 3
