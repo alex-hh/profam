@@ -14,7 +14,7 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
-from src.constants import BASEDIR
+from src.constants import BASEDIR, aa_letters
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,
@@ -55,7 +55,7 @@ def load_checkpoint(checkpoint_dir, **kwargs):
             add_special_tokens=True,
             add_final_sep=True,
             add_bos_token=True,
-            add_document_type_token=True,
+            add_document_token=True,
             use_seq_pos=cfg.data.use_seq_pos,
             max_seq_pos=cfg.data.max_seq_pos,
             max_tokens=cfg.data.max_tokens,
@@ -78,6 +78,7 @@ def load_checkpoint(checkpoint_dir, **kwargs):
 
     model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
     model.load_state_dict(checkpoint)
+    model.eval()
     return model
 
 
@@ -166,6 +167,108 @@ class BaseLitModule(LightningModule):
             prog_bar=True,
         )
 
+    @torch.no_grad()
+    def log_metrics(
+        self, batch, outputs, step_name, log_global: bool = False, log_ds: bool = False
+    ):
+        # N.B. actually val logging is a bit different because of this ds name thing
+        loss = outputs.loss
+        if not log_global and not log_ds:
+            return
+
+        aa_accuracy = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                ["-", "X", "x"]
+                + [aa.lower() for aa in aa_letters]
+                + self.tokenizer.all_special_tokens
+            ),
+        )
+        has_3di = torch.isin(
+            batch["input_ids"],
+            torch.tensor(
+                self.tokenizer.convert_tokens_to_ids([aa.lower() for aa in aa_letters])
+            ).to(batch["input_ids"]),
+        ).any()
+        accuracy_3di = accuracy_from_outputs(
+            outputs,
+            batch["labels"],
+            ignore_index=-100,
+            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
+            ),
+        )
+        if log_ds:
+            # n.b. this assumes a batch only contains a single dataset - only true during val!
+            ds_name = (
+                batch["ds_name"][0]
+                if isinstance(batch["ds_name"], list)
+                else batch["ds_name"].text[0]
+            )
+            self.log(
+                f"{step_name}/{ds_name}/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            self.log(
+                f"{step_name}/{ds_name}/aa_accuracy",
+                aa_accuracy,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            if has_3di:
+                self.log(
+                    f"{step_name}/{ds_name}/3di_accuracy",
+                    accuracy_3di,
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=False,
+                    add_dataloader_idx=False,
+                )
+        if log_global:
+            # log the loss again with generic name for the sake of model checkpointing
+            self.log(
+                f"{step_name}/loss",
+                loss,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=True,
+            )
+            # n.b. this might be biased for batch size > 1
+            self.log(
+                f"{step_name}/{ds_name}/ppl",
+                torch.exp(loss),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            self.log(
+                f"{step_name}/aa_accuracy",
+                aa_accuracy,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
+            if has_3di:
+                self.log(
+                    f"{step_name}/3di_accuracy",
+                    accuracy_3di,
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=False,
+                    add_dataloader_idx=False,
+                )
+
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
@@ -177,37 +280,7 @@ class BaseLitModule(LightningModule):
             **forward_kwargs,
         )
         loss = outputs.loss
-        # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log(
-            "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
-        )
-        # https://huggingface.co/docs/transformers/perplexity
-        # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round
-        with torch.no_grad():
-            self.log(
-                "train/ppl",
-                torch.exp(loss),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-            )
-            self.log(
-                "train/n_seqs",
-                (batch["input_ids"] == self.tokenizer.sep_token_id)
-                .float()
-                .sum(axis=1)
-                .mean()
-                .item(),
-                on_step=True,
-                on_epoch=False,
-            )
+        self.log_metrics(batch, outputs, "train", log_global=True, log_ds=False)
         return loss
 
     def on_before_optimizer_step(self, optimizer):
@@ -224,11 +297,6 @@ class BaseLitModule(LightningModule):
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        ds_name = (
-            batch["ds_name"][0]
-            if isinstance(batch["ds_name"], list)
-            else batch["ds_name"].text[0]
-        )
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -245,54 +313,14 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
-        self.log(
-            f"val/{ds_name}/loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        if dataloader_idx == 0:
-            # log the loss again with generic name for the sake of model checkpointing
-            self.log(
-                f"val/loss",
-                loss,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=True,
-            )
-
-        self.log(
-            f"val/{ds_name}/accuracy",
-            accuracy,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        # n.b. this might be biased for batch size > 1
-        self.log(
-            f"val/{ds_name}/ppl",
-            torch.exp(loss),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
+        self.log_metrics(
+            batch, outputs, "val", log_global=dataloader_idx == 0, log_ds=True
         )
         return loss
 
     def test_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
-        ds_name = batch["ds_name"].text[0]
         # we check whether we are in proteingym loader by looking at keys in batch
         if "DMS_scores" in batch:
             outputs = self.validation_step_proteingym(batch)
@@ -306,35 +334,8 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
-        self.log(
-            f"test/{ds_name}/loss",
-            loss,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        # n.b. this might be biased for batch size > 1
-        self.log(
-            f"test/{ds_name}/ppl",
-            torch.exp(loss),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-            add_dataloader_idx=False,
-        )
-        self.log(
-            f"test/{ds_name}/accuracy",
-            accuracy,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
+        self.log_metrics(
+            batch, outputs, "test", log_global=dataloader_idx == 0, log_ds=True
         )
         return loss
 
@@ -430,7 +431,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.dataset_sample_counts = {}
-        self.doc_hash_counts = {}
+        self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
 
@@ -593,6 +594,7 @@ class BaseFamilyLitModule(BaseLitModule):
         greedy: bool = False,
         temperature: Optional[float] = None,
         sample_gaps: bool = False,
+        structure_tokens: bool = False,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -613,13 +615,17 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["max_new_tokens"] = fixed_length
             generation_kwargs["eos_token_id"] = None
         else:
-            generation_kwargs["min_new_tokens"] = 1
+            generation_kwargs["min_new_tokens"] = 3  # for esmfold
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
             generation_kwargs["max_length"] = max_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
-        bad_aas = ["X"]
+        bad_aas = ["X", "x"]
         if not sample_gaps:
             bad_aas.append("-")
+        if structure_tokens:
+            bad_aas = bad_aas + aa_letters
+        else:
+            bad_aas = bad_aas + [aa.lower() for aa in aa_letters]
 
         # each 'word' is treated as a list of tokens
         generation_kwargs["bad_words_ids"] = [
@@ -642,14 +648,12 @@ class BaseFamilyLitModule(BaseLitModule):
 
         assert input_ids.ndim == 2  # b, L
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
+        assert input_seq_pos.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
-            forward_kwargs = (
-                {"seq_pos": input_seq_pos.expand(num_return_sequences, -1)}
-                if self.use_seq_pos
-                else {}
-            )
+            # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
+            forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
             # N.B. we need to be careful about generationconfig -- in particular eos token id
@@ -682,38 +686,38 @@ class BaseFamilyLitModule(BaseLitModule):
 
         return padded_outputs
 
-    def sample_seqs(
-        self,
-        sequence_prompt: List[str],
-        num_samples,
-        position_indices: Optional[List[int]] = None,
-        batch_size: int = 1,
-        include_prompt_in_output: bool = False,
-        greedy: bool = False,
-        fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
-        temperature: Optional[float] = None,
-        document_type: str = "[RAW]",
-    ):
-        # TODO: encode sequence prompt and get sequence pos if necessary.
-        tokenized = self.tokenizer.encode_sequences(
-            sequence_prompt, positions=position_indices, document_type=document_type
-        )
-        if "seq_pos" in tokenized.data:
-            seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
-        else:
-            seq_pos = None
-        encoded = self._sample_seqs(
-            tokenized.input_ids.unsqueeze(0).to(self.device),
-            num_samples,
-            input_seq_pos=seq_pos,
-            batch_size=batch_size,
-            include_prompt_in_output=include_prompt_in_output,
-            greedy=greedy,
-            fixed_length=fixed_length,
-            temperature=temperature,
-            sample_gaps=document_type == "[MSA]",
-        )
-        return self.tokenizer.decode_tokens(encoded)
+    # def sample_seqs(
+    #     self,
+    #     sequence_prompt: List[str],
+    #     num_samples,
+    #     position_indices: Optional[List[int]] = None,
+    #     batch_size: int = 1,
+    #     include_prompt_in_output: bool = False,
+    #     greedy: bool = False,
+    #     fixed_length: Optional[int] = None,  # makes sense especially for MSA generation
+    #     temperature: Optional[float] = None,
+    #     document_token: str = "[RAW]",
+    # ):
+    # # TODO: encode sequence prompt and get sequence pos if necessary.
+    # tokenized = self.tokenizer.encode_sequences(
+    #     sequence_prompt, positions=position_indices, document_token=document_token
+    # )
+    # if "seq_pos" in tokenized.data:
+    #     seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
+    # else:
+    #     seq_pos = None
+    # encoded = self._sample_seqs(
+    #     tokenized.input_ids.unsqueeze(0).to(self.device),
+    #     num_samples,
+    #     input_seq_pos=seq_pos,
+    #     batch_size=batch_size,
+    #     include_prompt_in_output=include_prompt_in_output,
+    #     greedy=greedy,
+    #     fixed_length=fixed_length,
+    #     temperature=temperature,
+    #     sample_gaps=document_token == "[MSA]",
+    # )
+    # return self.tokenizer.decode_tokens(encoded)
 
     def validation_step_proteingym(
         self, batch: Dict[str, torch.Tensor]
@@ -812,6 +816,8 @@ class BaseFamilyLitModule(BaseLitModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
         forward_kwargs = self.get_forward_kwargs(batch)
+        # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
+        # one option would be to write our own versions of classes llike llamaforcausallm
         outputs = self(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],
@@ -869,20 +875,18 @@ class BaseFamilyLitModule(BaseLitModule):
                     on_epoch=True,
                 )
 
-            if "doc_hash" in batch:
-                for i, (dataset, doc_hash) in enumerate(
-                    zip(batch["ds_name"].text, batch["doc_hash"].text)
+            if "identifier" in batch:
+                for i, (dataset, doc_id) in enumerate(
+                    zip(batch["ds_name"].text, batch["identifier"].text)
                 ):
-                    self.doc_hash_counts[dataset] = self.doc_hash_counts.get(
-                        dataset, {}
-                    )
-                    self.doc_hash_counts[dataset][doc_hash] = (
-                        self.doc_hash_counts[dataset].get(doc_hash, 0) + 1
+                    self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
+                    self.doc_id_counts[dataset][doc_id] = (
+                        self.doc_id_counts[dataset].get(doc_id, 0) + 1
                     )
                 self.log_dict(
                     {
                         f"{k}_max_sampled_doc": max(v.values())
-                        for k, v in self.doc_hash_counts.items()
+                        for k, v in self.doc_id_counts.items()
                     },
                     on_step=False,
                     on_epoch=True,

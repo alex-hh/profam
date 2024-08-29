@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from datasets import interleave_datasets
 from lightning import LightningDataModule
@@ -17,6 +17,15 @@ from src.data.utils import (
 )
 from src.utils.tokenizers import ProFamTokenizer
 
+DEFAULT_FEATURE_NAMES = [
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "ds_name",
+    "seq_pos",
+    "identifier",
+]
+
 
 class ProteinDataModule(LightningDataModule):
     def __init__(
@@ -27,7 +36,7 @@ class ProteinDataModule(LightningDataModule):
         data_dir: str,
         val_dataset_names: List[str],
         batch_size: int = 8,
-        max_tokens: int = 5000,
+        max_tokens: int = 8192,
         evaluate_gym: bool = False,
         keep_gym_gaps: bool = False,
         gym_data_dir: Optional[str] = None,
@@ -37,31 +46,36 @@ class ProteinDataModule(LightningDataModule):
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
         evaluate_ec_cluster_class: bool = True,
-        count_doc_hashes: bool = True,
+        shuffle: bool = True,
         ignore_gaps: bool = False,
+        feature_names: Optional[List[str]] = None,
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
         self.data_weights = data_weights
         self.batch_size = batch_size
-        self.max_tokens = max_tokens
         self.data_dir = data_dir
         self.val_dataset_names = val_dataset_names
         self.num_workers = num_workers
         self.evaluate_gym = evaluate_gym
         self.keep_gym_gaps = keep_gym_gaps
+        self.max_tokens = max_tokens
+        self.shuffle = shuffle
         if self.evaluate_gym:
             self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
         self.evaluate_ec_cluster_class = evaluate_ec_cluster_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
-        self.use_filtered_gym_msas = use_filtered_gym_msas
         self.tokenizer = tokenizer
+        self.use_filtered_gym_msas = use_filtered_gym_msas
+        self.feature_names = feature_names or DEFAULT_FEATURE_NAMES
         self.collator = CustomDataCollator(
-            self.tokenizer, mlm=False, ignore_gaps=ignore_gaps
+            self.tokenizer,
+            mlm=False,
+            ignore_gaps=ignore_gaps,
+            feature_names=self.feature_names,
         )
-        self.count_doc_hashes = count_doc_hashes
         self._is_setup = False
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -69,25 +83,32 @@ class ProteinDataModule(LightningDataModule):
         if not self._is_setup:
             train_datasets = []
             train_data_weights = []
+            train_dataset_names = []
             for data_key, dataset_config in self.dataset_cfgs.items():
                 if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
                         dataset_config,
                         self.tokenizer,
-                        self.max_tokens,
                         data_dir=self.data_dir,
-                        include_doc_hashes=self.count_doc_hashes,
+                        shuffle=self.shuffle,
+                        max_tokens=self.max_tokens,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
                     # https://huggingface.co/docs/datasets/about_mapstyle_vs_iterable
                     # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                     # https://github.com/huggingface/datasets/pull/5735
+                    print(
+                        f"Dataset {data_key} keys in example batch",
+                        list(next(iter(dataset)).keys()),
+                    )
                     train_datasets.append(dataset)
                     train_data_weights.append(self.data_weights[data_key])
+                    train_dataset_names.append(data_key)
             train_data_weights = [
                 w / sum(train_data_weights) for w in train_data_weights
             ]
+
             self.train_dataset = interleave_datasets(
                 train_datasets,
                 probabilities=train_data_weights,
@@ -107,15 +128,15 @@ class ProteinDataModule(LightningDataModule):
                 load_protein_dataset(
                     self.dataset_cfgs[v_ds_name],
                     self.tokenizer,
-                    self.max_tokens,
                     data_dir=self.data_dir,
+                    max_tokens=self.max_tokens,
                 )
                 for v_ds_name in self.val_dataset_names
             ]
             self.test_dataset = load_protein_dataset(
                 self.dataset_cfgs[self.val_dataset_names[0]],
                 self.tokenizer,
-                self.max_tokens,
+                max_tokens=self.max_tokens,
                 data_dir=self.data_dir,
             )
             if self.evaluate_gym:

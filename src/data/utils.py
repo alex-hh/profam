@@ -1,40 +1,19 @@
-import bisect
 import glob
-import hashlib
-import itertools
 import os
 import random
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import numpy as np
-import torch
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
-from transformers import DataCollatorForLanguageModeling, PreTrainedTokenizerFast
+from transformers import DataCollatorForLanguageModeling
 
-from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
+from src.data.preprocessing import BasePreprocessorConfig, preprocess_protein_data
+from src.utils.tokenizers import ProFamTokenizer
 
-
-# TODO: in future we might actually want standalone dataset class for
-# more flexible customisation (e.g. mapping uniprot ids via db)
-@dataclass
-class ProteinDatasetConfig:
-    name: str
-    keep_gaps: bool = False
-    data_path_pattern: Optional[str] = None
-    holdout_data_files: Optional[List[str]] = None
-    holdout_identifiers: Optional[List[str]] = None
-    identifier_col: Optional[str] = None
-    data_path_file: Optional[str] = None
-    keep_insertions: bool = False
-    to_upper: bool = False
-    file_repeats: int = 1
-    is_parquet: bool = False
-    minimum_sequences: Optional[int] = 1
-    document_tag: str = "[RAW]"
-    truncate_after_n_sequences: Optional[int] = None
-    use_msa_pos: bool = True  # for msa sequences, if true, position index will be relative to alignment cols
+# TODO: add things like sequence col, structure col, etc.
+# TODO: be careful around loading coords if using alignment - how can we test for this?
 
 
 class StringObject:
@@ -56,81 +35,52 @@ class CustomDataCollator:
     tensors with seq_len dimension, eg. dataset names
     """
 
-    def __init__(self, tokenizer, mlm=False, ignore_gaps: bool = False):
+    def __init__(
+        self,
+        tokenizer,
+        mlm=False,
+        ignore_gaps: bool = False,
+        feature_names: Optional[List[str]] = None,
+    ):
         self.tokenizer = tokenizer
         self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
         self.ignore_gaps = ignore_gaps
+        self.feature_names = feature_names
 
     def __call__(self, examples):
+        # TODO: maybe I have an issue with blending data with different keys?
+        # need to handle either in collator or by standardising in tokenizer.
+        def keep_feature(feature_name):
+            return self.feature_names is None or feature_name in self.feature_names
+
         non_string_data = [
-            {k: v for k, v in e.items() if not isinstance(v, str)} for e in examples
+            {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
+            for e in examples
         ]
         string_data = [
-            {k: v for k, v in e.items() if isinstance(v, str)} for e in examples
+            {k: v for k, v in e.items() if isinstance(v, str) and keep_feature(k)}
+            for e in examples
         ]
         string_data_keys = set(k for obs in string_data for k in obs.keys())
-        batch = self.base_collator(non_string_data)
+        try:
+            batch = self.base_collator(non_string_data)
+        except Exception as e:
+            print("Error in collator")
+            print(string_data)
+            # print(non_string_data)
+            raise e
         if self.ignore_gaps:
-            batch["labels"] = batch["labels"][
+            batch["labels"][
                 batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")
             ] = -100
+        # dont predict mask tokens.
+        batch["labels"][batch["labels"] == self.tokenizer.mask_token_id] = -100
         for str_key in string_data_keys:
             str_vals = [obs.get(str_key, "") for obs in string_data]
             str_obj = StringObject()
             str_obj.text = str_vals
             batch[str_key] = str_obj
         return batch
-
-
-def get_flat_seq_pos_from_positions(
-    positions,
-    max_seq_pos: int = 1024,
-    prepend_index=0,
-    append_index=0,
-    sep_index=0,
-    num_start_tokens=1,
-    num_end_tokens=1,
-):
-    # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
-    if len(positions) > 0:
-        flat_positions = [prepend_index] * num_start_tokens
-        for sequence_positions in positions[:-1]:
-            # add 1 so that sep doesnt have same position index
-            flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
-            flat_positions.append(sep_index)
-        flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
-        flat_positions += [append_index] * num_end_tokens
-        return flat_positions
-    else:
-        return []
-
-
-def get_seq_pos_from_positions(
-    input_ids,
-    positions,
-    pad_token_id,
-    max_seq_pos: int = 1024,
-    num_start_tokens=1,
-    num_end_tokens=1,
-):
-    assert input_ids.ndim == 1
-    seq_pos = torch.zeros_like(input_ids)
-    flat_pos = get_flat_seq_pos_from_positions(
-        positions,
-        max_seq_pos=max_seq_pos,
-        prepend_index=0,
-        append_index=0,
-        sep_index=0,
-        num_start_tokens=num_start_tokens,  # TODO: handle better
-        num_end_tokens=num_end_tokens,
-    )
-    pad_any = torch.argwhere(input_ids == pad_token_id)
-    if pad_any.any():
-        pad_start = pad_any.min()
-    else:
-        pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = torch.tensor(flat_pos)
-    return seq_pos
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -152,176 +102,29 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
     return sampled_lines
 
 
-def np_random(seed: Optional[int]) -> Any:
-    """Returns a numpy random number generator with a given seed.
-
-    :param seed: The seed value for the random number generator.
-    :return: A numpy random number generator.
-    """
-    if seed is not None:
-        rnd = np.random.default_rng(seed)
-    else:
-        # to maintain control by global seed
-        rnd = np.random
-    return rnd
-
-
-def random_subsample(arr, n, seed: Optional[int] = None):
-    rnd = np_random(seed)
-    return rnd.choice(arr, min(n, len(arr)), replace=False)
-
-
-def sample_to_max_tokens(
-    sequences,
-    positions: Optional[List[int]] = None,
-    max_tokens: Optional[int] = None,
-    shuffle=True,
-    seed: Optional[int] = None,
-    drop_first: bool = False,
-):
-    rnd = np_random(seed)
-    # TODO: implement keep first, drop first
-    if drop_first:
-        sequences = sequences[1:]
-        if positions is not None:
-            positions = positions[1:]
-
-    if shuffle:
-        perm = rnd.permutation(len(sequences))
-        sequences = [sequences[i] for i in perm]
-        if positions is not None:
-            positions = [positions[i] for i in perm]
-
-    if max_tokens is not None:
-        cumulative_lengths = list(
-            itertools.accumulate([len(s) + 1 for s in sequences])
-        )  # +1 for separator
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - 2,
-        )  # -2 for doc start and end tokens
-    else:
-        insertion_point = len(sequences)
-    if positions is None:
-        return sequences[:insertion_point]
-    else:
-        return sequences[:insertion_point], positions[:insertion_point]
+@dataclass
+class ProteinDatasetConfig:
+    name: str
+    preprocessor: Optional[BasePreprocessorConfig] = None
+    data_path_pattern: Optional[str] = None
+    holdout_data_files: Optional[str] = None
+    holdout_identifiers: Optional[List[str]] = None
+    identifier_col: Optional[str] = None
+    data_path_file: Optional[str] = None
+    file_repeats: int = 1
+    minimum_sequences: Optional[int] = None
+    is_parquet: bool = False
+    shuffle: bool = True
 
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
-    tokenizer: PreTrainedTokenizerFast,
-    max_tokens: Optional[int] = 5000,
+    tokenizer: ProFamTokenizer,
     data_dir="../data",
     split="train",
-    padding="max_length",
-    include_doc_hashes: bool = False,
-    remove_text: bool = True,
+    max_tokens: Optional[int] = None,
     shuffle: bool = True,
 ) -> Dataset:
-    def preprocess_fasta(example: Dict[str, Any]) -> Dict[str, Any]:
-        # N.B. for stockholm format we need to check that sequences aren't split over
-        # multiple lines
-        if "sequences" in example:
-            sequence_iterator = example["sequences"]
-            max_sequences_to_preprocess = max_tokens // 10
-            # n.b. this also shuffles
-            sequence_iterator = random_subsample(
-                sequence_iterator,
-                max_sequences_to_preprocess,
-            )
-        else:
-            lines = example["text"].split("\n")
-            if not len(lines[-1]):
-                lines = lines[:-1]
-            # min 2 lines per seq, assume at least 10 tks per line
-            max_fasta_lines_to_preprocess = (
-                max_tokens // 5
-            )  # upper bound on lines to proc.
-            if len(lines) > max_fasta_lines_to_preprocess:
-                lines = subsample_fasta_lines(
-                    lines,
-                    max_fasta_lines_to_preprocess,
-                    shuffle=shuffle,
-                )
-            sequence_iterator = read_fasta_sequences(
-                lines,
-                # preserve original sequences before getting positions
-                keep_gaps=True if tokenizer.use_seq_pos else cfg.keep_gaps,
-                keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
-                to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
-            )
-        if tokenizer.use_seq_pos:
-            sequences = []
-            positions = []
-            for seq in itertools.islice(
-                sequence_iterator, cfg.truncate_after_n_sequences
-            ):
-                seq, pos, _ = convert_sequence_with_positions(
-                    seq,
-                    keep_gaps=cfg.keep_gaps,
-                    keep_insertions=cfg.keep_insertions,
-                    to_upper=cfg.to_upper,
-                    use_msa_pos=cfg.use_msa_pos,
-                )
-                sequences.append(seq)
-                positions.append(pos)
-            sequences, positions = sample_to_max_tokens(
-                sequences, positions=positions, max_tokens=max_tokens, shuffle=shuffle
-            )
-
-        else:
-            sequences = [
-                seq
-                for seq in itertools.islice(
-                    sequence_iterator, cfg.truncate_after_n_sequences
-                )
-            ]  # necessary for fasta iterator...
-            sequences = sample_to_max_tokens(
-                sequences, max_tokens=max_tokens, shuffle=shuffle
-            )
-
-        # TODO: use profam tokenizer to handle this.
-        tokenized = tokenizer.encode_sequences(
-            sequences,
-            positions=positions if tokenizer.use_seq_pos else None,
-            document_type=cfg.document_tag,
-            padding=padding,
-            max_length=max_tokens,
-        )
-
-        # tokenized.input_ids is flat now
-        if cfg.identifier_col is not None:
-            tokenized.data["identifier"] = example[cfg.identifier_col]
-        tokenized.data["ds_name"] = cfg.name
-        tokenized.data["total_num_sequences"] = len(sequences)  # below length threshold
-        if include_doc_hashes:
-            # identify documents by a hash of the first 512 characters
-            tokenized.data["doc_hash"] = hashlib.md5(
-                example["text"][:512].encode()
-            ).hexdigest()
-
-        return tokenized
-
-    def batched_preprocess_and_filter(batch):
-        batch_dict = {}
-        for example_text in batch["text"]:
-            example = {"text": example_text}
-            processed = preprocess_fasta(example).data
-            if (
-                cfg.minimum_sequences is None
-                or processed["total_num_sequences"] >= cfg.minimum_sequences
-            ):
-                for k, v in processed.items():
-                    if k not in batch_dict:
-                        batch_dict[k] = []
-                    batch_dict[k].append(v)
-        print(
-            len(batch["text"]),
-            len(batch_dict["ds_name"]) if "ds_name" in batch_dict else 0,
-        )
-        return batch_dict
-
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
         # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
@@ -334,11 +137,15 @@ def load_protein_dataset(
             ]
 
     if cfg.holdout_data_files is not None:
-        assert isinstance(cfg.holdout_data_files, list) or isinstance(
-            cfg.holdout_data_files, ListConfig
-        ), f"holdout files is {type(cfg.holdout_data_files)} not list"
+        if isinstance(cfg.holdout_data_files, str):
+            holdout_files = [cfg.holdout_data_files]
+        else:
+            assert isinstance(cfg.holdout_data_files, list) or isinstance(
+                cfg.holdout_data_files, ListConfig
+            ), f"holdout files is {type(cfg.holdout_data_files)} not list"
+            holdout_files = cfg.holdout_data_files
         all_files = len(data_files)
-        data_files = [f for f in data_files if f not in cfg.holdout_data_files]
+        data_files = [f for f in data_files if f not in holdout_files]
         print("Excluding", all_files - len(data_files), "holdout files")
 
     assert isinstance(data_files, list)
@@ -359,9 +166,10 @@ def load_protein_dataset(
         )
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
+        # TODO: load identifier?
         assert (
             cfg.holdout_identifiers is None
-        ), "For loading from fasta use holdout accessions"
+        ), "Holdout identifiers not supported for fasta"
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -374,16 +182,19 @@ def load_protein_dataset(
     for i, item in enumerate(dataset.take(3)):
         print(f"  Item {i + 1}:")
         for key, value in item.items():
-            print(f"    {key}: {value[:100] if isinstance(value, str) else value}")
+            if isinstance(value, str):
+                value_to_print = value[:100]
+            elif isinstance(value, list):
+                # TODO: if its a list of lists we want to print only first few elements
+                if isinstance(value[0], list):
+                    value_to_print = f"[{value[0][:10]},...]"
+                else:
+                    value_to_print = f"{value[:3]}..." if len(value) > 3 else value
+            else:
+                value_to_print = value
+            print(f"    {key}: {value_to_print}")
         print()
-    # with batched map there is a massive delay before training actually starts - why?
-    # dataset = dataset.map(
-    #     batched_preprocess_and_filter,
-    #     batched=True,
-    #     remove_columns=["text"],
-    #     batch_size=2,
-    # )
-    # filter after map also seems to slow things down...
+
     if cfg.holdout_identifiers:
         assert (
             cfg.identifier_col is not None
@@ -398,30 +209,43 @@ def load_protein_dataset(
         )
         return filter_num_seqs and filter_identifier
 
-    dataset = dataset.map(
-        preprocess_fasta, batched=False, remove_columns=["text"] if remove_text else []
-    ).filter(filter_example)
+    def wrapped_preprocess(example):
+        if cfg.identifier_col is not None:
+            identifier = cfg.name + "/" + example[cfg.identifier_col]
+
+        example = preprocess_protein_data(
+            example,
+            cfg.preprocessor,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+        )
+        if "coords" in example:
+            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+            example["coords"] = example["coords"].tolist()
+
+        example["ds_name"] = cfg.name
+        # TODO: get identifier for fasta files...
+        if cfg.identifier_col is not None:
+            example["identifier"] = identifier
+
+        return example
+
+    if cfg.preprocessor is not None:
+        if dataset.column_names is not None:
+            # Q: what causes None? maybe loading text rather than parquet
+            remove_columns = [
+                c
+                for c in dataset.column_names
+                if c not in (cfg.preprocessor.keep_columns or [])
+            ]  # shouldnt be necessary but is for plddts - bug?
+        else:
+            remove_columns = None
+        dataset = dataset.map(
+            wrapped_preprocess,
+            batched=False,
+            remove_columns=remove_columns,
+        ).filter(filter_example)
+        # n.b. coords is returned as a list...
 
     return dataset
-
-
-def backbone_coords_from_example(example):
-    ns = example["N"]
-    cas = example["CA"]
-    cs = example["C"]
-    oxys = example["O"]
-    coords = []
-    for seq, n, ca, c, o in zip(
-        example["sequences"],
-        ns,
-        cas,
-        cs,
-        oxys,
-    ):
-        recons_coords = np.zeros((len(seq), 4, 3))
-        recons_coords[:, 0] = n.reshape(-1, 3)
-        recons_coords[:, 1] = ca.reshape(-1, 3)
-        recons_coords[:, 2] = c.reshape(-1, 3)
-        recons_coords[:, 3] = o.reshape(-1, 3)
-        coords.append(recons_coords)
-    return coords

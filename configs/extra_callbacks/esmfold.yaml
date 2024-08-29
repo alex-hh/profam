@@ -1,0 +1,16 @@
+_target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
+defaults:
+  - /pipeline: foldseek
+  - /evaluator: esmfold
+  - /preprocessor: null  # n.b. must be set
+evaluator:
+  num_samples: null
+sampling_kwargs:
+  batch_size: 3
+pipeline:
+  num_generations: 3
+  save_to_file: false
+  evaluation_parquet: null
+  evaluation_accessions_file: null
+  max_instances: 50
+seed: 42  # for prompt builder

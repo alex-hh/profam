@@ -10,7 +10,7 @@ data_weights:
   openfold_raw: 0.5
 batch_size: 2
 max_tokens: 3000
-data_dir: data
+data_dir: ${paths.data_dir}
 evaluate_gym: true
 evaluate_ec_class: false
 evaluate_ec_cluster_class: true
