@@ -7,6 +7,7 @@ We then write the outputs to a new set of parquet files.
 """
 import argparse
 import os
+import time
 from dask import dataframe as dd
 import numpy as np
 import pandas as pd
@@ -144,6 +145,7 @@ def main(args):
 
 
     # all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
+    print("Loading parquet index", flush=True)
     parquet_index = load_parquet_index(args.index_file_path)
     ddf = load_all_vs_all("/SAN/orengolab/cath_plm/ProFam/data/afdb/6-all-vs-all-similarity-queryId_targetId_eValue.tsv")
 
@@ -160,6 +162,7 @@ def main(args):
         if args.force_rerun or not os.path.isfile(output_file):
             cluster_ids = clusters_to_save[parquet_id]
             print(f"Saving {len(cluster_ids)} clusters to parquet file {args.parquet_id}", flush=True)
+            t0 = time.time()
             save_single_parquet(
                 cluster_ids=cluster_ids,
                 output_file=output_file,
@@ -170,6 +173,8 @@ def main(args):
                 identifier_col=args.identifier_col,
                 with_structure=args.with_structure,
             )
+            t1 = time.time()
+            print("Saved in", t1 - t0, "seconds", flush=True)
 
 
 if __name__ == "__main__":
@@ -180,6 +185,7 @@ if __name__ == "__main__":
     parser.add_argument("--parquet_size", type=int, default=100)
     parser.add_argument("--identifier_col", default="cluster_id")
     parser.add_argument("--with_structure", action="store_true")
+    parser.add_argument("--minimum_cluster_size", type=int, default=1)
     parser.add_argument("--evalue_threshold", type=float, default=1e-3)
     parser.add_argument("--force_rerun", action="store_true")
     args = parser.parse_args()
