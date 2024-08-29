@@ -54,6 +54,7 @@ def save_single_parquet(
     output_file,
     ddf,
     parquet_index,
+    parquet_dir,
     evalue_threshold=0.001,
     minimum_cluster_size=1,
     identifier_col="cluster_id",
@@ -80,7 +81,7 @@ def save_single_parquet(
             plddts = []
 
             for member_id in cluster_of_cluster_members:
-                parquet_file = parquet_index[member_id]
+                parquet_file = os.path.join(parquet_dir, parquet_index[member_id])
                 df = pd.read_parquet(parquet_file).set_index(identifier_col)
                 entry = df.loc[cluster_id]
                 sequences += entry["sequences"]
@@ -122,6 +123,7 @@ def main(args):
 
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
+    parquet_dir = os.path.dirname(args.index_file_path)
 
     if not os.path.exists(cluster_dict_pickle_path):
         print("Creating foldseek dataset", flush=True)
@@ -161,7 +163,7 @@ def main(args):
         output_file = os.path.join(save_dir, f"{parquet_id}.parquet")
         if args.force_rerun or not os.path.isfile(output_file):
             cluster_ids = clusters_to_save[parquet_id]
-            print(f"Saving {len(cluster_ids)} clusters to parquet file {args.parquet_id}", flush=True)
+            print(f"Saving {len(cluster_ids)} clusters (loading member info from parquet dir {parquet_dir}) to parquet file {args.parquet_id}", flush=True)
             t0 = time.time()
             save_single_parquet(
                 cluster_ids=cluster_ids,
@@ -172,6 +174,7 @@ def main(args):
                 minimum_cluster_size=args.minimum_cluster_size,
                 identifier_col=args.identifier_col,
                 with_structure=args.with_structure,
+                parquet_dir=parquet_dir,
             )
             t1 = time.time()
             print("Saved in", t1 - t0, "seconds", flush=True)
