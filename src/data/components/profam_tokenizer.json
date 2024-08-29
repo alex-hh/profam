@@ -4,7 +4,7 @@
   "padding": null,
   "added_tokens": [
     {
-      "id": 25,
+      "id": 46,
       "content": "[PAD]",
       "single_word": false,
       "lstrip": false,
@@ -13,7 +13,7 @@
       "special": true
     },
     {
-      "id": 26,
+      "id": 47,
       "content": "[start-of-document]",
       "single_word": false,
       "lstrip": false,
@@ -22,7 +22,7 @@
       "special": true
     },
     {
-      "id": 27,
+      "id": 48,
       "content": "[end-of-document]",
       "single_word": false,
       "lstrip": false,
@@ -31,7 +31,7 @@
       "special": true
     },
     {
-      "id": 28,
+      "id": 49,
       "content": "[SEP]",
       "single_word": false,
       "lstrip": false,
@@ -40,7 +40,7 @@
       "special": true
     },
     {
-      "id": 29,
+      "id": 50,
       "content": "[UNK]",
       "single_word": false,
       "lstrip": false,
@@ -49,7 +49,7 @@
       "special": true
     },
     {
-      "id": 30,
+      "id": 51,
       "content": "[MASK]",
       "single_word": false,
       "lstrip": false,
@@ -58,8 +58,8 @@
       "special": true
     },
     {
-      "id": 31,
-      "content": "[RAW]",
+      "id": 52,
+      "content": "[SP1]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -67,8 +67,8 @@
       "special": true
     },
     {
-      "id": 32,
-      "content": "[MSA]",
+      "id": 53,
+      "content": "[SP2]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -76,7 +76,7 @@
       "special": true
     },
     {
-      "id": 33,
+      "id": 54,
       "content": "[SP3]",
       "single_word": false,
       "lstrip": false,
@@ -85,7 +85,7 @@
       "special": true
     },
     {
-      "id": 34,
+      "id": 55,
       "content": "[SP4]",
       "single_word": false,
       "lstrip": false,
@@ -94,7 +94,7 @@
       "special": true
     },
     {
-      "id": 35,
+      "id": 56,
       "content": "[SP5]",
       "single_word": false,
       "lstrip": false,
@@ -103,7 +103,7 @@
       "special": true
     },
     {
-      "id": 36,
+      "id": 57,
       "content": "[SP6]",
       "single_word": false,
       "lstrip": false,
@@ -112,7 +112,7 @@
       "special": true
     },
     {
-      "id": 37,
+      "id": 58,
       "content": "[SP7]",
       "single_word": false,
       "lstrip": false,
@@ -121,7 +121,7 @@
       "special": true
     },
     {
-      "id": 38,
+      "id": 59,
       "content": "[SP8]",
       "single_word": false,
       "lstrip": false,
@@ -130,7 +130,7 @@
       "special": true
     },
     {
-      "id": 39,
+      "id": 60,
       "content": "[SP9]",
       "single_word": false,
       "lstrip": false,
@@ -139,8 +139,44 @@
       "special": true
     },
     {
-      "id": 40,
+      "id": 61,
       "content": "[SP10]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 62,
+      "content": "[MSA]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 63,
+      "content": "[RAW]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 64,
+      "content": "[RAW-WITH-MSA-POS]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 65,
+      "content": "[SEQ-STRUCT-SEP]",
       "single_word": false,
       "lstrip": false,
       "rstrip": false,
@@ -189,22 +225,47 @@
       "Z": 22,
       "J": 23,
       "-": 24,
-      "[PAD]": 25,
-      "[start-of-document]": 26,
-      "[end-of-document]": 27,
-      "[SEP]": 28,
-      "[UNK]": 29,
-      "[MASK]": 30,
-      "[RAW]": 31,
-      "[MSA]": 32,
-      "[SP3]": 33,
-      "[SP4]": 34,
-      "[SP5]": 35,
-      "[SP6]": 36,
-      "[SP7]": 37,
-      "[SP8]": 38,
-      "[SP9]": 39,
-      "[SP10]": 40
+      "a": 25,
+      "r": 26,
+      "n": 27,
+      "d": 28,
+      "c": 29,
+      "q": 30,
+      "e": 31,
+      "g": 32,
+      "h": 33,
+      "i": 34,
+      "l": 35,
+      "k": 36,
+      "m": 37,
+      "f": 38,
+      "p": 39,
+      "s": 40,
+      "t": 41,
+      "w": 42,
+      "y": 43,
+      "v": 44,
+      "x": 45,
+      "[PAD]": 46,
+      "[start-of-document]": 47,
+      "[end-of-document]": 48,
+      "[SEP]": 49,
+      "[UNK]": 50,
+      "[MASK]": 51,
+      "[SP1]": 52,
+      "[SP2]": 53,
+      "[SP3]": 54,
+      "[SP4]": 55,
+      "[SP5]": 56,
+      "[SP6]": 57,
+      "[SP7]": 58,
+      "[SP8]": 59,
+      "[SP9]": 60,
+      "[SP10]": 61,
+      "[MSA]": 62,
+      "[RAW]": 63,
+      "[RAW-WITH-MSA-POS]": 64,
+      "[SEQ-STRUCT-SEP]": 65
     },
     "merges": []
   }

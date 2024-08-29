@@ -1,0 +1,14 @@
+_target_: src.models.llama.LlamaLitModule
+scheduler_name: "inverse_sqrt"
+num_warmup_steps: 1000
+lr: 1e-4
+config:
+  _target_: transformers.LlamaConfig
+  vocab_size: 66
+  hidden_size: 1024
+  intermediate_size: 4096
+  num_attention_heads: 16
+  num_hidden_layers: 12
+  rope_theta: 500000  # n.b. llama uses 500,000
+  max_position_embeddings: 8192  # used in llama rope implementation
+  scoring_max_tokens: 10240

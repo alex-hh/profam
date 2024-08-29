@@ -93,8 +93,6 @@ def convert_sequence_with_positions(
     positions = []
     is_match = []
     sequence = ""
-    if not keep_gaps:
-        assert keep_insertions, "If not keeping gaps should keep insertions"
     if keep_insertions:
         assert to_upper, "If keeping insertions should convert to upper case"
     for aa in seq:

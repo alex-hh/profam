@@ -4,7 +4,7 @@ defaults:
   - dataset@val_dataset_cfg: gym_msas_aligned  # TODO change this
 tokenizer_path: src/data/components/profam_tokenizer.json
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013"]  # start by replicating single msa results
-gym_data_dir: ../data/ProteinGym
-data_dir: ../data
+gym_data_dir: ProteinGym
+data_dir: ${paths.data_dir}
 max_tokens: 2048
 batch_size: 16

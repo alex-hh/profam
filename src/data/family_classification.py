@@ -34,7 +34,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
             tokenize,
             tokenizer=tokenizer,
             mutant_bos_token="sep",  # todo check this
-            document_tag="[RAW]",
+            document_token="[RAW]",
         ),
         batched=False,
         remove_columns=["MSA", "completion_seqs"],
@@ -147,8 +147,6 @@ def load_ec_cluster_classifier_dataset(
     fasta_dir: str = "../data/ec/ec_fastas",
     val_df_path: str = "data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
     max_tokens=10000,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
     seed=42,
 ):
     """
@@ -188,7 +186,8 @@ def load_ec_cluster_classifier_dataset(
             }
             dataset_list.append(family_dict)
     dataset = family_dataset_from_dict_list(
-        dataset_list, tokenizer, use_seq_pos, max_seq_pos
+        dataset_list,
+        tokenizer,
     )
     return dataset
 

@@ -6,26 +6,94 @@ import pandas as pd
 from datasets import Dataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
-from src.utils.tokenizers import ProFamTokenizer
-
+from transformers import PreTrainedTokenizerFast
 
 from src.data import fasta
-from src.data import utils as data_utils
+from src.data.objects import ProteinDocument
+from src.data.transforms import sample_to_max_tokens
 from src.data.utils import (
     CustomDataCollator,
     ProteinDatasetConfig,
     load_protein_dataset,
-    tokenize,
-    tokenize_completions,
-    tokenize_msa,
 )
+from src.utils.tokenizers import ProFamTokenizer
+
+
+def tokenize_msa(
+    sample,
+    tokenizer: ProFamTokenizer,
+    document_token: Optional[str] = "[RAW]",
+):
+    # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
+    proteins = ProteinDocument(sequences=sample["MSA"])
+    tokenized = tokenizer.encode(
+        proteins, document_token=document_token, add_final_sep=False
+    )  # sep gets added in completion bos
+    sample["input_ids"] = tokenized.input_ids.squeeze()
+    if tokenizer.use_seq_pos:
+        sample["seq_pos"] = tokenized.data["seq_pos"]
+    return sample
+
+
+def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
+    if name == "bos":
+        return tokenizer.bos_token
+    elif name == "sep":
+        return tokenizer.sep_token
+    else:
+        pass
+
+
+def tokenize_completions(
+    sample,
+    tokenizer: ProFamTokenizer,
+    bos_token="sep",
+):
+    tokenized = tokenizer.encode_completions(
+        sample["completion_seqs"],
+        bos_token=get_token_from_name(bos_token, tokenizer),
+    )
+    sample["completion_ids"] = tokenized.input_ids
+    if tokenizer.use_seq_pos:
+        sample["completion_seq_pos"] = tokenized.data["seq_pos"]
+    return sample
+
+
+def tokenize(
+    sample,
+    tokenizer: PreTrainedTokenizerFast,
+    mutant_bos_token="sep",
+    document_token="[RAW]",
+):
+    sample = tokenize_msa(
+        sample,
+        tokenizer,
+        document_token=document_token,
+    )
+    sample = tokenize_completions(
+        sample,
+        tokenizer,
+        bos_token=mutant_bos_token,
+    )
+    return sample
 
 
 def load_msa_for_row(
-    row, seed, max_tokens, gym_data_dir, keep_wt=False, drop_wt=True, keep_gaps=False
+    row,
+    seed,
+    max_tokens,
+    gym_data_dir,
+    keep_wt=False,
+    drop_wt=True,
+    keep_gaps=False,
+    use_filtered_msa: bool = False,
+    extra_tokens_per_document: int = 2,
 ):
+    msa_file = os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"])
+    if use_filtered_msa:
+        msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
     _, seqs = fasta.read_fasta(
-        os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
+        msa_file,
         keep_insertions=True,
         to_upper=True,
         keep_gaps=keep_gaps,
@@ -34,15 +102,25 @@ def load_msa_for_row(
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     if keep_wt:
         raise NotImplementedError()
-    sampled_seqs = data_utils.sample_to_max_tokens(
-        seqs,
+    proteins = ProteinDocument(
+        identifier=msa_file,
+        sequences=seqs,
+        accessions=None,
+        positions=None,
+        plddts=None,
+        backbone_coords=None,
+        structure_tokens=None,
+    )
+    proteins = sample_to_max_tokens(
+        proteins,
         seed=seed,
         drop_first=drop_wt,
         max_tokens=max_tokens_for_msa,
+        extra_tokens_per_document=extra_tokens_per_document,
     )
-    assert len(sampled_seqs) > 0, "No sequences sampled - check max tokens"
-    print(f"Sampled {len(sampled_seqs)} sequences for MSA")
-    row["MSA"] = sampled_seqs
+    assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
+    print(f"Sampled {len(proteins.sequences)} sequences for MSA")
+    row["MSA"] = proteins.sequences
     return row
 
 
@@ -64,6 +142,8 @@ def build_gym_df(
     max_mutated_sequences: Optional[int] = None,
     max_tokens: int = 5000,
     keep_gaps: bool = False,
+    use_filtered_msa: bool = False,
+    extra_tokens_per_document: int = 2,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
@@ -75,6 +155,8 @@ def build_gym_df(
         gym_data_dir=gym_data_dir,
         max_tokens=max_tokens,
         keep_gaps=keep_gaps,
+        use_filtered_msa=use_filtered_msa,
+        extra_tokens_per_document=extra_tokens_per_document,
     )
     df = df.apply(
         load_dms_scores_for_row,
@@ -97,6 +179,7 @@ def load_gym_dataset(
     gym_data_dir: str = "data/example_data/ProteinGym",
     keep_gaps: bool = False,
     num_proc: Optional[int] = None,
+    use_filtered_msa: bool = False,
 ):
     """mutant_bos_token should almost always be sep.
 
@@ -113,6 +196,8 @@ def load_gym_dataset(
         max_mutated_sequences=max_mutated_sequences,
         max_tokens=max_tokens,
         keep_gaps=keep_gaps,
+        use_filtered_msa=use_filtered_msa,
+        extra_tokens_per_document=tokenizer.num_start_tokens,
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     print("Loading gym dataset")
@@ -121,7 +206,7 @@ def load_gym_dataset(
             tokenize,
             tokenizer=tokenizer,
             mutant_bos_token=mutant_bos_token,
-            document_tag="[MSA]" if keep_gaps else "[RAW]",
+            document_token="[MSA]" if keep_gaps else "[RAW]",
         ),
         batched=False,
         remove_columns=["DMS_id", "MSA", "completion_seqs"],
@@ -343,8 +428,6 @@ class GymMultiMSADataModule(LightningDataModule):
             tokenizer=self.tokenizer,
             max_tokens=self.max_tokens,
             data_dir=self.data_dir,
-            use_seq_pos=self.use_seq_pos,
-            max_seq_pos=self.max_seq_pos,
         )
         self.train_dataset = self.train_dataset.shuffle(
             buffer_size=self.train_dataset.n_shards // dataset_cfg.file_repeats,

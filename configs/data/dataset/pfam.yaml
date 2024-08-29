@@ -1,3 +1,6 @@
+defaults:
+  - /preprocessor: "parquet_msa_pos"
+
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: pfam
 data_path_pattern: pfam/combined_parquets/*.parquet
@@ -5,8 +8,3 @@ holdout_data_files: null
 holdout_identifiers: null
 identifier_col: null
 is_parquet: true
-keep_gaps: false
-to_upper: true
-keep_insertions: true
-document_tag: "[MSA]"
-use_msa_pos: true

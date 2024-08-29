@@ -39,18 +39,22 @@ def make_af50_dictionary(af50_path, clusters_to_include=None):
     af50_dict = {}
     with open(af50_path, "r") as f:
         for line in f:
-            line = line.strip().split("\t")
-            rep_id = line[0]
-            entry_id = line[1]
-            # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
-            clu_flag = int(line[2])  # 1
-            # n.b. the 2s are duplicates of the other cluster dict
-            # n.b. we don't include the representative in its own cluster atm
-            if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
-                if rep_id not in af50_dict:
-                    af50_dict[rep_id] = []
-                af50_dict[rep_id].append(entry_id)
-            line_counter += 1
+            try:
+                line = line.strip().split("\t")
+                rep_id = line[0]
+                entry_id = line[1]
+                # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
+                clu_flag = int(line[2])  # 1
+                # n.b. the 2s are duplicates of the other cluster dict
+                # n.b. we don't include the representative in its own cluster atm
+                if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
+                    if rep_id not in af50_dict:
+                        af50_dict[rep_id] = []
+                    af50_dict[rep_id].append(entry_id)
+                line_counter += 1
+            except Exception as e:
+                print("Error processing line", line, flush=True)
+                raise e
     return af50_dict
 
 
@@ -63,7 +67,8 @@ def make_zip_dictionary(zip_index, accessions_to_include=None):
             line = line.strip().split("\t")
             afdb_id = line[0]
             uniprot_id = afdb_id.split("-")[1]
-            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4"
+            # todo just make this an if statement
+            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4", f"AFDB ID mismatch: {afdb_id} {uniprot_id}"
             zip_file = line[2]
             if accessions_to_include is None or uniprot_id in accessions_to_include:
                 af2zip[uniprot_id] = zip_file
@@ -194,6 +199,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
     shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
+    # Q. why not just df.to_parquet?
     table = pa.Table.from_pandas(df)
     output_file = os.path.join(f'{save_dir}', f'{parquet_id}.parquet')
     pq.write_table(table, output_file)
@@ -221,6 +227,7 @@ def make_job_list(
     zip_index_file=None,
     af50_path=None,
 ):
+    t0 = time.time()
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
 
@@ -271,6 +278,7 @@ def make_job_list(
     print("Building lookup", flush=True)
 
     t1 = time.time()
+    print("Finished reading files", t1 - t0, flush=True)
     for ix, cluster_id in enumerate(cluster_ids):
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
@@ -279,7 +287,12 @@ def make_job_list(
             cluster_counter += 1
 
             for member in members:
-                zip_filename = af2zip[member]
+                try:
+                    zip_filename = af2zip[member]
+                except:
+                    print("Member not found in zip index", member, flush=True)
+                    continue
+
                 afdb_id = f"AF-{member}-F1-model_v4"
                 pdb_lookup[zip_filename].append(afdb_id)
                 metadata_lookup[afdb_id] = {
@@ -293,17 +306,17 @@ def make_job_list(
                 if not skip_af50:  # this is the af50 representative
                     af50_members = af50_dict.get(member, [])
                     for af50_member in af50_members:
-                        if af50_member.uniprot_id != member:
-                            zip_filename = af2zip[af50_member]
-                            afdb_id = f"AF-{af50_member}-F1-model_v4"
-                            pdb_lookup[zip_filename].append(afdb_id)
-                            cluster_membership[cluster_id].append(afdb_id)
-                            metadata_lookup[afdb_id] = {
-                                "cluster_id": cluster_id,
-                                "accession": af50_member,
-                                "is_foldseek_representative": False,
-                                "is_af50_representative": False,
-                            }
+                        assert af50_member != member
+                        zip_filename = af2zip[af50_member]
+                        afdb_id = f"AF-{af50_member}-F1-model_v4"
+                        pdb_lookup[zip_filename].append(afdb_id)
+                        cluster_membership[cluster_id].append(afdb_id)
+                        metadata_lookup[afdb_id] = {
+                            "cluster_id": cluster_id,
+                            "accession": af50_member,
+                            "is_foldseek_representative": False,
+                            "is_af50_representative": False,
+                        }
 
     t2 = time.time()
     print("Built lookup in", t2 - t1, "seconds", flush=True)
@@ -311,7 +324,7 @@ def make_job_list(
     return pdb_lookup, metadata_lookup, cluster_membership
 
 
-def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes):
+def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes=None):
     seq_fail_counter = 0
     seq_success_counter = 0
     # Parallel extraction of pdb files
@@ -319,25 +332,33 @@ def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes)
     output_dir = os.path.join(scratch_dir, str(parquet_id))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        results = []
+
+    if num_processes is not None:
+        with multiprocessing.Pool(processes=num_processes) as pool:
+            results = []
+            for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
+                print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
+                result = pool.apply_async(
+                    extract_pdbs,
+                    args=(zip_filename, afdb_ids, output_dir, zip_index)
+                )
+                results.append(result)
+
+            for result in results:
+                success_count, fail_count = result.get()
+                seq_success_counter += success_count
+                seq_fail_counter += fail_count
+    else:
         for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
-            result = pool.apply_async(
-                extract_pdbs,
-                args=(zip_filename, afdb_ids, output_dir, zip_index)
-            )
-            results.append(result)
-
-        for result in results:
-            success_count, fail_count = result.get()
+            success_count, fail_count = extract_pdbs(zip_filename, afdb_ids, output_dir, zip_index)
             seq_success_counter += success_count
             seq_fail_counter += fail_count
 
     print("Number of failed sequences:", seq_fail_counter)
     print("Number of successful sequences:", seq_success_counter, flush=True)
     t1 = time.time()
-    print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)
+    print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)  # typically ~5000 seconds for 250 noaf50 clusters (1 hour)
 
 
 def create_foldseek_parquets(
@@ -352,13 +373,17 @@ def create_foldseek_parquets(
         # 2302908 clusterss
         parquet_ids = range(231)
     for parquet_id in parquet_ids:
+        scratch_zip_index = os.path.join(scratch_dir, "zip_index")
+        scratch_af50 = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
+        zip_index = scratch_zip_index if os.path.isfile(scratch_zip_index) else "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
+        af50_path = scratch_af50 if os.path.isfile(scratch_af50) else "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
         pdb_lookup, metadata_lookup, cluster_membership = make_job_list(
             parquet_id,
             save_dir=save_dir,
             minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
             skip_af50=skip_af50,
-            zip_index_file=os.path.join(scratch_dir, "zip_index"),
-            af50_path=os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv"),
+            zip_index_file=zip_index,
+            af50_path=af50_path,
         )
         extract_pdbs_for_parquet(
             pdb_lookup=pdb_lookup,
