@@ -38,7 +38,7 @@ def read_fasta_lines(lines, keep_gaps=True, keep_insertions=True, to_upper=False
     def parse(s):
         if not keep_gaps:
             s = re.sub("-", "", s)
-            s = re.sub("\.", "", s)
+            s = re.sub(r"\.", "", s)
         if not keep_insertions:
             s = re.sub(r"[a-z\.]", "", s)
         return s.replace(".", "-").upper() if to_upper else s
