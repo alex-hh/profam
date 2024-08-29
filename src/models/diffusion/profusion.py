@@ -43,6 +43,8 @@ class ProFusionLitModule(BaseFamilyLitModule):
         diffusion_loss_weight: float = 1.0,
         diffusion_loss_prob: float = 1.0,
         atom_names: List[str] = ["N", "CA", "C", "O"],  # which backbone atoms to model
+        bidirectional_within_sequence_attention: bool = False,
+        use_explicit_causal_mask: bool = False,
     ):
         super().__init__(
             model,
@@ -66,6 +68,14 @@ class ProFusionLitModule(BaseFamilyLitModule):
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
         self.atom_names = atom_names
+        self.bidirectional_within_sequence_attention = (
+            bidirectional_within_sequence_attention
+        )
+        self.use_explicit_causal_mask = use_explicit_causal_mask
+        assert (
+            not self.use_explicit_causal_mask
+            and self.bidirectional_within_sequence_attention
+        )
 
     @property
     def num_atoms(self):
@@ -85,10 +95,65 @@ class ProFusionLitModule(BaseFamilyLitModule):
             all_coords[:, :, idx, :] = coords[:, :, i, :]
         return all_coords
 
+    def make_causal_attention_mask(self, input_ids):
+        # for checking that custom 4d masks are working - compare to not passing explicit mask at train / test / generation time
+        min_dtype = torch.finfo(
+            torch.float32
+        ).min  # TODO: possibly infer dtype rather than hardcoding
+        bsz, L = input_ids.shape
+        causal_mask = torch.full(
+            (L, L), min_dtype, dtype=torch.float32, device=self.device
+        )
+        # TODO: one possible issue with custom mask is the strange hack they have for fully masked rows...
+        # TODO: find link for this
+        causal_mask = torch.triu(causal_mask, diagonal=1)[None, None].expand(
+            bsz, -1, -1, -1
+        )  # b, h, L, L
+        return causal_mask
+
+    def make_sequence_bidirectional_attention_mask(self, input_ids):
+        """N.B. explicit masks are not currently compatible with flash attention."""
+        min_dtype = torch.finfo(
+            torch.float32
+        ).min  # TODO: possibly infer dtype rather than hardcoding
+        bsz, L = input_ids.shape
+        causal_mask = torch.full(
+            (L, L), min_dtype, dtype=torch.float32, device=self.device
+        )
+        # TODO: one possible issue with custom mask is the strange hack they have for fully masked rows...
+        # TODO: find link for this
+        causal_mask = torch.triu(causal_mask, diagonal=1)[None, None].expand(
+            bsz, -1, -1, -1
+        )  # b, h, L, L
+        assert not (
+            input_ids == self.tokenizer.seq_struct_sep_token_id
+        ).any()  # not handled for now
+        # we allow attention to all positions in the current sequence.
+        # we dont attent to the next sep token, which marks the start of the next sequence
+        # so we might want to think carefully about this
+        sequence_index = torch.cumsum(
+            (input_ids == self.tokenizer.sep_token_id).float(), dim=-1
+        )  # b, l
+        same_sequence_mask = (
+            sequence_index[:, None, :] == sequence_index[:, :, None]
+        )  # b, l, l
+        causal_mask = causal_mask.masked_fill(
+            same_sequence_mask[:, None], 0.0
+        )  # allow attention within sequence, while retaining causal attention between sequences
+        return causal_mask
+
     def get_forward_kwargs(self, batch, is_train: bool = False):
         forward_kwargs = (
             {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
         )
+        if self.bidirectional_within_sequence_attention:
+            forward_kwargs[
+                "attention_mask"
+            ] = self.make_sequence_bidirectional_attention_mask(batch["input_ids"])
+        elif self.use_explicit_causal_mask:
+            forward_kwargs["attention_mask"] = self.make_causal_attention_mask(
+                batch["input_ids"]
+            )
         if is_train:
             # coords and timestep are created in the training step
             return forward_kwargs
