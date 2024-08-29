@@ -134,14 +134,16 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
 
             res = {
                 "sequences": sequences,
-                "cluster_id": foldseek_cluster_id,
+                "fam_id": foldseek_cluster_id,
                 "is_foldseek_representative": is_foldseek_representative,
                 "accessions": accessions,
             }
             if not skip_af50:
                 res["is_af50_representative"] = is_af50_representative
+            else:
+                res["is_af50_representative"] = [True] * len(sequences)
             results.append(res)
-            if cluster_counter % 10000 == 0:
+            if cluster_counter % 5000 == 0:
                 print("\nProcessed", cluster_counter, "clusters")
                 print("Number of failed sequences:", seq_fail_counter)
                 print("Number of successful sequences:", seq_success_counter)
