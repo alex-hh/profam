@@ -86,37 +86,41 @@ def save_single_parquet(
             plddts = []
 
             for member_id in cluster_of_cluster_members:
-                parquet_file = os.path.join(parquet_dir, parquet_index[member_id])
-                df = pd.read_parquet(parquet_file).set_index(identifier_col)
-                entry = df.loc[member_id]
+                try:
+                    parquet_file = os.path.join(parquet_dir, parquet_index[member_id])
+                    df = pd.read_parquet(parquet_file).set_index(identifier_col)
+                    entry = df.loc[member_id]
 
-                sequences += entry["sequences"].tolist()
-                accessions += entry["accessions"].tolist()
-                is_foldseek_representative += entry["is_foldseek_representative"].tolist()
-                is_af50_representative += entry["is_af50_representative"].tolist()
+                    sequences += entry["sequences"].tolist()
+                    accessions += entry["accessions"].tolist()
+                    is_foldseek_representative += entry["is_foldseek_representative"].tolist()
+                    is_af50_representative += entry["is_af50_representative"].tolist()
+                    if with_structure:
+                        Ns += entry["N"].tolist()
+                        CAs += entry["CA"].tolist()
+                        Cs += entry["C"].tolist()
+                        Os += entry["O"].tolist()
+                        plddts += entry["plddts"].tlist()
+                except KeyError:
+                    print(f"Could not find member {member_id} in parquet file {parquet_file}")
+
+            if len(sequences) > 0:
+                # TODO: should we run foldmason on these clusters of clusters? they might be too divergent...
+                assert len(set(accessions)) == len(accessions), "Accessions are not unique"
+                d = {
+                    "fam_id": cluster_id,
+                    "sequences": sequences,
+                    "accessions": accessions,
+                    "is_foldseek_representative": is_foldseek_representative,
+                    "is_af50_representative": is_af50_representative,
+                }
                 if with_structure:
-                    Ns += entry["N"].tolist()
-                    CAs += entry["CA"].tolist()
-                    Cs += entry["C"].tolist()
-                    Os += entry["O"].tolist()
-                    plddts += entry["plddts"].tlist()
-
-            # TODO: should we run foldmason on these clusters of clusters? they might be too divergent...
-            assert len(set(accessions)) == len(accessions), "Accessions are not unique"
-            d = {
-                "fam_id": cluster_id,
-                "sequences": sequences,
-                "accessions": accessions,
-                "is_foldseek_representative": is_foldseek_representative,
-                "is_af50_representative": is_af50_representative,
-            }
-            if with_structure:
-                d["N"] = Ns
-                d["CA"] = CAs
-                d["C"] = Cs
-                d["O"] = Os
-                d["plddts"] = plddts
-            records.append(d)
+                    d["N"] = Ns
+                    d["CA"] = CAs
+                    d["C"] = Cs
+                    d["O"] = Os
+                    d["plddts"] = plddts
+                records.append(d)
         
     df = pd.DataFrame(records)
     df.to_parquet(output_file)
