@@ -27,6 +27,7 @@ class BasePreprocessorConfig:
     return_all_fields: bool = (
         False  # if true return default values for coords etc if not being used
     )
+    allow_unk: bool = False
 
 
 @dataclass
@@ -97,6 +98,7 @@ def _tokenize_protein_data(
         padding=padding,
         max_length=max_tokens,
         add_final_sep=True,
+        allow_unk=getattr(cfg, "allow_unk", False),
     )
     # tokenized.input_ids is flat now
     # n.b. this is after subsampling so not very informative
@@ -123,6 +125,7 @@ def subsample_and_tokenize_protein_data(
     )
     if cfg.return_all_fields:
         proteins = transforms.fill_missing_fields(proteins)
+    proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
     proteins = transforms.apply_transforms(cfg.transforms, proteins, tokenizer)
 
     tokenized = _tokenize_protein_data(

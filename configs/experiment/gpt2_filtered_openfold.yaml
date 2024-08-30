@@ -39,7 +39,6 @@ data:
   tokenizer_path: src/data/components/profam_tokenizer.json
   evaluate_gym: True
   gym_data_dir: ../data/ProteinGym
-  count_doc_hashes: True # count the num times each document gets sampled
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "CALM1_HUMAN_Weile_2017", "DYR_ECOLI_Thompson_2019", "DLG4_RAT_McLaughlin_2012", "REV_HV1H2_Fernandes_2016", "TAT_HV1BR_Fernandes_2016", "RL40A_YEAST_Roscoe_2013", "P53_HUMAN_Giacomelli_2018_WT_Nutlin"]
   dataset_cfgs:
     openfold_aligned_c50_si20:

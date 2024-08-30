@@ -815,8 +815,8 @@ class BaseFamilyLitModule(BaseLitModule):
         return loss
 
     def log_ds_sample_counts(self, batch):
-        sd_name = batch["ds_name"].text
-        for ds in sd_name:
+        ds_name = batch["ds_name"].text
+        for ds in ds_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
 
         self.log_dict(
