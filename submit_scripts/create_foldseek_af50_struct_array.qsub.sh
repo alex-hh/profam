@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -l tmem=12G
 #$ -l h_vmem=12G
-#$ -l h_rt=25:55:30
+#$ -l h_rt=38:55:30
 #$ -S /bin/bash
 #$ -t 1-1  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100
 #$ -N foldseekF
@@ -25,6 +25,6 @@ if [ ! -f $output_file ]; then
     cp /SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv $SCRATCH_DIR/data
     source ~/source_files/afenv.source
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
-    python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --num_processes 1 --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --run_foldmason
+    python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --run_foldmason
     rm -rf ${SCRATCH_DIR}/data
 fi
