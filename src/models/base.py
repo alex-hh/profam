@@ -176,10 +176,13 @@ class BaseLitModule(LightningModule):
         if not log_global and not log_ds:
             return
 
-        aa_accuracy = accuracy_from_outputs(
+        dataset_accuracies = accuracy_from_outputs(
             outputs,
             batch["labels"],
             ignore_index=-100,
+            dataset_names=batch[
+                "ds_name"
+            ].text,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                 ["-", "X", "x"]
                 + [aa.lower() for aa in aa_letters]
@@ -192,16 +195,35 @@ class BaseLitModule(LightningModule):
                 self.tokenizer.convert_tokens_to_ids([aa.lower() for aa in aa_letters])
             ).to(batch["input_ids"]),
         ).any()
-        accuracy_3di = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
-            ),
-        )
+
+        global_metrics = {
+            "loss": loss,
+            "ppl": torch.exp(loss),
+            "aa_accuracy": dataset_accuracies.pop("global"),
+        }
+        if has_3di:
+            dataset_accuracies_3di = accuracy_from_outputs(
+                outputs,
+                batch["labels"],
+                ignore_index=-100,
+                ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                    ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
+                ),
+            )
+            global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
+
+        if log_global:
+            self.log_dict(
+                {f"{step_name}/{k}": v for k, v in global_metrics.items()},
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                add_dataloader_idx=False,
+            )
+
         if log_ds:
             # n.b. this assumes a batch only contains a single dataset - only true during val!
+            assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])
             ds_name = (
                 batch["ds_name"][0]
                 if isinstance(batch["ds_name"], list)

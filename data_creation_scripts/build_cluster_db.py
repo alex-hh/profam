@@ -78,6 +78,18 @@ def make_cluster_dictionary(cluster_path):
                 print("Processed", line_counter, "lines for cluster dictionary")
     return cluster_dict
 
+def add_entries(entries, session, existing_uniprot_ids):
+    try:
+        for entry in entries:
+            session.add(entry)
+        session.commit()
+    except:
+        session.rollback()
+        unique_entries = [entry for entry in entries if entry.uniprot_id not in existing_uniprot_ids]
+        for entry in unique_entries:
+            session.add(entry)
+        session.commit()
+
 
 def make_cluster_db(
     start_index=0,
@@ -94,6 +106,7 @@ def make_cluster_db(
 
     # Print the entries
     print(f"Current entries in the database: {len(entries)}")
+    existing_uniprot_ids = set([entry.uniprot_id for entry in entries])
     print("Creating foldseek dataset", flush=True)
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     cluster_ids = sorted(list(cluster_dict.keys()))
@@ -104,6 +117,7 @@ def make_cluster_db(
 
     t1 = time.time()
     # TODO: track failures.
+    entries = []
     for ix, cluster_id in enumerate(cluster_ids):
         if ix < start_index:
             continue
@@ -130,9 +144,11 @@ def make_cluster_db(
                         "zip_filename": "",
                     }
 
-                stmt = insert(Protein.__table__).values(**entry)
-                stmt = stmt.on_conflict_do_nothing(index_elements=["uniprot_id"])
-                session.execute(stmt)
+                entries.append(Protein(**entry))
+                # stmt = insert(Protein.__table__).values(**entry)
+                # stmt = stmt.prefix_with("OR IGNORE")
+                # stmt = stmt.on_conflict_do_nothing(index_elements=["uniprot_id"])
+                # session.execute(stmt)
 
                 if member in af50_dict:
                     for af50_member in af50_dict[member]:
@@ -154,19 +170,22 @@ def make_cluster_db(
                                 "zip_filename": "",
                             }
 
-                        stmt = insert(Protein.__table__).values(**entry)
-                        stmt = stmt.on_conflict_do_nothing(index_elements=["uniprot_id"])
-                        session.execute(stmt)
-                        print("Error looking up", af50_member)
+                        entries.append(Protein(**entry))
+                        # stmt = insert(Protein.__table__).values(**entry)
+                        # stmt = stmt.on_conflict_do_nothing(index_elements=["uniprot_id"])
+                        # session.execute(stmt)
+                        # print("Error looking up", af50_member)
 
                 else:
                     print("No af50 members for", member)
 
         if ix % 1000 == 0:
             print(f"Processed {ix} clusters", flush=True)
-            session.commit()
+            add_entries(entries, session, existing_uniprot_ids)
+            entries = []
+            existing_uniprot_ids = existing_uniprot_ids.union(set([entry.uniprot_id for entry in entries]))
 
-    session.commit()
+    add_entries(entries, session, existing_uniprot_ids)
     session.close()
     t2 = time.time()
     print("Built database in", t2 - t1, "seconds", flush=True)
