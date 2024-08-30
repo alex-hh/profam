@@ -87,8 +87,12 @@ def save_single_parquet(
             is_af50_representative = []
             plddts = []
 
+            missing_members = []
             for member_id in cluster_of_cluster_members:
                 try:
+                    # N.B. parquet index contains foldseek cluster representatives - not af50 representatives
+                    # what does all vs all contain? I think also foldseek cluster representatives - but it
+                    # also contains fragments that were removed (i.e. entries assigned flag 3 or 4 in 5-allmembers))
                     parquet_file = os.path.join(parquet_dir, parquet_index[member_id])
                     df = pd.read_parquet(parquet_file).set_index(identifier_col)
                     entry = df.loc[member_id]
@@ -105,8 +109,10 @@ def save_single_parquet(
                         Os += entry["O"].tolist()
                         plddts += entry["plddts"].tlist()
                 except KeyError:
-                    print(f"Could not find member {member_id} in parquet index")
+                    # print(f"Could not find member {member_id} in parquet index")
+                    missing_members.append(member_id)
 
+            print(f"Could not find {missing_members} in parquet index", flush=True)
             if len(sequences) > 0:
                 # TODO: should we run foldmason on these clusters of clusters? they might be too divergent...
                 assert len(set(accessions)) == len(accessions), "Accessions are not unique"
