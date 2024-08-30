@@ -15,7 +15,7 @@ from src.data import fasta
 from src.data import utils as data_utils
 from src.data.proteingym import tokenize
 from src.utils.tokenizers import ProFamTokenizer
-from src.data.utils import tokenize
+
 
 family_columns = [
     "input_ids",
@@ -40,7 +40,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
         remove_columns=["MSA", "completion_seqs"],
     )
     columns = family_columns
-    if use_seq_pos:
+    if tokenizer.use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
     dataset.set_format(

@@ -8,7 +8,6 @@ defaults:
 
 
 tags: ["pfam", "llama_tiny"]
-ckpt_path: /mnt/disk2/cath_plm/profam/logs/train/runs/2024-08-16_11-07-13/checkpoints/last.ckpt
 
 seed: 12345
 
