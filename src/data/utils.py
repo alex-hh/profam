@@ -9,23 +9,12 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
+from src.data.objects import StringObject
 from src.data.preprocessing import BasePreprocessorConfig, preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
 # TODO: be careful around loading coords if using alignment - how can we test for this?
-
-
-class StringObject:
-    """
-    Custom class to allow for
-    non-tensor elements in batch
-    """
-
-    text: List[str]
-
-    def to(self, device):
-        return self
 
 
 class CustomDataCollator:
