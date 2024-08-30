@@ -100,8 +100,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
     with open(seq_fail_path, "w") as fail_file:
         for foldseek_cluster_id in clusters:
             sequences = []
-            is_foldseek_representative = []
-            is_af50_representative = []
+            af50_cluster_id = []
             accessions = []
             members = cluster_dict[foldseek_cluster_id]
             cluster_counter += 1
@@ -110,9 +109,8 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
                 try:
                     sequence = sequence_dict[foldseek_cluster_id]
                     sequences.append(sequence)
-                    is_foldseek_representative.append(member == foldseek_cluster_id)
-                    is_af50_representative.append(True)
                     accessions.append(member)
+                    af50_cluster_id.append(member)
                     seq_success_counter += 1
                 except:
                     seq_fail_counter += 1
@@ -124,8 +122,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
                         try:
                             sequence = sequence_dict[af50_member]
                             sequences.append(sequence)
-                            is_foldseek_representative.append(False)
-                            is_af50_representative.append(False)
+                            af50_cluster_id.append(member)
                             seq_success_counter += 1
                             accessions.append(af50_member)
                         except:
@@ -135,13 +132,10 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
             res = {
                 "sequences": sequences,
                 "fam_id": foldseek_cluster_id,
-                "is_foldseek_representative": is_foldseek_representative,
+                "af50_cluster_id": af50_cluster_id,
                 "accessions": accessions,
             }
-            if not skip_af50:
-                res["is_af50_representative"] = is_af50_representative
-            else:
-                res["is_af50_representative"] = [True] * len(sequences)
+
             results.append(res)
             if cluster_counter % 5000 == 0:
                 print("\nProcessed", cluster_counter, "clusters")

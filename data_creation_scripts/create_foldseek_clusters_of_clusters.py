@@ -81,6 +81,8 @@ def save_single_parquet(
             CAs = []
             Cs = []
             Os = []
+            foldseek_cluster_ids = []
+            # TODO: add af50 cluster ids...
             is_foldseek_representative = []
             is_af50_representative = []
             plddts = []
@@ -93,6 +95,7 @@ def save_single_parquet(
 
                     sequences += entry["sequences"].tolist()
                     accessions += entry["accessions"].tolist()
+                    foldseek_cluster_ids += entry[args.identifier_col].tolist()
                     is_foldseek_representative += entry["is_foldseek_representative"].tolist()
                     is_af50_representative += entry["is_af50_representative"].tolist()
                     if with_structure:
@@ -102,7 +105,7 @@ def save_single_parquet(
                         Os += entry["O"].tolist()
                         plddts += entry["plddts"].tlist()
                 except KeyError:
-                    print(f"Could not find member {member_id} in parquet file {parquet_file}")
+                    print(f"Could not find member {member_id} in parquet index")
 
             if len(sequences) > 0:
                 # TODO: should we run foldmason on these clusters of clusters? they might be too divergent...
@@ -121,7 +124,7 @@ def save_single_parquet(
                     d["O"] = Os
                     d["plddts"] = plddts
                 records.append(d)
-        
+
     df = pd.DataFrame(records)
     df.to_parquet(output_file)
 

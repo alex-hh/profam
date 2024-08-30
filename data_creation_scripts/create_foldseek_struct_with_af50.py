@@ -137,8 +137,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
     for cluster_id, cluster_members in clusters_to_save.items():
         sequences = []
         accessions = []
-        is_foldseek_representative = []
-        is_af50_representative = []
+        af50_cluster_id = []
         all_coords = {"N": [], "CA": [], "C": [], "O": []}
         all_b_factors = []
         cluster_filelist = []
@@ -148,8 +147,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             cluster_filelist.append(pdb)
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
-            is_foldseek_representative.append(metadata["is_foldseek_representative"])
-            is_af50_representative.append(metadata["is_af50_representative"])
+            af50_cluster_id.append(metadata["af50_cluster_id"])
             structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
             residue_identities = get_residues(structure)[1]
@@ -188,8 +186,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "O": all_coords["O"],
                 "plddts": all_b_factors,
                 "accessions": accessions,
-                "is_foldseek_representative": is_foldseek_representative,
-                "is_af50_representative": is_af50_representative,
+                "af50_cluster_id": af50_cluster_id,
                 "msta_aa": msta_seqs,
                 "msta_3di": msta_3di,
             }
@@ -298,8 +295,7 @@ def make_job_list(
                 metadata_lookup[afdb_id] = {
                     "cluster_id": cluster_id,
                     "accession": member,
-                    "is_foldseek_representative": member == cluster_id,
-                    "is_af50_representative": True,
+                    "af50_cluster_id": member,
                 }
                 cluster_membership[cluster_id].append(afdb_id)
 
@@ -313,9 +309,8 @@ def make_job_list(
                         cluster_membership[cluster_id].append(afdb_id)
                         metadata_lookup[afdb_id] = {
                             "cluster_id": cluster_id,
+                            "af50_cluster_id": member,
                             "accession": af50_member,
-                            "is_foldseek_representative": False,
-                            "is_af50_representative": False,
                         }
 
     t2 = time.time()
