@@ -1041,7 +1041,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 self.log_dict(
                     {
                         f"{k}_min_sampled_doc": min(v.values())
-                        for k, v in self.doc_hash_counts.items()
+                        for k, v in self.doc_id_counts.items()
                     },
                     on_step=False,
                     on_epoch=True,
