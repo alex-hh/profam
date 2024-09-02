@@ -94,9 +94,15 @@ def rescale_backbones(proteins: ProteinDocument, scale: float = 6.0, **kwargs):
 def rotate_backbones(proteins: ProteinDocument, **kwargs):
     new_coords = []
     for coords in proteins.backbone_coords:
+        # apply a separate random rotation to each protein
+        # TODO: handle nans.
         assert coords.ndim == 3  # l, 4, 3
         rotation = R.random().as_matrix()
-        new_coords.append(rotation.apply(coords.reshape(-1, 3)).reshape(-1, 4, 3))
+        flat_coords = coords.reshape(-1, 3)
+        flat_nan_mask = np.isnan(flat_coords).any(axis=1)
+        flat_coords[~flat_nan_mask] = rotation.apply(flat_coords[~flat_nan_mask])
+        flat_coords = flat_coords.reshape(-1, 4, 3)
+        new_coords.append(flat_coords)
     return proteins.clone(backbone_coords=new_coords)
 
 
@@ -104,11 +110,23 @@ def centre_backbones(proteins: ProteinDocument, **kwargs):
     """Centres the coordinates, so that the centroid (average position) of the backbone atoms is at the origin.
     AF3 centres and then randomly translates (Alg 19.)
     """
+    # TODO: handle nans.
     new_coords = []
     for coords in proteins.backbone_coords:
         assert coords.ndim == 3  # l, 4, 3
-        centroid = np.mean(coords)
+        centroid = np.nanmean(coords)
         new_coords.append(coords - centroid)
+    return proteins.clone(backbone_coords=new_coords)
+
+
+def replace_nans_in_coords(
+    proteins: ProteinDocument, fill_value: float = 0.0, **kwargs
+):
+    # n.b. this should occur after any nan-aware transforms like centering, roation.
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        new_coords.append(np.nan_to_num(coords, nan=fill_value))
     return proteins.clone(backbone_coords=new_coords)
 
 
