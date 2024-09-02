@@ -28,13 +28,14 @@ def get_flat_seq_pos_from_positions(
             flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
             # default is to add position index for sep token from last sequence
             # this allows the model to predict sep token when shifting position indices in inputs
-            flat_positions.append(sep_index or (sequence_positions[-1] + 1))
+            flat_positions.append(
+                sep_index or min(sequence_positions[-1] + 2, max_seq_pos - 1)
+            )
         flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
         if append_index is None:
-            # TODO: in case of multiple end tokens, we should prob restart...
-            flat_positions += [
-                sequence_positions[-1] + i for i in range(1, num_end_tokens + 1)
-            ]
+            flat_positions += [min(positions[-1][-1] + 2, max_seq_pos - 1)] + [0] * (
+                num_end_tokens - 1
+            )
         else:
             flat_positions += [append_index] * num_end_tokens
         return flat_positions
