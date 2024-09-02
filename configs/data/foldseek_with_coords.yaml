@@ -1,0 +1,40 @@
+_target_: src.data.hf_protein_datamodule.ProteinDataModule
+# https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
+defaults:
+  - dataset@dataset_cfgs.foldseek: foldseek
+  - dataset@dataset_cfgs.foldseek_3di: foldseek_with_3di_and_coords
+  - dataset@dataset_cfgs.foldseek_val: foldseek
+  - dataset@dataset_cfgs.foldseek_3di_val: foldseek_with_3di_and_coords
+  - _self_
+data_weights:
+  foldseek: 0.5
+  foldseek_3di: 0.5
+dataset_cfgs:
+  foldseek:
+    data_path_pattern: foldseek_struct/*.parquet
+    preprocessor:
+      keep_columns: ["plddts"]  # very awkward that this is required...any way to remedy? rename plddts feature?
+  foldseek_val:
+    name: foldseek_val
+    data_path_pattern: foldseek_struct/0.parquet
+    holdout_data_files: foldseek_struct/0.parquet
+  foldseek_3di:
+    data_path_pattern: foldseek_struct/*.parquet
+  foldseek_3di_val:
+    name: foldseek_with_3di_val
+    data_path_pattern: foldseek_struct/0.parquet
+    holdout_data_files: foldseek_struct/0.parquet
+batch_size: 22
+max_tokens: 8192
+data_dir: ${paths.data_dir}
+val_dataset_names:
+  - foldseek_val
+  - foldseek_3di_val
+gym_dms_ids: ${constants.val_assay_list}
+keep_gym_gaps: false
+evaluate_gym: true
+evaluate_ec_class: false
+num_workers: null # None means use all available CPU cores
+gym_data_dir: ProteinGym
+use_filtered_gym_msas: true
+feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "total_num_sequences", "aa_mask", "coords", "coords_mask"]
