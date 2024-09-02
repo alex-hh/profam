@@ -174,6 +174,7 @@ def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
         max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
+        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
