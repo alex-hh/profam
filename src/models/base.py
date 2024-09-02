@@ -412,6 +412,7 @@ class BaseFamilyLitModule(BaseLitModule):
         model,
         tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
+        shift_positions: bool = False,
         weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
@@ -435,9 +436,19 @@ class BaseFamilyLitModule(BaseLitModule):
         self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
+        self.shift_positions = shift_positions
 
     def get_forward_kwargs(self, batch):
-        return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
+        forward_kwargs = {}
+        if self.use_seq_pos:
+            forward_kwargs["seq_pos"] = batch.get("seq_pos", None)
+            if self.shift_positions:
+                forward_kwargs["seq_pos"] = torch.cat(
+                    forward_kwargs["seq_pos"][:, 1:],
+                    torch.zeros_like(forward_kwargs["seq_pos"][:, -1:]),
+                    dim=1,
+                )
+        return forward_kwargs
 
     def _score_seqs_kv_cache(
         self,
@@ -454,6 +465,18 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
         forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+        if self.shift_positions and self.use_seq_pos:
+            assert completion_seq_pos is not None
+            forward_kwargs["seq_pos"] = torch.cat(
+                (seq_pos, completion_seq_pos[:, :1]), dim=1
+            )
+            completion_seq_pos = torch.cat(
+                (
+                    completion_seq_pos[:, 1:],
+                    torch.zeros_like(completion_seq_pos[:, -1:]),
+                ),
+                dim=1,
+            )
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -515,6 +538,16 @@ class BaseFamilyLitModule(BaseLitModule):
             )
         all_lls = []
         completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
+        if self.shift_positions:
+            assert completion_seq_pos is not None
+            seq_pos = torch.cat((seq_pos[:, 1:], completion_seq_pos[:, -1:]), dim=1)
+            completion_seq_pos = torch.cat(
+                (
+                    completion_seq_pos[:, 1:],
+                    torch.zeros_like(completion_seq_pos[:, -1:]),
+                ),
+                dim=1,
+            )
         for completion_ix in tqdm.tqdm(
             range(completion_ids.shape[1]), disable=not verbose
         ):
@@ -648,13 +681,19 @@ class BaseFamilyLitModule(BaseLitModule):
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
         assert input_ids.ndim == 2  # b, L
-        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         assert input_seq_pos.shape == input_ids.shape
+        if self.use_seq_pos:
+            assert input_seq_pos is not None
+        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
+        if self.shift_positions:
+            raise NotImplementedError(
+                "Here we have to be very careful - we know the desired input position id is 2 - is this currently handled correctly"
+            )
+        forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
-            forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
             # N.B. we need to be careful about generationconfig -- in particular eos token id
