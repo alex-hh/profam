@@ -23,13 +23,22 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
         require_seq_pos: bool = True,
+        embed_coords: bool = False,
     ):
         super().__init__(config)
         self.use_seq_pos = use_seq_pos
         # TODO: avoid re-tracking - does this happen automatically?
-        self.token_embedder = nested_getattr(self, token_embedder)
+        self.token_embedder = nested_getattr(
+            self, token_embedder
+        )  # TODO: use self.embed_tokens or sthg
         self.require_seq_pos = require_seq_pos
         self.max_seq_pos = max_seq_pos
+        self.embed_coords = embed_coords
+        self.num_atoms = 4
+        if self.embed_coords:
+            self.coords_embedding = nn.Linear(
+                self.num_atoms * 3, embedding_dim, bias=False
+            )
         if self.use_seq_pos:
             self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
 
@@ -55,14 +64,28 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             prev_seq_pos = kwargs["seq_pos"][:, -1:]
             seq_pos = prev_seq_pos + increment
             inputs["seq_pos"] = seq_pos
+            assert kwargs["coords"].ndim == 4  # b, l, n, 3
+            bsz = prev_seq_pos.shape[0]
+            if self.embed_coords:
+                inputs["coords"] = torch.full(
+                    (
+                        bsz,
+                        1,
+                    )
+                    + kwargs["coords"].shape[-2:],
+                    0.0,
+                ).to(kwargs["coords"])
         else:
             inputs["seq_pos"] = kwargs["seq_pos"]
+            if self.embed_coords:
+                inputs["coords"] = kwargs["coords"]
         return inputs
 
     def embed_inputs(
         self,
         input_ids: Optional[torch.LongTensor],
         seq_pos: Optional[torch.LongTensor] = None,
+        coords: Optional[torch.FloatTensor] = None,
     ):
         # n.b. we need to be careful about what happens when caching.
         # I think in that case input_ids should just be the continuation
@@ -86,6 +109,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if seq_pos is not None:
                 pos_embeds = self.seq_pos_embedding(seq_pos)
                 inputs_embeds = inputs_embeds + pos_embeds
+        # TODO: might want to embed coords mask to allow for masked coords
+        if self.embed_coords:
+            coords_embeds = self.coords_embedding(coords)
+            inputs_embeds += coords_embeds
         return inputs_embeds
 
     def forward(
@@ -100,12 +127,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        coords: Optional[torch.FloatTensor] = None,
         **kwargs,  # e.g. labels
     ):
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
-        inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos)
+        inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos, coords=coords)
         return super().forward(
             input_ids=None,
             attention_mask=attention_mask,
