@@ -24,9 +24,6 @@ class BasePreprocessorConfig:
         List[Any]
     ] = None  # making callable raises an omegaconf validationerror: unsupported value type 'callable'
     keep_columns: Optional[List[str]] = None
-    return_all_fields: bool = (
-        False  # if true return default values for coords etc if not being used
-    )
     allow_unk: bool = False
 
 
@@ -123,8 +120,8 @@ def subsample_and_tokenize_protein_data(
         shuffle=shuffle,
         seed=seed,
     )
-    if cfg.return_all_fields:
-        proteins = transforms.fill_missing_fields(proteins)
+    # if cfg.fill_missing_fields:
+    proteins = transforms.fill_missing_fields(proteins)
     proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
     proteins = transforms.apply_transforms(cfg.transforms, proteins, tokenizer)
 

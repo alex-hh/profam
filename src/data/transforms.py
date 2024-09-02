@@ -1,10 +1,9 @@
 import bisect
-import importlib
 import itertools
-from functools import partial
 from typing import Optional
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
@@ -80,6 +79,37 @@ def sample_to_max_tokens(
         insertion_point = len(proteins)
     proteins = proteins[:insertion_point]
     return proteins
+
+
+def rescale_backbones(proteins: ProteinDocument, scale: float = 6.0, **kwargs):
+    # AF3 has a time-dependent scale (constant variance at all timesteps). They use 4 for t -0
+    # We can use a fixed scale for now.
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        new_coords.append(coords / scale)
+    return proteins.clone(backbone_coords=new_coords)
+
+
+def rotate_backbones(proteins: ProteinDocument, **kwargs):
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        rotation = R.random().as_matrix()
+        new_coords.append(rotation.apply(coords.reshape(-1, 3)).reshape(-1, 4, 3))
+    return proteins.clone(backbone_coords=new_coords)
+
+
+def centre_backbones(proteins: ProteinDocument, **kwargs):
+    """Centres the coordinates, so that the centroid (average position) of the backbone atoms is at the origin.
+    AF3 centres and then randomly translates (Alg 19.)
+    """
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        centroid = np.mean(coords)
+        new_coords.append(coords - centroid)
+    return proteins.clone(backbone_coords=new_coords)
 
 
 def fill_missing_fields(proteins: ProteinDocument):
