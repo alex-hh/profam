@@ -236,7 +236,7 @@ def load_protein_dataset(
         if dataset.column_names is not None:
             # Q: what causes None? maybe loading text rather than parquet
             remove_columns = [
-                c for c in dataset.column_names if c not in feature_names or []
+                c for c in dataset.column_names if c not in (feature_names or [])
             ]  # shouldnt be necessary but is for plddts - bug?
         else:
             remove_columns = None
