@@ -5,8 +5,6 @@ defaults:
   - dataset@dataset_cfgs.pfam_raw: pfam_raw
   - dataset@dataset_cfgs.pfam_msa: pfam_msa
   - dataset@dataset_cfgs.pfam_val: pfam
-  - dataset@dataset_cfgs.pfam_val_raw: pfam_raw
-  - dataset@dataset_cfgs.pfam_val_msa: pfam_msa
   - _self_
 data_weights:
   pfam: 0.34
@@ -15,17 +13,12 @@ data_weights:
 dataset_cfgs:
   pfam_val:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-  pfam_val_raw:
-    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-  pfam_val_msa:
-    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
+
 batch_size: 2
 max_tokens: 3000
 data_dir: ${paths.data_dir}
 val_dataset_names:
   - pfam_val
-  - pfam_val_raw
-  - pfam_val_msa
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 evaluate_gym: true
 evaluate_ec_class: false
