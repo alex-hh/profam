@@ -32,7 +32,7 @@ def get_flat_seq_pos_from_positions(
                 sep_index or min(sequence_positions[-1] + 2, max_seq_pos - 1)
             )
         flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
-        if append_index is None:
+        if append_index is None and num_end_tokens > 0:
             flat_positions += [min(positions[-1][-1] + 2, max_seq_pos - 1)] + [0] * (
                 num_end_tokens - 1
             )
@@ -68,6 +68,7 @@ def get_seq_pos_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
+
     seq_pos[:pad_start] = torch.tensor(flat_pos)
     return seq_pos
 
