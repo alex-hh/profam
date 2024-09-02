@@ -47,6 +47,7 @@ def sample_to_max_tokens(
     shuffle: bool = True,
     seed: Optional[int] = None,
     drop_first: bool = False,
+    keep_first: bool = False,
     extra_tokens_per_document: Optional[int] = None,
     **kwargs,
 ):
@@ -58,12 +59,12 @@ def sample_to_max_tokens(
         extra_tokens_per_document = 2
     # extra_arrays = [positions, proteins.coords, proteins.plddts, proteins.structure_tokens]
     rnd = np_random(seed)
-    # TODO: implement keep first, drop first
     if drop_first:
         proteins = proteins[1:]
-
     if shuffle:
         perm = rnd.permutation(len(proteins))
+        if keep_first:
+            perm[0] = 0
         proteins = proteins[perm]
 
     if max_tokens is not None:
