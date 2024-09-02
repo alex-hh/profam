@@ -31,6 +31,7 @@ def get_flat_seq_pos_from_positions(
             flat_positions.append(sep_index or (sequence_positions[-1] + 1))
         flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
         if append_index is None:
+            # TODO: in case of multiple end tokens, we should prob restart...
             flat_positions += [
                 sequence_positions[-1] + i for i in range(1, num_end_tokens + 1)
             ]
