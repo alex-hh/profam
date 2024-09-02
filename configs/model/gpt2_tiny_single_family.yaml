@@ -8,3 +8,4 @@ config:
   n_head: 4
   n_layer: 4
   n_positions: 2048
+embed_coords: false
