@@ -25,6 +25,7 @@ def get_flat_seq_pos_from_positions(
         flat_positions = [prepend_index] * num_start_tokens
         for sequence_positions in positions[:-1]:
             # add 1 so that sep doesnt have same position index
+            # n.b. that convert_sequence_with_positions is also already 1-based
             flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
             flat_positions.append(sep_index)
         flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]

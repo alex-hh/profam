@@ -20,12 +20,14 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         config,
         token_embedder: str,
         embedding_dim: int,
+        start_seq_pos: int = 2,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
         require_seq_pos: bool = True,
     ):
         super().__init__(config)
         self.use_seq_pos = use_seq_pos
+        self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent
         # TODO: avoid re-tracking - does this happen automatically?
         self.token_embedder = nested_getattr(self, token_embedder)
         self.require_seq_pos = require_seq_pos
@@ -53,7 +55,18 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
             # frustratingly slicing of input ids is done on the super prepare inputs for generation
             prev_seq_pos = kwargs["seq_pos"][:, -1:]
-            seq_pos = prev_seq_pos + increment
+            if (prev_seq_pos[:, -1] == 0).any():
+                assert (prev_seq_pos[:, -1] == 0).all()
+                # we are starting new sequences
+                seq_pos = self.start_seq_pos + increment - 1
+                # seq_pos corresponds to position of previously generated token in the sequence
+                # when increment is 1, seq_pos is self.start_seq_pos
+            else:
+                if increment == 1:
+                    print(
+                        "Warning: not sampling a new sequence, check inputs if this is desired behaviour."
+                    )
+                seq_pos = prev_seq_pos + increment
             inputs["seq_pos"] = seq_pos
         else:
             inputs["seq_pos"] = kwargs["seq_pos"]
