@@ -47,8 +47,9 @@ class GPT2LitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
+        embed_coords: bool = False,
     ) -> None:
-        if tokenizer.use_seq_pos:
+        if tokenizer.use_seq_pos or embed_coords:
             # commenting out to check computation of inputs embeds is working
             model = WrappedGP2LMHeadModel(
                 config,
@@ -56,6 +57,7 @@ class GPT2LitModule(BaseFamilyLitModule):
                 embedding_dim=config.hidden_size,
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
+                embed_coords=embed_coords,
             )
         else:
             model = GPT2LMHeadModel(config)
