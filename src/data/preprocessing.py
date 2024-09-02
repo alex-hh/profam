@@ -199,14 +199,14 @@ def preprocess_fasta_data(
     )
 
 
-def backbone_coords_from_example(example):
+def backbone_coords_from_example(example, sequence_col="sequences"):
     ns = example["N"]
     cas = example["CA"]
     cs = example["C"]
     oxys = example["O"]
     coords = []
     for seq, n, ca, c, o in zip(
-        example["sequences"],
+        example[sequence_col],
         ns,
         cas,
         cs,
@@ -258,7 +258,7 @@ def preprocess_parquet_with_structure_tokens(
         assert not any(["-" in seq for seq in sequences]) and not any(
             ["-" in seq for seq in structure_tokens]
         )
-        coords = backbone_coords_from_example(example)
+        coords = backbone_coords_from_example(example, sequence_col=cfg.sequence_col)
         coords = [coords[i] for i in sequence_ids]
         plddts = example["plddts"]
         plddts = [plddts[i] for i in sequence_ids]
@@ -290,7 +290,7 @@ def preprocess_parquet_sequence_data(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
 ) -> Dict[str, Any]:
-    sequence_iterator = example["sequences"]
+    sequence_iterator = example[cfg.sequence_col]
     max_sequences_to_preprocess = max_tokens // 10
     # n.b. this also shuffles
     if shuffle:
