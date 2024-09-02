@@ -15,8 +15,8 @@ def get_flat_seq_pos_from_positions(
     positions,
     max_seq_pos: int = 1024,
     prepend_index=0,
-    append_index=0,
-    sep_index=0,
+    append_index=None,
+    sep_index=None,
     num_start_tokens=1,
     num_end_tokens=1,
 ):
@@ -26,9 +26,16 @@ def get_flat_seq_pos_from_positions(
         for sequence_positions in positions[:-1]:
             # add 1 so that sep doesnt have same position index
             flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
-            flat_positions.append(sep_index)
+            # default is to add position index for sep token from last sequence
+            # this allows the model to predict sep token when shifting position indices in inputs
+            flat_positions.append(sep_index or (sequence_positions[-1] + 1))
         flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
-        flat_positions += [append_index] * num_end_tokens
+        if append_index is None:
+            flat_positions += [
+                sequence_positions[-1] + i for i in range(1, num_end_tokens + 1)
+            ]
+        else:
+            flat_positions += [append_index] * num_end_tokens
         return flat_positions
     else:
         return []
@@ -49,8 +56,8 @@ def get_seq_pos_from_positions(
         positions,
         max_seq_pos=max_seq_pos,
         prepend_index=0,
-        append_index=0,
-        sep_index=0,
+        append_index=None,
+        sep_index=None,
         num_start_tokens=num_start_tokens,  # TODO: handle better
         num_end_tokens=num_end_tokens,
     )
