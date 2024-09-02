@@ -143,6 +143,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                 with open(os.path.join(output_dir, f"sample_{i}.pdb"), "w") as f:
                     f.write(pdb_str)
 
+        self.esmfold = self.esmfold.to("cpu")
         return {
             "prompt_plddt": np.mean(prompt_plddts),
             "sample_plddt": np.mean(sample_plddts),

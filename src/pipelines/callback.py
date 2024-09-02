@@ -51,7 +51,7 @@ class SamplingEvaluationPipelineCallback(Callback):
             # Q: how does logging work across ranks? if i log only from rank 0, what happens?
             all_metrics = defaultdict(list)
             t0 = time.time()
-            self.pipeline.reset()  # clear stale results (rerun sampler and rerun evaluator should suffice anyway but no harm)
+            # self.pipeline.reset()  # clear stale results (rerun sampler and rerun evaluator should suffice anyway but no harm)
             results_df = self.pipeline.run(
                 sampler,
                 self.evaluator,

@@ -253,6 +253,7 @@ def make_job_list(
     parquet_size = 250  # number of clusters to save in each parquet file
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
+    print(f"Number of parquet files: {len(clusters_to_save)}", flush=True)
     cluster_ids = clusters_to_save[parquet_id]
 
     cluster_counter = 0
