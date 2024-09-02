@@ -55,7 +55,6 @@ class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
 class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
-    is_aligned: bool = False
 
     def __post_init__(self):
         self.preprocessor = "parquet_structure_tokens"
@@ -254,7 +253,7 @@ def preprocess_parquet_with_structure_tokens(
         )[0].lower()
         for i in sequence_ids
     ]
-    if "N" in example and not cfg.is_aligned:
+    if "N" in example and not cfg.keep_gaps:
         assert not any(["-" in seq for seq in sequences]) and not any(
             ["-" in seq for seq in structure_tokens]
         )

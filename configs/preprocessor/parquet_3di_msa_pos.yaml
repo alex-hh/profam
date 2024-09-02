@@ -2,8 +2,8 @@ _target_: src.data.preprocessing.ParquetStructureTokensPreprocessorConfig
 keep_gaps: false
 keep_insertions: false
 to_upper: false
-document_token: "[RAW]"
-sequence_col: "sequences"
+document_token: "[RAW-WITH-MSA-POS]"
+sequence_col: "msta_aa"
 structure_tokens_col: "msta_3di"
 truncate_after_n_sequences: null
 use_msa_pos: true
