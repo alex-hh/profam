@@ -8,116 +8,73 @@ from src.utils.tokenizers import ProFamTokenizer, get_seq_pos_from_positions
 replicates the pre-processing and
 seq encoding used for proteinGym
 tests not yet implemented for indels
-indels still not currently handled 
+indels still not currently handled
 correctly in Gym
 """
 test_cases_subs = [
     {
-        "msa_seqs": [
-            "ACD",
-            "ACD"
-        ],
-        "completion_seqs": [
-            "ACD",
-            "ACD"
-        ],
-        "msa_pos": [0, 0, 2, 3, 4,
-                       0, 2, 3, 4],
+        "msa_seqs": ["ACD", "ACD"],
+        "completion_seqs": ["ACD", "ACD"],
+        "msa_pos": [0, 0, 2, 3, 4, 0, 2, 3, 4],
         "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
         "keep_gaps": False,
     },
-
     {
-        "msa_seqs": [
-            ".ACDE",
-            "aACD-"
-        ],
-        "completion_seqs": [
-            "ACD",
-            "ACD"
-        ],
-        "msa_pos": [0, 0, 2, 3, 4, 5,
-                    0, 1, 2, 3, 4],
+        "msa_seqs": [".ACDE", "aACD-"],
+        "completion_seqs": ["ACD", "ACD"],
+        "msa_pos": [0, 0, 2, 3, 4, 5, 0, 1, 2, 3, 4],
         "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
         "keep_gaps": False,
     },
-
     {
-        "msa_seqs": [
-            ".ACDE",
-            "aACD-"
-        ],
-        "completion_seqs": [
-            "ACD",
-            "ACD"
-        ],
-        "msa_pos": [0, 0, 2, 3, 4, 5,
-                    0, 1, 2, 3, 4, 5],
+        "msa_seqs": [".ACDE", "aACD-"],
+        "completion_seqs": ["ACD", "ACD"],
+        "msa_pos": [0, 0, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5],
         "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
         "keep_gaps": True,
     },
-
 ]
 
 test_cases_indels = [
-    # not implemented yet - tests are WIP
+    # todo not implemented yet - tests are WIP
     {
-        "msa_seqs": [
-            "GAPGAPGAP",
-            "--GIRF-G-",
-            "--G-GF-G-"
-        ],
+        "msa_seqs": ["GAPGAPGAP", "--GIRF-G-", "--G-GF-G-"],
         "completion_seqs": [
             "GAPGAPGAP",
             "--GIRF-G-",
             "--G-GF-G-",
         ],
         "msa_pos": [
-            0,0,2,3,4,5,6,7,8,9,10,
-            0,0,4,5,6,7,9,
-                0,4,6,7,9
+            0, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+            0, 0, 4, 5, 6, 7, 9,
+            0, 4, 6, 7, 9,
         ],
-        "completion_pos": [[0,2,3,4,5,6,7,8,9,10,0],
-                           [0,0,4,5,6,7,9,0,0,0, 0],
-                           [0,4,6,7,9,0,0,0,0,0, 0]],
-        "keep_gaps": False
+        "completion_pos": [
+            [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0],
+            [0, 0, 4, 5, 6, 7, 9, 0, 0, 0, 0],
+            [0, 4, 6, 7, 9, 0, 0, 0, 0, 0, 0],
+        ],
+        "keep_gaps": False,
     },
-
     {
-        "msa_seqs": [
-            "--GIRF-G-",
-            "--G-GF-G-"
-        ],
+        "msa_seqs": ["--GIRF-G-", "--G-GF-G-"],
         "completion_seqs": [
             "--GIRF-G-",
             "--G-GF-G-",
         ],
-        "msa_pos": [[0, 0, 2,3,4,5,6,7,8,9,10,
-                                 0, 2,3,4,5,6,7,8,9,10]],
-        "completion_pos": [[1, 2, 3, 4, 5, 6], [0, 2,3,4,5,6,7,8,9,10]],
-        "keep_gaps": True
+        "msa_pos": [[0, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+        "completion_pos": [[1, 2, 3, 4, 5, 6], [0, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+        "keep_gaps": True,
     },
-
     {
-        "msa_seqs": [
-            "GASGASG",
-            "FDD.sN.",
-            "-VTrnD."
-        ],
-        "completion_seqs": [
-            "GASGASGA",
-            "FDD.sN..",
-            "-VTrnD.."
-        ],
-        "msa_pos": [
-            0, 0, 2, 3, 4, 5, 6, 7, 8,
-            1, 2, 3, 4, 5,
-            1, 2, 3, 4, 5
-],
+        "msa_seqs": ["GASGASG", "FDD.sN.", "-VTrnD."],
+        "completion_seqs": ["GASGASGA", "FDD.sN..", "-VTrnD.."],
+        "msa_pos": [0, 0, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5],
         "completion_pos": [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5]],
-        "keep_gaps": True
+        "keep_gaps": True,
     },
 ]
+
 
 def test_prot_gym_pos_encoding():
     tokenizer = ProFamTokenizer(
@@ -180,15 +137,20 @@ def test_prot_gym_pos_encoding():
         )
 
         # Check MSA positions
-        assert (msa_seq_pos == torch.tensor(case["msa_pos"])).all(), \
+        assert (
+            msa_seq_pos == torch.tensor(case["msa_pos"])
+        ).all(), (
             f"MSA positions mismatch: {msa_proteins.positions} != {case['msa_pos']}"
+        )
 
         for i, comp in enumerate(case["completion_pos"]):
-            assert (completion_tokenized.seq_pos[i] == torch.tensor(comp)).all(), \
-                f"Completion positions mismatch: {completion_tokenized.seq_pos[i]} != {comp}"
+            assert (
+                completion_tokenized.seq_pos[i] == torch.tensor(comp)
+            ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos[i]} != {comp}"
 
-        assert (completion_tokenized.seq_pos == torch.tensor(case["completion_pos"])).all(), \
-            f"Completion positions mismatch: {completion_tokenized.seq_pos} != {case['completion_pos']}"
+        assert (
+            completion_tokenized.seq_pos == torch.tensor(case["completion_pos"])
+        ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos} != {case['completion_pos']}"
 
 
 print("Running positional embedding tests...")

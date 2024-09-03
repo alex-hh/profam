@@ -126,13 +126,13 @@ def load_msa_for_row(
     )
     #  todo consider faster method if use_msa_pos is False
     proteins = transforms.convert_sequences_adding_positions(
-            proteins,
-            keep_gaps=keep_gaps,
-            keep_insertions=True,
-            to_upper=True,
-            use_msa_pos=use_msa_pos,
-            truncate_after_n_sequences=None,
-        )
+        proteins,
+        keep_gaps=keep_gaps,
+        keep_insertions=True,
+        to_upper=True,
+        use_msa_pos=use_msa_pos,
+        truncate_after_n_sequences=None,
+    )
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
@@ -147,13 +147,11 @@ def load_dms_scores_for_row(
     max_mutated_sequences,
     gym_data_dir,
     use_msa_pos: bool = True,
-    keep_gaps: bool =False,
+    keep_gaps: bool = False,
 ):
 
     dms_df = pd.read_csv(
-        os.path.join(
-            gym_data_dir, "DMS_ProteinGym_substitutions", row["DMS_filename"]
-        )
+        os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", row["DMS_filename"])
     )
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
@@ -168,13 +166,13 @@ def load_dms_scores_for_row(
         validate_shapes=False,
     )
     proteins = transforms.convert_sequences_adding_positions(
-            proteins,
-            keep_gaps=keep_gaps,  # no gaps in DMS sequences
-            keep_insertions=True,  # no insertions in DMS sequences
-            to_upper=True,
-            use_msa_pos=use_msa_pos,
-            truncate_after_n_sequences=None,
-        )
+        proteins,
+        keep_gaps=keep_gaps,  # no gaps in DMS sequences
+        keep_insertions=True,  # no insertions in DMS sequences
+        to_upper=True,
+        use_msa_pos=use_msa_pos,
+        truncate_after_n_sequences=None,
+    )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
     row["completion_seq_pos"] = proteins.positions
@@ -217,15 +215,17 @@ def build_gym_df(
         use_msa_pos=use_msa_pos,
     )
     df["ds_name"] = "gym"
-    return df[[
-        "DMS_id",
-        "MSA",
-        "seq_pos",
-        "DMS_scores",
-        "completion_seqs",
-        "completion_seq_pos",
-        "ds_name"
-    ]]
+    return df[
+        [
+            "DMS_id",
+            "MSA",
+            "seq_pos",
+            "DMS_scores",
+            "completion_seqs",
+            "completion_seq_pos",
+            "ds_name",
+        ]
+    ]
 
 
 def load_gym_dataset(
