@@ -7,6 +7,7 @@ import argparse
 import glob
 import os
 import pandas as pd
+import tqdm
 
 
 def main(args):
@@ -14,7 +15,7 @@ def main(args):
         files = glob.glob(args.data_file_pattern)
         print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
         f.write("identifier,parquet_file,cluster_size,sequence_length\n")
-        for file in files:
+        for file in tqdm.tqdm(files):
             df = pd.read_parquet(file)
             for _, row in df.iterrows():
                 representative = row[args.identifier_col]

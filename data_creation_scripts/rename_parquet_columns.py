@@ -1,6 +1,7 @@
 import glob
 import os
 import pandas as pd
+import tqdm
 
 
 def rename_column_in_parquet(file_path, old_column_name, new_column_name, output_dir=None):
@@ -42,7 +43,7 @@ def process_parquet_files(file_list, old_column_name, new_column_name, output_di
     :param new_column_name: The new name for the column.
     :param output_dir: Directory where the updated files will be saved. If None, it overwrites the original files.
     """
-    for file_path in file_list:
+    for file_path in tqdm.tqdm(file_list):
         rename_column_in_parquet(file_path, old_column_name, new_column_name, output_dir)
 
 
