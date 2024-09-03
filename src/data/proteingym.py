@@ -171,7 +171,7 @@ def load_comp_seq_dms_for_row(
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
-        validate_shapes=False,
+        validate_shapes=True,
     )
     proteins = transforms.convert_sequences_adding_positions(
         proteins,
