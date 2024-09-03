@@ -14,3 +14,4 @@ config:
 
 scoring_max_tokens: 8000  # number of tokens to use per batch when scoring mutants
 use_kv_cache_for_scoring: True  # use key-value cache for scoring
+embed_coords: false

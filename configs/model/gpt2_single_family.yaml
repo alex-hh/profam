@@ -7,3 +7,4 @@ config:
   n_embd: 256
   n_head: 4
   n_layer: 5
+embed_coords: false
