@@ -1,14 +1,17 @@
 import torch
-from src.utils.tokenizers import ProFamTokenizer, get_seq_pos_from_positions
-from src.data.proteingym import load_msa_for_row, load_dms_scores_for_row
-from src.data.transforms import convert_sequences_adding_positions
+
 from src.data.objects import ProteinDocument
+from src.data.transforms import convert_sequences_adding_positions
+from src.utils.tokenizers import ProFamTokenizer, get_seq_pos_from_positions
 
 """
-end-to-end testing seq-pos encoding for gym 
-and family classification
+replicates the pre-processing and
+seq encoding used for proteinGym
+tests not yet implemented for indels
+indels still not currently handled 
+correctly in Gym
 """
-test_cases = [
+test_cases_subs = [
     {
         "msa_seqs": [
             "ACD",
@@ -19,11 +22,45 @@ test_cases = [
             "ACD"
         ],
         "msa_pos": [0, 0, 2, 3, 4,
-                                0, 2, 3, 4],
+                       0, 2, 3, 4],
         "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
         "keep_gaps": False,
     },
 
+    {
+        "msa_seqs": [
+            ".ACDE",
+            "aACD-"
+        ],
+        "completion_seqs": [
+            "ACD",
+            "ACD"
+        ],
+        "msa_pos": [0, 0, 2, 3, 4, 5,
+                    0, 1, 2, 3, 4],
+        "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
+        "keep_gaps": False,
+    },
+
+    {
+        "msa_seqs": [
+            ".ACDE",
+            "aACD-"
+        ],
+        "completion_seqs": [
+            "ACD",
+            "ACD"
+        ],
+        "msa_pos": [0, 0, 2, 3, 4, 5,
+                    0, 1, 2, 3, 4, 5],
+        "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
+        "keep_gaps": True,
+    },
+
+]
+
+test_cases_indels = [
+    # not implemented yet - tests are WIP
     {
         "msa_seqs": [
             "GAPGAPGAP",
@@ -82,7 +119,6 @@ test_cases = [
     },
 ]
 
-
 def test_prot_gym_pos_encoding():
     tokenizer = ProFamTokenizer(
         tokenizer_file="src/data/components/profam_tokenizer.json",
@@ -101,7 +137,7 @@ def test_prot_gym_pos_encoding():
         seq_struct_sep_token="[SEQ-STRUCT-SEP]",
     )
 
-    for case in test_cases:
+    for case in test_cases_subs:
         # Process MSA sequences
         msa_proteins = ProteinDocument(sequences=case["msa_seqs"])
         msa_proteins = convert_sequences_adding_positions(
