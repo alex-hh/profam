@@ -405,16 +405,21 @@ if __name__ == "__main__":
     parser.add_argument("--skip_af50", action="store_true")
     parser.add_argument("--run_foldmason", action="store_true")
     parser.add_argument("--num_processes", type=int, default=None)
+    parser.add_argument("--save_dir", default=None)
     args = parser.parse_args()
 
     if args.num_processes is None:
         args.num_processes = os.cpu_count()
     print("Num cpus", os.cpu_count(), flush=True)
 
-    if args.skip_af50:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
+    if args.save_dir is None:
+        if args.skip_af50:
+            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
+        else:
+            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
     else:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
+        print("Saving to passed directory", args.save_dir, flush=True)
+        save_dir = args.save_dir
 
     create_foldseek_parquets(
         save_dir=save_dir,
