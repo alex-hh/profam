@@ -226,14 +226,16 @@ def create_foldseek_parquets(
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [all_cluster_ids[i:i + parquet_size] for i in range(0, len(all_cluster_ids), parquet_size)]
 
+    check_accessions = True
     if parquet_ids is None:
+        check_accessions = False
         parquet_ids = list(range(len(clusters_to_save)))
 
     cluster_ids_to_save = [cluster_id for parquet_id in parquet_ids for cluster_id in clusters_to_save[parquet_id]]
 
     zip_index_file = os.path.join(scratch_dir, "zip_index")
     print("reading zip index from file", zip_index_file, flush=True)
-    af2zip = make_zip_dictionary(zip_index_file, cluster_ids_to_save)
+    af2zip = make_zip_dictionary(zip_index_file, cluster_ids_to_save if check_accessions else None)
 
     manager = multiprocessing.Manager()
     pdb_lookup = manager.dict()

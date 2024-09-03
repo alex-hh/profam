@@ -224,6 +224,7 @@ def make_job_list(
     skip_af50=False,
     zip_index_file=None,
     af50_path=None,
+    check_accessions=True,
 ):
     t0 = time.time()
     cluster_counter = 0
@@ -232,12 +233,12 @@ def make_job_list(
     if not skip_af50:
         af50_path = af50_path or "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
         print("reading af50 members from file", af50_path, flush=True)
-        af50_dict = make_af50_dictionary(af50_path, clusters_to_include=all_accessions)
+        af50_dict = make_af50_dictionary(af50_path, clusters_to_include=all_accessions if check_accessions else None)
         all_accessions = all_accessions + [cluster_id for cluster_members in af50_dict.values() for cluster_id in cluster_members]
 
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
     print("reading zip index from file", zip_index, flush=True)
-    af2zip = make_zip_dictionary(zip_index, all_accessions)
+    af2zip = make_zip_dictionary(zip_index, all_accessions if check_accessions else None)
 
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
     metadata_lookup = dict()
@@ -372,8 +373,10 @@ def create_foldseek_parquets(
         # 2302908 clusterss
         parquet_ids = len(clusters_to_save)
         cluster_ids_to_save = cluster_ids
+        check_accessions = False
     else:
         cluster_ids_to_save = [c for parquet_id in parquet_ids for c in clusters_to_save[parquet_id]]
+        check_accessions = True
 
     scratch_zip_index = os.path.join(scratch_dir, "zip_index")
     scratch_af50 = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
@@ -391,6 +394,7 @@ def create_foldseek_parquets(
         skip_af50=skip_af50,
         zip_index_file=zip_index,
         af50_path=af50_path,
+        check_accessions=check_accessions,  # whether to limit the lookup dicts to the cluster ids we are saving
     )
 
     job_prefix = "-".join([str(i) for i in parquet_ids])
