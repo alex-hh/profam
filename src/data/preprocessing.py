@@ -85,28 +85,6 @@ def random_subsample(arr, n, seed: Optional[int] = None):
     return rnd.choice(arr, min(n, len(arr)), replace=False)
 
 
-def _tokenize_protein_data(
-    proteins: ProteinDocument,
-    cfg,
-    tokenizer: ProFamTokenizer,
-    max_tokens: Optional[int] = None,
-    padding="max_length",
-):
-    tokenized = tokenizer.encode(
-        proteins,
-        document_token=cfg.document_token,
-        padding=padding,
-        max_length=max_tokens,
-        add_final_sep=True,
-        allow_unk=getattr(cfg, "allow_unk", False),
-    )
-    # tokenized.input_ids is flat now
-    # n.b. this is after subsampling so not very informative
-    tokenized.data["total_num_sequences"] = len(proteins)  # below length threshold
-
-    return tokenized.data  # a dict
-
-
 def subsample_and_tokenize_protein_data(
     proteins: ProteinDocument,
     cfg: BasePreprocessorConfig,
@@ -128,14 +106,19 @@ def subsample_and_tokenize_protein_data(
     proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
     proteins = transforms.apply_transforms(cfg.transforms, proteins, tokenizer)
 
-    tokenized = _tokenize_protein_data(
+    tokenized = tokenizer.encode(
         proteins,
-        cfg=cfg,
-        tokenizer=tokenizer,
-        max_tokens=max_tokens,
+        document_token=cfg.document_token,
         padding=padding,
+        max_length=max_tokens,
+        add_final_sep=True,
+        allow_unk=getattr(cfg, "allow_unk", False),
     )
-    return tokenized
+    # tokenized.input_ids is flat now
+    # n.b. this is after subsampling so not very informative
+    tokenized.data["total_num_sequences"] = len(proteins)  # below length threshold
+
+    return tokenized.data
 
 
 def preprocess_protein_sequences(
