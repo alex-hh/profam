@@ -25,34 +25,29 @@ import warnings
 from functools import partial
 from typing import Dict, List, Optional
 
-from datasets import Dataset
 import torch
+from datasets import Dataset
 
 from src.data.fasta import convert_sequence_with_positions, read_fasta
-from src.data.preprocessing import FastaPreprocessorConfig, preprocess_protein_sequences
 from src.data.objects import ProteinDocument
+from src.data.preprocessing import FastaPreprocessorConfig, preprocess_protein_sequences
 from src.utils.tokenizers import ProFamTokenizer
+
 
 def tokenize_eval_seqs(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
 ):
     eval_seq_ids = [
-        tokenizer(
-            tokenizer.sep_token + s + tokenizer.sep_token,
-            return_tensors="pt"
-        ) for s in proteins.sequences
+        tokenizer(tokenizer.sep_token + s + tokenizer.sep_token, return_tensors="pt")
+        for s in proteins.sequences
     ]
     return eval_seq_ids
 
-def tokenize_pfam_prompt(
-    proteins: ProteinDocument,
-    tokenizer: ProFamTokenizer
-):
-    return tokenizer(
-        tokenizer.sep_token.join(proteins.sequences),
-        return_tensors="pt"
-    )
+
+def tokenize_pfam_prompt(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+    return tokenizer(tokenizer.sep_token.join(proteins.sequences), return_tensors="pt")
+
 
 def prep_pfam_sample(
     msa_path: str,
@@ -82,7 +77,7 @@ def prep_pfam_sample(
 
     sample = {
         "input_ids": msa_tokenized["input_ids"],
-        "seq_pos": msa_proteins.positions, #  todo this is wrong
+        "seq_pos": msa_proteins.positions,  #  todo this is wrong
         "completion_ids": tokenized_eval_seqs,
         "family_id": msa_name,
     }
@@ -112,7 +107,7 @@ def load_pfam_classification_dataset(
     seed: int = 42,
     num_workers: int = 4,
     max_eval_per_fam: int = 4,
-    document_token: str = "[MSA]"
+    document_token: str = "[MSA]",
 ):
     eval_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_test.fasta"))
     prompt_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_train.fasta"))
@@ -136,7 +131,6 @@ def load_pfam_classification_dataset(
         eval_names, eval_seqs = seq_load_func(eval_path)
         combined_eval_seqs.extend(eval_seqs[:max_eval_per_fam])
         eval_labels.extend(eval_names[:max_eval_per_fam])
-
 
     eval_proteins = ProteinDocument(
         sequences=combined_eval_seqs,
@@ -164,22 +158,23 @@ def load_pfam_classification_dataset(
         cfg=cfg,
         tokenizer=tokenizer,
     )
-    eval_proteins.positions = [[0]+pos+[0] for pos in eval_proteins.positions]
-    tokenized_eval_seqs = tokenize_eval_seqs(
-        eval_proteins,
-        tokenizer
-    )
+    eval_proteins.positions = [[0] + pos + [0] for pos in eval_proteins.positions]
+    tokenized_eval_seqs = tokenize_eval_seqs(eval_proteins, tokenizer)
     longest_eval_seq = max(
         [len(single_seq.input_ids[0]) for single_seq in tokenized_eval_seqs]
     )
     max_msa_tokens = max_tokens - longest_eval_seq - 2
     assert all(
-        [single_seq.input_ids[0][0] == tokenizer.sep_token_id
-         for single_seq in tokenized_eval_seqs]
+        [
+            single_seq.input_ids[0][0] == tokenizer.sep_token_id
+            for single_seq in tokenized_eval_seqs
+        ]
     )
     assert all(
-        [single_seq.input_ids[0][-1] == tokenizer.sep_token_id
-         for single_seq in tokenized_eval_seqs]
+        [
+            single_seq.input_ids[0][-1] == tokenizer.sep_token_id
+            for single_seq in tokenized_eval_seqs
+        ]
     )
     process_func = partial(
         prep_pfam_sample,
@@ -199,7 +194,14 @@ def load_pfam_classification_dataset(
         num_proc=num_workers,
     )
 
-    columns = ["input_ids", "completion_ids", "family_labels", "family_id", "ds_name", "eval_fam_ids"]
+    columns = [
+        "input_ids",
+        "completion_ids",
+        "family_labels",
+        "family_id",
+        "ds_name",
+        "eval_fam_ids",
+    ]
     if use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 

@@ -16,7 +16,6 @@ from src.data import utils as data_utils
 from src.data.proteingym import tokenize
 from src.utils.tokenizers import ProFamTokenizer
 
-
 family_columns = [
     "input_ids",
     "completion_ids",
