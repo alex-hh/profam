@@ -11,6 +11,7 @@ tests not yet implemented for indels
 indels still not currently handled
 correctly in Gym
 """
+# fmt: off
 test_cases_subs = [
     {
         "msa_seqs": ["ACD", "ACD"],
@@ -74,6 +75,7 @@ test_cases_indels = [
         "keep_gaps": True,
     },
 ]
+# fmt: on
 
 
 def test_prot_gym_pos_encoding():

@@ -19,9 +19,11 @@ from src.data.utils import (
 )
 from src.utils.tokenizers import ProFamTokenizer
 
+
 def has_no_indels(string_list):
-    pattern = r'[.\-a-z]'
+    pattern = r"[.\-a-z]"
     return not any(re.search(pattern, s) for s in string_list)
+
 
 def tokenize_msa(
     sample,
