@@ -9,5 +9,3 @@ config:
   n_head: 12
   n_layer: 12
   n_positions: 2048
-use_seq_pos: ${data.use_seq_pos}  # embed sequence relative position
-max_seq_pos: ${data.max_seq_pos}  # maximum sequence position
