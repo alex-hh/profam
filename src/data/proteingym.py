@@ -162,7 +162,7 @@ def load_comp_seq_dms_for_row(
     completion_seqs = dms_df["mutated_sequence"].tolist()
     assert has_no_indels(completion_seqs), "Comp seq indel handling not implemented"
     proteins = ProteinDocument(
-        sequences=dms_df["mutated_sequence"].tolist(),
+        sequences=completion_seqs,
         accessions=None,
         identifier=None,
         positions=None,
