@@ -130,7 +130,7 @@ def load_msa_for_row(
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
     )
-   
+
     proteins = transforms.convert_sequences_adding_positions(
         proteins,
         keep_gaps=keep_gaps,
