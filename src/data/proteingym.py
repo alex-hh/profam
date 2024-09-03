@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 from typing import List, Optional
 
 import pandas as pd
@@ -8,7 +9,7 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
-from src.data import fasta
+from src.data import fasta, transforms
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
 from src.data.utils import (
@@ -19,6 +20,11 @@ from src.data.utils import (
 from src.utils.tokenizers import ProFamTokenizer
 
 
+def has_no_indels(string_list):
+    pattern = r"[.\-a-z]"
+    return not any(re.search(pattern, s) for s in string_list)
+
+
 def tokenize_msa(
     sample,
     tokenizer: ProFamTokenizer,
@@ -26,7 +32,10 @@ def tokenize_msa(
 ):
     # todo replace with subsample_and_tokenize_protein_data
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
-    proteins = ProteinDocument(sequences=sample["MSA"])
+    proteins = ProteinDocument(
+        sequences=sample["MSA"],
+        positions=sample["seq_pos"],
+    )
     tokenized = tokenizer.encode(
         proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
@@ -51,7 +60,8 @@ def tokenize_completions(
     bos_token="sep",
 ):
     tokenized = tokenizer.encode_completions(
-        sample["completion_seqs"],
+        sequences=sample["completion_seqs"],
+        positions=sample["completion_seq_pos"],
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
@@ -84,55 +94,97 @@ def load_msa_for_row(
     seed,
     max_tokens,
     gym_data_dir,
-    keep_wt=False,
-    drop_wt=True,
+    keep_wt=True,
+    drop_wt=False,
     keep_gaps=False,
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
+    use_msa_pos: bool = True,
 ):
     msa_file = os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"])
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
-    _, seqs = fasta.read_fasta(
+    _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
         msa_file,
         keep_insertions=True,
         to_upper=True,
-        keep_gaps=keep_gaps,
+        keep_gaps=True if use_msa_pos else keep_gaps,
     )
     # need to allow room for the completion
+    # todo should be max completion length (once we handle indels)
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
-    if keep_wt:
-        raise NotImplementedError()
     proteins = ProteinDocument(
-        identifier=msa_file,
         sequences=seqs,
         accessions=None,
+        identifier=None,
         positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
+        validate_shapes=True,
     )
     proteins = sample_to_max_tokens(
         proteins,
         seed=seed,
         drop_first=drop_wt,
+        keep_first=keep_wt,
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
     )
+
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=keep_gaps,
+        keep_insertions=True,
+        to_upper=True,
+        use_msa_pos=use_msa_pos,
+        truncate_after_n_sequences=None,
+    )
+
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
     row["MSA"] = proteins.sequences
+    row["seq_pos"] = proteins.positions
     return row
 
 
-def load_dms_scores_for_row(row, seed, max_mutated_sequences, gym_data_dir):
+def load_comp_seq_dms_for_row(
+    row,
+    seed,
+    max_mutated_sequences,
+    gym_data_dir,
+    use_msa_pos: bool = True,
+    keep_gaps: bool = False,
+):
+
     dms_df = pd.read_csv(
         os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", row["DMS_filename"])
     )
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
+    completion_seqs = dms_df["mutated_sequence"].tolist()
+    assert has_no_indels(completion_seqs), "Comp seq indel handling not implemented"
+    proteins = ProteinDocument(
+        sequences=completion_seqs,
+        accessions=None,
+        identifier=None,
+        positions=None,
+        plddts=None,
+        backbone_coords=None,
+        structure_tokens=None,
+        validate_shapes=True,
+    )
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=keep_gaps,  # no gaps in DMS sequences
+        keep_insertions=True,  # no insertions in DMS sequences
+        to_upper=True,
+        use_msa_pos=use_msa_pos,
+        truncate_after_n_sequences=None,
+    )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
-    row["completion_seqs"] = dms_df["mutated_sequence"].tolist()
+    row["completion_seqs"] = proteins.sequences
+    row["completion_seq_pos"] = proteins.positions
     return row
 
 
@@ -145,6 +197,7 @@ def build_gym_df(
     keep_gaps: bool = False,
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
+    use_msa_pos: bool = True,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
@@ -158,16 +211,30 @@ def build_gym_df(
         keep_gaps=keep_gaps,
         use_filtered_msa=use_filtered_msa,
         extra_tokens_per_document=extra_tokens_per_document,
+        use_msa_pos=use_msa_pos,
+        keep_wt=True,
+        drop_wt=False,
     )
     df = df.apply(
-        load_dms_scores_for_row,
+        load_comp_seq_dms_for_row,
         axis=1,
         seed=seed,
         max_mutated_sequences=max_mutated_sequences,
         gym_data_dir=gym_data_dir,
+        use_msa_pos=use_msa_pos,
     )
     df["ds_name"] = "gym"
-    return df[["DMS_id", "MSA", "DMS_scores", "completion_seqs", "ds_name"]]
+    return df[
+        [
+            "DMS_id",
+            "MSA",
+            "seq_pos",
+            "DMS_scores",
+            "completion_seqs",
+            "completion_seq_pos",
+            "ds_name",
+        ]
+    ]
 
 
 def load_gym_dataset(
@@ -181,6 +248,7 @@ def load_gym_dataset(
     keep_gaps: bool = False,
     num_proc: Optional[int] = None,
     use_filtered_msa: bool = False,
+    use_msa_pos: bool = True,
 ):
     """mutant_bos_token should almost always be sep.
 
@@ -199,6 +267,7 @@ def load_gym_dataset(
         keep_gaps=keep_gaps,
         use_filtered_msa=use_filtered_msa,
         extra_tokens_per_document=tokenizer.num_start_tokens,
+        use_msa_pos=use_msa_pos,
     )
     dataset = Dataset.from_pandas(df, preserve_index=False)
     print("Loading gym dataset")
