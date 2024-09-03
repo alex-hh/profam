@@ -175,23 +175,31 @@ def extract_pdbs_from_zips(pdb_lookup, output_dir, num_processes):
     t0 = time.time()
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        results = []
+
+    if num_processes is None:
         for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
-            result = pool.apply_async(
-                extract_pdbs,
-                args=(zip_filename, afdb_ids, output_dir, zip_index)
-            )
-            results.append(result)
-
-        for result in results:
-            success_count, fail_count = result.get()
+            success_count, fail_count = extract_pdbs(zip_filename, afdb_ids, output_dir, zip_index)
             seq_success_counter += success_count
             seq_fail_counter += fail_count
+    else:
+        with multiprocessing.Pool(processes=num_processes) as pool:
+            results = []
+            for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
+                print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
+                result = pool.apply_async(
+                    extract_pdbs,
+                    args=(zip_filename, afdb_ids, output_dir, zip_index)
+                )
+                results.append(result)
 
-    print("Number of failed sequences:", seq_fail_counter)
-    print("Number of successful sequences:", seq_success_counter, flush=True)
+            for result in results:
+                success_count, fail_count = result.get()
+                seq_success_counter += success_count
+                seq_fail_counter += fail_count
+
+        print("Number of failed sequences:", seq_fail_counter)
+        print("Number of successful sequences:", seq_success_counter, flush=True)
     t1 = time.time()
     print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)
 
@@ -199,12 +207,13 @@ def extract_pdbs_from_zips(pdb_lookup, output_dir, num_processes):
 def create_foldseek_parquets(
     save_dir,
     scratch_dir,
+    cluster_path,
     use_af50_representatives=False,
     parquet_ids=None,
     num_processes=None,
 ):
+    af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     cluster_path = af50_path if use_af50_representatives else cluster_path
-    zip_index_file = os.path.join(scratch_dir, "zip_index")
     all_cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
 
     # shuffle first so that we de-correlate cluster identities in parquet files
@@ -222,6 +231,7 @@ def create_foldseek_parquets(
 
     cluster_ids_to_save = [cluster_id for parquet_id in parquet_ids for cluster_id in clusters_to_save[parquet_id]]
 
+    zip_index_file = os.path.join(scratch_dir, "zip_index")
     print("reading zip index from file", zip_index_file, flush=True)
     af2zip = make_zip_dictionary(zip_index_file, cluster_ids_to_save)
 
@@ -252,7 +262,6 @@ def create_foldseek_parquets(
         num_processes=num_processes,
     )
 
-    af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     for parquet_id in parquet_ids:
         print("Processing parquet id", parquet_id, flush=True)
         cluster_ids_for_parquet = clusters_to_save[parquet_id]
@@ -273,20 +282,21 @@ if __name__ == "__main__":
     parser.add_argument("--af50", action="store_true")
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--num_processes", type=int, default=None)
+    parser.add_argument("--save_dir", default=None)
     args = parser.parse_args()
 
-    if args.af50:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_representatives/"
+    if args.save_dir is not None:
+        if args.af50:
+            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_representatives/"
+        else:
+            save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives/"
     else:
-        save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives_example/"
-
-    if args.num_processes is None:
-        args.num_processes = os.cpu_count()
-    print("Num cpus", os.cpu_count(), flush=True)
+        save_dir = args.save_dir
 
     create_foldseek_parquets(
         save_dir=save_dir,
         scratch_dir=args.scratch_dir,
         parquet_ids=args.parquet_ids,
         num_processes=args.num_processes,
+        cluster_path=args.cluster_path,
     )
