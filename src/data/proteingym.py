@@ -106,7 +106,7 @@ def load_msa_for_row(
     _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
         msa_file,
         keep_insertions=True,
-        to_upper=False if use_msa_pos else True,
+        to_upper=True,
         keep_gaps=True if use_msa_pos else keep_gaps,
     )
     # need to allow room for the completion
@@ -120,7 +120,7 @@ def load_msa_for_row(
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
-        validate_shapes=False,
+        validate_shapes=True,
     )
     proteins = sample_to_max_tokens(
         proteins,
@@ -130,7 +130,7 @@ def load_msa_for_row(
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
     )
-    #  todo consider faster method if use_msa_pos is False
+   
     proteins = transforms.convert_sequences_adding_positions(
         proteins,
         keep_gaps=keep_gaps,
