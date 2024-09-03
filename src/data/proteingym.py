@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 from typing import List, Optional
 
 import pandas as pd
@@ -18,6 +19,9 @@ from src.data.utils import (
 )
 from src.utils.tokenizers import ProFamTokenizer
 
+def has_no_indels(string_list):
+    pattern = r'[.\-a-z]'
+    return not any(re.search(pattern, s) for s in string_list)
 
 def tokenize_msa(
     sample,
@@ -104,7 +108,7 @@ def load_msa_for_row(
         keep_gaps=True if use_msa_pos else keep_gaps,
     )
     # need to allow room for the completion
-    # todo should be max completion length
+    # todo should be max completion length (once we handle indels)
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     proteins = ProteinDocument(
         sequences=seqs,
@@ -141,7 +145,7 @@ def load_msa_for_row(
     return row
 
 
-def load_dms_scores_for_row(
+def load_comp_seq_dms_for_row(
     row,
     seed,
     max_mutated_sequences,
@@ -155,6 +159,8 @@ def load_dms_scores_for_row(
     )
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
+    completion_seqs = dms_df["mutated_sequence"].tolist()
+    assert has_no_indels(completion_seqs), "Comp seq indel handling not implemented"
     proteins = ProteinDocument(
         sequences=dms_df["mutated_sequence"].tolist(),
         accessions=None,
@@ -207,7 +213,7 @@ def build_gym_df(
         drop_wt=False,
     )
     df = df.apply(
-        load_dms_scores_for_row,
+        load_comp_seq_dms_for_row,
         axis=1,
         seed=seed,
         max_mutated_sequences=max_mutated_sequences,
