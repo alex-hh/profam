@@ -15,19 +15,14 @@ mkdir -p ${SCRATCH_DIR}/data
 echo "Created scratch dir"
 
 # copy the datasets to the scratch space
-mkdir -p ${SCRATCH_DIR}/data
-rsync -av /SAN/orengolab/cath_plm/ProFam/profam ${SCRATCH_DIR}/
-cd ${SCRATCH_DIR}/profam
-echo "Copied ProFam to ${SCRATCH_DIR}/profam/"
+# rsync -av /SAN/orengolab/cath_plm/ProFam/profam ${SCRATCH_DIR}/
+# cd ${SCRATCH_DIR}/profam
+# echo "Copied ProFam to ${SCRATCH_DIR}/profam/"
 
-source /share/apps/source_files/python/python-3.11.9.source
-ROOT_DIR=${SCRATCH_DIR}/profam
+export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
-python3 -m venv ${SCRATCH_DIR}/venv
-# Activate the virtual environment
-source ${SCRATCH_DIR}/venv/bin/activate
-pip install -r ${SCRATCH_DIR}/profam/requirements.txt
-
+conda activate venvPF
+source /share/apps/source_files/python/python-3.11.9.source
 
 ls /scratch0/$USER/$JOB_ID
 cp /SAN/bioinf/afdb_domain/zipmaker/zip_index $SCRATCH_DIR/data/
