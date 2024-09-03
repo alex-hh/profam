@@ -16,7 +16,6 @@ distinct parquets.
 """
 import argparse
 import shutil
-from collections import defaultdict
 import multiprocessing
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
@@ -117,7 +116,7 @@ def get_cluster_ids(cluster_path, use_af50_representatives=False):
         return get_foldseek_representatives(cluster_path)
 
 
-def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, verbose=False):
+def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id):
     # Save the pdbs to parquet
     results = []
     for cluster_id in clusters_to_save:
@@ -147,9 +146,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, ve
                 "plddts": b_factors,
             }
         )
-
-    print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
-    shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
+        os.remove(pdb)
 
     df = pd.DataFrame(results)
     table = pa.Table.from_pandas(df)
@@ -171,52 +168,11 @@ def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
     return sum(successes), len(successes) - sum(successes)
 
 
-def make_job_list(
-    parquet_id,
-    cluster_path,
-    use_af50_representatives=False,
-    zip_index_file=None,
-):
-    cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
-
-    # shuffle first so that we de-correlate cluster identities in parquet files
-    rng = np.random.default_rng(seed=42)
-    rng.shuffle(cluster_ids)
-
-    parquet_size = 1000  # number of clusters to save in each parquet file
-    # What we want to do here is build a list of cluster ids to save within each parquet file.
-    clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
-    cluster_ids = clusters_to_save[parquet_id]
-
-    zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
-    print("reading zip index from file", zip_index, flush=True)
-    af2zip = make_zip_dictionary(zip_index, cluster_ids)
-
-    pdb_lookup = defaultdict(list)
-
-    print("Building lookup", flush=True)
-
-    t1 = time.time()
-    for ix, cluster_id in enumerate(cluster_ids):
-        if ix % 500 == 0:
-            print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
-        
-        zip_filename = af2zip[cluster_id]
-        afdb_id = f"AF-{cluster_id}-F1-model_v4"
-        pdb_lookup[zip_filename].append(afdb_id)
-
-    t2 = time.time()
-    print("Built lookup in", t2 - t1, "seconds", flush=True)
-    print("Number of zip files: ", len(pdb_lookup), flush=True)
-    return pdb_lookup, cluster_ids
-
-
-def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes):
+def extract_pdbs_from_zips(pdb_lookup, output_dir, num_processes):
     seq_fail_counter = 0
     seq_success_counter = 0
     # Parallel extraction of pdb files
     t0 = time.time()
-    output_dir = os.path.join(scratch_dir, str(parquet_id))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     with multiprocessing.Pool(processes=num_processes) as pool:
@@ -247,35 +203,67 @@ def create_foldseek_parquets(
     parquet_ids=None,
     num_processes=None,
 ):
-    if parquet_ids is None:
-        if use_af50_representatives:
-            parquet_ids = range(52330)
-        else:
-            # 2302908 clusters
-            parquet_ids = range(2310)
+    cluster_path = af50_path if use_af50_representatives else cluster_path
+    zip_index_file = os.path.join(scratch_dir, "zip_index")
+    all_cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
 
-    print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
+    # shuffle first so that we de-correlate cluster identities in parquet files
+    rng = np.random.default_rng(seed=42)
+    rng.shuffle(all_cluster_ids)
+
+    print(f"Post-shuffle cluster ids: {all_cluster_ids[:10]}", flush=True)
+
+    parquet_size = 1000  # number of clusters to save in each parquet file
+    # What we want to do here is build a list of cluster ids to save within each parquet file.
+    clusters_to_save = [all_cluster_ids[i:i + parquet_size] for i in range(0, len(all_cluster_ids), parquet_size)]
+
+    if parquet_ids is None:
+        parquet_ids = list(range(len(clusters_to_save)))
+
+    cluster_ids_to_save = [cluster_id for parquet_id in parquet_ids for cluster_id in clusters_to_save[parquet_id]]
+
+    print("reading zip index from file", zip_index_file, flush=True)
+    af2zip = make_zip_dictionary(zip_index_file, cluster_ids_to_save)
+
+    manager = multiprocessing.Manager()
+    pdb_lookup = manager.dict()
+
+    print("Building lookup", flush=True)
+
+    t1 = time.time()
+    for ix, cluster_id in enumerate(cluster_ids_to_save):
+        if ix % 500 == 0:
+            print(f"Processing cluster {ix} of {len(cluster_ids_to_save)}", flush=True)
+        
+        zip_filename = af2zip[cluster_id]
+        afdb_id = f"AF-{cluster_id}-F1-model_v4"
+        if zip_filename not in pdb_lookup:
+            pdb_lookup[zip_filename] = []
+        pdb_lookup[zip_filename].append(afdb_id)
+
+    t2 = time.time()
+    print("Built lookup in", t2 - t1, "seconds", flush=True)
+    print("Number of zip files: ", len(pdb_lookup), flush=True)
+
+    job_prefix = "-".join([str(i) for i in parquet_ids])
+    extract_pdbs_from_zips(
+        pdb_lookup=pdb_lookup,
+        output_dir=os.path.join(scratch_dir, job_prefix),
+        num_processes=num_processes,
+    )
+
     af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     for parquet_id in parquet_ids:
         print("Processing parquet id", parquet_id, flush=True)
-        pdb_lookup, cluster_ids = make_job_list(
-            parquet_id,
-            cluster_path=af50_path if use_af50_representatives else cluster_path,
-            use_af50_representatives=use_af50_representatives,
-            zip_index_file=os.path.join(scratch_dir, "zip_index"),
-        )
-        extract_pdbs_for_parquet(
-            pdb_lookup=pdb_lookup,
-            scratch_dir=scratch_dir,
-            parquet_id=parquet_id,
-            num_processes=num_processes,
-        )
+        cluster_ids_for_parquet = clusters_to_save[parquet_id]
         save_pdbs_to_parquet(
             save_dir=save_dir,
             scratch_dir=scratch_dir,
-            clusters_to_save=cluster_ids,
+            clusters_to_save=cluster_ids_for_parquet,
             parquet_id=parquet_id,
         )
+
+    shutil.rmtree(os.path.join(scratch_dir, job_prefix))
 
 
 if __name__ == "__main__":
