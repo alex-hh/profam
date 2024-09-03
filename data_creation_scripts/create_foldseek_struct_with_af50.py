@@ -259,6 +259,8 @@ def make_job_list(
                     continue
 
                 afdb_id = f"AF-{member}-F1-model_v4"
+                if zip_filename not in pdb_lookup:
+                    pdb_lookup[zip_filename] = []
                 pdb_lookup[zip_filename].append(afdb_id)
                 metadata_lookup[afdb_id] = {
                     "cluster_id": cluster_id,
@@ -379,13 +381,12 @@ def create_foldseek_parquets(
     af50_path = scratch_af50 if os.path.isfile(scratch_af50) else "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
 
     with multiprocessing.Manager() as manager:
-        pdb_lookup = manager.defaultdict(list)
+        pdb_lookup = manager.dict()
 
     metadata_lookup, cluster_membership = make_job_list(
         pdb_lookup=pdb_lookup,
         cluster_dict=cluster_dict,
         cluster_ids=cluster_ids_to_save,
-        save_dir=save_dir,
         minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
         skip_af50=skip_af50,
         zip_index_file=zip_index,
