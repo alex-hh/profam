@@ -131,7 +131,7 @@ def run_foldmason(filelist, output_dir, tmp_dir):
         raise
 
 
-def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, metadata_lookup, verbose=False):
+def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metadata_lookup):
     # Save the pdbs to parquet
     results = []
     for cluster_id, cluster_members in clusters_to_save.items():
@@ -143,7 +143,7 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
         cluster_filelist = []
 
         for afdb_id in cluster_members:
-            pdb = os.path.join(scratch_dir, str(parquet_id), afdb_id + ".pdb")
+            pdb = os.path.join(pdbs_dir, afdb_id + ".pdb")
             cluster_filelist.append(pdb)
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
@@ -162,9 +162,8 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             
         # Run FoldMason on the cluster
         if args.run_foldmason:
-            # TODO: check that this preserves order.
-            foldmason_outdir = os.path.join(scratch_dir, str(parquet_id), cluster_id)
-            os.makedirs(foldmason_outdir, exist_ok=True)
+            foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
+            os.makedirs(foldmason_outdir)
             run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
 
             # Read AA and 3Di alignments, skip the accessions
@@ -174,6 +173,10 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
             struct_labels, msta_3di = read_fasta(os.path.join(foldmason_outdir, "result_3di.fa"))
             assert labels == struct_labels
             msta_3di = [msta_3di[ix] for ix in perm]
+            shutil.rmtree(foldmason_outdir)
+
+        for pdb in cluster_filelist:
+            os.remove(pdb)
 
         # TODO: save representative?
         results.append(
@@ -191,9 +194,6 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id, me
                 "msta_3di": msta_3di,
             }
         )
-
-    print("Deleting directory", os.path.join(scratch_dir, str(parquet_id)), flush=True)
-    shutil.rmtree(os.path.join(scratch_dir, str(parquet_id)))
 
     df = pd.DataFrame(results)
     # Q. why not just df.to_parquet?
@@ -217,45 +217,15 @@ def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
 
 
 def make_job_list(
-    parquet_id,
-    save_dir,
+    pdb_lookup,
+    cluster_dict,
+    cluster_ids,
     minimum_foldseek_cluster_size=1,
     skip_af50=False,
     zip_index_file=None,
     af50_path=None,
 ):
     t0 = time.time()
-    # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
-    cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
-
-    if not os.path.exists(cluster_dict_pickle_path):
-        print("Creating foldseek dataset", flush=True)
-        cluster_dict = make_cluster_dictionary(args.cluster_path)
-        print("Number of clusters:", len(cluster_dict))
-        print("Saving cluster dictionary")
-        with open(save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
-            pickle.dump(cluster_dict, f)
-    else:
-        print("Loading cluster dictionary", flush=True)
-        with open(cluster_dict_pickle_path, "rb") as f:
-            cluster_dict = pickle.load(f)
-        print("Number of clusters:", len(cluster_dict), flush=True)
-
-    # shuffle first so that we de-correlate cluster identities in parquet files
-    cluster_dict = {k: v for k, v in cluster_dict.items() if len(v) >= minimum_foldseek_cluster_size}
-    cluster_ids = sorted(list(cluster_dict.keys()))
-    # 442338 clusters with >= 10 members
-    print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(cluster_dict.keys()), flush=True)
-    rng = np.random.default_rng(seed=42)
-    rng.shuffle(cluster_ids)
-    print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
-
-    parquet_size = 250  # number of clusters to save in each parquet file
-    # What we want to do here is build a list of cluster ids to save within each parquet file.
-    clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
-    print(f"Number of parquet files: {len(clusters_to_save)}", flush=True)
-    cluster_ids = clusters_to_save[parquet_id]
-
     cluster_counter = 0
 
     all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
@@ -269,14 +239,11 @@ def make_job_list(
     print("reading zip index from file", zip_index, flush=True)
     af2zip = make_zip_dictionary(zip_index, all_accessions)
 
-    pdb_lookup = defaultdict(list)
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
     metadata_lookup = dict()
 
     print("Building lookup", flush=True)
 
-    t1 = time.time()
-    print("Finished reading files", t1 - t0, flush=True)
     for ix, cluster_id in enumerate(cluster_ids):
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
@@ -314,18 +281,17 @@ def make_job_list(
                             "accession": af50_member,
                         }
 
-    t2 = time.time()
-    print("Built lookup in", t2 - t1, "seconds", flush=True)
+    t1 = time.time()
+    print("Built lookups in", t1 - t0, "seconds", flush=True)
     print("Number of zip files: ", len(pdb_lookup), flush=True)
     return pdb_lookup, metadata_lookup, cluster_membership
 
 
-def extract_pdbs_for_parquet(pdb_lookup, scratch_dir, parquet_id, num_processes=None):
+def extract_pdbs_from_zips(pdb_lookup, output_dir, num_processes=None):
     seq_fail_counter = 0
     seq_success_counter = 0
     # Parallel extraction of pdb files
     t0 = time.time()
-    output_dir = os.path.join(scratch_dir, str(parquet_id))
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -365,35 +331,85 @@ def create_foldseek_parquets(
     parquet_ids=None,
     num_processes=None,
 ):
+    
+    t0 = time.time()
+    # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
+    cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
+
+    if not os.path.exists(cluster_dict_pickle_path):
+        print("Creating foldseek dataset", flush=True)
+        cluster_dict = make_cluster_dictionary(args.cluster_path)
+        print("Number of clusters:", len(cluster_dict))
+        print("Saving cluster dictionary")
+        with open(save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
+            pickle.dump(cluster_dict, f)
+    else:
+        print("Loading cluster dictionary", flush=True)
+        with open(cluster_dict_pickle_path, "rb") as f:
+            cluster_dict = pickle.load(f)
+        print("Number of clusters:", len(cluster_dict), flush=True)
+
+    # shuffle first so that we de-correlate cluster identities in parquet files
+    cluster_dict = {k: v for k, v in cluster_dict.items() if len(v) >= minimum_foldseek_cluster_size}
+    cluster_ids = sorted(list(cluster_dict.keys()))
+    # 442338 clusters with >= 10 members
+    print(f"Number of clusters after filtering by cluster size >= {minimum_foldseek_cluster_size}:", len(cluster_dict.keys()), flush=True)
+    rng = np.random.default_rng(seed=42)
+    rng.shuffle(cluster_ids)
+    print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
+
+    parquet_size = 250  # number of clusters to save in each parquet file
+    # What we want to do here is build a list of cluster ids to save within each parquet file.
+    clusters_to_save = [cluster_ids[i:i + parquet_size] for i in range(0, len(cluster_ids), parquet_size)]
+    print(f"Number of parquet files: {len(clusters_to_save)}", flush=True)
+    # cluster_ids = clusters_to_save[parquet_id]
+    t1 = time.time()
+    print("Finished reading cluster dictionary", t1 - t0, flush=True)
+
     if parquet_ids is None:
         # 2302908 clusterss
-        parquet_ids = range(231)
+        parquet_ids = len(clusters_to_save)
+        cluster_ids_to_save = cluster_ids
+    else:
+        cluster_ids_to_save = [c for parquet_id in parquet_ids for c in clusters_to_save[parquet_id]]
+
+    scratch_zip_index = os.path.join(scratch_dir, "zip_index")
+    scratch_af50 = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
+    zip_index = scratch_zip_index if os.path.isfile(scratch_zip_index) else "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
+    af50_path = scratch_af50 if os.path.isfile(scratch_af50) else "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
+
+    with multiprocessing.Manager() as manager:
+        pdb_lookup = manager.defaultdict(list)
+
+    metadata_lookup, cluster_membership = make_job_list(
+        pdb_lookup=pdb_lookup,
+        cluster_dict=cluster_dict,
+        cluster_ids=cluster_ids_to_save,
+        save_dir=save_dir,
+        minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
+        skip_af50=skip_af50,
+        zip_index_file=zip_index,
+        af50_path=af50_path,
+    )
+
+    job_prefix = "-".join([str(i) for i in parquet_ids])
+    extract_pdbs_from_zips(
+        pdb_lookup=pdb_lookup,
+        output_dir=os.path.join(scratch_dir, job_prefix),
+        num_processes=num_processes,
+    )
+
     for parquet_id in parquet_ids:
-        scratch_zip_index = os.path.join(scratch_dir, "zip_index")
-        scratch_af50 = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
-        zip_index = scratch_zip_index if os.path.isfile(scratch_zip_index) else "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
-        af50_path = scratch_af50 if os.path.isfile(scratch_af50) else "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
-        pdb_lookup, metadata_lookup, cluster_membership = make_job_list(
-            parquet_id,
-            save_dir=save_dir,
-            minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
-            skip_af50=skip_af50,
-            zip_index_file=zip_index,
-            af50_path=af50_path,
-        )
-        extract_pdbs_for_parquet(
-            pdb_lookup=pdb_lookup,
-            scratch_dir=scratch_dir,
-            parquet_id=parquet_id,
-            num_processes=num_processes,
-        )
+        parquet_cluster_ids = clusters_to_save[parquet_id]
+        parquet_cluster_membership = {k: v for k, v in cluster_membership.items() if k in parquet_cluster_ids}
         save_pdbs_to_parquet(
             save_dir=save_dir,
-            scratch_dir=scratch_dir,
-            clusters_to_save=cluster_membership,
+            pdbs_dir=os.path.join(scratch_dir, job_prefix),
+            clusters_to_save=parquet_cluster_membership,
             parquet_id=parquet_id,
             metadata_lookup=metadata_lookup,
         )
+    shutil.rmtree(os.path.join(scratch_dir, job_prefix))
 
 
 if __name__ == "__main__":
@@ -407,10 +423,6 @@ if __name__ == "__main__":
     parser.add_argument("--num_processes", type=int, default=None)
     parser.add_argument("--save_dir", default=None)
     args = parser.parse_args()
-
-    if args.num_processes is None:
-        args.num_processes = os.cpu_count()
-    print("Num cpus", os.cpu_count(), flush=True)
 
     if args.save_dir is None:
         if args.skip_af50:
