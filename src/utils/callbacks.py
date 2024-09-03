@@ -63,7 +63,10 @@ class PrintCallback(Callback):
 
 
 class TokenThroughputMonitor(ThroughputMonitor):
-    """Modified to compute samples / tokens sizes and skip validation throughput (for now.)"""
+    """Modified to compute samples / tokens sizes and skip validation throughput (for now.)
+
+    The length_fn is used to compute items_per_sec (effectively tokens per second)
+    """
 
     def __init__(self, run_on_validation: bool = False):
         super().__init__(

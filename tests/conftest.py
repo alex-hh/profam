@@ -148,6 +148,7 @@ def foldseek_interleaved_structure_sequence_batch(
         max_tokens=max_tokens,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
+        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
@@ -170,6 +171,7 @@ def foldseek_interleaved_structure_sequence_datapoint(
         max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
+        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     return next(iter(data))
 
