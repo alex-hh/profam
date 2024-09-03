@@ -37,31 +37,7 @@ def calc_grad_norm(params):
 def load_checkpoint(checkpoint_dir, **kwargs):
     config_dir = os.path.join(BASEDIR, checkpoint_dir, ".hydra")
     cfg = OmegaConf.load(os.path.join(config_dir, "config.yaml"))
-    if "tokenizer" in cfg:
-        old_config = False
-        tokenizer = hydra.utils.instantiate(cfg.tokenizer)
-    else:
-        # old config
-        old_config = True
-        from src.utils.tokenizers import ProFamTokenizer
-
-        tokenizer = ProFamTokenizer(
-            tokenizer_file=cfg.data.tokenizer_path,
-            unk_token="[UNK]",
-            pad_token="[PAD]",
-            sep_token="[SEP]",
-            mask_token="[MASK]",
-            bos_token="[start-of-document]",
-            add_special_tokens=True,
-            add_final_sep=True,
-            add_bos_token=True,
-            add_document_token=True,
-            use_seq_pos=cfg.data.use_seq_pos,
-            max_seq_pos=cfg.data.max_seq_pos,
-            max_tokens=cfg.data.max_tokens,
-        )
-        del cfg.model.use_seq_pos
-        del cfg.model.max_seq_pos
+    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
 
     print(OmegaConf.to_yaml(cfg.model))
     # TODO: check callback config
@@ -70,12 +46,6 @@ def load_checkpoint(checkpoint_dir, **kwargs):
         checkpoint_path,
         map_location="cpu",
     )["state_dict"]
-    if old_config and tokenizer.use_seq_pos:
-        # TODO: we'll have to convert keys and change model class if using an old-style checkpoint.
-        checkpoint = {
-            k.replace("model.model.", "model."): v for k, v in checkpoint.items()
-        }
-
     model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
     model.load_state_dict(checkpoint)
     model.eval()

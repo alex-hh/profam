@@ -279,7 +279,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 if positions is None:
                     seq_positions = [list(range(1, len(seq) + 1))]
                 else:
-                    seq_positions = positions[i]
+                    seq_positions = [positions[i]]
                 all_positions.append(
                     get_seq_pos_from_positions(
                         tokenized.input_ids[i],
@@ -288,7 +288,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         max_seq_pos=self.max_seq_pos,
                         num_start_tokens=1
                         if bos_token
-                        else 0,  # just bos_token (no document tag because we are completing prompt)
+                        else 0,  # just bos_token no doc as now completing prompt
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )

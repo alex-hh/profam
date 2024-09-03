@@ -14,3 +14,4 @@ config:
 
 scoring_max_tokens: 8000
 use_kv_cache_for_scoring: True
+embed_coords: false

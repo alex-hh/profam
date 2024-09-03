@@ -49,6 +49,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
+        embed_coords: bool = False,
     ) -> None:
         """
         From the paper:
@@ -58,7 +59,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
         if (
-            tokenizer.use_seq_pos
+            tokenizer.use_seq_pos or embed_coords,
         ):  # commenting out to check computation of inputs embeds is working
             model = WrappedLlamaForCausalLM(
                 config,
@@ -66,6 +67,7 @@ class LlamaLitModule(BaseFamilyLitModule):
                 embedding_dim=config.hidden_size,
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
+                embed_coords=embed_coords,
             )
         else:
             model = LlamaForCausalLM(config)
