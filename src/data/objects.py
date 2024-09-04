@@ -39,6 +39,7 @@ class ProteinDocument:
     accessions: Optional[List[str]] = None
     identifier: Optional[str] = None
     positions: Optional[List[List[int]]] = None
+    doc_positions: Optional[List[List[int]]] = None
     plddts: Optional[List[np.ndarray]] = None
     backbone_coords: Optional[List[np.ndarray]] = None
     structure_tokens: Optional[List[str]] = None
@@ -72,6 +73,7 @@ class ProteinDocument:
                 if self.accessions is not None
                 else None,
                 positions=self.positions[key] if self.positions is not None else None,
+                doc_positions=self.doc_positions[key] if self.doc_positions is not None else None,
                 plddts=self.plddts[key] if self.plddts is not None else None,
                 backbone_coords=self.backbone_coords[key]
                 if self.backbone_coords is not None
@@ -154,6 +156,7 @@ class ProteinDocument:
             sequences=kwargs.get("sequences", self.sequences),
             accessions=kwargs.get("accessions", self.accessions),
             positions=kwargs.get("positions", self.positions),
+            doc_positions=kwargs.get("doc_positions", self.doc_positions),
             plddts=kwargs.get("plddts", self.plddts),
             backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
             structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),

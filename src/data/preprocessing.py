@@ -132,6 +132,8 @@ def preprocess_protein_sequences(
             to_upper=cfg.to_upper,
             use_msa_pos=cfg.use_msa_pos,
             truncate_after_n_sequences=cfg.truncate_after_n_sequences,
+            use_doc_pos=tokenizer.use_doc_pos,
+            max_doc_pos=tokenizer.max_doc_pos,
         )
     else:
         proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]

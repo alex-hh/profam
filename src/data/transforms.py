@@ -18,11 +18,14 @@ def convert_sequences_adding_positions(
     to_upper: bool = True,
     use_msa_pos: bool = False,
     truncate_after_n_sequences: Optional[int] = None,
+    use_doc_pos: bool = False,
+    max_doc_pos: int = 1024,
     **kwargs,
 ):
     sequences = []
     positions = []
-    for seq in itertools.islice(proteins.sequences, truncate_after_n_sequences):
+    doc_positions = []
+    for i, seq in enumerate(itertools.islice(proteins.sequences, truncate_after_n_sequences)):
         seq, pos, _ = convert_sequence_with_positions(
             seq,
             keep_gaps=keep_gaps,
@@ -32,9 +35,12 @@ def convert_sequences_adding_positions(
         )
         sequences.append(seq)
         positions.append(pos)
+        if use_doc_pos:
+            doc_positions.append([min(i, max_doc_pos - 1)] * len(seq))
     return proteins.clone(
         sequences=sequences,
         positions=positions,
+        doc_positions=doc_positions if use_doc_pos else None,
     )
 
 
