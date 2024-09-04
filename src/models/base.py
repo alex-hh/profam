@@ -445,7 +445,7 @@ class BaseFamilyLitModule(BaseLitModule):
         log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
         return log_likelihood
 
-    def kv_cache_prompt(self, input_ids, seq_pos, completion_start_pos):
+    def kv_cache_prompt(self, input_ids, seq_pos):
         forward_kwargs = self.get_forward_kwargs(
             {"input_ids": input_ids, "seq_pos": seq_pos}
         )
@@ -453,7 +453,7 @@ class BaseFamilyLitModule(BaseLitModule):
             forward_kwargs["seq_pos"] = torch.cat(
                 (
                     seq_pos[..., 1:],
-                    torch.full_like(seq_pos[..., -1:], completion_start_pos),
+                    torch.full_like(seq_pos[..., -1:], self.tokenizer.start_seq_pos),
                 ),
                 dim=-1,
             )
@@ -479,11 +479,9 @@ class BaseFamilyLitModule(BaseLitModule):
         forward_kwargs = {}
         if self.shift_positions and self.use_seq_pos:
             assert (
-                completion_seq_pos[:, :, 0] == self.model.start_seq_pos
+                completion_seq_pos[:, :, 0] == self.tokenizer.start_seq_pos
             ).all()  # likely 2
-        past_key_values = self.kv_cache_prompt(
-            input_ids, seq_pos, completion_start_pos=self.model.start_seq_pos
-        )
+        past_key_values = self.kv_cache_prompt(input_ids, seq_pos)
         L = completion_ids.shape[-1]
         for batch_start in tqdm.tqdm(
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
