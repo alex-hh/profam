@@ -421,6 +421,47 @@ class BaseFamilyLitModule(BaseLitModule):
                 )
         return forward_kwargs
 
+    def _score_batch_kv_cache(
+        self,
+        input_ids,
+        past_key_values,
+        **forward_kwargs,
+    ):
+        actual_batch_size = input_ids.shape[0]
+        cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+        cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
+
+        outputs = self.model(
+            input_ids=input_ids,
+            past_key_values=cache,
+            use_cache=True,
+            **forward_kwargs,
+        )
+        labels = torch.where(
+            input_ids == self.tokenizer.pad_token_id,
+            -100,
+            input_ids.clone(),
+        )
+        log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
+        return log_likelihood
+
+    def kv_cache_prompt(self, input_ids, seq_pos, completion_start_pos):
+        forward_kwargs = self.get_forward_kwargs(
+            {"input_ids": input_ids, "seq_pos": seq_pos}
+        )
+        if self.shift_positions and self.use_seq_pos:
+            forward_kwargs["seq_pos"] = torch.cat(
+                (
+                    seq_pos[..., 1:],
+                    torch.full_like(seq_pos[..., -1:], completion_start_pos),
+                ),
+                dim=-1,
+            )
+        outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
+        return (
+            outputs.past_key_values
+        )  # just a tuple of tensors (for current hf version only perhaps?) - doesn't get extended
+
     def _score_seqs_kv_cache(
         self,
         input_ids,
@@ -437,62 +478,31 @@ class BaseFamilyLitModule(BaseLitModule):
         all_lls = []
         forward_kwargs = {}
         if self.shift_positions and self.use_seq_pos:
-            assert completion_seq_pos is not None
-            assert completion_seq_pos.ndim == 3
-            assert (completion_seq_pos[:, :, 0] == completion_seq_pos[:, 0, 0]).all()
-            forward_kwargs["seq_pos"] = torch.cat(
-                (seq_pos[..., 1:], completion_seq_pos[..., :1]), dim=-1
-            )
-            completion_seq_pos = torch.cat(
-                (
-                    completion_seq_pos[..., 1:],
-                    torch.zeros_like(completion_seq_pos[..., -1:]),
-                ),
-                dim=-1,
-            )
-        elif self.use_seq_pos:
-            forward_kwargs["seq_pos"] = seq_pos
-
-        outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
-        past_key_values = (
-            outputs.past_key_values
-        )  # just a tuple of tensors - doesn't get extended
+            assert (
+                completion_seq_pos[:, :, 0] == self.model.start_seq_pos
+            ).all()  # likely 2
+        past_key_values = self.kv_cache_prompt(
+            input_ids, seq_pos, completion_start_pos=self.model.start_seq_pos
+        )
         L = completion_ids.shape[-1]
         for batch_start in tqdm.tqdm(
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
         ):
-            # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
+            # since completion ids is 1, n, L, reshape to b, L
             this_input_ids = completion_ids[
                 :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # b_mut, L
+            ].reshape(-1, L)
             forward_kwargs = {}
             if self.use_seq_pos:
+                # TODO: does cache affect seq pos in any way? doesnt seem like it should
                 this_seq_pos = completion_seq_pos[
                     :, batch_start : batch_start + batch_size
-                ].reshape(
-                    -1, L
-                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+                ].reshape(-1, L)
                 forward_kwargs["seq_pos"] = this_seq_pos
 
-            actual_batch_size = this_input_ids.shape[0]
-            cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
-            cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
-
-            outputs = self.model(
-                input_ids=this_input_ids,
-                past_key_values=cache,
-                use_cache=True,
-                **forward_kwargs,
+            log_likelihood = self._score_batch_kv_cache(
+                this_input_ids, past_key_values, **forward_kwargs
             )
-            labels = torch.where(
-                this_input_ids == self.tokenizer.pad_token_id,
-                -100,
-                this_input_ids.clone(),
-            )
-            log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
-
             all_lls.append(log_likelihood.mean(-1))  # b_mut
 
         lls = torch.cat(all_lls).cpu().numpy()
