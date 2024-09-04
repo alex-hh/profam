@@ -105,7 +105,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_bos_token: bool = True,
         add_document_token: bool = True,
         use_seq_pos: bool = False,
+        use_doc_pos: bool = False,
         max_seq_pos: int = 1024,
+        max_doc_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
         seq_struct_sep_token="[SEQ-STRUCT-SEP]",
         mask_below_plddt: Optional[float] = None,
@@ -116,7 +118,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.add_document_token = add_document_token
         self.num_start_tokens = int(self.add_bos_token) + int(self.add_document_token)
         self.use_seq_pos = use_seq_pos
+        self.use_doc_pos = use_doc_pos
         self.max_seq_pos = max_seq_pos
+        self.max_doc_pos = max_doc_pos
         self.max_tokens = max_tokens
         self.seq_struct_sep_token = seq_struct_sep_token
         self.mask_below_plddt = mask_below_plddt
@@ -204,6 +208,17 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             )
             tokenized.data["seq_pos"] = seq_pos
             assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
+
+        if self.use_doc_pos:
+            doc_pos = []
+            for i, seq in enumerate(proteins.sequences):
+                doc_pos.extend([min(i, self.max_doc_pos - 1)] * (len(seq) + 1))  # +1 for separator
+            if self.add_bos_token:
+                doc_pos = [0] + doc_pos
+            if document_token is not None:
+                doc_pos = [0] + doc_pos
+            tokenized.data["doc_pos"] = torch.tensor(doc_pos[:tokenized.input_ids.shape[0]])
+
 
         if proteins.backbone_coords is not None:
             tokenized.data["coords"] = torch.from_numpy(

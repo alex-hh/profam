@@ -20,18 +20,22 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         token_embedder: str,
         embedding_dim: int,
         use_seq_pos: bool = False,
+        use_doc_pos: bool = False,
         max_seq_pos: int = 2048,
+        max_doc_pos: int = 1024,
         require_seq_pos: bool = True,
         embed_coords: bool = False,
     ):
         super().__init__(config)
         self.use_seq_pos = use_seq_pos
+        self.use_doc_pos = use_doc_pos
         # TODO: avoid re-tracking - does this happen automatically?
         self.token_embedder = nested_getattr(
             self, token_embedder
         )  # TODO: use self.embed_tokens or sthg
         self.require_seq_pos = require_seq_pos
         self.max_seq_pos = max_seq_pos
+        self.max_doc_pos = max_doc_pos
         self.embed_coords = embed_coords
         self.num_atoms = 4
         if self.embed_coords:
@@ -40,6 +44,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             )
         if self.use_seq_pos:
             self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
+        if self.use_doc_pos:
+            self.doc_pos_embedding = nn.Embedding(self.max_doc_pos, embedding_dim)
 
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
@@ -84,6 +90,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self,
         input_ids: Optional[torch.LongTensor],
         seq_pos: Optional[torch.LongTensor] = None,
+        doc_pos: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
     ):
         # n.b. we need to be careful about what happens when caching.
@@ -106,8 +113,14 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if self.require_seq_pos:
                 assert seq_pos is not None
             if seq_pos is not None:
-                pos_embeds = self.seq_pos_embedding(seq_pos)
-                inputs_embeds = inputs_embeds + pos_embeds
+                seq_pos_embeds = self.seq_pos_embedding(seq_pos)
+                inputs_embeds = inputs_embeds + seq_pos_embeds
+        if self.use_doc_pos:
+            if self.require_doc_pos:
+                assert doc_pos is not None
+            if doc_pos is not None:
+                doc_pos_embeds = self.doc_pos_embedding(doc_pos)
+                inputs_embeds = inputs_embeds + doc_pos_embeds
         # TODO: might want to embed coords mask to allow for masked coords
         if self.embed_coords:
             coords_embeds = self.coords_embedding(coords)
