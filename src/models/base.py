@@ -455,7 +455,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 -1, L
             )  # b_mut, L
             # remove unnecessary padding:
-            this_input_ids = self.trim_eval_batch(this_input_ids)
+            this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
             L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
             if self.use_seq_pos:
