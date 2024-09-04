@@ -1,4 +1,6 @@
 #!/bin/bash
+#$ -l tmem=128G
+#$ -l h_vmem=128G
 #$ -l h_rt=128:55:30
 #$ -l gpu_type=(a100|a100_80)
 #$ -l gpu=true
@@ -30,7 +32,7 @@ cp /SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-t
 
 mkdir ${SCRATCH_DIR}/data/foldseek_af50_struct
 export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
-python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1\
+python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 \
     --parquet_ids $file_prefix --run_foldmason --num_processes 30 --save_dir $SCRATCH_DIR/data/foldseek_af50_struct
 rsync -av $SCRATCH_DIR/data/foldseek_af50_struct /SAN/orengolab/cath_plm/ProFam/data/
 rm -rf ${SCRATCH_DIR}/data
