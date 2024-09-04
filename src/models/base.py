@@ -382,6 +382,7 @@ class BaseFamilyLitModule(BaseLitModule):
         model,
         tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
+        # n.b. hard to handle on tokenizer atm due to dependence between completion and input seq pos
         shift_positions: bool = False,
         weight_decay: float = 0.1,
         scheduler_name: Optional[str] = None,
@@ -666,10 +667,13 @@ class BaseFamilyLitModule(BaseLitModule):
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         if self.shift_positions:
             # the shifted position id for a sep token is the first position id for a new sequence
+            assert self.model.start_seq_pos == self.tokenizer.start_seq_pos + 1
             input_seq_pos = torch.cat(
                 (
                     input_seq_pos[..., 1:],
-                    torch.full_like(input_seq_pos[..., -1:], self.model.stat_seq_pos),
+                    torch.full_like(
+                        input_seq_pos[..., -1:], self.tokenizer.start_seq_pos
+                    ),
                 ),
                 dim=-1,
             )

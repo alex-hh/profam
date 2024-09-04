@@ -25,6 +25,7 @@ class MistralLitModule(BaseFamilyLitModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         embed_coords: bool = False,
+        shift_positions: bool = False,
     ) -> None:
         if tokenizer.use_seq_pos or embed_coords:
             model = WrappedMistralForCausalLM(
@@ -34,6 +35,9 @@ class MistralLitModule(BaseFamilyLitModule):
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
                 embed_coords=embed_coords,
+                start_seq_pos=tokenizer.start_seq_pos + 1
+                if shift_positions
+                else tokenizer.start_seq_pos,
             )
         else:
             model = MistralForCausalLM(config)
@@ -47,4 +51,5 @@ class MistralLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
+            shift_positions=shift_positions,
         )
