@@ -24,14 +24,16 @@ class MistralLitModule(BaseFamilyLitModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
+        embed_coords: bool = False,
     ) -> None:
-        if tokenizer.use_seq_pos:
+        if tokenizer.use_seq_pos or embed_coords:
             model = WrappedMistralForCausalLM(
                 config,
                 "model.embed_tokens",
                 embedding_dim=config.hidden_size,
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
+                embed_coords=embed_coords,
             )
         else:
             model = MistralForCausalLM(config)

@@ -95,6 +95,7 @@ class ProteinDataModule(LightningDataModule):
                         data_dir=self.data_dir,
                         shuffle=self.shuffle,
                         max_tokens=self.max_tokens,
+                        feature_names=self.feature_names,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
