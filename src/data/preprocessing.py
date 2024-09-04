@@ -160,18 +160,18 @@ def preprocess_fasta_data(
             shuffle=shuffle,
         )
     sequences = [
-        seq for seq in read_fasta_sequences(
+        seq
+        for seq in read_fasta_sequences(
             lines,
             # preserve original sequences before getting positions
             keep_gaps=True if tokenizer.use_seq_pos else cfg.keep_gaps,
             keep_insertions=True if tokenizer.use_seq_pos else cfg.keep_insertions,
             to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
-
         )
     ]
 
     proteins = ProteinDocument(sequences=sequences)
-    #add seq_pos if specified
+    # add seq_pos if specified
     proteins = preprocess_protein_sequences(proteins, cfg, tokenizer)
     return subsample_and_tokenize_protein_data(
         proteins,

@@ -32,11 +32,10 @@ from src.data.fasta import convert_sequence_with_positions, read_fasta
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     FastaPreprocessorConfig,
-    preprocess_protein_sequences,
     preprocess_fasta_data,
+    preprocess_protein_sequences,
 )
 from src.utils.tokenizers import ProFamTokenizer
-
 
 
 def tokenize_pfam_prompt(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
@@ -53,7 +52,7 @@ def prep_pfam_sample_v2(
 ):
     msa_cfg = copy.deepcopy(cfg)
     msa_cfg.add_final_sep = False
-    with open(msa_path["msa_paths"], 'r') as file:
+    with open(msa_path["msa_paths"], "r") as file:
         fasta_file_contents = file.read()
     example = {
         "text": fasta_file_contents,
