@@ -12,6 +12,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 
     args:
+        use_seq_pos: embed position of amino acid within sequence (TODO: standardise variable naming)
         embed_sequence_index: if True, embed index of sequence within sequence of sequences (TODO: rename)
         pass_constant_position_ids_for_global_index: if True, pass constant position ids to model (for e.g. inbuilt ROPE embeddings)
         pass_sequence_position_ids_for_global_index: if True, pass sequence position ids to model
