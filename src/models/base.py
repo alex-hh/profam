@@ -462,6 +462,7 @@ class BaseFamilyLitModule(BaseLitModule):
             outputs.past_key_values
         )  # just a tuple of tensors (for current hf version only perhaps?) - doesn't get extended
 
+    @torch.no_grad()
     def _score_seqs_kv_cache(
         self,
         input_ids,
@@ -470,6 +471,7 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
+        divide_by_sequence_length: bool = True,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
@@ -501,11 +503,16 @@ class BaseFamilyLitModule(BaseLitModule):
             log_likelihood = self._score_batch_kv_cache(
                 this_input_ids, past_key_values, **forward_kwargs
             )
-            all_lls.append(log_likelihood.mean(-1))  # b_mut
+            all_lls.append(
+                log_likelihood.mean(-1)
+                if divide_by_sequence_length
+                else log_likelihood.sum(-1)
+            )  # b_mut
 
         lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
+    @torch.no_grad()
     def _score_seqs_no_cache(
         self,
         input_ids,
@@ -514,6 +521,7 @@ class BaseFamilyLitModule(BaseLitModule):
         seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         verbose: bool = False,
+        divide_by_sequence_length: bool = True,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
@@ -566,8 +574,12 @@ class BaseFamilyLitModule(BaseLitModule):
                 outputs, labels, start_ix=completion_start_pos - 1
             )  # 1, L
 
-            all_lls.append(log_likelihood.mean(-1).item())
-        lls = np.array(all_lls)
+            all_lls.append(
+                log_likelihood.mean(-1)
+                if divide_by_sequence_length
+                else log_likelihood.sum(-1)
+            )  # b_mut
+        lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
     # TODO: make this part of a mixin so that it can be reused across models

@@ -118,6 +118,46 @@ def test_kv_cache_with_seqpos(default_model, proteingym_batch):
     assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
 
 
+def test_kv_cache_e2e(default_model, proteingym_batch):
+    model = default_model.eval()
+    log_likelihood_v1 = model._score_seqs_no_cache(
+        input_ids=proteingym_batch["input_ids"],
+        seq_pos=proteingym_batch["seq_pos"],
+        completion_ids=proteingym_batch["completion_ids"][:, :3],
+        completion_seq_pos=proteingym_batch["completion_seq_pos"][:, :3],
+        batch_size=1,
+    )
+    log_likelihood_v2 = model._score_seqs_kv_cache(
+        input_ids=proteingym_batch["input_ids"],
+        seq_pos=proteingym_batch["seq_pos"],
+        completion_ids=proteingym_batch["completion_ids"][:, :3],
+        completion_seq_pos=proteingym_batch["completion_seq_pos"][:, :3],
+        batch_size=2,
+    )
+    assert np.isclose(log_likelihood_v1, log_likelihood_v2).all()
+
+
+def test_kv_cache_e2e_with_shifted_seqpos(default_model, proteingym_batch):
+    model = default_model.eval()
+    model.shift_positions = True
+    log_likelihood_v1 = model._score_seqs_no_cache(
+        input_ids=proteingym_batch["input_ids"],
+        seq_pos=proteingym_batch["seq_pos"],
+        completion_ids=proteingym_batch["completion_ids"][:, :3],
+        completion_seq_pos=proteingym_batch["completion_seq_pos"][:, :3],
+        batch_size=1,
+    )
+    log_likelihood_v2 = model._score_seqs_kv_cache(
+        input_ids=proteingym_batch["input_ids"],
+        seq_pos=proteingym_batch["seq_pos"],
+        completion_ids=proteingym_batch["completion_ids"][:, :3],
+        completion_seq_pos=proteingym_batch["completion_seq_pos"][:, :3],
+        batch_size=2,
+    )
+    model.shift_positions = False
+    assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
+
+
 def test_seq_scoring(default_model, proteingym_batch):
     model = default_model.eval()
     with torch.no_grad():
