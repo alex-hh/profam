@@ -30,6 +30,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         require_seq_pos: bool = True,
         embed_coords: bool = False,
         embed_sequence_index: bool = False,
+        pass_constant_position_ids_for_global_index: bool = False,
+        pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
     ):
         super().__init__(config)
@@ -45,6 +47,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self.embed_sequence_index = embed_sequence_index
         self.max_sequence_index = max_sequence_index
         self.sep_token_id = sep_token_id
+        self.pass_constant_position_ids_for_global_index = (
+            pass_constant_position_ids_for_global_index
+        )
+        self.pass_sequence_position_ids_for_global_index = (
+            pass_sequence_position_ids_for_global_index
+        )
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
                 self.num_atoms * 3, embedding_dim, bias=False
@@ -156,6 +164,14 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
         inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos, coords=coords)
+        # TODO: test these; make sure they get called during generation for example.
+        if self.pass_constant_position_ids_for_global_index:
+            assert position_ids is None
+            position_ids = torch.full_like(input_ids, 10).long()
+        if self.pass_sequence_position_ids_for_global_index:
+            assert position_ids is None
+            assert seq_pos is not None
+            position_ids = seq_pos
         return super().forward(
             input_ids=None,
             attention_mask=attention_mask,
