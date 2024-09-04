@@ -1,6 +1,5 @@
 #!/bin/bash
-#$ -l tmem=128G
-#$ -l h_vmem=128G
+#$ -l tmem=48G
 #$ -l h_rt=128:55:30
 #$ -l gpu_type=(a100|a100_80)
 #$ -l gpu=true
