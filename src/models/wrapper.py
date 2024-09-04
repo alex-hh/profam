@@ -104,6 +104,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 inputs["coords"] = kwargs["coords"]
         return inputs
 
+    def compute_sequence_index(self, input_ids):
+        return torch.cumsum((input_ids == self.sep_token_id).float(), dim=-1).long()
+
     def embed_inputs(
         self,
         input_ids: Optional[torch.LongTensor],
@@ -139,9 +142,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds += coords_embeds
 
         if self.embed_sequence_index:
-            sequence_index = torch.cumsum(
-                (input_ids == self.sep_token_id).float(), dim=-1
-            )
+            sequence_index = self.compute_sequence_index(input_ids)
             inputs_embeds += self.sequence_index_embedding(sequence_index)
 
         return inputs_embeds
