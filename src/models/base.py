@@ -825,21 +825,13 @@ class BaseFamilyLitModule(BaseLitModule):
         val_ds_name = batch["ds_name"].text[0]
         if val_ds_name not in self.family_likelihoods:
             self.family_likelihoods[val_ds_name] = {}
-        prompt_fam_id = batch["family_id"].text[0]
-        eval_fam_id = batch["eval_fam_ids"].text[0].split("|")
         for eval_seq_ix, bin_label in enumerate(
             batch["family_labels"][0].cpu().numpy()
         ):
-            if eval_fam_id[eval_seq_ix] == prompt_fam_id:
-                label = 1
-            else:
-                label = 0
-            if label != bin_label:
-                print("label scheme discrepancy")
             ll = lls[eval_seq_ix]
             if eval_seq_ix not in self.family_likelihoods[val_ds_name]:
                 self.family_likelihoods[val_ds_name][eval_seq_ix] = {}
-            if label == 1:
+            if bin_label == 1:
                 if (
                     1 in self.family_likelihoods[val_ds_name][eval_seq_ix]
                 ):  # 1 fam per seq
