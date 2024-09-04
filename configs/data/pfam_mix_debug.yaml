@@ -12,17 +12,19 @@ data_weights:
   pfam_msa: 0.33
 dataset_cfgs:
   pfam_val:
+    name: pfam_val
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
 
 batch_size: 2
-max_tokens: 3000
+max_tokens: 5000
 data_dir: ${paths.data_dir}
 val_dataset_names:
   - pfam_val
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
-evaluate_gym: true
+evaluate_gym: false
 evaluate_ec_class: false
 evaluate_ec_cluster_class: false
-num_workers: null # None means use all available CPU cores
+evaluate_pfam_class: true
+num_workers: 12 # None means use all available CPU cores
 gym_data_dir: ProteinGym
 ignore_gaps: false

@@ -19,7 +19,7 @@ in a multi-class classification problem
 to benefit from kv-caching we evaluate
 all seqs against one msa at a time
 """
-
+import copy
 import glob
 import warnings
 from functools import partial
@@ -30,23 +30,54 @@ from datasets import Dataset
 
 from src.data.fasta import convert_sequence_with_positions, read_fasta
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import FastaPreprocessorConfig, preprocess_protein_sequences
+from src.data.preprocessing import (
+    FastaPreprocessorConfig,
+    preprocess_protein_sequences,
+    preprocess_fasta_data,
+)
 from src.utils.tokenizers import ProFamTokenizer
 
-
-def tokenize_eval_seqs(
-    proteins: ProteinDocument,
-    tokenizer: ProFamTokenizer,
-):
-    eval_seq_ids = [
-        tokenizer(tokenizer.sep_token + s + tokenizer.sep_token, return_tensors="pt")
-        for s in proteins.sequences
-    ]
-    return eval_seq_ids
 
 
 def tokenize_pfam_prompt(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
     return tokenizer(tokenizer.sep_token.join(proteins.sequences), return_tensors="pt")
+
+
+def prep_pfam_sample_v2(
+    msa_path: str,
+    tokenized_eval_seqs,
+    eval_names: List[str],
+    tokenizer,
+    max_tokens: int,
+    cfg: FastaPreprocessorConfig,
+):
+    msa_cfg = copy.deepcopy(cfg)
+    msa_cfg.add_final_sep = False
+    with open(msa_path["msa_paths"], 'r') as file:
+        fasta_file_contents = file.read()
+    example = {
+        "text": fasta_file_contents,
+    }
+    tokenized_msa = preprocess_fasta_data(
+        example,
+        msa_cfg,
+        tokenizer,
+        max_tokens,
+        shuffle=False,
+    )
+    tokenized_msa["completion_ids"] = tokenized_eval_seqs.input_ids
+    if tokenizer.use_seq_pos:
+        tokenized_msa["completion_seq_pos"] = tokenized_eval_seqs.seq_pos
+    fam_id = msa_path["msa_paths"].split("/")[-1].split("_")[0]
+    tokenized_msa["family_id"] = fam_id
+    eval_fam_names = [n.split("_")[-1] for n in eval_names]
+    tokenized_msa["family_labels"] = torch.tensor(
+        [1 if s == fam_id else 0 for s in eval_fam_names]
+    )
+    assert tokenized_msa["family_labels"].sum() > 0, f"no eval seq for {fam_id}"
+    tokenized_msa["ds_name"] = "pfam"
+    tokenized_msa["eval_fam_ids"] = "|".join(eval_fam_names)
+    return tokenized_msa
 
 
 def prep_pfam_sample(
@@ -58,6 +89,12 @@ def prep_pfam_sample(
     tokenizer: ProFamTokenizer,
     seed=42,
 ):
+    """
+    Processes the msa for a pfam family
+    uses pre-computed input_ids and seq_pos
+    for the eval sequences (as these are
+    the same across batches)
+    """
     msa_name = msa_path["msa_paths"].split("/")[-1].split("_")[0]
     msa_names, msa_seqs = read_fasta(
         msa_path["msa_paths"],
@@ -81,7 +118,7 @@ def prep_pfam_sample(
         "completion_ids": tokenized_eval_seqs,
         "family_id": msa_name,
     }
-    if cfg.use_seq_pos:
+    if tokenizer.use_seq_pos:
         sample["seq_pos"] = msa_proteins["seq_pos"]
         sample["completion_seq_pos"] = completion_seq_pos
     eval_fam_names = [n.split("_")[-1] for n in eval_names]
@@ -107,7 +144,6 @@ def load_pfam_classification_dataset(
     seed: int = 42,
     num_workers: int = 4,
     max_eval_per_fam: int = 4,
-    document_token: str = "[MSA]",
 ):
     eval_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_test.fasta"))
     prompt_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_train.fasta"))
@@ -126,7 +162,7 @@ def load_pfam_classification_dataset(
 
     combined_eval_seqs = []
     eval_labels = []
-
+    # load eval seqs from all the eval families
     for eval_path in eval_seq_paths:
         eval_names, eval_seqs = seq_load_func(eval_path)
         combined_eval_seqs.extend(eval_seqs[:max_eval_per_fam])
@@ -138,6 +174,13 @@ def load_pfam_classification_dataset(
         identifier=None,  # what should go here?
     )
 
+    if keep_gaps:
+        document_token = "[MSA]"
+    else:
+        if use_msa_pos:
+            document_token = "[RAW-WITH-MSA-POS]"
+        else:
+            document_token = "[RAW]"
     cfg = FastaPreprocessorConfig(
         preprocessor="",
         keep_insertions=keep_insertions,
@@ -148,7 +191,6 @@ def load_pfam_classification_dataset(
         use_msa_pos=use_msa_pos,  # for msa sequences, if true, position index will be relative to alignment cols
         transforms=None,
         keep_columns=None,
-        return_all_fields=False,
         allow_unk=False,
     )
 
@@ -158,32 +200,23 @@ def load_pfam_classification_dataset(
         cfg=cfg,
         tokenizer=tokenizer,
     )
-    eval_proteins.positions = [[0] + pos + [0] for pos in eval_proteins.positions]
-    tokenized_eval_seqs = tokenize_eval_seqs(eval_proteins, tokenizer)
-    longest_eval_seq = max(
-        [len(single_seq.input_ids[0]) for single_seq in tokenized_eval_seqs]
+
+    tokenized_eval_seqs = tokenizer.encode_completions(
+        sequences=eval_proteins.sequences,
+        positions=eval_proteins.positions,
+        bos_token=tokenizer.sep_token,
+        eos_token=tokenizer.sep_token,
     )
+
+    longest_eval_seq = tokenized_eval_seqs.input_ids.shape[-1]
     max_msa_tokens = max_tokens - longest_eval_seq - 2
-    assert all(
-        [
-            single_seq.input_ids[0][0] == tokenizer.sep_token_id
-            for single_seq in tokenized_eval_seqs
-        ]
-    )
-    assert all(
-        [
-            single_seq.input_ids[0][-1] == tokenizer.sep_token_id
-            for single_seq in tokenized_eval_seqs
-        ]
-    )
     process_func = partial(
-        prep_pfam_sample,
-        eval_names=eval_labels,
+        prep_pfam_sample_v2,
         tokenized_eval_seqs=tokenized_eval_seqs,
+        eval_names=eval_labels,
         tokenizer=tokenizer,
-        completion_seq_pos=eval_proteins.positions,
+        max_tokens=max_msa_tokens,
         cfg=cfg,
-        seed=seed,
     )
 
     dataset = Dataset.from_dict({"msa_paths": prompt_seq_paths})
