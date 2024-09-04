@@ -50,6 +50,10 @@ class LlamaLitModule(BaseFamilyLitModule):
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
+        embed_sequence_index: bool = False,
+        pass_constant_position_ids_for_global_index: bool = False,
+        pass_sequence_position_ids_for_global_index: bool = False,
+        max_sequence_index: int = 1024,
     ) -> None:
         """
         From the paper:
@@ -68,6 +72,11 @@ class LlamaLitModule(BaseFamilyLitModule):
                 use_seq_pos=tokenizer.use_seq_pos,
                 max_seq_pos=tokenizer.max_seq_pos,
                 embed_coords=embed_coords,
+                sep_token_id=tokenizer.sep_token_id,
+                embed_sequence_index=embed_sequence_index,
+                max_sequence_index=max_sequence_index,
+                pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
+                pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
             )
         else:
             model = LlamaForCausalLM(config)

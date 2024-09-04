@@ -25,7 +25,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         config,
         token_embedder: str,
         embedding_dim: int,
-        sep_token_id: int,
+        sep_token_id: Optional[int] = None,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
         require_seq_pos: bool = True,
@@ -61,6 +61,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.use_seq_pos:
             self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
         if self.embed_sequence_index:
+            assert self.sep_token_id is not None
             self.sequence_index_embedding = nn.Embedding(
                 self.max_sequence_index, embedding_dim
             )
