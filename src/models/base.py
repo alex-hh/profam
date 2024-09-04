@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import hydra
 import numpy as np
@@ -434,7 +434,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+        forward_kwargs = {}
         if self.shift_positions and self.use_seq_pos:
             assert completion_seq_pos is not None
             assert completion_seq_pos.ndim == 3
@@ -449,6 +449,9 @@ class BaseFamilyLitModule(BaseLitModule):
                 ),
                 dim=-1,
             )
+        elif self.use_seq_pos:
+            forward_kwargs["seq_pos"] = seq_pos
+
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -662,8 +665,13 @@ class BaseFamilyLitModule(BaseLitModule):
             assert input_seq_pos is not None
         assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
         if self.shift_positions:
-            raise NotImplementedError(
-                "Here we have to be very careful - we know the desired input position id is 2 - is this currently handled correctly"
+            # the shifted position id for a sep token is the first position id for a new sequence
+            input_seq_pos = torch.cat(
+                (
+                    input_seq_pos[..., 1:],
+                    torch.full_like(input_seq_pos[..., -1:], self.model.stat_seq_pos),
+                ),
+                dim=-1,
             )
         forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
         all_outputs = []
