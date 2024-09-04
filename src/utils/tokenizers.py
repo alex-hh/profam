@@ -19,24 +19,28 @@ def get_flat_seq_pos_from_positions(
     sep_index=None,
     num_start_tokens=1,
     num_end_tokens=1,
+    add_offset: bool = True,
 ):
     # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
+    offset = int(add_offset)
     if len(positions) > 0:
         flat_positions = [prepend_index] * num_start_tokens
         for sequence_positions in positions[:-1]:
-            # add 1 so that sep doesnt have same position index
+            # add 1 (offset) so that sep/bos doesnt have same position index as start position (pre sequence inserts)
             # n.b. that convert_sequence_with_positions is also already 1-based
-            flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
+            flat_positions += [
+                min(p + offset, max_seq_pos - 1) for p in sequence_positions
+            ]
             # default is to add position index for sep token from last sequence
             # this allows the model to predict sep token when shifting position indices in inputs
             flat_positions.append(
                 sep_index or min(sequence_positions[-1] + 2, max_seq_pos - 1)
             )
-        flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
+        flat_positions += [min(p + offset, max_seq_pos - 1) for p in positions[-1]]
         if append_index is None and num_end_tokens > 0:
-            flat_positions += [min(positions[-1][-1] + 2, max_seq_pos - 1)] + [0] * (
-                num_end_tokens - 1
-            )
+            flat_positions += [min(positions[-1][-1] + offset + 1, max_seq_pos - 1)] + [
+                0
+            ] * (num_end_tokens - 1)
         else:
             flat_positions += [append_index] * num_end_tokens
         return flat_positions
@@ -51,6 +55,7 @@ def get_seq_pos_from_positions(
     max_seq_pos: int = 1024,
     num_start_tokens=1,
     num_end_tokens=1,
+    add_offset: bool = True,
 ):
     assert input_ids.ndim == 1
     seq_pos = torch.zeros_like(input_ids)
@@ -63,6 +68,7 @@ def get_seq_pos_from_positions(
         sep_index=None,
         num_start_tokens=num_start_tokens,  # TODO: handle better
         num_end_tokens=num_end_tokens,
+        add_offset=add_offset,
     )
     pad_any = torch.argwhere(input_ids == pad_token_id)
     if pad_any.any():
@@ -120,6 +126,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         max_tokens: Optional[int] = 5000,
         seq_struct_sep_token="[SEQ-STRUCT-SEP]",
         mask_below_plddt: Optional[float] = None,
+        add_position_offset: bool = True,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -131,6 +138,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.max_tokens = max_tokens
         self.seq_struct_sep_token = seq_struct_sep_token
         self.mask_below_plddt = mask_below_plddt
+        self.add_position_offset = add_position_offset
 
         if not self.additional_special_tokens:
             additional_special_tokens = [
@@ -149,6 +157,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     @property
     def aa_tokens(self):
         return self.convert_tokens_to_ids(list("ACDEFGHIKLMNPQRSTVWY"))
+
+    @property
+    def start_seq_pos(self):
+        return 1 + int(self.add_position_offset)
 
     def encode(
         self,
@@ -212,6 +224,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 max_seq_pos=self.max_seq_pos,
                 num_start_tokens=self.num_start_tokens,
                 num_end_tokens=num_end_tokens,
+                add_offset=self.add_position_offset,
             )
             tokenized.data["seq_pos"] = seq_pos
             assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
@@ -291,6 +304,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         if bos_token
                         else 0,  # just bos_token no doc as now completing prompt
                         num_end_tokens=1 if eos_token else 0,
+                        add_offset=self.add_position_offset,
                     )
                 )
             tokenized.data["seq_pos"] = stack(all_positions)
