@@ -69,7 +69,7 @@ def pfam_sample_from_msa_path(
         [1 if s == fam_id else 0 for s in eval_fam_names]
     )
     assert tokenized_msa["family_labels"].sum() > 0, f"no eval seq for {fam_id}"
-    tokenized_msa["ds_name"] = "pfam"
+    tokenized_msa["ds_name"] = "pfam_fam_class"
     tokenized_msa["eval_fam_ids"] = "|".join(eval_fam_names)
     return tokenized_msa
 

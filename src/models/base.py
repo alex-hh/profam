@@ -332,11 +332,11 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         all_lls = []
         for batch_start in range(0, completion_ids.shape[1], batch_size):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
+            # fmt: off
             input_ids = completion_ids[
-                :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # b_mut, L
+                :, batch_start: batch_start + batch_size
+            ].reshape(-1, L)  # b_mut, L
+            # fmt: on
             outputs = self.model(input_ids=input_ids)
             labels = torch.where(
                 input_ids == self.tokenizer.pad_token_id, -100, input_ids.clone()
@@ -449,21 +449,21 @@ class BaseFamilyLitModule(BaseLitModule):
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
         ):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
+            # fmt: off
             this_input_ids = completion_ids[
                 :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # b_mut, L
+            ].reshape(-1, L)  # b_mut, L
+            # fmt: on
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
             L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
             if self.use_seq_pos:
+                # fmt: off
                 this_seq_pos = completion_seq_pos[
-                    :, batch_start : batch_start + batch_size, :L_mini_batch
-                ].reshape(
-                    -1, L
-                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+                    :, batch_start: batch_start + batch_size, :L_mini_batch
+                ].reshape(-1, L_mini_batch)
+                # fmt: on
                 forward_kwargs["seq_pos"] = this_seq_pos
 
             actual_batch_size = this_input_ids.shape[0]
@@ -803,7 +803,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 on_epoch=True,
                 add_dataloader_idx=False,
             )
-        if batch["ds_name"].text[0] in ["pfam"]:
+        if batch["ds_name"].text[0] in ["pfam_fam_class"]:
             # only do this for evals where the eval seqs remain the same across
             # batches and we consider the likelihood of each eval seq conditioned
             # on different family 'prompts'

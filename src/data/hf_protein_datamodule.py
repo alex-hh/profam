@@ -25,6 +25,15 @@ DEFAULT_FEATURE_NAMES = [
     "ds_name",
     "seq_pos",
     "identifier",
+    "family_labels",
+    "eval_fam_ids",
+    "completion_seq_pos",
+    "completion_ids",
+    "DMS_scores",
+    "coords",
+    "aa_mask",
+    "plddts",
+    "family_id",
 ]
 
 
