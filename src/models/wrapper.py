@@ -10,6 +10,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     """Wrap a pre-trained model to add sequence-relative position embeddings.
 
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
+
+    args:
+        embed_sequence_index: if True, embed index of sequence within sequence of sequences (TODO: rename)
+        pass_constant_position_ids_for_global_index: if True, pass constant position ids to model (for e.g. inbuilt ROPE embeddings)
+        pass_sequence_position_ids_for_global_index: if True, pass sequence position ids to model
     """
 
     # This is a mixin for models that require seq pos input during generation
@@ -19,10 +24,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         config,
         token_embedder: str,
         embedding_dim: int,
+        sep_token_id: int,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
         require_seq_pos: bool = True,
         embed_coords: bool = False,
+        embed_sequence_index: bool = False,
+        max_sequence_index: int = 1024,
     ):
         super().__init__(config)
         self.use_seq_pos = use_seq_pos
@@ -34,12 +42,19 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self.max_seq_pos = max_seq_pos
         self.embed_coords = embed_coords
         self.num_atoms = 4
+        self.embed_sequence_index = embed_sequence_index
+        self.max_sequence_index = max_sequence_index
+        self.sep_token_id = sep_token_id
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
                 self.num_atoms * 3, embedding_dim, bias=False
             )
         if self.use_seq_pos:
             self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
+        if self.embed_sequence_index:
+            self.sequence_index_embedding = nn.Embedding(
+                self.max_sequence_index, embedding_dim
+            )
 
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
@@ -108,10 +123,18 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if seq_pos is not None:
                 pos_embeds = self.seq_pos_embedding(seq_pos)
                 inputs_embeds = inputs_embeds + pos_embeds
+
         # TODO: might want to embed coords mask to allow for masked coords
         if self.embed_coords:
             coords_embeds = self.coords_embedding(coords)
             inputs_embeds += coords_embeds
+
+        if self.embed_sequence_index:
+            sequence_index = torch.cumsum(
+                (input_ids == self.sep_token_id).float(), dim=-1
+            )
+            inputs_embeds += self.sequence_index_embedding(sequence_index)
+
         return inputs_embeds
 
     def forward(
