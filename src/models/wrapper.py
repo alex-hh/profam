@@ -106,7 +106,16 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return inputs
 
     def compute_sequence_index(self, input_ids):
-        return torch.cumsum((input_ids == self.sep_token_id).float(), dim=-1).long()
+        # sep token gets index of PREVIOUS sequence
+        return torch.cat(
+            (
+                torch.full_like(input_ids[..., :1], 0),
+                torch.cumsum((input_ids == self.sep_token_id).float(), dim=-1).long()[
+                    ..., :-1
+                ],
+            ),
+            dim=-1,
+        )
 
     def embed_inputs(
         self,
