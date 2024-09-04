@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 # download and process go uniprot file : https://www.ebi.ac.uk/GOA/downloads.html
 # goa_uniprot_all.gaf.gz : 19GB file contains all GO annotations for proteins in UniProtKB
-# this script requires ~32 GB of RAM and maps GO terms to UniProt IDs that 'enable' a molecular function (MF)
+# this script requires ~36 GB of RAM and maps GO terms to UniProt IDs that 'enable' a molecular function (MF)
 
 UNIPROT_ID_IDX = 1
 QUALIFIER_IDX = 3
@@ -18,9 +18,9 @@ ASPECT_IDX = 8
 DB_OBJECT_TYPE_IDX = 11
 INPUT_URL = 'ftp://ftp.ebi.ac.uk/pub/databases/GO/goa/UNIPROT/goa_uniprot_all.gaf.gz'
 GOA_FILE = 'data/GO_MF/goa_uniprot_all.gaf.gz'
-OUTPUT_FILE = 'data/GO_MF/mf_to_uniprot_mapping.tsv.gz'
-MAX_UNIPROT_IDS = 10000  # Maximum number of UniProt IDs allowed per GO term
-MIN_UNIPROT_IDS = 2  # Minimum number of UniProt IDs required per GO term
+OUTPUT_FILE = 'data/GO_MF/mf_to_uniprot_100k_mapping.tsv.gz'
+MAX_UNIPROT_IDS = 100000  # 100k seems most reasonable
+MIN_UNIPROT_IDS = 2
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -46,8 +46,10 @@ def process_goa_file(input_file, output_file):
     """Processes the GOA file, filters entries, and creates GO term to UniProt ID mapping."""
     go_to_uniprot = defaultdict(set)
     
+    total_lines = 1_192_000_000  # 1.192 billion lines
+    
     with gzip.open(input_file, 'rt') as infile:
-        for line in tqdm(infile, unit='line'):
+        for line in tqdm(infile, total=total_lines, unit='line', desc="Processing GOA file"):
             if line.startswith('!'):
                 continue
             columns = line.strip().split('\t')
@@ -65,7 +67,7 @@ def process_goa_file(input_file, output_file):
         if MIN_UNIPROT_IDS <= len(uniprot_ids) <= MAX_UNIPROT_IDS
     }
     
-    logging.info(f"{len(filtered_go_to_uniprot)} GO documents created after filtering")
+    logging.info(f"Writing {len(filtered_go_to_uniprot)} GO documents to {output_file}")
     ensure_dir(output_file)
     with gzip.open(output_file, 'wt', newline='') as f:
         writer = csv.writer(f, delimiter='\t')
