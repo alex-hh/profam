@@ -436,7 +436,10 @@ class BaseFamilyLitModule(BaseLitModule):
         all_lls = []
         forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
         if self.shift_positions and self.use_seq_pos:
+            raise NotImplementedError()
             assert completion_seq_pos is not None
+            assert completion_seq_pos.ndim == 3
+            assert (completion_seq_pos[:, :, 0] == completion_seq_pos[:, 0, 0]).all()
             forward_kwargs["seq_pos"] = torch.cat(
                 (seq_pos, completion_seq_pos[:, :1]), dim=1
             )
