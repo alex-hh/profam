@@ -16,22 +16,22 @@ test_cases_subs = [
     {
         "msa_seqs": ["ACD", "ACD"],
         "completion_seqs": ["ACD", "ACD"],
-        "msa_pos": [0, 0, 2, 3, 4, 0, 2, 3, 4],
-        "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
+        "msa_pos": [0, 0, 2, 3, 4, 5, 2, 3, 4],
+        "completion_pos": [[0, 2, 3, 4, 5], [0, 2, 3, 4, 5]],
         "keep_gaps": False,
     },
     {
         "msa_seqs": [".ACDE", "aACD-"],
         "completion_seqs": ["ACD", "ACD"],
-        "msa_pos": [0, 0, 2, 3, 4, 5, 0, 1, 2, 3, 4],
-        "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
+        "msa_pos": [0, 0, 2, 3, 4, 5, 6, 1, 2, 3, 4],
+        "completion_pos": [[0, 2, 3, 4, 5], [0, 2, 3, 4, 5]],
         "keep_gaps": False,
     },
     {
         "msa_seqs": [".ACDE", "aACD-"],
         "completion_seqs": ["ACD", "ACD"],
-        "msa_pos": [0, 0, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5],
-        "completion_pos": [[0, 2, 3, 4, 0], [0, 2, 3, 4, 0]],
+        "msa_pos": [0, 0, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5],
+        "completion_pos": [[0, 2, 3, 4, 5], [0, 2, 3, 4, 5]],
         "keep_gaps": True,
     },
 ]
@@ -86,7 +86,6 @@ def test_prot_gym_pos_encoding():
         sep_token="[SEP]",
         mask_token="[MASK]",
         bos_token="[start-of-document]",
-        add_special_tokens=True,
         add_final_sep=True,
         add_document_token=True,
         add_bos_token=True,
@@ -129,20 +128,11 @@ def test_prot_gym_pos_encoding():
             bos_token=tokenizer.sep_token,
         )
 
-        msa_seq_pos = get_seq_pos_from_positions(
-            msa_tokenized.input_ids,
-            msa_proteins.positions,
-            pad_token_id=tokenizer.pad_token_id,
-            max_seq_pos=tokenizer.max_seq_pos,
-            num_start_tokens=tokenizer.num_start_tokens,
-            num_end_tokens=0,  # No end tokens for MSA
-        )
-
         # Check MSA positions
         assert (
-            msa_seq_pos == torch.tensor(case["msa_pos"])
+            msa_tokenized["seq_pos"] == torch.tensor(case["msa_pos"])
         ).all(), (
-            f"MSA positions mismatch: {msa_proteins.positions} != {case['msa_pos']}"
+            f"MSA positions mismatch: {msa_tokenized['seq_pos']} != {case['msa_pos']}"
         )
 
         for i, comp in enumerate(case["completion_pos"]):
