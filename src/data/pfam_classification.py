@@ -21,14 +21,13 @@ all seqs against one msa at a time
 """
 import copy
 import glob
-import warnings
 from functools import partial
-from typing import Dict, List, Optional
+from typing import List
 
 import torch
 from datasets import Dataset
 
-from src.data.fasta import convert_sequence_with_positions, read_fasta
+from src.data.fasta import read_fasta
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     FastaPreprocessorConfig,
@@ -38,11 +37,7 @@ from src.data.preprocessing import (
 from src.utils.tokenizers import ProFamTokenizer
 
 
-def tokenize_pfam_prompt(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-    return tokenizer(tokenizer.sep_token.join(proteins.sequences), return_tensors="pt")
-
-
-def prep_pfam_sample_v2(
+def pfam_sample_from_msa_path(
     msa_path: str,
     tokenized_eval_seqs,
     eval_names: List[str],
@@ -77,57 +72,6 @@ def prep_pfam_sample_v2(
     tokenized_msa["ds_name"] = "pfam"
     tokenized_msa["eval_fam_ids"] = "|".join(eval_fam_names)
     return tokenized_msa
-
-
-def prep_pfam_sample(
-    msa_path: str,
-    eval_names: List[str],
-    tokenized_eval_seqs: List[List[int]],
-    completion_seq_pos: List[List[int]],
-    cfg: FastaPreprocessorConfig,
-    tokenizer: ProFamTokenizer,
-    seed=42,
-):
-    """
-    Processes the msa for a pfam family
-    uses pre-computed input_ids and seq_pos
-    for the eval sequences (as these are
-    the same across batches)
-    """
-    msa_name = msa_path["msa_paths"].split("/")[-1].split("_")[0]
-    msa_names, msa_seqs = read_fasta(
-        msa_path["msa_paths"],
-        keep_insertions=cfg.keep_insertions,
-        to_upper=cfg.to_upper,
-        keep_gaps=cfg.keep_gaps,
-    )
-
-    msa_proteins = ProteinDocument(sequences=msa_seqs)
-    msa_proteins = preprocess_protein_sequences(
-        msa_proteins,
-        tokenizer=tokenizer,
-        cfg=cfg,
-    )
-
-    msa_tokenized = tokenize_pfam_prompt(msa_proteins)
-
-    sample = {
-        "input_ids": msa_tokenized["input_ids"],
-        "seq_pos": msa_proteins.positions,  #  todo this is wrong
-        "completion_ids": tokenized_eval_seqs,
-        "family_id": msa_name,
-    }
-    if tokenizer.use_seq_pos:
-        sample["seq_pos"] = msa_proteins["seq_pos"]
-        sample["completion_seq_pos"] = completion_seq_pos
-    eval_fam_names = [n.split("_")[-1] for n in eval_names]
-    sample["family_labels"] = torch.tensor(
-        [1 if s == msa_name else 0 for s in eval_fam_names]
-    )
-    assert sample["family_labels"].sum() > 0  # at least one eval seq is in the fam
-    sample["ds_name"] = "pfam"
-    sample["eval_fam_ids"] = "|".join(eval_fam_names)
-    return sample
 
 
 def load_pfam_classification_dataset(
@@ -210,7 +154,7 @@ def load_pfam_classification_dataset(
     longest_eval_seq = tokenized_eval_seqs.input_ids.shape[-1]
     max_msa_tokens = max_tokens - longest_eval_seq - 2
     process_func = partial(
-        prep_pfam_sample_v2,
+        pfam_sample_from_msa_path,
         tokenized_eval_seqs=tokenized_eval_seqs,
         eval_names=eval_labels,
         tokenizer=tokenizer,
