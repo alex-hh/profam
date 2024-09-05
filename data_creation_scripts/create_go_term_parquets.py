@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import List, Dict
 import time
 import csv
+import mmap
 
 """
 @data_creation_scripts @create_foldseek_struct_with_af50.py
@@ -121,16 +122,24 @@ def create_and_save_go_documents(
     write_index_file(index_data, save_dir)
 
 
+def load_large_pickle(filepath):
+    with open(filepath, "rb") as f:
+        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+        return pickle.loads(mm)
+
 def main(go_tsv_path: str, save_dir: str):
     t0 = time.time()
     sequence_dict_pickle_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/afdb_sequence_dict.pkl"
     
     # Load the sequence dictionary
     print("Loading sequence dictionary...")
-    with open(sequence_dict_pickle_path, "rb") as f:
-        seq_lookup = pickle.load(f)
-    print("Successfully loaded seq lookup")
-    
+    try:
+        seq_lookup = load_large_pickle(sequence_dict_pickle_path)
+        print(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
+    except Exception as e:
+        print(f"An error occurred while loading the sequence dictionary: {str(e)}")
+        return
+
     print("Reading GO TSV file...")
     go_dict = read_go_tsv(go_tsv_path)
 
