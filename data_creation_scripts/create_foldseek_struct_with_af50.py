@@ -233,8 +233,9 @@ def make_job_list(
     if not skip_af50:
         af50_path = af50_path or "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
         if not check_accessions:
-            af50_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "af50_dict.pkl")
+            af50_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "af50_cluster_dict.pkl")
             if os.path.isfile(af50_dict_path):
+                print("loading af50 dictionary")
                 with open(af50_dict_path, "rb") as f:
                     af50_dict = pickle.load(f)
             else:
@@ -248,17 +249,19 @@ def make_job_list(
         all_accessions = all_accessions + [cluster_id for cluster_members in af50_dict.values() for cluster_id in cluster_members]
 
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
-    print("reading zip index from file", zip_index, flush=True)
     if not check_accessions:
+        print("loading zip index dictionary")
         zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "zip_index_dict.pkl")
         if os.path.isfile(zip_dict_path):
             with open(zip_dict_path, "rb") as f:
                 af2zip = pickle.load(f)
         else:
+            print("reading zip index from file", zip_index, flush=True)
             af2zip = make_zip_dictionary(zip_index, None)
             with open(zip_dict_path, "wb") as f:
                 pickle.dump(af2zip, f)
     else:
+        print("reading zip index from file", zip_index, flush=True)
         af2zip = make_zip_dictionary(zip_index, all_accessions)
 
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
@@ -358,7 +361,7 @@ def create_foldseek_parquets(
     
     t0 = time.time()
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
-    cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
+    cluster_dict_pickle_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "foldseek_cluster_dict.pkl")
 
     if not os.path.exists(cluster_dict_pickle_path):
         print("Creating foldseek dataset", flush=True)
