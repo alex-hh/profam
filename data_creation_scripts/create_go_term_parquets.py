@@ -147,8 +147,7 @@ def load_sequence_dict(filepath):
         return seq_lookup
     except Exception as e:
         logging.error(f"An error occurred while loading the sequence dictionary: {str(e)}")
-        logging.warning("Continuing without sequence lookup. Sequences will be empty.")
-        return {}
+        raise  # Re-raise the exception to stop execution
 
 def get_sequence(acc: str, seq_lookup: Dict[str, str]) -> Optional[str]:
     return seq_lookup.get(acc)
