@@ -20,10 +20,13 @@ echo "Created scratch dir"
 # cd ${SCRATCH_DIR}/profam
 # echo "Copied ProFam to ${SCRATCH_DIR}/profam/"
 
-export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-cd $ROOT_DIR
-conda activate venvPF
-source /share/apps/source_files/python/python-3.11.9.source
+# export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
+# cd $ROOT_DIR
+# conda activate venvPF
+# source /share/apps/source_files/python/python-3.11.9.source
+
+cd ~/profam
+source ~/source_files/afenv.source
 
 ls /scratch0/$USER/$JOB_ID
 cp /SAN/bioinf/afdb_domain/zipmaker/zip_index $SCRATCH_DIR/data/
