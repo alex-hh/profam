@@ -6,10 +6,16 @@ import logging
 import pandas as pd
 import numpy as np
 
-OUTPUT_FILE = "data/GO_MF/mf_to_uniprot_mapping.tsv.gz"
-PLOT_OUTPUT_FILE = "data/GO_MF/mf_uniprot_distribution.png"
+# Add this import at the top of your file
+from sys import maxsize
+
+OUTPUT_FILE = "data/GO_MF/mf_to_uniprot_100k_mapping.tsv.gz"
+PLOT_OUTPUT_FILE = "data/GO_MF/mf_uniprot_distribution_100k.png"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Add this line before the read_output_file function
+csv.field_size_limit(maxsize)
 
 def read_output_file(file_path):
     """Reads the output TSV file and returns a list of the number of UniProt IDs per GO term."""
