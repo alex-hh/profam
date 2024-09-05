@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 import numpy as np
 
@@ -12,7 +12,6 @@ from src.utils.utils import np_random
 
 @dataclass
 class BasePreprocessorConfig:
-    preprocessor: str = ""  # TODO: handle this better
     keep_insertions: bool = False
     to_upper: bool = False
     keep_gaps: bool = False
@@ -29,22 +28,18 @@ class BasePreprocessorConfig:
 
 @dataclass
 class NullPreprocessorConfig(BasePreprocessorConfig):
-    def __post_init__(self):
-        self.preprocessor = None
+    preprocessor: ClassVar[str] = "null"
 
 
 @dataclass
 class FastaPreprocessorConfig(BasePreprocessorConfig):
-    def __post_init__(self):
-        self.preprocessor = "fasta"
+    preprocessor: ClassVar[str] = "fasta"
 
 
 @dataclass
 class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
-
-    def __post_init__(self):
-        self.preprocessor = "parquet_sequence"
+    preprocessor: ClassVar[str] = "parquet_sequence"
 
 
 # TODO: make sure we can handle an aligned version - test
@@ -53,9 +48,7 @@ class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
     is_aligned: bool = False
-
-    def __post_init__(self):
-        self.preprocessor = "parquet_structure_tokens"
+    preprocessor: ClassVar[str] = "parquet_structure_tokens"
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
