@@ -239,7 +239,7 @@ def make_job_list(
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
     print("reading zip index from file", zip_index, flush=True)
     if not check_accessions:
-        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdm", "zip_index_dict.pkl")
+        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "zip_index_dict.pkl")
         if os.path.isfile(zip_dict_path):
             with open(zip_dict_path, "rb") as f:
                 af2zip = pickle.load(f)
