@@ -215,6 +215,7 @@ def create_foldseek_parquets(
 ):
     af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
     cluster_path = af50_path if use_af50_representatives else cluster_path
+    # TODO: get ids by loading appropriate dictionary and listing keys...
     all_cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
 
     # shuffle first so that we de-correlate cluster identities in parquet files
@@ -237,7 +238,7 @@ def create_foldseek_parquets(
 
     zip_index_file = os.path.join(scratch_dir, "zip_index")
     if not check_accessions:
-        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdm", "zip_index_dict.pkl")
+        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "zip_index_dict.pkl")
         if os.path.isfile(zip_dict_path):
             print("loading precomputed zip index")
             with open(zip_dict_path, "rb") as f:

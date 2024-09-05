@@ -232,8 +232,19 @@ def make_job_list(
     all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
     if not skip_af50:
         af50_path = af50_path or "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
-        print("reading af50 members from file", af50_path, flush=True)
-        af50_dict = make_af50_dictionary(af50_path, clusters_to_include=all_accessions if check_accessions else None)
+        if not check_accessions:
+            af50_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "af50_dict.pkl")
+            if os.path.isfile(af50_dict_path):
+                with open(af50_dict_path, "rb") as f:
+                    af50_dict = pickle.load(f)
+            else:
+                print("reading af50 members from file", af50_path, flush=True)
+                af50_dict = make_af50_dictionary(af50_path, None)
+                with open(af50_dict_path, "wb") as f:
+                    pickle.dump(af50_dict, f)
+        else:
+            print("reading af50 members from file", af50_path, flush=True)
+            af50_dict = make_af50_dictionary(af50_path, clusters_to_include=all_accessions)
         all_accessions = all_accessions + [cluster_id for cluster_members in af50_dict.values() for cluster_id in cluster_members]
 
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
