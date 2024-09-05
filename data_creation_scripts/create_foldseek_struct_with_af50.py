@@ -434,6 +434,7 @@ if __name__ == "__main__":
             save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/"
         else:
             save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/"
+        print("Saving to inferred directory", save_dir, flush=True)
     else:
         print("Saving to passed directory", args.save_dir, flush=True)
         save_dir = args.save_dir

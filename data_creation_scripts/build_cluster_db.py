@@ -102,11 +102,12 @@ def make_cluster_db(
     Session = sessionmaker(bind=engine)
     session = Session()
     # Query the table
-    entries = session.query(Protein).all()
+    existing_uniprot_ids = set()
+    for entry in session.query(Protein).yield_per(1000):
+        existing_uniprot_ids.add(entry.uniprot_id)
 
     # Print the entries
-    print(f"Current entries in the database: {len(entries)}")
-    existing_uniprot_ids = set([entry.uniprot_id for entry in entries])
+    print(f"Current entries in the database: {len(existing_uniprot_ids)}")
     print("Creating foldseek dataset", flush=True)
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     cluster_ids = sorted(list(cluster_dict.keys()))
