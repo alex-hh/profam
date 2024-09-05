@@ -38,7 +38,7 @@ data:
   dataset_cfgs:
     pfam_msa:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
-      name: pfam_msa
+      name: pfam_pos
       data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
       holdout_data_files: null
       holdout_identifiers: null
@@ -47,7 +47,7 @@ data:
       keep_gaps: false
       to_upper: true
       keep_insertions: true
-      document_tag: "[MSA]"
+      document_tag: "[RAW-WITH-MSA-POS]"
       use_msa_pos: true
     pfam_raw:
       _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
