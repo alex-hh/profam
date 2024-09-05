@@ -17,6 +17,9 @@ import lmdb
 # Set up basic logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Set the logging level to DEBUG
+logging.getLogger().setLevel(logging.DEBUG)
+
 """
 @data_creation_scripts @create_foldseek_struct_with_af50.py
 
@@ -103,15 +106,19 @@ def create_and_save_go_documents(
         for go_term, uniprot_accs in go_dict.items():
             sequences = []
             success_accs = []
+            logging.debug(f"Processing GO term: {go_term} with {len(uniprot_accs)} accessions")
             for acc in uniprot_accs:
                 seq = get_sequence(acc, seq_lookup)
                 if seq is None:
                     f.write(f"{acc}\n")
                     fail_counter += 1
+                    logging.debug(f"Failed to retrieve sequence for accession: {acc}")
                 else:
                     success_accs.append(acc)
                     sequences.append(seq)
                     success_counter += 1
+                    logging.debug(f"Successfully retrieved sequence for accession: {acc}")
+            
             current_documents.append({
                 'fam_id': go_term,
                 'sequences': sequences,
@@ -138,7 +145,7 @@ def create_and_save_go_documents(
     # Write the index file
     write_index_file(index_data, save_dir)
     logging.info(f"Finished processing. Total successes: {success_counter}, Total failures: {fail_counter}")
-
+    logging.info(f"Sample of failed accessions: {list(go_dict.values())[0][:5]}")
 
 def load_sequence_dict(filepath):
     logging.info(f"Loading sequence dictionary from {filepath}...")
@@ -180,6 +187,12 @@ def main(go_tsv_path: str, save_dir: str):
     
     # Load the sequence dictionary
     seq_lookup = load_sequence_dict(sequence_dict_pickle_path)
+    
+    # Print a sample of keys from the sequence dictionary
+    with seq_lookup.begin() as txn:
+        cursor = txn.cursor()
+        sample_keys = [key.decode() for key, _ in cursor.iternext(keys=True, values=False)][:5]
+    logging.info(f"Sample keys from sequence dictionary: {sample_keys}")
 
     logging.info("Reading GO TSV file...")
     go_dict = read_go_tsv(go_tsv_path)
@@ -192,6 +205,11 @@ def main(go_tsv_path: str, save_dir: str):
     t1 = time.time()
     logging.info(f"Total processing time: {t1 - t0:.2f} seconds")
 
+    # Print a sample of keys from the sequence dictionary
+    with seq_lookup.begin() as txn:
+        cursor = txn.cursor()
+        sample_keys = [key.decode() for key, _ in cursor.iternext(keys=True, values=False)][:5]
+    logging.info(f"Sample keys from sequence dictionary: {sample_keys}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create GO term documents and save them as parquet files.")
