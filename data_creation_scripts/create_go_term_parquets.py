@@ -130,20 +130,17 @@ def create_and_save_go_documents(
     write_index_file(index_data, save_dir)
 
 
-def load_large_pickle_in_chunks(filepath, chunk_size=1024*1024*100):  # 100 MB chunks
-    seq_lookup = {}
-    with open(filepath, "rb") as f:
-        try:
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                seq_lookup.update(pickle.loads(chunk))
-        except EOFError:
-            print(f"Reached end of file. Loaded {len(seq_lookup)} entries.")
-        except Exception as e:
-            print(f"Error occurred at position {f.tell()}: {str(e)}")
-    return seq_lookup
+def load_sequence_dict(filepath):
+    print(f"Loading sequence dictionary from {filepath}...")
+    try:
+        with open(filepath, "rb") as f:
+            seq_lookup = pickle.load(f)
+        print(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
+        return seq_lookup
+    except Exception as e:
+        print(f"An error occurred while loading the sequence dictionary: {str(e)}")
+        print("Continuing without sequence lookup. Sequences will be empty.")
+        return {}
 
 def get_sequence(acc: str, seq_lookup: Dict[str, str]) -> Optional[str]:
     return seq_lookup.get(acc)
@@ -153,14 +150,7 @@ def main(go_tsv_path: str, save_dir: str):
     sequence_dict_pickle_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/afdb_sequence_dict.pkl"
     
     # Load the sequence dictionary
-    print("Loading sequence dictionary...")
-    try:
-        seq_lookup = load_large_pickle_in_chunks(sequence_dict_pickle_path)
-        print(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
-    except Exception as e:
-        print(f"An error occurred while loading the sequence dictionary: {str(e)}")
-        print("Continuing without sequence lookup. Sequences will be empty.")
-        seq_lookup = {}
+    seq_lookup = load_sequence_dict(sequence_dict_pickle_path)
 
     print("Reading GO TSV file...")
     go_dict = read_go_tsv(go_tsv_path)
