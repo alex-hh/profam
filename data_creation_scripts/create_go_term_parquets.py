@@ -8,7 +8,6 @@ from collections import defaultdict
 from typing import List, Dict
 import time
 import csv
-import mmap
 
 """
 @data_creation_scripts @create_foldseek_struct_with_af50.py
@@ -122,10 +121,20 @@ def create_and_save_go_documents(
     write_index_file(index_data, save_dir)
 
 
-def load_large_pickle(filepath):
+def load_large_pickle_in_chunks(filepath, chunk_size=1024*1024*100):  # 100 MB chunks
+    seq_lookup = {}
     with open(filepath, "rb") as f:
-        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-        return pickle.loads(mm)
+        try:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                seq_lookup.update(pickle.loads(chunk))
+        except EOFError:
+            print(f"Reached end of file. Loaded {len(seq_lookup)} entries.")
+        except Exception as e:
+            print(f"Error occurred at position {f.tell()}: {str(e)}")
+    return seq_lookup
 
 def main(go_tsv_path: str, save_dir: str):
     t0 = time.time()
@@ -134,7 +143,7 @@ def main(go_tsv_path: str, save_dir: str):
     # Load the sequence dictionary
     print("Loading sequence dictionary...")
     try:
-        seq_lookup = load_large_pickle(sequence_dict_pickle_path)
+        seq_lookup = load_large_pickle_in_chunks(sequence_dict_pickle_path)
         print(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
     except Exception as e:
         print(f"An error occurred while loading the sequence dictionary: {str(e)}")
