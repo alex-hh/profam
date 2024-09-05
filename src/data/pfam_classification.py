@@ -57,7 +57,7 @@ def pfam_sample_from_msa_path(
         msa_cfg,
         tokenizer,
         max_tokens,
-        shuffle=False,
+        shuffle=True,
     )
     tokenized_msa["completion_ids"] = tokenized_eval_seqs.input_ids
     if tokenizer.use_seq_pos:
