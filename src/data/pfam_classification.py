@@ -110,7 +110,8 @@ def load_pfam_classification_dataset(
         eval_names, eval_seqs = seq_load_func(eval_path)
         combined_eval_seqs.extend(eval_seqs[:max_eval_per_fam])
         eval_labels.extend(eval_names[:max_eval_per_fam])
-
+    # sort by length for efficient batching
+    combined_eval_seqs = sorted(combined_eval_seqs, key=lambda x: len(x))
     eval_proteins = ProteinDocument(
         sequences=combined_eval_seqs,
         accessions=eval_labels,
@@ -125,7 +126,6 @@ def load_pfam_classification_dataset(
         else:
             document_token = "[RAW]"
     cfg = FastaPreprocessorConfig(
-        preprocessor="",
         keep_insertions=keep_insertions,
         to_upper=to_upper,
         keep_gaps=keep_gaps,
