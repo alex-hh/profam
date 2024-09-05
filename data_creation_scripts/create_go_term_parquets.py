@@ -5,9 +5,10 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 from collections import defaultdict
-from typing import List, Dict
+from typing import List, Dict, Optional
 import time
 import csv
+import gzip
 
 """
 @data_creation_scripts @create_foldseek_struct_with_af50.py
@@ -35,10 +36,13 @@ This should also contain paths to where you can look up from uniprot ID to seque
 
 def read_go_tsv(file_path: str) -> Dict[str, List[str]]:
     go_dict = {}
-    with open(file_path, 'r') as f:
-        for line in f:
-            go_term, uniprot_accs = line.strip().split('\t')
-            go_dict[go_term] = uniprot_accs.split(',')
+    open_func = gzip.open if file_path.endswith('.gz') else open
+    with open_func(file_path, 'rt', encoding='utf-8') as f:
+        tsv_reader = csv.reader(f, delimiter='\t')
+        for row in tsv_reader:
+            if len(row) == 2:
+                go_term, uniprot_accs = row
+                go_dict[go_term] = uniprot_accs.split(',')
     return go_dict
 
 
@@ -86,7 +90,7 @@ def create_and_save_go_documents(
             sequences = []
             success_accs = []
             for acc in uniprot_accs:
-                seq = seq_dict.get(acc, None)
+                seq = get_sequence(acc, seq_dict)
                 if seq is None:
                     f.write(f"{acc}\n")
                     fail_counter += 1
@@ -136,6 +140,9 @@ def load_large_pickle_in_chunks(filepath, chunk_size=1024*1024*100):  # 100 MB c
             print(f"Error occurred at position {f.tell()}: {str(e)}")
     return seq_lookup
 
+def get_sequence(acc: str, seq_lookup: Dict[str, str]) -> Optional[str]:
+    return seq_lookup.get(acc)
+
 def main(go_tsv_path: str, save_dir: str):
     t0 = time.time()
     sequence_dict_pickle_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/afdb_sequence_dict.pkl"
@@ -147,7 +154,8 @@ def main(go_tsv_path: str, save_dir: str):
         print(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
     except Exception as e:
         print(f"An error occurred while loading the sequence dictionary: {str(e)}")
-        return
+        print("Continuing without sequence lookup. Sequences will be empty.")
+        seq_lookup = {}
 
     print("Reading GO TSV file...")
     go_dict = read_go_tsv(go_tsv_path)
