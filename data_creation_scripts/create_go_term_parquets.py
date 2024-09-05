@@ -7,6 +7,7 @@ import pyarrow.parquet as pq
 from collections import defaultdict
 from typing import List, Dict
 import time
+import csv
 
 """
 @data_creation_scripts @create_foldseek_struct_with_af50.py
@@ -33,19 +34,13 @@ This should also contain paths to where you can look up from uniprot ID to seque
 
 
 def read_go_tsv(file_path: str) -> Dict[str, List[str]]:
-    go_dict = defaultdict(list)
+    go_dict = {}
     with open(file_path, 'r') as f:
         for line in f:
-            go_term, uniprot_acc = line.strip().split('\t')
-            go_dict[go_term].append(uniprot_acc)
+            go_term, uniprot_accs = line.strip().split('\t')
+            go_dict[go_term] = uniprot_accs.split(',')
     return go_dict
 
-
-def get_sequence(uniprot_acc: str,) -> str:
-    # TODO: Implement sequence lookup from UniProt ID
-    # This function should return the sequence for a given UniProt accession
-    # You may need to use a local database or an API call to retrieve the sequence
-    pass
 
 def write_parquet_file(current_documents, current_parquet, save_dir):
     df = pd.DataFrame(current_documents)
@@ -54,6 +49,18 @@ def write_parquet_file(current_documents, current_parquet, save_dir):
     pq.write_table(table, output_file)
     print(f"Saved {len(current_documents)} GO terms with {len(df)} sequences to {output_file}")
 
+
+def write_index_file(index_data: List[Dict[str, str]], save_dir: str):
+    index_file_path = os.path.join(save_dir, "go_term_index.csv")
+    with open(index_file_path, 'w', newline='') as csvfile:
+        fieldnames = ['fam_id', 'parquet_file']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        writer.writeheader()
+        for item in index_data:
+            writer.writerow(item)
+    
+    print(f"Index file saved to {index_file_path}")
 
 def create_and_save_go_documents(
     go_dict: Dict[str, List[str]],
@@ -71,6 +78,8 @@ def create_and_save_go_documents(
     fail_counter = 0
     success_counter = 0
     current_documents = []
+    index_data = []
+
     with open(fail_path, "w") as f:
         f.write("Failed sequences:\n")
         for go_term, uniprot_accs in go_dict.items():
@@ -78,19 +87,23 @@ def create_and_save_go_documents(
             success_accs = []
             for acc in uniprot_accs:
                 seq = seq_dict.get(acc, None)
-            if seq is None:
-                f.write(f"{acc}\n")
-                fail_counter += 1
-            else:
-                success_accs.append(acc)
-                sequences.append(seq)
-                success_counter += 1
+                if seq is None:
+                    f.write(f"{acc}\n")
+                    fail_counter += 1
+                else:
+                    success_accs.append(acc)
+                    sequences.append(seq)
+                    success_counter += 1
             current_documents.append({
                 'fam_id': go_term,
                 'sequences': sequences,
                 'accessions': success_accs
             })
             current_sequences += len(sequences)
+
+            # Add to index data
+            parquet_name = f'GO_{str(current_parquet).zfill(4)}.parquet'
+            index_data.append({'fam_id': go_term, 'parquet_file': parquet_name})
 
             if current_sequences >= sequences_per_parquet:
                 write_parquet_file(current_documents, current_parquet, save_dir)
@@ -104,20 +117,25 @@ def create_and_save_go_documents(
     if current_documents:
         write_parquet_file(current_documents, current_parquet, save_dir)
 
+    # Write the index file
+    write_index_file(index_data, save_dir)
+
 
 def main(go_tsv_path: str, save_dir: str):
     t0 = time.time()
-    sequence_dict_pickle_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/", "afdb_sequence_dict.pkl")
+    sequence_dict_pickle_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/afdb_sequence_dict.pkl"
+    
     # Load the sequence dictionary
     print("Loading sequence dictionary...")
     with open(sequence_dict_pickle_path, "rb") as f:
         seq_lookup = pickle.load(f)
-    print("sucessfully loaded seq lookup")
+    print("Successfully loaded seq lookup")
+    
     print("Reading GO TSV file...")
     go_dict = read_go_tsv(go_tsv_path)
 
     print("Creating and saving GO documents...")
-    create_and_save_go_documents(go_dict, save_dir, seq_lookup)
+    create_and_save_go_documents(go_dict, save_dir, 300, seq_lookup)
 
     t1 = time.time()
     print(f"Total processing time: {t1 - t0:.2f} seconds")
