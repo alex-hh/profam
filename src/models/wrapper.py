@@ -3,8 +3,6 @@ from typing import List, Optional
 import torch
 from torch import nn
 
-from src.utils.utils import nested_getattr
-
 
 class WrappedHFModelWithPositionEmbeddingsMixin:
     """Wrap a pre-trained model to add sequence-relative position embeddings.
