@@ -514,7 +514,7 @@ class BaseFamilyLitModule(BaseLitModule):
             )
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)
-            L_mini_batch = this_input_ids.shape[-1]
+            L_mini_batch = this_input_ids.shape[-1]  # beware: includes prompt too
             forward_kwargs = {}
             # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
             labels = torch.where(
@@ -528,9 +528,9 @@ class BaseFamilyLitModule(BaseLitModule):
             )  # SEP token which signals end of last prompt seq
             if self.use_seq_pos:
                 this_seq_pos = torch.cat(
-                    [seq_pos, completion_seq_pos[:, completion_ix, :L_mini_batch]],
+                    [seq_pos, completion_seq_pos[:, completion_ix]],
                     dim=1,
-                )
+                )[..., :L_mini_batch]
                 forward_kwargs["seq_pos"] = this_seq_pos
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
             log_likelihood = log_likelihood_from_outputs(
