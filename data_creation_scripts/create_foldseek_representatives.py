@@ -16,6 +16,7 @@ distinct parquets.
 """
 import argparse
 import shutil
+import pickle
 import multiprocessing
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
@@ -233,9 +234,22 @@ def create_foldseek_parquets(
 
     cluster_ids_to_save = [cluster_id for parquet_id in parquet_ids for cluster_id in clusters_to_save[parquet_id]]
 
+
     zip_index_file = os.path.join(scratch_dir, "zip_index")
-    print("reading zip index from file", zip_index_file, flush=True)
-    af2zip = make_zip_dictionary(zip_index_file, cluster_ids_to_save if check_accessions else None)
+    if not check_accessions:
+        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdm", "zip_index_dict.pkl")
+        if os.path.isfile(zip_dict_path):
+            print("loading precomputed zip index")
+            with open(zip_dict_path, "rb") as f:
+                af2zip = pickle.load(f)
+        else:
+            print("reading zip index from file", zip_index_file, flush=True)
+            af2zip = make_zip_dictionary(zip_index_file, None)
+            with open(zip_dict_path, "wb") as f:
+                pickle.dump(af2zip, f)
+    else:
+        print("reading zip index from file", zip_index_file, flush=True)
+        af2zip = make_zip_dictionary(zip_index_file, cluster_ids_to_save)
 
     manager = multiprocessing.Manager()
     pdb_lookup = manager.dict()
