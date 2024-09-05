@@ -46,7 +46,7 @@ def load_all_vs_all(all_vs_all_path):
 def get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=1e-3, num_processes=None):
     # Q. does a cluster id search against itself? A. yes
     # so what we should do is just find query is cluster_id
-    result = ddf[(ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)].compute(num_workers=num_processes)
+    result = ddf[(ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)].compute(scheduler="threads", num_workers=num_processes)
     return [result[result["query_id"] == cluster_id]["target_id"].tolist() for cluster_id in cluster_ids]
 
 
@@ -60,12 +60,13 @@ def save_single_parquet(
     minimum_cluster_size=1,
     identifier_col="cluster_id",
     with_structure=False,
+    num_processes=None,
 ):
     """N.B. clusters can be missing: in particular, fragments."""
     records = []
 
     t0 = time.time()
-    all_cluster_of_cluster_members = get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=evalue_threshold)
+    all_cluster_of_cluster_members = get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=evalue_threshold, num_processes=num_processes)
     t1 = time.time()
     print("Time to query all-vs-all:", t1 - t0, "seconds", flush=True)
     assert len(all_cluster_of_cluster_members) == len(cluster_ids), "Mismatch in number of clusters"
@@ -198,6 +199,7 @@ def main(args):
                 identifier_col=args.identifier_col,
                 with_structure=args.with_structure,
                 parquet_dir=parquet_dir,
+                num_processes=args.num_processes,
             )
             t1 = time.time()
             print("Saved in", t1 - t0, "seconds", flush=True)
@@ -216,5 +218,6 @@ if __name__ == "__main__":
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
     parser.add_argument("--evalue_threshold", type=float, default=1e-3)
     parser.add_argument("--force_rerun", action="store_true")
+    parser.add_argument("--num_processes", type=int, default=None)
     args = parser.parse_args()
     main(args)
