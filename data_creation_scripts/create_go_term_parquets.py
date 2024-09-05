@@ -150,9 +150,22 @@ def load_sequence_dict(filepath):
     lmdb_path = filepath + '_lmdb'
     
     if not os.path.exists(lmdb_path):
+        logging.info(f"LMDB not found. Creating from pickle file: {filepath}")
         create_lmdb_from_pickle(filepath, lmdb_path)
+    else:
+        logging.info(f"LMDB found at {lmdb_path}")
     
     env = lmdb.open(lmdb_path, readonly=True, lock=False)
+    
+    # Check if the database is empty
+    with env.begin() as txn:
+        cursor = txn.cursor()
+        first = cursor.first()
+        if not first:
+            logging.error("The LMDB database is empty!")
+        else:
+            logging.info(f"LMDB database contains data. First key: {first[0].decode()}")
+    
     return env
 
 def get_sequence(acc: str, seq_lookup: lmdb.Environment) -> Optional[str]:
@@ -161,23 +174,28 @@ def get_sequence(acc: str, seq_lookup: lmdb.Environment) -> Optional[str]:
         return seq.decode() if seq else None
 
 def create_lmdb_from_pickle(pickle_path, lmdb_path, map_size=1099511627776):  # 1TB
+    logging.info(f"Creating LMDB at {lmdb_path} from {pickle_path}")
     env = lmdb.open(lmdb_path, map_size=map_size)
     
     with open(pickle_path, 'rb') as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
         offset = 0
+        count = 0
         while offset < len(m):
             try:
                 obj = pickle.loads(m[offset:])
                 with env.begin(write=True) as txn:
                     for key, value in obj.items():
                         txn.put(key.encode(), value.encode())
+                        count += 1
+                        if count % 100000 == 0:
+                            logging.info(f"Processed {count} entries")
                 offset = m.tell()
             except Exception as e:
-                # If we can't unpickle, move forward and try again
+                logging.error(f"Error at offset {offset}: {str(e)}")
                 offset += 1
     
     env.close()
-    logging.info(f"Created LMDB at {lmdb_path}")
+    logging.info(f"Finished creating LMDB. Total entries: {count}")
 
 def main(go_tsv_path: str, save_dir: str):
     t0 = time.time()
