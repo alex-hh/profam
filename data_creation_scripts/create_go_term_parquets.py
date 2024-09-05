@@ -9,6 +9,7 @@ from typing import List, Dict, Optional
 import time
 import csv
 import gzip
+import sys
 
 """
 @data_creation_scripts @create_foldseek_struct_with_af50.py
@@ -37,6 +38,10 @@ This should also contain paths to where you can look up from uniprot ID to seque
 def read_go_tsv(file_path: str) -> Dict[str, List[str]]:
     go_dict = {}
     open_func = gzip.open if file_path.endswith('.gz') else open
+    
+    # Increase the field size limit to maximum
+    csv.field_size_limit(sys.maxsize)
+    
     with open_func(file_path, 'rt', encoding='utf-8') as f:
         tsv_reader = csv.reader(f, delimiter='\t')
         for row in tsv_reader:
