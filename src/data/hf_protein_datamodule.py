@@ -9,6 +9,7 @@ from src.data.family_classification import (
     load_classifier_dataset,
     load_ec_cluster_classifier_dataset,
 )
+from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import (
     CustomDataCollator,
@@ -24,6 +25,15 @@ DEFAULT_FEATURE_NAMES = [
     "ds_name",
     "seq_pos",
     "identifier",
+    "family_labels",
+    "eval_fam_ids",
+    "completion_seq_pos",
+    "completion_ids",
+    "DMS_scores",
+    "coords",
+    "aa_mask",
+    "plddts",
+    "family_id",
 ]
 
 
@@ -46,6 +56,7 @@ class ProteinDataModule(LightningDataModule):
         num_workers: Optional[int] = None,
         evaluate_ec_class: bool = True,
         evaluate_ec_cluster_class: bool = True,
+        evaluate_pfam_class: bool = False,
         shuffle: bool = True,
         ignore_gaps: bool = False,
         feature_names: Optional[List[str]] = None,
@@ -65,6 +76,7 @@ class ProteinDataModule(LightningDataModule):
             self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
         self.evaluate_ec_cluster_class = evaluate_ec_cluster_class
+        self.evaluate_pfam_class = evaluate_pfam_class
         self.max_gym_sequences = max_gym_sequences
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer = tokenizer
@@ -167,7 +179,20 @@ class ProteinDataModule(LightningDataModule):
                     val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
                     max_tokens=self.max_tokens,
                 )
-
+            if self.evaluate_pfam_class:
+                self.pfam_class_dataset = load_pfam_classification_dataset(
+                    tokenizer=self.tokenizer,
+                    keep_insertions=True,  # TODO: should be val config
+                    to_upper=True,  # TODO: should be val config
+                    keep_gaps=True,  # TODO: should be val config
+                    pfam_dir="../data/pfam/pfam_eval_splits/val/clustered_split_fastas",
+                    max_tokens=self.max_tokens,
+                    use_seq_pos=self.tokenizer.use_seq_pos,
+                    max_seq_pos=self.tokenizer.max_seq_pos,
+                    num_workers=self.num_workers,
+                    max_eval_per_fam=4,
+                    use_msa_pos=True,
+                )
             self._is_setup = True
 
     def train_dataloader(self) -> List[DataLoader]:
@@ -230,6 +255,16 @@ class ProteinDataModule(LightningDataModule):
             loaders.append(
                 DataLoader(
                     self.ec_cluster_class_dataset,
+                    batch_size=1,
+                    collate_fn=self.collator,
+                    shuffle=False,
+                )
+            )
+
+        if self.evaluate_pfam_class:
+            loaders.append(
+                DataLoader(
+                    self.pfam_class_dataset,
                     batch_size=1,
                     collate_fn=self.collator,
                     shuffle=False,

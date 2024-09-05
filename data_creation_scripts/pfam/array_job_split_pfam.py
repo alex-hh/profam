@@ -3,6 +3,21 @@ import argparse
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+"""
+First run submit_scripts/grep_pfam_breaks.qsub.sh
+to generate pfam_end_grepper.txt (containing line-numbers)
+where each family ends.
+
+Each job processes a certain number of families
+and saves them in a parquet file.
+
+Subsequently run:
+scripts/shuffle_pfam_parquets.py
+data_creation_scripts/pfam/deduplicate_pfam.py
+data_creation_scripts/pfam/create_pfam_eval_fastas.py
+data_creation_scripts/pfam/train_test_split_pfam_parquets.py
+"""
+
 def read_end_lines(grepper_file):
     with open(grepper_file, 'r') as f:
         return [int(line.split(':')[0]) for line in f]

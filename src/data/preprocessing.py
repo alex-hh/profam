@@ -25,6 +25,7 @@ class BasePreprocessorConfig:
     ] = None  # making callable raises an omegaconf validationerror: unsupported value type 'callable'
     keep_columns: Optional[List[str]] = None
     allow_unk: bool = False
+    add_final_sep: bool = True
 
 
 @dataclass
@@ -108,7 +109,7 @@ def subsample_and_tokenize_protein_data(
         document_token=cfg.document_token,
         padding=padding,
         max_length=max_tokens,
-        add_final_sep=True,
+        add_final_sep=getattr(cfg, "add_final_sep", True),
         allow_unk=getattr(cfg, "allow_unk", False),
     )
     # tokenized.input_ids is flat now
@@ -168,7 +169,9 @@ def preprocess_fasta_data(
             to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
         )
     ]
+
     proteins = ProteinDocument(sequences=sequences)
+    # add seq_pos if specified
     proteins = preprocess_protein_sequences(proteins, cfg, tokenizer)
     return subsample_and_tokenize_protein_data(
         proteins,

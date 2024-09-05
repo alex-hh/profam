@@ -27,9 +27,10 @@ val_dataset_names:
   - pfam_val_raw
   - pfam_val_msa
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
-evaluate_gym: false
+evaluate_gym: true
 evaluate_ec_class: false
 evaluate_ec_cluster_class: false
+evaluate_pfam_class: true
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
 ignore_gaps: false
