@@ -14,6 +14,9 @@ import pandas as pd
 import pickle
 
 
+AFDB_DATA_PATH = "/SAN/orengolab/cath_plm/ProFam/data/afdb/"
+
+
 def load_parquet_index(index_file_path):
     index_df = pd.read_csv(index_file_path).set_index("identifier")
     print(index_df.head(), flush=True)
@@ -46,7 +49,9 @@ def load_all_vs_all(all_vs_all_path):
 def get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=1e-3, num_processes=None):
     # Q. does a cluster id search against itself? A. yes
     # so what we should do is just find query is cluster_id
-    result = ddf[(ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)].compute(scheduler="threads", num_workers=num_processes)
+    result = ddf[
+        (ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)
+    ].compute(scheduler="threads", num_workers=num_processes)
     return [result[result["query_id"] == cluster_id]["target_id"].tolist() for cluster_id in cluster_ids]
 
 
@@ -66,7 +71,12 @@ def save_single_parquet(
     records = []
 
     t0 = time.time()
-    all_cluster_of_cluster_members = get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=evalue_threshold, num_processes=num_processes)
+    all_cluster_of_cluster_members = get_cluster_of_cluster_members(
+        cluster_ids,
+        ddf,
+        evalue_threshold=evalue_threshold,
+        num_processes=num_processes
+    )
     t1 = time.time()
     print("Time to query all-vs-all:", t1 - t0, "seconds", flush=True)
     assert len(all_cluster_of_cluster_members) == len(cluster_ids), "Mismatch in number of clusters"
@@ -209,8 +219,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("index_file_path", type=str)
     parser.add_argument("save_dir", type=str)
-    parser.add_argument("--cluster_path", type=str, default="/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
-    parser.add_argument("--all_vs_all_path", type=str, default="/SAN/orengolab/cath_plm/ProFam/data/afdb/6-all-vs-all-similarity-queryId_targetId_eValue.tsv")
+    parser.add_argument(
+        "--cluster_path",
+        type=str,
+        default=f"{AFDB_DATA_PATH}/1-AFDBClusters-entryId_repId_taxId.tsv",
+    )
+    parser.add_argument(
+        "--all_vs_all_path",
+        type=str,
+        default=f"{AFDB_DATA_PATH}/6-all-vs-all-similarity-queryId_targetId_eValue.tsv",
+    )
     parser.add_argument("--parquet_id", type=int, default=None)
     parser.add_argument("--parquet_size", type=int, default=100)
     parser.add_argument("--identifier_col", default="fam_id")
