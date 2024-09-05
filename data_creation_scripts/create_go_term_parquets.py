@@ -10,6 +10,10 @@ import time
 import csv
 import gzip
 import sys
+import logging
+
+# Set up basic logging configuration
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 """
 @data_creation_scripts @create_foldseek_struct_with_af50.py
@@ -42,12 +46,14 @@ def read_go_tsv(file_path: str) -> Dict[str, List[str]]:
     # Increase the field size limit to maximum
     csv.field_size_limit(sys.maxsize)
     
+    logging.info(f"Reading GO TSV file: {file_path}")
     with open_func(file_path, 'rt', encoding='utf-8') as f:
         tsv_reader = csv.reader(f, delimiter='\t')
         for row in tsv_reader:
             if len(row) == 2:
                 go_term, uniprot_accs = row
                 go_dict[go_term] = uniprot_accs.split(',')
+    logging.info(f"Finished reading GO TSV file. Found {len(go_dict)} GO terms.")
     return go_dict
 
 
@@ -56,7 +62,7 @@ def write_parquet_file(current_documents, current_parquet, save_dir):
     table = pa.Table.from_pandas(df, preserve_index=False)
     output_file = os.path.join(save_dir, f'GO_{str(current_parquet).zfill(4)}.parquet')
     pq.write_table(table, output_file)
-    print(f"Saved {len(current_documents)} GO terms with {len(df)} sequences to {output_file}")
+    logging.info(f"Saved {len(current_documents)} GO terms with {len(df)} sequences to {output_file}")
 
 
 def write_index_file(index_data: List[Dict[str, str]], save_dir: str):
@@ -69,7 +75,7 @@ def write_index_file(index_data: List[Dict[str, str]], save_dir: str):
         for item in index_data:
             writer.writerow(item)
     
-    print(f"Index file saved to {index_file_path}")
+    logging.info(f"Index file saved to {index_file_path}")
 
 def create_and_save_go_documents(
     go_dict: Dict[str, List[str]],
@@ -89,6 +95,7 @@ def create_and_save_go_documents(
     current_documents = []
     index_data = []
 
+    logging.info(f"Starting to process {len(go_dict)} GO terms")
     with open(fail_path, "w") as f:
         f.write("Failed sequences:\n")
         for go_term, uniprot_accs in go_dict.items():
@@ -120,7 +127,7 @@ def create_and_save_go_documents(
                 current_parquet += 1
                 current_sequences = 0
                 current_documents = []
-                print(f"Processed {success_counter} sequences, {fail_counter} failed")
+                logging.info(f"Processed {success_counter} sequences, {fail_counter} failed")
 
     # Save any remaining documents
     if current_documents:
@@ -128,18 +135,19 @@ def create_and_save_go_documents(
 
     # Write the index file
     write_index_file(index_data, save_dir)
+    logging.info(f"Finished processing. Total successes: {success_counter}, Total failures: {fail_counter}")
 
 
 def load_sequence_dict(filepath):
-    print(f"Loading sequence dictionary from {filepath}...")
+    logging.info(f"Loading sequence dictionary from {filepath}...")
     try:
         with open(filepath, "rb") as f:
             seq_lookup = pickle.load(f)
-        print(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
+        logging.info(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
         return seq_lookup
     except Exception as e:
-        print(f"An error occurred while loading the sequence dictionary: {str(e)}")
-        print("Continuing without sequence lookup. Sequences will be empty.")
+        logging.error(f"An error occurred while loading the sequence dictionary: {str(e)}")
+        logging.warning("Continuing without sequence lookup. Sequences will be empty.")
         return {}
 
 def get_sequence(acc: str, seq_lookup: Dict[str, str]) -> Optional[str]:
@@ -152,14 +160,14 @@ def main(go_tsv_path: str, save_dir: str):
     # Load the sequence dictionary
     seq_lookup = load_sequence_dict(sequence_dict_pickle_path)
 
-    print("Reading GO TSV file...")
+    logging.info("Reading GO TSV file...")
     go_dict = read_go_tsv(go_tsv_path)
 
-    print("Creating and saving GO documents...")
+    logging.info("Creating and saving GO documents...")
     create_and_save_go_documents(go_dict, save_dir, 300, seq_lookup)
 
     t1 = time.time()
-    print(f"Total processing time: {t1 - t0:.2f} seconds")
+    logging.info(f"Total processing time: {t1 - t0:.2f} seconds")
 
 
 if __name__ == "__main__":
