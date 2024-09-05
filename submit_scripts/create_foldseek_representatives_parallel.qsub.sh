@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -l tmem=48G
 #$ -l h_rt=128:55:30
-#$ -l gpu_type=(a100|a100_80)
+##$ -l gpu_type=(a100|a100_80)
 #$ -l gpu=true
 #$ -S /bin/bash
 #$ -N foldseek_af50_parallel

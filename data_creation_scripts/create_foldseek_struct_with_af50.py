@@ -238,7 +238,17 @@ def make_job_list(
 
     zip_index = zip_index_file or "/SAN/bioinf/afdb_domain/zipmaker/zip_index"
     print("reading zip index from file", zip_index, flush=True)
-    af2zip = make_zip_dictionary(zip_index, all_accessions if check_accessions else None)
+    if not check_accessions:
+        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdm", "zip_index_dict.pkl")
+        if os.path.isfile(zip_dict_path):
+            with open(zip_dict_path, "rb") as f:
+                af2zip = pickle.load(f)
+        else:
+            af2zip = make_zip_dictionary(zip_index, None)
+            with open(zip_dict_path, "wb") as f:
+                pickle.dump(af2zip, f)
+    else:
+        af2zip = make_zip_dictionary(zip_index, all_accessions)
 
     cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
     metadata_lookup = dict()
