@@ -481,8 +481,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 -100,
                 this_input_ids.clone(),
             )
-            # start_ix is 1 because we don't want the 1st SEP token:
-            log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=1)
+            # start_ix is 0 as this is likelihood for first AA (pos 1)
+            log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
 
             all_lls.append(log_likelihood.mean(-1))  # b_mut
 
@@ -504,7 +504,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 "Mutant batch size > 1 not yet supported for mutant scoring"
             )
         all_lls = []
-        completion_start_pos = input_ids.shape[1] + 1  # dont count ll of 1st SEP token
+        likelihood_start_ix = input_ids.shape[1]
         for completion_ix in tqdm.tqdm(
             range(completion_ids.shape[1]), disable=not verbose
         ):
@@ -523,7 +523,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids.clone(),
             )
             assert (
-                this_input_ids[..., completion_start_pos - 1]
+                this_input_ids[..., likelihood_start_ix]
                 == self.tokenizer.sep_token_id
             )  # SEP token which signals end of last prompt seq
             if self.use_seq_pos:
@@ -533,8 +533,9 @@ class BaseFamilyLitModule(BaseLitModule):
                 )[..., :L_mini_batch]
                 forward_kwargs["seq_pos"] = this_seq_pos
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
+            # remember likelihood at n predicts position n+1
             log_likelihood = log_likelihood_from_outputs(
-                outputs, labels, start_ix=completion_start_pos
+                outputs, labels, start_ix=likelihood_start_ix
             )  # 1, L
 
             all_lls.append(log_likelihood.mean(-1).item())
