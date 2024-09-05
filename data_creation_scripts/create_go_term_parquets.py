@@ -11,6 +11,8 @@ import csv
 import gzip
 import sys
 import logging
+import mmap
+import lmdb
 
 # Set up basic logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -140,17 +142,37 @@ def create_and_save_go_documents(
 
 def load_sequence_dict(filepath):
     logging.info(f"Loading sequence dictionary from {filepath}...")
-    try:
-        with open(filepath, "rb") as f:
-            seq_lookup = pickle.load(f)
-        logging.info(f"Successfully loaded seq lookup with {len(seq_lookup)} entries")
-        return seq_lookup
-    except Exception as e:
-        logging.error(f"An error occurred while loading the sequence dictionary: {str(e)}")
-        raise  # Re-raise the exception to stop execution
+    lmdb_path = filepath + '_lmdb'
+    
+    if not os.path.exists(lmdb_path):
+        create_lmdb_from_pickle(filepath, lmdb_path)
+    
+    env = lmdb.open(lmdb_path, readonly=True, lock=False)
+    return env
 
-def get_sequence(acc: str, seq_lookup: Dict[str, str]) -> Optional[str]:
-    return seq_lookup.get(acc)
+def get_sequence(acc: str, seq_lookup: lmdb.Environment) -> Optional[str]:
+    with seq_lookup.begin() as txn:
+        seq = txn.get(acc.encode())
+        return seq.decode() if seq else None
+
+def create_lmdb_from_pickle(pickle_path, lmdb_path, map_size=1099511627776):  # 1TB
+    env = lmdb.open(lmdb_path, map_size=map_size)
+    
+    with open(pickle_path, 'rb') as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
+        offset = 0
+        while offset < len(m):
+            try:
+                obj = pickle.loads(m[offset:])
+                with env.begin(write=True) as txn:
+                    for key, value in obj.items():
+                        txn.put(key.encode(), value.encode())
+                offset = m.tell()
+            except Exception as e:
+                # If we can't unpickle, move forward and try again
+                offset += 1
+    
+    env.close()
+    logging.info(f"Created LMDB at {lmdb_path}")
 
 def main(go_tsv_path: str, save_dir: str):
     t0 = time.time()
@@ -164,6 +186,8 @@ def main(go_tsv_path: str, save_dir: str):
 
     logging.info("Creating and saving GO documents...")
     create_and_save_go_documents(go_dict, save_dir, 300, seq_lookup)
+
+    seq_lookup.close()  # Close the LMDB environment
 
     t1 = time.time()
     logging.info(f"Total processing time: {t1 - t0:.2f} seconds")
