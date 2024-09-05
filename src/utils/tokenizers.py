@@ -174,6 +174,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
+        assert (
+            self.tokenizer.convert_tokens_to_ids(document_token)
+            != self.tokenizer.unk_token_id
+        )
         concatenated_seqs = self.sep_token.join(proteins.sequences)
         if add_final_sep:
             concatenated_seqs += self.sep_token
@@ -276,7 +280,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self,
         sequences,
         positions: Optional[List[int]] = None,
-        bos_token="[SEP]",
+        bos_token="",
         eos_token="[SEP]",
     ):
         assert isinstance(sequences, list)

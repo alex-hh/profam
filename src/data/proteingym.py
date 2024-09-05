@@ -38,7 +38,7 @@ def tokenize_msa(
         positions=sample["seq_pos"],
     )
     tokenized = tokenizer.encode(
-        proteins, document_token=document_token, add_final_sep=True
+        proteins, document_token=document_token, add_final_sep=add_final_sep_to_prompt
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
     if tokenizer.use_seq_pos:

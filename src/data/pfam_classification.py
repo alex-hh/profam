@@ -46,7 +46,7 @@ def pfam_sample_from_msa_path(
     cfg: FastaPreprocessorConfig,
 ):
     msa_cfg = copy.deepcopy(cfg)
-    msa_cfg.add_final_sep = False
+    msa_cfg.add_final_sep = True
     with open(msa_path["msa_paths"], "r") as file:
         fasta_file_contents = file.read()
     example = {
@@ -147,7 +147,7 @@ def load_pfam_classification_dataset(
     tokenized_eval_seqs = tokenizer.encode_completions(
         sequences=eval_proteins.sequences,
         positions=eval_proteins.positions,
-        bos_token=tokenizer.sep_token,
+        bos_token="",
         eos_token=tokenizer.sep_token,
     )
 
