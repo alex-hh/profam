@@ -74,12 +74,13 @@ def tokenize_pfam(
     if use_seq_pos:
         sample["completion_seq_pos"] = completion_seq_pos
 
+    # Note: this could just tokenize the msa, then the wrapper could add the precomputed eval seqs and eval seq pos
     sample = tokenize(
         sample,
         tokenizer=tokenizer,
         use_seq_pos=use_seq_pos,
         max_seq_pos=max_seq_pos,
-        mutant_bos_token="sep",
+        mutant_bos_token="",
     )
 
     sample["family_labels"] = [1 if s == msa_name else 0 for s in eval_names]
@@ -129,10 +130,9 @@ def load_pfam_classification_dataset(
     tok_eval_seqs = tokenize_completions(
         sample={"completion_seqs": combined_eval_seqs},
         tokenizer=tokenizer,
-        bos_token="sep",
+        bos_token="",
     )
     max_msa_tokens = max_tokens - max_eval_len - 2
-    assert (tok_eval_seqs["completion_ids"][:, 0] == tokenizer.vocab["[SEP]"]).all()
     if use_seq_pos:
         n_seqs, longest = tok_eval_seqs["completion_ids"].shape
         # first token is always [SEP], last token before padding is [SEP]

@@ -482,7 +482,28 @@ class BaseFamilyLitModule(BaseLitModule):
         if self.shift_positions and self.use_seq_pos:
             assert (
                 completion_seq_pos[:, :, 0] == self.tokenizer.start_seq_pos
-            ).all()  # likely 2
+            ).all()  # likely 2 - required for kv_cache_prompt to work as expected
+            assert (completion_ids[:, :, -1] == self.tokenizer.sep_token_id).all()
+            # this shouldnt actually matter because logit for final position gets sliced out in scoring.
+
+            if (completion_seq_pos[:, :, -1] == self.tokenizer.sep_token_id).all():
+                completion_seq_pos = torch.cat(
+                    (
+                        completion_seq_pos[..., 1:],
+                        torch.full_like(
+                            completion_seq_pos[..., -1:], self.tokenizer.start_seq_pos
+                        ),
+                    ),
+                    dim=-1,
+                )
+            else:
+                completion_seq_pos = torch.cat(
+                    (
+                        completion_seq_pos[..., 1:],
+                        completion_seq_pos[..., -1:] + 1,
+                    ),
+                    dim=-1,
+                )
         past_key_values = self.kv_cache_prompt(input_ids, seq_pos)
         L = completion_ids.shape[-1]
         for batch_start in tqdm.tqdm(
@@ -532,18 +553,28 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
         if self.shift_positions:
             assert completion_seq_pos is not None
-            assert completion_seq_pos.ndim == 3
             assert (completion_seq_pos[:, :, 0] == completion_seq_pos[:, 0, 0]).all()
             seq_pos = torch.cat(
-                (seq_pos[..., 1:], completion_seq_pos[..., -1:]), dim=-1
+                (seq_pos[..., 1:], completion_seq_pos[..., 0, -1:]), dim=-1
             )
-            completion_seq_pos = torch.cat(
-                (
-                    completion_seq_pos[..., 1:],
-                    torch.zeros_like(completion_seq_pos[..., -1:]),
-                ),
-                dim=-1,
-            )
+            if (completion_seq_pos[:, :, -1] == self.tokenizer.sep_token_id).all():
+                completion_seq_pos = torch.cat(
+                    (
+                        completion_seq_pos[..., 1:],
+                        torch.full_like(
+                            completion_seq_pos[..., -1:], self.tokenizer.start_seq_pos
+                        ),
+                    ),
+                    dim=-1,
+                )
+            else:
+                completion_seq_pos = torch.cat(
+                    (
+                        completion_seq_pos[..., 1:],
+                        completion_seq_pos[..., -1:] + 1,
+                    ),
+                    dim=-1,
+                )
         for completion_ix in tqdm.tqdm(
             range(completion_ids.shape[1]), disable=not verbose
         ):

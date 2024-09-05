@@ -34,7 +34,6 @@ model:
 data:
   batch_size: 4
   num_workers: 12
-  mutant_bos_token: "sep"
   gym_dms_ids: [
     "BLAT_ECOLX_Jacquier_2013",
     # "CALM1_HUMAN_Weile_2017",

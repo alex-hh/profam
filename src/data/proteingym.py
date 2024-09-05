@@ -29,6 +29,7 @@ def tokenize_msa(
     sample,
     tokenizer: ProFamTokenizer,
     document_token: Optional[str] = "[RAW]",
+    add_final_sep_to_prompt: bool = True,
 ):
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     proteins = ProteinDocument(
@@ -36,7 +37,7 @@ def tokenize_msa(
         positions=sample["seq_pos"],
     )
     tokenized = tokenizer.encode(
-        proteins, document_token=document_token, add_final_sep=False
+        proteins, document_token=document_token, add_final_sep=True
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
     if tokenizer.use_seq_pos:
@@ -49,6 +50,8 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
         return tokenizer.bos_token
     elif name == "sep":
         return tokenizer.sep_token
+    elif name == "":
+        return ""
     else:
         pass
 
@@ -56,7 +59,7 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
 def tokenize_completions(
     sample,
     tokenizer: ProFamTokenizer,
-    bos_token="sep",
+    bos_token="",
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
@@ -72,14 +75,18 @@ def tokenize_completions(
 def tokenize(
     sample,
     tokenizer: PreTrainedTokenizerFast,
-    mutant_bos_token="sep",
+    mutant_bos_token="",
     document_token="[RAW]",
+    add_final_sep_to_prompt: bool = True,
 ):
     sample = tokenize_msa(
         sample,
         tokenizer,
         document_token=document_token,
+        add_final_sep_to_prompt=add_final_sep_to_prompt,
     )
+    if add_final_sep_to_prompt:
+        assert mutant_bos_token != "sep", "Shouldn't have bos token in completion"
     sample = tokenize_completions(
         sample,
         tokenizer,
@@ -242,14 +249,14 @@ def load_gym_dataset(
     seed: Optional[int] = None,
     max_mutated_sequences: Optional[int] = None,
     max_tokens: int = 5000,
-    mutant_bos_token: str = "sep",
+    mutant_bos_token: str = "",
     gym_data_dir: str = "data/example_data/ProteinGym",
     keep_gaps: bool = False,
     num_proc: Optional[int] = None,
     use_filtered_msa: bool = False,
     use_msa_pos: bool = True,
 ):
-    """mutant_bos_token should almost always be sep.
+    """mutant_bos_token should almost always be empty string.
 
     when using a BaseSingleSequenceLitModule, however, we want it
     to be bos, since no context sequences are passed during scoring.
@@ -372,6 +379,7 @@ class GymSingleMSADataModule(LightningDataModule):
             gym_data_dir=self.gym_data_dir,
             num_proc=self.num_workers,
             keep_gaps=self.keep_gaps,
+            mutant_bos_token="bos",
         )
         self.msa_dataset = load_gym_msa_dataset(
             dms_id=gym_dms_id,
@@ -466,7 +474,7 @@ class GymMultiMSADataModule(LightningDataModule):
         # the completion ids should have the bos token at the start.
         # n.b. during training the model might nonetheless receive multiple concatenated
         # sequences
-        mutant_bos_token: str = "sep",
+        mutant_bos_token: str = "",
         # will allow sampling multiple times from same dataset.
     ):
         super().__init__()
