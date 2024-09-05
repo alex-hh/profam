@@ -83,7 +83,7 @@ def create_and_save_go_documents(
     go_dict: Dict[str, List[str]],
     save_dir: str,
     num_parquets: int,
-    seq_dict: Dict[str, str]
+    seq_lookup: lmdb.Environment
 ):
     os.makedirs(save_dir, exist_ok=True)
     fail_path = os.path.join(save_dir, "failed_sequences.txt")
@@ -104,7 +104,7 @@ def create_and_save_go_documents(
             sequences = []
             success_accs = []
             for acc in uniprot_accs:
-                seq = get_sequence(acc, seq_dict)
+                seq = get_sequence(acc, seq_lookup)
                 if seq is None:
                     f.write(f"{acc}\n")
                     fail_counter += 1
