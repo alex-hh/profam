@@ -94,7 +94,7 @@ def remove_val_test_rows(val_test_csv_path, parquet_dir, output_dir, mem_limit=1
 
 if __name__ == "__main__":
     new_index = []
-    val_test_csv_path = "../data/pfam/pfam_eval_splits/pfam_val_test_accessions_w_unip_accs.csv"
+    val_test_csv_path = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
     parquet_dir = "../data/pfam/shuffled_parquets/"
     output_dir = "../data/pfam/train_test_split_parquets"
 

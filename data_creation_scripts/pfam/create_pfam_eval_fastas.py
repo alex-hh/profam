@@ -18,7 +18,7 @@ for each pfam accession that is included in the validation or test set
 the families are further split into val (used for hparam tuning) and test sets
 
 fastas are saved to:
-../data/pfam/pfam_eval_splits/{val/test}/{clustered_split/random_split}/{fam}_{test/train}.fasta
+data/val_test/pfam/{val/test}/{clustered_split/random_split}/{fam}_{test/train}.fasta
 
 after this run:
 data_creation_scripts/pfam/train_test_split_pfam_parquets.py 
@@ -133,15 +133,18 @@ def sample_fams_make_fastas(pfam_dir, index_csv_path, mapping_path):
 
     if not os.path.exists(index_csv_path):
         make_pfam_eval_fastas(selected_families, index_csv_path=index_csv_path)
-    add_uniprot_accessions_to_csv(
-        index_csv_path,
-        mapping_path,
-        output_path=index_csv_path.replace(".csv", "_w_unip_accs.csv")
-    )
+
+    index_w_accessions_path = index_csv_path.replace(".csv", "_w_unip_accs.csv")
+    if not os.path.exists(index_w_accessions_path):
+        add_uniprot_accessions_to_csv(
+            index_csv_path,
+            mapping_path,
+            output_path=index_w_accessions_path
+        )
 
 
 if __name__ == "__main__":
-    pfam_dir = '../data/pfam/pfam_eval_splits'
+    pfam_dir = 'data/val_test/pfam'
     index_csv_path = os.path.join(pfam_dir, "pfam_val_test_accessions.csv")
     mapping_path = os.path.join(pfam_dir, "val_test_uniprot_idmapping_2024_08_22.tsv")
 

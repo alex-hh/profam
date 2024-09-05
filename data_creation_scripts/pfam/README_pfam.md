@@ -29,7 +29,7 @@ run the following scrips:
 `data_creation_scripts/pfam/create_pfam_eval_fastas.py`
 
 Create this file:
-`../data/pfam/pfam_eval_splits/pfam_val_test_accessions_w_unip_accs.csv`
+`data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv`
 
 run this script:
 `data_creation_scripts/pfam/train_test_split_pfam_parquets.py`
@@ -39,4 +39,4 @@ parquets in `../data/pfam/train_test_split_parquets`
 use this folder for training. 
 For validation and testing family-classification use the
 fasta files which are saved in:
-`../data/pfam/pfam_eval_splits/{val/test}/{clustered_split/random_split}/{fam}_{test/train}.fasta`
+`data/val_test/pfam/{val/test}/{clustered_split/random_split}/{fam}_{test/train}.fasta`
