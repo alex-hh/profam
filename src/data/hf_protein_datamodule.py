@@ -187,8 +187,6 @@ class ProteinDataModule(LightningDataModule):
                     keep_gaps=True,  # TODO: should be val config
                     pfam_dir="data/val_test/pfam/val/clustered_split_fastas",
                     max_tokens=self.max_tokens,
-                    use_seq_pos=self.tokenizer.use_seq_pos,
-                    max_seq_pos=self.tokenizer.max_seq_pos,
                     num_workers=self.num_workers,
                     max_eval_per_fam=4,
                     use_msa_pos=True,

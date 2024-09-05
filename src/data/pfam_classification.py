@@ -81,12 +81,9 @@ def load_pfam_classification_dataset(
     keep_gaps: bool,
     pfam_dir: str,
     max_tokens: int = 10000,
-    use_seq_pos: bool = False,
-    max_seq_pos: int = 1024,
-    use_msa_pos: bool = False,
-    seed: int = 42,
     num_workers: int = 4,
     max_eval_per_fam: int = 4,
+    use_msa_pos: bool = True,
 ):
     eval_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_test.fasta"))
     prompt_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_train.fasta"))
@@ -178,7 +175,7 @@ def load_pfam_classification_dataset(
         "ds_name",
         "eval_fam_ids",
     ]
-    if use_seq_pos:
+    if tokenizer.use_seq_pos:
         columns += ["seq_pos", "completion_seq_pos"]
 
     dataset.set_format(
