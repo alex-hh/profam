@@ -3,16 +3,11 @@ from typing import Optional
 from transformers import MistralConfig, MistralForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
-from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
-
-
-class WrappedMistralForCausalLM(
-    WrappedHFModelWithPositionEmbeddingsMixin, MistralForCausalLM
-):
-    pass
 
 
 class MistralLitModule(BaseFamilyLitModule):
+    model_class = MistralForCausalLM
+
     def __init__(
         self,
         config: MistralConfig,
@@ -30,24 +25,8 @@ class MistralLitModule(BaseFamilyLitModule):
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
     ) -> None:
-        if tokenizer.use_seq_pos or embed_coords:
-            model = WrappedMistralForCausalLM(
-                config,
-                "model.embed_tokens",
-                embedding_dim=config.hidden_size,
-                use_seq_pos=tokenizer.use_seq_pos,
-                max_seq_pos=tokenizer.max_seq_pos,
-                embed_coords=embed_coords,
-                sep_token_id=tokenizer.sep_token_id,
-                embed_sequence_index=embed_sequence_index,
-                max_sequence_index=max_sequence_index,
-                pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
-                pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
-            )
-        else:
-            model = MistralForCausalLM(config)
         super().__init__(
-            model,
+            config,
             tokenizer,
             lr=lr,
             weight_decay=weight_decay,
@@ -56,4 +35,9 @@ class MistralLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
+            embed_coords=embed_coords,
+            embed_sequence_index=embed_sequence_index,
+            max_sequence_index=max_sequence_index,
+            pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
+            pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
         )

@@ -3,7 +3,6 @@ from typing import Optional
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
-from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
@@ -31,13 +30,9 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         )
 
 
-class WrappedLlamaForCausalLM(
-    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
-):
-    pass
-
-
 class LlamaLitModule(BaseFamilyLitModule):
+    model_class = LlamaForCausalLM
+
     def __init__(
         self,
         config: LlamaConfig,
@@ -62,26 +57,8 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        if (
-            tokenizer.use_seq_pos or embed_coords,
-        ):  # commenting out to check computation of inputs embeds is working
-            model = WrappedLlamaForCausalLM(
-                config,
-                token_embedder="model.embed_tokens",
-                embedding_dim=config.hidden_size,
-                use_seq_pos=tokenizer.use_seq_pos,
-                max_seq_pos=tokenizer.max_seq_pos,
-                embed_coords=embed_coords,
-                sep_token_id=tokenizer.sep_token_id,
-                embed_sequence_index=embed_sequence_index,
-                max_sequence_index=max_sequence_index,
-                pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
-                pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
-            )
-        else:
-            model = LlamaForCausalLM(config)
         super().__init__(
-            model,
+            config,
             tokenizer,
             lr=lr,
             weight_decay=weight_decay,
@@ -90,4 +67,9 @@ class LlamaLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
+            embed_coords=embed_coords,
+            embed_sequence_index=embed_sequence_index,
+            max_sequence_index=max_sequence_index,
+            pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
+            pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
         )

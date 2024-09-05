@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional, Type
 
 import hydra
 import numpy as np
@@ -10,8 +10,7 @@ from lightning import LightningModule
 from omegaconf import OmegaConf
 from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
-from torch import nn
-from transformers import PreTrainedTokenizerFast
+from transformers import PreTrainedConfig, PreTrainedModel, PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
@@ -20,6 +19,7 @@ from src.models.utils import (
     accuracy_from_outputs,
     log_likelihood_from_outputs,
 )
+from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -55,9 +55,11 @@ def load_checkpoint(checkpoint_dir, **kwargs):
 class BaseLitModule(LightningModule):
     """Assumes signature of CausalLM: e.g. labels is a kwarg"""
 
+    model_class: Type[PreTrainedModel]
+
     def __init__(
         self,
-        model: nn.Module,
+        config: PreTrainedConfig,
         tokenizer: PreTrainedTokenizerFast,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
@@ -66,9 +68,35 @@ class BaseLitModule(LightningModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
+        embed_coords: bool = False,
+        embed_sequence_index: bool = False,
+        pass_constant_position_ids_for_global_index: bool = False,
+        pass_sequence_position_ids_for_global_index: bool = False,
+        max_sequence_index: int = 1024,
     ) -> None:
         super().__init__()
-        self.model = model
+        if (
+            tokenizer.use_seq_pos or embed_coords,
+        ):  # commenting out to check computation of inputs embeds is working
+            model_class = type(
+                f"Wrapped{self.model_class.__name__}",
+                (WrappedHFModelWithPositionEmbeddingsMixin, self.model_class),
+                {},
+            )
+            self.model = model_class(
+                config,
+                embedding_dim=config.hidden_size,  # or self.token_embedder.embedding_dim
+                use_seq_pos=tokenizer.use_seq_pos,
+                max_seq_pos=tokenizer.max_seq_pos,
+                sep_token_id=tokenizer.sep_token_id,
+                embed_coords=embed_coords,
+                embed_sequence_index=embed_sequence_index,
+                max_sequence_index=max_sequence_index,
+                pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
+                pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
+            )
+        else:
+            self.model = self.model_class(config)
         self.tokenizer = tokenizer
         self.save_hyperparameters(logger=False)
         self.lr = lr
