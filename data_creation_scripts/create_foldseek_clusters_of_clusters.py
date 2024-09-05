@@ -43,10 +43,10 @@ def load_all_vs_all(all_vs_all_path):
     return ddf
 
 
-def get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=1e-3):
+def get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=1e-3, num_processes=None):
     # Q. does a cluster id search against itself? A. yes
     # so what we should do is just find query is cluster_id
-    result = ddf[(ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)].compute()
+    result = ddf[(ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)].compute(num_workers=num_processes)
     return [result[result["query_id"] == cluster_id]["target_id"].tolist() for cluster_id in cluster_ids]
 
 
@@ -61,6 +61,7 @@ def save_single_parquet(
     identifier_col="cluster_id",
     with_structure=False,
 ):
+    """N.B. clusters can be missing: in particular, fragments."""
     records = []
 
     t0 = time.time()
@@ -133,22 +134,23 @@ def save_single_parquet(
 
     df = pd.DataFrame(records)
     df.to_parquet(output_file)
+    t2 = time.time()
+    print("Time to build parquet", t2 - t1, "seconds", flush=True)
 
 
 def main(args):
-    save_dir = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/", args.output_folder)
-    os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(args.save_dir, exist_ok=True)
 
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
-    cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")
+    cluster_dict_pickle_path = os.path.join(args.save_dir, "foldseek_cluster_dict.pkl")
     parquet_dir = os.path.dirname(args.index_file_path)
 
     if not os.path.exists(cluster_dict_pickle_path):
         print("Creating foldseek dataset", flush=True)
-        cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
+        cluster_dict = make_cluster_dictionary(args.cluster_path)
         print("Number of clusters:", len(cluster_dict))
         print("Saving cluster dictionary")
-        with open(save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
+        with open(args.save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
             pickle.dump(cluster_dict, f)
     else:
         print("Loading cluster dictionary", flush=True)
@@ -167,7 +169,7 @@ def main(args):
     # all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
     print("Loading parquet index", flush=True)
     parquet_index = load_parquet_index(args.index_file_path)
-    ddf = load_all_vs_all("/SAN/orengolab/cath_plm/ProFam/data/afdb/6-all-vs-all-similarity-queryId_targetId_eValue.tsv")
+    ddf = load_all_vs_all(args.all_vs_all_path)
 
     # What we want to do here is build a list of cluster ids to save within each parquet file.
     clusters_to_save = [cluster_ids[i:i + args.parquet_size] for i in range(0, len(cluster_ids), args.parquet_size)]
@@ -178,10 +180,13 @@ def main(args):
         parquet_ids = [args.parquet_id]
 
     for parquet_id in parquet_ids:
-        output_file = os.path.join(save_dir, f"{parquet_id}.parquet")
+        output_file = os.path.join(args.save_dir, f"{parquet_id}.parquet")
         if args.force_rerun or not os.path.isfile(output_file):
             cluster_ids = clusters_to_save[parquet_id]
-            print(f"Saving {len(cluster_ids)} clusters (loading member info from parquet dir {parquet_dir}) to parquet file {parquet_id}", flush=True)
+            print(
+                f"Saving {len(cluster_ids)} clusters (loading member info from parquet"
+                f"dir {parquet_dir}) to parquet file {parquet_id}", flush=True
+            )
             t0 = time.time()
             save_single_parquet(
                 cluster_ids=cluster_ids,
@@ -201,10 +206,12 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("index_file_path", type=str)
-    parser.add_argument("output_folder", type=str)
+    parser.add_argument("save_dir", type=str)
+    parser.add_argument("--cluster_path", type=str, default="/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
+    parser.add_argument("--all_vs_all_path", type=str, default="/SAN/orengolab/cath_plm/ProFam/data/afdb/6-all-vs-all-similarity-queryId_targetId_eValue.tsv")
     parser.add_argument("--parquet_id", type=int, default=None)
     parser.add_argument("--parquet_size", type=int, default=100)
-    parser.add_argument("--identifier_col", default="cluster_id")
+    parser.add_argument("--identifier_col", default="fam_id")
     parser.add_argument("--with_structure", action="store_true")
     parser.add_argument("--minimum_cluster_size", type=int, default=1)
     parser.add_argument("--evalue_threshold", type=float, default=1e-3)
