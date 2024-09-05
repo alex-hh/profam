@@ -144,7 +144,7 @@ def main(go_tsv_path: str, save_dir: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create GO term documents and save them as parquet files.")
     parser.add_argument("go_tsv_path", type=str, help="Path to the GO term TSV file")
-    parser.add_argument("save_dir", type="str", help="Directory to save the parquet files")
+    parser.add_argument("save_dir", type=str, help="Directory to save the parquet files")
     args = parser.parse_args()
 
     main(args.go_tsv_path, args.save_dir)
