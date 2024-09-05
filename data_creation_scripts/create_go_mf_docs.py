@@ -6,6 +6,7 @@ import sys
 import urllib.request
 from collections import defaultdict
 from tqdm import tqdm
+import argparse
 
 # download and process go uniprot file : https://www.ebi.ac.uk/GOA/downloads.html
 # goa_uniprot_all.gaf.gz : 19GB file contains all GO annotations for proteins in UniProtKB
@@ -76,13 +77,17 @@ def process_goa_file(input_file, output_file):
 
 def main():
     """Main function to process the GOA file and create the mapping."""
+    parser = argparse.ArgumentParser(description="Process GOA UniProt file and create GO term to UniProt ID mapping.")
+    parser.add_argument("-o", "--output", default=OUTPUT_FILE, help="Specify the output file path")
+    args = parser.parse_args()
+
     logging.info("Starting download and processing of GOA UniProt file.")
     download_file(INPUT_URL, GOA_FILE)
     
     logging.info("Processing GOA UniProt file to create GO term to UniProt ID mapping.")
-    process_goa_file(GOA_FILE, OUTPUT_FILE)
+    process_goa_file(GOA_FILE, args.output)
     
-    logging.info(f"Processing complete. Output written to {OUTPUT_FILE}")
+    logging.info(f"Processing complete. Output written to {args.output}")
 
 if __name__ == "__main__":
     main()
