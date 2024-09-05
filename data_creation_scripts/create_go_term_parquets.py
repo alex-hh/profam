@@ -112,12 +112,10 @@ def create_and_save_go_documents(
                 if seq is None:
                     f.write(f"{acc}\n")
                     fail_counter += 1
-                    logging.debug(f"Failed to retrieve sequence for accession: {acc}")
                 else:
                     success_accs.append(acc)
                     sequences.append(seq)
                     success_counter += 1
-                    logging.debug(f"Successfully retrieved sequence for accession: {acc}")
             
             current_documents.append({
                 'fam_id': go_term,
