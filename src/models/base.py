@@ -451,7 +451,7 @@ class BaseFamilyLitModule(BaseLitModule):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
             # fmt: off
             this_input_ids = completion_ids[
-                :, batch_start : batch_start + batch_size
+                :, batch_start: batch_start + batch_size
             ].reshape(-1, L)  # b_mut, L
             # fmt: on
             # remove unnecessary padding:
@@ -481,6 +481,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 -100,
                 this_input_ids.clone(),
             )
+            # start_ix is 0 as this is likelihood for first AA (pos 1)
             log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
 
             all_lls.append(log_likelihood.mean(-1))  # b_mut
@@ -503,7 +504,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 "Mutant batch size > 1 not yet supported for mutant scoring"
             )
         all_lls = []
-        completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
+        likelihood_start_ix = input_ids.shape[1]
         for completion_ix in tqdm.tqdm(
             range(completion_ids.shape[1]), disable=not verbose
         ):
@@ -511,6 +512,9 @@ class BaseFamilyLitModule(BaseLitModule):
                 [input_ids, completion_ids[:, completion_ix]],
                 dim=1,
             )
+            # remove unnecessary padding:
+            this_input_ids = self.trim_eval_batch(this_input_ids)
+            L_mini_batch = this_input_ids.shape[-1]  # beware: includes prompt too
             forward_kwargs = {}
             # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
             labels = torch.where(
@@ -519,19 +523,18 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids.clone(),
             )
             assert (
-                this_input_ids[..., completion_start_pos - 1]
-                == self.tokenizer.sep_token_id
-            )  # SEP token
+                this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
+            )  # SEP token which signals end of last prompt seq
             if self.use_seq_pos:
                 this_seq_pos = torch.cat(
                     [seq_pos, completion_seq_pos[:, completion_ix]],
                     dim=1,
-                )
+                )[..., :L_mini_batch]
                 forward_kwargs["seq_pos"] = this_seq_pos
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
-            # TODO: maybe relabel start_ix - a bit confusing
+            # remember likelihood at n predicts position n+1
             log_likelihood = log_likelihood_from_outputs(
-                outputs, labels, start_ix=completion_start_pos - 1
+                outputs, labels, start_ix=likelihood_start_ix
             )  # 1, L
 
             all_lls.append(log_likelihood.mean(-1).item())
