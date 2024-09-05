@@ -8,7 +8,6 @@ from PIL import Image
 from io import BytesIO
 import sys
 
-# Add this line near the top of the file, after the imports
 csv.field_size_limit(sys.maxsize)
 
 INPUT_FILE = "data/GO_MF/mf_to_uniprot_100k_mapping.tsv.gz"
