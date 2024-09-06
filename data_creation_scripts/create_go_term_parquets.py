@@ -177,25 +177,39 @@ def create_lmdb_from_pickle(pickle_path, lmdb_path, map_size=1099511627776):  # 
     logging.info(f"Creating LMDB at {lmdb_path} from {pickle_path}")
     env = lmdb.open(lmdb_path, map_size=map_size)
     
-    with open(pickle_path, 'rb') as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as m:
-        offset = 0
-        count = 0
-        while offset < len(m):
+    count = 0
+    with open(pickle_path, 'rb') as f:
+        while True:
             try:
-                obj = pickle.loads(m[offset:])
                 with env.begin(write=True) as txn:
-                    for key, value in obj.items():
-                        txn.put(key.encode(), value.encode())
-                        count += 1
-                        if count % 100000 == 0:
-                            logging.info(f"Processed {count} entries")
-                offset = m.tell()
+                    for _ in range(100000):  # Process in batches of 100,000
+                        try:
+                            obj = pickle.load(f)
+                            for key, value in obj.items():
+                                txn.put(key.encode(), value.encode())
+                                count += 1
+                        except EOFError:
+                            break  # End of file reached
+                    
+                logging.info(f"Processed {count} entries")
+                
+                if f.tell() == os.fstat(f.fileno()).st_size:
+                    break  # End of file reached
+                
             except Exception as e:
-                logging.error(f"Error at offset {offset}: {str(e)}")
-                offset += 1
+                logging.error(f"Error processing pickle file: {str(e)}")
+                break
     
     env.close()
     logging.info(f"Finished creating LMDB. Total entries: {count}")
+
+    # Verify the LMDB content
+    env = lmdb.open(lmdb_path, readonly=True)
+    with env.begin() as txn:
+        cursor = txn.cursor()
+        sample_keys = [key.decode() for key, _ in cursor.iternext(keys=True, values=False)][:5]
+    env.close()
+    logging.info(f"Sample keys from created LMDB: {sample_keys}")
 
 def main(go_tsv_path: str, save_dir: str):
     t0 = time.time()
