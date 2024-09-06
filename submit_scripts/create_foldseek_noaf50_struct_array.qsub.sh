@@ -24,7 +24,7 @@ if [ ! -f $output_file ]; then
     echo "Output file not found: $output_file"
     source ~/source_files/afenv.source
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
-    python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data  --skip_af50 --minimum_foldseek_cluster_size 10 --parquet_ids $file_prefix --run_foldmason
+    python3 data_creation_scripts/foldseek/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data  --skip_af50 --minimum_foldseek_cluster_size 10 --parquet_ids $file_prefix --run_foldmason
     # TODO: zip the scratch dir?, remove scratch dir
     rm -rf ${SCRATCH_DIR}/data
     date

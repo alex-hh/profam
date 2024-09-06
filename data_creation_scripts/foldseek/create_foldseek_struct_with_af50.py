@@ -136,7 +136,9 @@ def make_job_list(
     if not skip_af50:
         af50_path = af50_path or "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
         if not check_accessions:
-            af50_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "af50_cluster_dict.pkl")
+            af50_dict_path = os.path.join(
+                "/SAN/orengolab/cath_plm/ProFam/data/afdb", "af50_cluster_dict.pkl"
+            )
             if os.path.isfile(af50_dict_path):
                 print("loading af50 dictionary")
                 with open(af50_dict_path, "rb") as f:
