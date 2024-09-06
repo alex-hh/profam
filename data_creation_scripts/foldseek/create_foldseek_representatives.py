@@ -35,7 +35,7 @@ def get_af50_representatives(af50_path):
     representatives = []
     with open(af50_path, "r") as f:
         lines = f.readlines()
-        
+
     for line in lines:
         line = line.strip().split("\t")
         rep_id = line[0]
@@ -52,6 +52,7 @@ def get_foldseek_representatives(cluster_path):
     representatives = []
     with open(cluster_path, "r") as f:
         lines = f.readlines()
+
     for line in lines:
         line = line.strip().split("\t")
         rep_id = line[1]
@@ -68,6 +69,11 @@ def get_cluster_ids(cluster_path, use_af50_representatives=False):
         return get_af50_representatives(cluster_path)
     else:
         return get_foldseek_representatives(cluster_path)
+
+
+def get_cluster_ids_from_pickled_dict(pickle_path):
+    with open(pickle_path, "rb") as f:
+        return sorted(list(pickle.load(f).keys()))
 
 
 def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id):
@@ -113,15 +119,19 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id):
 def create_foldseek_parquets(
     save_dir,
     scratch_dir,
-    cluster_path,
     use_af50_representatives=False,
     parquet_ids=None,
     num_processes=None,
 ):
-    af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
-    cluster_path = af50_path if use_af50_representatives else cluster_path
-    # TODO: get ids by loading appropriate dictionary and listing keys...
-    all_cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
+    # af50_path = os.path.join(scratch_dir, "5-allmembers-repId-entryId-cluFlag-taxId.tsv")
+    # cluster_path = af50_path if use_af50_representatives else cluster_path
+    # # TODO: get ids by loading appropriate dictionary and listing keys...
+    # all_cluster_ids = get_cluster_ids(cluster_path, use_af50_representatives=use_af50_representatives)
+    t0 = time.time()
+    if use_af50_representatives:
+        all_cluster_ids = get_cluster_ids_from_pickled_dict("/SAN/orengolab/cath_plm/ProFam/data/afdb/af50_cluster_dict.pkl")
+    else:
+        all_cluster_ids = get_cluster_ids_from_pickled_dict("/SAN/orengolab/cath_plm/ProFam/data/afdb/foldseek_cluster_dict.pkl")
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     rng = np.random.default_rng(seed=42)
@@ -163,6 +173,7 @@ def create_foldseek_parquets(
     print("Building lookup", flush=True)
 
     t1 = time.time()
+    print("Preprocessing (dictionary building) time:", t1 - t0, flush=True)
     for ix, cluster_id in enumerate(cluster_ids_to_save):
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids_to_save)}", flush=True)
@@ -199,7 +210,6 @@ def create_foldseek_parquets(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("cluster_path", type=str, help="Path to the cluster file")
     parser.add_argument("scratch_dir")
     parser.add_argument("--af50", action="store_true")
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
