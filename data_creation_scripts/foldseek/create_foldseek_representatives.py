@@ -34,14 +34,16 @@ from src.data.pdb import get_atom_coords_residuewise, load_structure
 def get_af50_representatives(af50_path):
     representatives = []
     with open(af50_path, "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            rep_id = line[0]
-            # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
-            clu_flag = int(line[2])  # 1
+        lines = f.readlines()
+        
+    for line in lines:
+        line = line.strip().split("\t")
+        rep_id = line[0]
+        # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
+        clu_flag = int(line[2])  # 1
 
-            if (clu_flag == 1 or clu_flag == 2) and rep_id not in representatives:
-                representatives.append(rep_id)
+        if (clu_flag == 1 or clu_flag == 2) and rep_id not in representatives:
+            representatives.append(rep_id)
     return representatives
 
 
@@ -49,14 +51,15 @@ def get_foldseek_representatives(cluster_path):
     line_counter = 0
     representatives = []
     with open(cluster_path, "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            rep_id = line[1]
-            if rep_id not in representatives:
-                representatives.append(rep_id)
-            line_counter += 1
-            if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for cluster dictionary", flush=True)
+        lines = f.readlines()
+    for line in lines:
+        line = line.strip().split("\t")
+        rep_id = line[1]
+        if rep_id not in representatives:
+            representatives.append(rep_id)
+        line_counter += 1
+        if line_counter % 100000 == 0:
+            print("Processed", line_counter, "lines for cluster dictionary", flush=True)
     return representatives
 
 

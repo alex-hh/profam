@@ -12,23 +12,24 @@ def make_af50_dictionary(af50_path, clusters_to_include=None):
     line_counter = 0
     af50_dict = {}
     with open(af50_path, "r") as f:
-        for line in f:
-            try:
-                line = line.strip().split("\t")
-                rep_id = line[0]
-                entry_id = line[1]
-                # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
-                clu_flag = int(line[2])  # 1
-                # n.b. the 2s are duplicates of the other cluster dict
-                # n.b. we don't include the representative in its own cluster atm
-                if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
-                    if rep_id not in af50_dict:
-                        af50_dict[rep_id] = []
-                    af50_dict[rep_id].append(entry_id)
-                line_counter += 1
-            except Exception as e:
-                print("Error processing line", line, flush=True)
-                raise e
+        lines = f.readlines()
+    for line in lines:
+        try:
+            line = line.strip().split("\t")
+            rep_id = line[0]
+            entry_id = line[1]
+            # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
+            clu_flag = int(line[2])  # 1
+            # n.b. the 2s are duplicates of the other cluster dict
+            # n.b. we don't include the representative in its own cluster atm
+            if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
+                if rep_id not in af50_dict:
+                    af50_dict[rep_id] = []
+                af50_dict[rep_id].append(entry_id)
+            line_counter += 1
+        except Exception as e:
+            print("Error processing line", line, flush=True)
+            raise e
     return af50_dict
 
 
@@ -55,19 +56,20 @@ def make_zip_dictionary(zip_index, accessions_to_include=None):
     af2zip = {}
     # TODO: finish early if we get all the accessions.
     with open(zip_index, "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            afdb_id = line[0]
-            uniprot_id = afdb_id.split("-")[1]
-            # todo just make this an if statement
-            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4", f"AFDB ID mismatch: {afdb_id} {uniprot_id}"
-            zip_file = line[2]
-            if accessions_to_include is None or uniprot_id in accessions_to_include:
-                af2zip[uniprot_id] = zip_file
+        lines = f.readlines()
+    for line in lines:
+        line = line.strip().split("\t")
+        afdb_id = line[0]
+        uniprot_id = afdb_id.split("-")[1]
+        # todo just make this an if statement
+        assert afdb_id == f"AF-{uniprot_id}-F1-model_v4", f"AFDB ID mismatch: {afdb_id} {uniprot_id}"
+        zip_file = line[2]
+        if accessions_to_include is None or uniprot_id in accessions_to_include:
+            af2zip[uniprot_id] = zip_file
 
-            line_counter += 1
-            if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for zip file dictionary", flush=True)
+        line_counter += 1
+        if line_counter % 100000 == 0:
+            print("Processed", line_counter, "lines for zip file dictionary", flush=True)
     return af2zip
 
 
@@ -87,16 +89,17 @@ def make_cluster_dictionary(cluster_path):
     line_counter = 0
     cluster_dict = {}
     with open(cluster_path, "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            entry_id = line[0]
-            rep_id = line[1]
-            if rep_id not in cluster_dict:
-                cluster_dict[rep_id] = []
-            cluster_dict[rep_id].append(entry_id)
-            line_counter += 1
-            if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for cluster dictionary", flush=True)
+        lines = f.readlines()
+    for line in lines:
+        line = line.strip().split("\t")
+        entry_id = line[0]
+        rep_id = line[1]
+        if rep_id not in cluster_dict:
+            cluster_dict[rep_id] = []
+        cluster_dict[rep_id].append(entry_id)
+        line_counter += 1
+        if line_counter % 100000 == 0:
+            print("Processed", line_counter, "lines for cluster dictionary", flush=True)
     return cluster_dict
 
 
