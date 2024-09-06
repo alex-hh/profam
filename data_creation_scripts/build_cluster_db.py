@@ -3,6 +3,8 @@ Create foldseek database.
 We'll probably still load cluster_dict into memory. But the db will allow us to directly load all zipfiles / ids for a cluster.
 """
 import argparse
+import pickle
+import os
 import time
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy import create_engine, Column, String
@@ -78,17 +80,27 @@ def make_cluster_dictionary(cluster_path):
                 print("Processed", line_counter, "lines for cluster dictionary")
     return cluster_dict
 
-def add_entries(entries, session, existing_uniprot_ids):
+
+def add_entries(entries, session, existing_uniprot_ids = None):
     try:
         for entry in entries:
             session.add(entry)
         session.commit()
     except:
         session.rollback()
-        unique_entries = [entry for entry in entries if entry.uniprot_id not in existing_uniprot_ids]
-        for entry in unique_entries:
-            session.add(entry)
-        session.commit()
+        if existing_uniprot_ids is not None:
+            unique_entries = [entry for entry in entries if entry.uniprot_id not in existing_uniprot_ids]
+            for entry in unique_entries:
+                session.add(entry)
+            session.commit()
+        else:
+            for entry in entries:
+                try:
+                    session.add(entry)
+                    session.commit()
+                except:
+                    print("Error adding entry", entry, flush=True)
+                    pass
 
 
 def make_cluster_db(
@@ -102,19 +114,26 @@ def make_cluster_db(
     Session = sessionmaker(bind=engine)
     session = Session()
     # Query the table
-    existing_uniprot_ids = set()
-    for entry in session.query(Protein).yield_per(1000):
-        existing_uniprot_ids.add(entry.uniprot_id)
+    # existing_uniprot_ids = set()
+    # for entry in session.query(Protein).yield_per(100000):
+    #     existing_uniprot_ids.add(entry.uniprot_id)
 
     # Print the entries
-    print(f"Current entries in the database: {len(existing_uniprot_ids)}")
+    # print(f"Current entries in the database: {len(existing_uniprot_ids)}")
     print("Creating foldseek dataset", flush=True)
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     cluster_ids = sorted(list(cluster_dict.keys()))
     print("Number of clusters:", len(cluster_dict))
-    # TODO: save these?
-    af2zip = make_zip_dictionary()
-    af50_dict = make_af50_dictionary()
+    
+    zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "zip_index_dict.pkl")
+    print("loading precomputed zip index")
+    with open(zip_dict_path, "rb") as f:
+        af2zip = pickle.load(f)
+
+    af50_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "af50_cluster_dict.pkl")
+    print("loading af50 dictionary")
+    with open(af50_dict_path, "rb") as f:
+        af50_dict = pickle.load(f)
 
     t1 = time.time()
     # TODO: track failures.
@@ -182,7 +201,7 @@ def make_cluster_db(
 
         if ix % 1000 == 0:
             print(f"Processed {ix} clusters", flush=True)
-            add_entries(entries, session, existing_uniprot_ids)
+            add_entries(entries, session)
             entries = []
             existing_uniprot_ids = existing_uniprot_ids.union(set([entry.uniprot_id for entry in entries]))
 
