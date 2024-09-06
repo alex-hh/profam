@@ -124,7 +124,7 @@ def make_cluster_db(
     cluster_dict = make_cluster_dictionary("/SAN/orengolab/cath_plm/ProFam/data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     cluster_ids = sorted(list(cluster_dict.keys()))
     print("Number of clusters:", len(cluster_dict))
-    
+
     zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "zip_index_dict.pkl")
     print("loading precomputed zip index")
     with open(zip_dict_path, "rb") as f:

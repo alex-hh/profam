@@ -11,29 +11,10 @@ import argparse
 import pickle
 import numpy as np
 import os
-import re
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-
-
-def make_sequence_dictionary(fasta_path):
-    """Should be <80 GB memory required to load all sequences;
-    considerably lower for just cluster representatives.
-
-    To handle larger files, we could partition the cluster dict
-    (or e.g. first process representatives then process the rest.)
-    """
-    sequence_dict = {}
-    with open(fasta_path, "r") as f:
-        for line in f:
-            if line.startswith(">"):
-                # TODO: check this
-                uniprot_acc = re.search("UA=(\w+)", line).group(1)
-                sequence = next(f).strip()
-                sequence_dict[uniprot_acc] = sequence
-    print("Number of sequences in dictionary:", len(sequence_dict))
-    return sequence_dict
+from .utils import make_cluster_dictionary, make_af50_dictionary, make_sequence_dictionary
 
 
 def make_cluster_dictionary(cluster_path):

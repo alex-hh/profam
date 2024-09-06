@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import pickle
 
+from .utils import make_cluster_dictionary
+
 
 AFDB_DATA_PATH = "/SAN/orengolab/cath_plm/ProFam/data/afdb/"
 
@@ -22,23 +24,6 @@ def load_parquet_index(index_file_path):
     print(index_df.head(), flush=True)
     cluster_to_parquet = index_df["parquet_file"].to_dict()
     return cluster_to_parquet
-
-
-def make_cluster_dictionary(cluster_path):
-    line_counter = 0
-    cluster_dict = {}
-    with open(cluster_path, "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            entry_id = line[0]
-            rep_id = line[1]
-            if rep_id not in cluster_dict:
-                cluster_dict[rep_id] = []
-            cluster_dict[rep_id].append(entry_id)
-            line_counter += 1
-            if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for cluster dictionary", flush=True)
-    return cluster_dict
 
 
 def load_all_vs_all(all_vs_all_path):

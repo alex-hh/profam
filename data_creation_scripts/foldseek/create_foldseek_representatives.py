@@ -26,8 +26,8 @@ import os
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-import zipfile
 import os
+from .utils import make_zip_dictionary, extract_pdbs_from_zips
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 
 
@@ -43,56 +43,6 @@ def get_af50_representatives(af50_path):
             if (clu_flag == 1 or clu_flag == 2) and rep_id not in representatives:
                 representatives.append(rep_id)
     return representatives
-
-
-def make_zip_dictionary(zip_index, accessions_to_include=None):
-    line_counter = 0
-    af2zip = {}
-    # TODO: finish early if we get all the accessions.
-    with open(zip_index, "r") as f:
-        for line in f:
-            line = line.strip().split("\t")
-            afdb_id = line[0]
-            uniprot_id = afdb_id.split("-")[1]
-            assert afdb_id == f"AF-{uniprot_id}-F1-model_v4"
-            zip_file = line[2]
-            if accessions_to_include is None or uniprot_id in accessions_to_include:
-                af2zip[uniprot_id] = zip_file
-
-            line_counter += 1
-            if line_counter % 100000 == 0:
-                print("Processed", line_counter, "lines for zip file dictionary", flush=True)
-    return af2zip
-
-
-def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
-    # Extract the specified PDB files
-    zip_filepath = os.path.join("/SAN/bioinf/afdb_domain/zipfiles", zip_filename+".zip")
-    successes = []
-    try:
-        with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
-            names = zip_ref.namelist()
-            for afdb_id in afdb_ids:
-                if afdb_id + ".pdb" in names:
-                    # TODO: print worker...
-                    assert (
-                        not os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb"))
-                    ), (
-                        f"{afdb_id} already exists in {output_folder} {afdb_id}, {zip_filename}, {afdb_ids}"
-                    )
-                    zip_ref.extract(afdb_id + ".pdb", output_folder)
-                    print(
-                        f"Extracted {afdb_id} from {zip_filename} to {output_folder}",
-                        os.path.isfile(os.path.join(output_folder, afdb_id + ".pdb"))
-                    )
-                    successes.append(True)
-                else:
-                    print(f"{afdb_id} not found in {zip_filename}", flush=True)
-                    successes.append(False)
-    except Exception as e:
-        print(f"Error extracting {zip_filename} {afdb_ids} {e}", flush=True)
-        successes = [False] * len(afdb_ids)
-    return successes
 
 
 def get_foldseek_representatives(cluster_path):
@@ -155,54 +105,6 @@ def save_pdbs_to_parquet(save_dir, scratch_dir, clusters_to_save, parquet_id):
     pq.write_table(table, output_file)
     print(f"Saved {clusters_to_save} clusters to {output_file}")
     return output_file
-
-
-def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
-    # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
-    print("Extracting pdbs", zip_filename, afdb_ids, "cluster index", zip_index, flush=True)
-    t0 = time.time()
-    successes = extract_multi_pdb_files(
-         afdb_ids, zip_filename, save_dir,
-    )
-    t1 = time.time()
-    print("Extracted", len(afdb_ids), "pdbs in", t1 - t0, "seconds", zip_filename, flush=True)
-    return sum(successes), len(successes) - sum(successes)
-
-
-def extract_pdbs_from_zips(pdb_lookup, output_dir, num_processes):
-    seq_fail_counter = 0
-    seq_success_counter = 0
-    # Parallel extraction of pdb files
-    t0 = time.time()
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    if num_processes is None:
-        for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
-            print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
-            success_count, fail_count = extract_pdbs(zip_filename, afdb_ids, output_dir, zip_index)
-            seq_success_counter += success_count
-            seq_fail_counter += fail_count
-    else:
-        with multiprocessing.Pool(processes=num_processes) as pool:
-            results = []
-            for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
-                print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
-                result = pool.apply_async(
-                    extract_pdbs,
-                    args=(zip_filename, afdb_ids, output_dir, zip_index)
-                )
-                results.append(result)
-
-            for result in results:
-                success_count, fail_count = result.get()
-                seq_success_counter += success_count
-                seq_fail_counter += fail_count
-
-        print("Number of failed sequences:", seq_fail_counter)
-        print("Number of successful sequences:", seq_success_counter, flush=True)
-    t1 = time.time()
-    print("Extracted all pdbs in", t1 - t0, "seconds", flush=True)
 
 
 def create_foldseek_parquets(
