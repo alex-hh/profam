@@ -190,9 +190,8 @@ def load_protein_dataset(
             cfg.identifier_col is not None
         ), "Need identifier column for identifier holdout"
 
-    def filter_example(example):
-        filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
-        if cfg.interleave_structure_sequence:
+    def prefilter_example(example):
+        if getattr(cfg.preprocessor, "interleave_structure_sequence", False):
             filter_length = (
                 max([len(s) for s in example["sequences"]])
                 <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
@@ -202,12 +201,16 @@ def load_protein_dataset(
                 max([len(s) for s in example["sequences"]])
                 <= max_tokens - tokenizer.num_start_tokens - 1
             )
+        return filter_length
+
+    def filter_example(example):
+        filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
         # TODO: we need to be very careful with this!
         filter_identifier = (
             cfg.holdout_identifiers is None
             or example["identifier"] not in cfg.holdout_identifiers
         )
-        return filter_num_seqs and filter_identifier and filter_length
+        return filter_num_seqs and filter_identifier
 
     def wrapped_preprocess(example):
         if cfg.identifier_col is not None:
@@ -223,6 +226,7 @@ def load_protein_dataset(
         if "coords" in example:
             # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
             example["coords"] = example["coords"].tolist()
+            example["coords_mask"] = example["coords_mask"].tolist()
 
         example["ds_name"] = cfg.name
         # TODO: get identifier for fasta files...
@@ -239,11 +243,15 @@ def load_protein_dataset(
             ]  # shouldnt be necessary but is for plddts - bug?
         else:
             remove_columns = None
-        dataset = dataset.map(
-            wrapped_preprocess,
-            batched=False,
-            remove_columns=remove_columns,
-        ).filter(filter_example)
+        dataset = (
+            dataset.filter(prefilter_example)
+            .map(
+                wrapped_preprocess,
+                batched=False,
+                remove_columns=remove_columns,
+            )
+            .filter(filter_example)
+        )
         # n.b. coords is returned as a list...
 
     return dataset

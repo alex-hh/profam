@@ -98,7 +98,7 @@ def rotate_backbones(proteins: ProteinDocument, **kwargs):
         # apply a separate random rotation to each protein
         # TODO: handle nans.
         assert coords.ndim == 3  # l, 4, 3
-        rotation = R.random().as_matrix()
+        rotation = R.random()
         flat_coords = coords.reshape(-1, 3)
         flat_nan_mask = np.isnan(flat_coords).any(axis=1)
         flat_coords[~flat_nan_mask] = rotation.apply(flat_coords[~flat_nan_mask])
@@ -144,7 +144,6 @@ def fill_missing_fields(proteins: ProteinDocument):
 def interleave_structure_sequence(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
-    max_tokens: int,
     structure_first_prob: float = 1.0,
 ):
     """Automatically reduces the number of proteinss to fit within max_tokens."""
@@ -165,7 +164,9 @@ def interleave_structure_sequence(
         proteins.positions,
     ):
         # TODO: monitor max_tokens
-        assert len(seq) == len(seq_3d) == len(xyz) == len(plddts)
+        assert (
+            len(seq) == len(xyz) == len(plddts)
+        )  # n.b. special tokens can screw this up
         assert isinstance(positions, list)
         if coin_flip < structure_first_prob:
             interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token + seq)
@@ -200,9 +201,10 @@ def interleave_structure_sequence(
                 )
             )
 
-        total_tokens += len(seq) + len(seq_3d) + 2  # +1 for each separator
+        assert not "[" in seq
+        total_tokens += len(seq) * 2 + 2  # +1 for each separator
 
-        if total_tokens > max_tokens:
+        if total_tokens > tokenizer.max_tokens:
             interleaved_sequences = interleaved_sequences[:-1]
             interleaved_positions = interleaved_positions[:-1]
             interleaved_plddts = interleaved_plddts[:-1]
@@ -210,7 +212,7 @@ def interleave_structure_sequence(
             interleaved_coords_masks = interleaved_coords_masks[:-1]
             assert (
                 len(interleaved_sequences) > 0
-            ), "Cannot fit any sequences in max_tokens"
+            ), f"Cannot fit any sequences in max_tokens {len(total_tokens)}"
             break
 
     return proteins.clone(

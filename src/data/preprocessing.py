@@ -1,3 +1,4 @@
+import functools
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -51,10 +52,20 @@ class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
 @dataclass
 class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
-    structure_tokens_col: str = "structure_tokens"
+    structure_tokens_col: Optional[str] = "structure_tokens"
+    interleave_structure_sequence: bool = False
+    structure_first_prob: float = 1.0
 
     def __post_init__(self):
         self.preprocessor = "parquet_structure_tokens"
+        if self.interleave_structure_sequence:
+            self.transforms = self.transforms or []
+            self.transforms.append(
+                functools.partial(
+                    transforms.interleave_structure_sequence,
+                    structure_first_prob=self.structure_first_prob,
+                )
+            )
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -238,9 +249,9 @@ def preprocess_parquet_with_structure_tokens(
         # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
         structure_tokens = None
     if "N" in example and not cfg.keep_gaps:
-        assert not any(["-" in seq for seq in sequences]) and not any(
-            ["-" in seq for seq in structure_tokens]
-        )
+        assert not any(["-" in seq for seq in sequences])
+        if structure_tokens is not None:
+            assert not any(["-" in seq for seq in structure_tokens])
         coords = backbone_coords_from_example(example, sequence_col=cfg.sequence_col)
         coords = [coords[i] for i in sequence_ids]
         plddts = example["plddts"]

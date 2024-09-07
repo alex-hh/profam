@@ -229,11 +229,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 )
             )
             assert (
-                proteins.backbone_coords_masks.shape == proteins.backbone_coords.shape
-            )
-            assert (
                 tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
+            assert tokenized.data["coords_mask"].shape == tokenized.data["coords"].shape
 
         tokenized.data["aa_mask"] = torch.isin(
             tokenized.input_ids, torch.tensor(self.aa_tokens)

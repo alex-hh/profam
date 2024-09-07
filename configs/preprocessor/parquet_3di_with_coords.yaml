@@ -6,6 +6,7 @@ document_token: "[RAW]"
 structure_tokens_col: "msta_3di"
 truncate_after_n_sequences: null
 use_msa_pos: true
+interleave_structure_sequence: false
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
 transforms:

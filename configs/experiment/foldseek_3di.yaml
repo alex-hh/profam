@@ -10,7 +10,7 @@ defaults:
   - override /data: foldseek
   - override /model: llama_small
 
-tags: ["pfam"]
+tags: ["foldseek_3di"]
 
 seed: 12345
 

@@ -5,21 +5,22 @@
 # python train.py experiment=foldseek_small
 
 defaults:
-  - /extra_callbacks@extra_callbacks.esmfold: esmfold
+  # TODO: write an inverse folding evaluator
+  # - /extra_callbacks@extra_callbacks.esmfold: esmfold
   # preprocessor here determines prompt_builder
-  - override /preprocessor@extra_callbacks.esmfold.preprocessor: parquet_3di_with_interleaved_coords
+  # - override /preprocessor@extra_callbacks.esmfold.preprocessor: parquet_3di_with_interleaved_coords
   - override /callbacks: default_with_shuffle
   - override /data: foldseek_representatives_interleaved
   - override /model: llama_small
 
-tags: ["pfam"]
+tags: ["foldseek_if"]
 
 seed: 12345
 
-extra_callbacks:
-  esmfold:
-    pipeline:
-      evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
+# extra_callbacks:
+#   esmfold:
+#     pipeline:
+#       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
 
 trainer:
   min_epochs: 10
