@@ -2,7 +2,7 @@ defaults:
   - /preprocessor: parquet_3di_with_coords
 _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
 name: foldseek_with_3di
-data_path_pattern: foldseek_struct/*.parquet
+data_path_pattern: foldseek_representatives/*.parquet
 holdout_data_files: null
 holdout_identifiers: null
 identifier_col: cluster_id

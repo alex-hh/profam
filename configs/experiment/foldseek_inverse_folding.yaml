@@ -46,6 +46,9 @@ logger:
     tags: ${tags}
     group: "foldseek"
 
+tokenizer:
+  mask_below_plddt: 80
+
 float32_matmul_precision: high
 pre_evaluate_gym: false  # use to run evaluation first to check for issues
 pre_evaluate_ec_class: false
