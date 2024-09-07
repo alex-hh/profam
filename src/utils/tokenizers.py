@@ -216,6 +216,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     pad_to_length=tokenized.input_ids.shape[-1],
                 )
             )
+            tokenized.data["coords_mask"] = torch.from_numpy(
+                concatenate_pad_array(
+                    proteins.backbone_coords_masks,
+                    fill_value=0,
+                    num_start_tokens=self.num_start_tokens,
+                    num_end_tokens=num_end_tokens,
+                    pad_to_length=max_length if padding == "max_length" else None,
+                )
+            )
             assert (
                 proteins.backbone_coords_masks.shape == proteins.backbone_coords.shape
             )
