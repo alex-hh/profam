@@ -19,6 +19,7 @@ import shutil
 from collections import defaultdict
 import multiprocessing
 import tempfile
+import tqdm
 import multiprocessing.managers as mpm
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
@@ -26,7 +27,8 @@ import time
 import os
 from distributed import Client
 import modin.config as modin_config
-from modin import pandas as pd
+import pandas as pd
+from modin import pandas as mpd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import os
@@ -125,7 +127,7 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
 
 def load_db(parquet_index=None):
     if parquet_index is None:
-        df = pd.read_csv_glob(os.path.join(PROFAM_DATA_DIR, "afdb/foldseek_job_files/job*.csv"))
+        df = mpd.read_csv_glob(os.path.join(PROFAM_DATA_DIR, "afdb/foldseek_job_files/job*.csv"))
     else:
         df = pd.read_csv(os.path.join(PROFAM_DATA_DIR, f"afdb/foldseek_job_files/job_{parquet_index}.csv"))
     return df
@@ -137,20 +139,24 @@ def make_job_list_for_parquet(
     skip_af50=False,
     cluster_col="cluster_id",
     minimum_foldseek_cluster_size=1,
+    show_tqdm=False,
 ):
     cluster_ids = db[cluster_col].unique()
     t0 = time.time()
     cluster_counter = 0
 
-    cluster_membership = defaultdict(list)  # TODO: make this a single dictionary by combining the records from the two files.
+    cluster_membership = defaultdict(list)
     metadata_lookup = dict()
 
     print("Building lookup", flush=True)
 
-    for ix, cluster_id in enumerate(cluster_ids):
-        if ix % 500 == 0:
+    for ix, cluster_id in tqdm.tqdm(enumerate(cluster_ids), disable=not show_tqdm):
+        if ix % 50 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
-        members = db[db[cluster_col]==cluster_id]
+        if skip_af50:
+            members = db[(db[cluster_col]==cluster_id)&(db["af50_cluster_id"]==db["accession"])]
+        else:
+            members = db[db[cluster_col]==cluster_id]
         cluster_counter += 1
         if len(members) < minimum_foldseek_cluster_size:
             continue
@@ -167,25 +173,10 @@ def make_job_list_for_parquet(
             }
             cluster_membership[cluster_id].append(afdb_id)
 
-            if not skip_af50:  # this is the af50 representative
-                af50_members = db[db["af50_cluster_id"] == member]
-                for af50_member, af50_entry in af50_members.iterrows():
-                    if af50_member != member:
-                        afdb_id = f"AF-{af50_member}-F1-model_v4"
-                        if af50_entry["zip_filename"] not in pdb_lookup:
-                            pdb_lookup[af50_entry["zip_filename"]] = []
-                        pdb_lookup[af50_entry["zip_filename"]].append(afdb_id)
-                        cluster_membership[cluster_id].append(afdb_id)
-                        metadata_lookup[afdb_id] = {
-                            "cluster_id": af50_entry["cluster_id"],
-                            "af50_cluster_id": member,
-                            "accession": af50_member,  # TODO check this saves correctly
-                        }
-
     t1 = time.time()
     print("Built lookups in", t1 - t0, "seconds", flush=True)
     print("Number of zip files: ", len(pdb_lookup), flush=True)
-    return pdb_lookup, metadata_lookup, cluster_membership
+    return metadata_lookup, cluster_membership
 
 
 def create_foldseek_parquets(
@@ -197,18 +188,15 @@ def create_foldseek_parquets(
     num_processes=None,
     representative_only=False,
     af50_representative_only=False,
+    show_tqdm=False,
 ):
-    temp_dir = os.path.join(scratch_dir, "temp")
-    os.makedirs(temp_dir, exist_ok=True)
-    temp_dir = tempfile.mkdtemp(dir=temp_dir)
-    mpm.Server.tempdir = temp_dir
-    client = Client(n_workers=num_processes or 1, threads_per_worker=1)
-    modin_config.Engine.put("dask") # # Modin will use Dask engine
-    modin_config.CpuCount.put(num_processes or 1)
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
     if parquet_ids is None:
-        # 2302908 clusterss
+        # 2302908 clusters
+        client = Client(n_workers=num_processes or 1, threads_per_worker=1)
+        modin_config.Engine.put("dask") # # Modin will use Dask engine
+        modin_config.CpuCount.put(num_processes or 1)
         db = load_db().set_index("accession")
         parquet_ids = list(range(len(db["parquet_index"].unique())))
     else:
@@ -235,12 +223,14 @@ def create_foldseek_parquets(
     metadata_lookups = []
     cluster_memberships = []
     for parquet_id in parquet_ids:
+        print("Making job list for parquet", parquet_id, flush=True)
         parquet_metadata_lookup, parquet_cluster_membership = make_job_list_for_parquet(
             db[db["parquet_index"] == parquet_id],
             pdb_lookup=pdb_lookup,
             skip_af50=skip_af50,
             minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
             cluster_col=cluster_col,
+            show_tqdm=show_tqdm,
         )
         metadata_lookups.append(parquet_metadata_lookup)
         cluster_memberships.append(parquet_cluster_membership)
@@ -256,6 +246,7 @@ def create_foldseek_parquets(
     )
 
     for ix, parquet_id in enumerate(parquet_ids):
+        print("Saving pdbs for parquet", parquet_id, flush=True)
         parquet_cluster_membership = cluster_memberships[ix]
         parquet_metadata_lookup = metadata_lookups[ix]
         save_pdbs_to_parquet(
@@ -271,6 +262,7 @@ def create_foldseek_parquets(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("scratch_dir")
+    parser.add_argument("--show_tqdm", action="store_true")
     parser.add_argument("--minimum_foldseek_cluster_size", type=int, default=1)
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
@@ -303,4 +295,5 @@ if __name__ == "__main__":
         parquet_ids=args.parquet_ids,
         skip_af50=args.skip_af50,
         num_processes=args.num_processes,
+        show_tqdm=args.show_tqdm,
     )
