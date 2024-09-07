@@ -18,10 +18,14 @@ import argparse
 import shutil
 from collections import defaultdict
 import multiprocessing
+import tempfile
+import multiprocessing.managers as mpm
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
 import time
 import os
+from distributed import Client
+import modin.config as modin_config
 from modin import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -166,16 +170,17 @@ def make_job_list_for_parquet(
             if not skip_af50:  # this is the af50 representative
                 af50_members = db[db["af50_cluster_id"] == member]
                 for af50_member, af50_entry in af50_members.iterrows():
-                    print(f"Processing af50 member {af50_member}", af50_entry, flush=True)
-                    assert af50_member != member
-                    afdb_id = f"AF-{af50_member}-F1-model_v4"
-                    pdb_lookup[af50_entry["zip_filename"]].append(afdb_id)
-                    cluster_membership[cluster_id].append(afdb_id)
-                    metadata_lookup[afdb_id] = {
-                        "cluster_id": af50_entry["cluster_id"],
-                        "af50_cluster_id": member,
-                        "accession": af50_member,  # TODO check this saves correctly
-                    }
+                    if af50_member != member:
+                        afdb_id = f"AF-{af50_member}-F1-model_v4"
+                        if af50_entry["zip_filename"] not in pdb_lookup:
+                            pdb_lookup[af50_entry["zip_filename"]] = []
+                        pdb_lookup[af50_entry["zip_filename"]].append(afdb_id)
+                        cluster_membership[cluster_id].append(afdb_id)
+                        metadata_lookup[afdb_id] = {
+                            "cluster_id": af50_entry["cluster_id"],
+                            "af50_cluster_id": member,
+                            "accession": af50_member,  # TODO check this saves correctly
+                        }
 
     t1 = time.time()
     print("Built lookups in", t1 - t0, "seconds", flush=True)
@@ -193,6 +198,13 @@ def create_foldseek_parquets(
     representative_only=False,
     af50_representative_only=False,
 ):
+    temp_dir = os.path.join(scratch_dir, "temp")
+    os.makedirs(temp_dir, exist_ok=True)
+    temp_dir = tempfile.mkdtemp(dir=temp_dir)
+    mpm.Server.tempdir = temp_dir
+    client = Client(n_workers=num_processes or 1, threads_per_worker=1)
+    modin_config.Engine.put("dask") # # Modin will use Dask engine
+    modin_config.CpuCount.put(num_processes or 1)
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
     if parquet_ids is None:
@@ -212,8 +224,13 @@ def create_foldseek_parquets(
         db = db[(db["af50_cluster_id"] == db["accession"])]
         cluster_col = "af50_cluster_id"
 
-    with multiprocessing.Manager() as manager:
-        pdb_lookup = manager.dict()
+    if num_processes is None:
+        pdb_lookup = dict()
+    else:
+        # TODO: debug:
+        # 'ForkAwareLocal' object has no attribute 'connection'
+        with multiprocessing.Manager() as manager:
+            pdb_lookup = manager.dict()
 
     metadata_lookups = []
     cluster_memberships = []
