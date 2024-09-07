@@ -7,9 +7,9 @@
 defaults:
   - /extra_callbacks@extra_callbacks.esmfold: esmfold
   # preprocessor here determines prompt_builder
-  - override /preprocessor@extra_callbacks.esmfold.preprocessor: parquet_3di_with_coords_interleaved
+  - override /preprocessor@extra_callbacks.esmfold.preprocessor: parquet_3di_with_interleaved_coords
   - override /callbacks: default_with_shuffle
-  - override /data: foldseek_representatives
+  - override /data: foldseek_representatives_interleaved
   - override /model: llama_small
 
 tags: ["pfam"]
@@ -33,6 +33,7 @@ model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
   num_warmup_steps: 1000
   scoring_max_tokens: 10240
+  embed_coords: True
 
 data:
   batch_size: 5

@@ -4,7 +4,6 @@ to_upper: false
 keep_gaps: false
 document_token: "[RAW]"
 structure_tokens_col: "msta_3di"
-is_aligned: false
 truncate_after_n_sequences: null
 use_msa_pos: true
 # https://github.com/facebookresearch/hydra/issues/1939

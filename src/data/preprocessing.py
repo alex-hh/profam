@@ -210,7 +210,6 @@ def preprocess_parquet_with_structure_tokens(
     # TODO: configure whether or not to use alignments, structure tokens col, etc.
     max_sequences_to_preprocess = (max_tokens or 1e8) // 10
     sequence_iterator = example[cfg.sequence_col]
-    structure_tokens_iterator = example[cfg.structure_tokens_col]
     if shuffle:
         sequence_ids = random_subsample(
             np.arange(len(sequence_iterator)),
@@ -224,15 +223,20 @@ def preprocess_parquet_with_structure_tokens(
     # we assume sequence processing and structure token processing are consistent.
     # later we will check that everything ends up the same length - which is important
     # because otherwise incorrect config could easily lead to misalignment
-    structure_tokens = [
-        convert_sequence_with_positions(
-            structure_tokens_iterator[i],
-            keep_gaps=cfg.keep_gaps,
-            keep_insertions=cfg.keep_insertions,
-            to_upper=cfg.to_upper,
-        )[0].lower()
-        for i in sequence_ids
-    ]
+    if cfg.structure_tokens_col is not None:
+        structure_tokens_iterator = example[cfg.structure_tokens_col]
+        structure_tokens = [
+            convert_sequence_with_positions(
+                structure_tokens_iterator[i],
+                keep_gaps=cfg.keep_gaps,
+                keep_insertions=cfg.keep_insertions,
+                to_upper=cfg.to_upper,
+            )[0].lower()
+            for i in sequence_ids
+        ]
+    else:
+        # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
+        structure_tokens = None
     if "N" in example and not cfg.keep_gaps:
         assert not any(["-" in seq for seq in sequences]) and not any(
             ["-" in seq for seq in structure_tokens]
