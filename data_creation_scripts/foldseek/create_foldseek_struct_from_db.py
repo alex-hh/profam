@@ -3,6 +3,8 @@ Loads PDB files for the foldseek clusters and
 converts them into parquet files. The parquet files contain sequences,
 foldmason MSTA alignments (both aa and 3di),
 as well as backbone coordinates (N, Ca, C, O).
+
+TODO: consider adding option to merge parquets (for use_representative)
 """
 import argparse
 import shutil
