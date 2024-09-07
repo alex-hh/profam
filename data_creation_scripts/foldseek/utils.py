@@ -8,28 +8,66 @@ from dask import dataframe as dd
 from collections import defaultdict
 
 
-def make_af50_dictionary(af50_path, clusters_to_include=None):
+# def make_af50_dictionary(af50_path):
+#     """Version which reduces io by loading all lines into memory first."""
+#     line_counter = 0
+#     af50_dict = {}
+#     with open(af50_path, "r") as f:
+#         lines = f.readlines()
+#     for i in range(len(lines)):
+#         try:
+#             line = lines[i].strip().split("\t")
+#             rep_id = line[0]
+#             entry_id = line[1]
+#             # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
+#             clu_flag = int(line[2])  # 1
+#             # n.b. the 2s are duplicates of the other cluster dict
+#             # n.b. we don't include the representative in its own cluster atm
+#             if clu_flag == 1:
+#                 if rep_id not in af50_dict:
+#                     af50_dict[rep_id] = []
+#                 af50_dict[rep_id].append(entry_id)
+#             line_counter += 1
+#         except Exception as e:
+#             print("Error processing line", line, flush=True)
+#             raise e
+#         lines[i] = None
+#     return af50_dict
+
+
+def make_af50_dictionary(af50_path, clusters_to_include=None, time=False):
     line_counter = 0
     af50_dict = {}
-    with open(af50_path, "r") as f:
-        lines = f.readlines()
-    for line in lines:
-        try:
-            line = line.strip().split("\t")
-            rep_id = line[0]
-            entry_id = line[1]
-            # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
-            clu_flag = int(line[2])  # 1
-            # n.b. the 2s are duplicates of the other cluster dict
-            # n.b. we don't include the representative in its own cluster atm
-            if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
-                if rep_id not in af50_dict:
-                    af50_dict[rep_id] = []
-                af50_dict[rep_id].append(entry_id)
-            line_counter += 1
-        except Exception as e:
-            print("Error processing line", line, flush=True)
-            raise e
+    line_read_times = []
+    processing_times = []
+    with open(af50_path, "r") as f:  # 1 GB buffer
+        t1 = time.time()
+        for line in f:
+            t0 = time.time()  # perftime
+            line_read_time = t0 - t1
+            try:
+                line = line.strip().split("\t")
+                rep_id = line[0]
+                entry_id = line[1]
+                # 1: clustered in AFDB50, 2: clustered in AFDB clusters, 3/4: removed (fragments/singletons)
+                clu_flag = int(line[2])  # 1
+                # n.b. the 2s are duplicates of the other cluster dict
+                # n.b. we don't include the representative in its own cluster atm
+                if clu_flag == 1 and (clusters_to_include is None or rep_id in clusters_to_include):
+                    if rep_id not in af50_dict:
+                        af50_dict[rep_id] = []
+                    af50_dict[rep_id].append(entry_id)
+                line_counter += 1
+            except Exception as e:
+                print("Error processing line", line, flush=True)
+                raise e
+            t1 = time.time()
+            processing_time = t1 - t0
+            line_read_times.append(line_read_time)
+            processing_times.append(processing_time)
+    if time:
+        print("Average line read time:", sum(line_read_times)/len(line_read_times), line_read_times, flush=True)
+        print("Average processing time:", sum(processing_times)/len(processing_times), processing_times, flush=True)
     return af50_dict
 
 
