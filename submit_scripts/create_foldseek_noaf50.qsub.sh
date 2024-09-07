@@ -10,5 +10,5 @@
 date
 # conda activate venvPF
 source ~/source_files/afenv.source
-python3 data_creation_scripts/create_foldseek_with_af50.py $1 --skip_af50
+python3 data_creation_scripts/foldseek/create_foldseek_with_af50.py $1 --skip_af50
 date

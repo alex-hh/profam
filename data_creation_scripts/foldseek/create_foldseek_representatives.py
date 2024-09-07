@@ -15,6 +15,7 @@ building of single parquets, and parallelising across building of
 distinct parquets.
 """
 import argparse
+import itertools
 import shutil
 import pickle
 import multiprocessing
@@ -150,10 +151,9 @@ def create_foldseek_parquets(
 
     cluster_ids_to_save = [cluster_id for parquet_id in parquet_ids for cluster_id in clusters_to_save[parquet_id]]
 
-
     zip_index_file = os.path.join(scratch_dir, "zip_index")
     if not check_accessions:
-        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "zip_index_dict.pkl")
+        zip_dict_path = os.path.join("/SAN/orengolab/cath_plm/ProFam/data/afdb", "af2zip.pkl")
         if os.path.isfile(zip_dict_path):
             print("loading precomputed zip index")
             with open(zip_dict_path, "rb") as f:
@@ -174,21 +174,30 @@ def create_foldseek_parquets(
 
     t1 = time.time()
     print("Preprocessing (dictionary building) time:", t1 - t0, flush=True)
+    failed_cluster_ids = []
     for ix, cluster_id in enumerate(cluster_ids_to_save):
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids_to_save)}", flush=True)
         
-        zip_filename = af2zip[cluster_id]
-        afdb_id = f"AF-{cluster_id}-F1-model_v4"
-        if zip_filename not in pdb_lookup:
-            pdb_lookup[zip_filename] = []
-        pdb_lookup[zip_filename].append(afdb_id)
+        try:
+            zip_filename = af2zip[cluster_id]
+            afdb_id = f"AF-{cluster_id}-F1-model_v4"
+            if zip_filename not in pdb_lookup:
+                pdb_lookup[zip_filename] = []
+            pdb_lookup[zip_filename].append(afdb_id)
+        except:
+            print("Error looking up", cluster_id)
+            failed_cluster_ids.append(cluster_id)
+            continue
 
+    failed_cluster_ids = set(failed_cluster_ids)
     t2 = time.time()
-    print("Built lookup in", t2 - t1, "seconds", flush=True)
-    print("Number of zip files: ", len(pdb_lookup), flush=True)
+    print("Built lookup in", t2 - t1, "seconds, total failed", len(failed_cluster_ids), flush=True)
+    print(f"Extracting pdbs from {len(pdb_lookup)} zip files with {num_processes} processes", flush=True)
 
-    job_prefix = "-".join([str(i) for i in parquet_ids])
+    job_prefix = f"{parquet_ids[0]}-{parquet_ids[-1]}"
+    for k, v in itertools.islice(pdb_lookup.items(), 10):
+        print(k, v, flush=True)
     extract_pdbs_from_zips(
         pdb_lookup=pdb_lookup,
         output_dir=os.path.join(scratch_dir, job_prefix),
@@ -197,7 +206,7 @@ def create_foldseek_parquets(
 
     for parquet_id in parquet_ids:
         print("Processing parquet id", parquet_id, flush=True)
-        cluster_ids_for_parquet = clusters_to_save[parquet_id]
+        cluster_ids_for_parquet = [cluster_id for cluster_id in clusters_to_save[parquet_id] if cluster_id not in failed_cluster_ids]
         save_pdbs_to_parquet(
             save_dir=save_dir,
             scratch_dir=scratch_dir,
@@ -230,5 +239,4 @@ if __name__ == "__main__":
         scratch_dir=args.scratch_dir,
         parquet_ids=args.parquet_ids,
         num_processes=args.num_processes,
-        cluster_path=args.cluster_path,
     )

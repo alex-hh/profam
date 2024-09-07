@@ -32,7 +32,7 @@ ls /scratch0/$USER/$JOB_ID
 
 mkdir ${SCRATCH_DIR}/data/foldseek_af50_struct
 export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
-python3 data_creation_scripts/create_foldseek_representatives.py ${SCRATCH_DIR}/data \
+python3 -m data_creation_scripts.foldseek.create_foldseek_representatives ${SCRATCH_DIR}/data \
     --num_processes 30 --af50 --save_dir $SCRATCH_DIR/data/foldseek_af50_representatives
 rsync -av $SCRATCH_DIR/data/foldseek_af50_struct /SAN/orengolab/cath_plm/ProFam/data/
 rm -rf ${SCRATCH_DIR}/data

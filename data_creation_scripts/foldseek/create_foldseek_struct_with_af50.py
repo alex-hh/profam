@@ -123,7 +123,6 @@ def make_job_list(
     pdb_lookup,
     cluster_dict,
     cluster_ids,
-    minimum_foldseek_cluster_size=1,
     skip_af50=False,
     zip_index_file=None,
     af50_path=None,
@@ -178,40 +177,39 @@ def make_job_list(
         if ix % 500 == 0:
             print(f"Processing cluster {ix} of {len(cluster_ids)}", flush=True)
         members = cluster_dict[cluster_id]
-        if len(members) >= minimum_foldseek_cluster_size:
-            cluster_counter += 1
+        cluster_counter += 1
 
-            for member in members:
-                try:
-                    zip_filename = af2zip[member]
-                except:
-                    print("Member not found in zip index", member, flush=True)
-                    continue
+        for member in members:
+            try:
+                zip_filename = af2zip[member]
+            except:
+                print("Member not found in zip index", member, flush=True)
+                continue
 
-                afdb_id = f"AF-{member}-F1-model_v4"
-                if zip_filename not in pdb_lookup:
-                    pdb_lookup[zip_filename] = []
-                pdb_lookup[zip_filename].append(afdb_id)
-                metadata_lookup[afdb_id] = {
-                    "cluster_id": cluster_id,
-                    "accession": member,
-                    "af50_cluster_id": member,
-                }
-                cluster_membership[cluster_id].append(afdb_id)
+            afdb_id = f"AF-{member}-F1-model_v4"
+            if zip_filename not in pdb_lookup:
+                pdb_lookup[zip_filename] = []
+            pdb_lookup[zip_filename].append(afdb_id)
+            metadata_lookup[afdb_id] = {
+                "cluster_id": cluster_id,
+                "accession": member,
+                "af50_cluster_id": member,
+            }
+            cluster_membership[cluster_id].append(afdb_id)
 
-                if not skip_af50:  # this is the af50 representative
-                    af50_members = af50_dict.get(member, [])
-                    for af50_member in af50_members:
-                        assert af50_member != member
-                        zip_filename = af2zip[af50_member]
-                        afdb_id = f"AF-{af50_member}-F1-model_v4"
-                        pdb_lookup[zip_filename].append(afdb_id)
-                        cluster_membership[cluster_id].append(afdb_id)
-                        metadata_lookup[afdb_id] = {
-                            "cluster_id": cluster_id,
-                            "af50_cluster_id": member,
-                            "accession": af50_member,
-                        }
+            if not skip_af50:  # this is the af50 representative
+                af50_members = af50_dict.get(member, [])
+                for af50_member in af50_members:
+                    assert af50_member != member
+                    zip_filename = af2zip[af50_member]
+                    afdb_id = f"AF-{af50_member}-F1-model_v4"
+                    pdb_lookup[zip_filename].append(afdb_id)
+                    cluster_membership[cluster_id].append(afdb_id)
+                    metadata_lookup[afdb_id] = {
+                        "cluster_id": cluster_id,
+                        "af50_cluster_id": member,
+                        "accession": af50_member,
+                    }
 
     t1 = time.time()
     print("Built lookups in", t1 - t0, "seconds", flush=True)
@@ -283,7 +281,6 @@ def create_foldseek_parquets(
         pdb_lookup=pdb_lookup,
         cluster_dict=cluster_dict,
         cluster_ids=cluster_ids_to_save,
-        minimum_foldseek_cluster_size=minimum_foldseek_cluster_size,
         skip_af50=skip_af50,
         zip_index_file=zip_index,
         af50_path=af50_path,

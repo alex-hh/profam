@@ -15,6 +15,6 @@ mkdir -p ${SCRATCH_DIR}/data
 cp /SAN/bioinf/afdb_domain/zipmaker/zip_index $SCRATCH_DIR/data/
 cp /SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv $SCRATCH_DIR/data/
 source ~/source_files/afenv.source
-python3 data_creation_scripts/create_foldseek_representatives.py $1 ${SCRATCH_DIR}/data
+python3 data_creation_scripts/foldseek/create_foldseek_representatives.py $1 ${SCRATCH_DIR}/data
 rm -rf ${SCRATCH_DIR}/data
 date

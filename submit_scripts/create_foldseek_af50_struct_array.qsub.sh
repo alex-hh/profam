@@ -25,6 +25,6 @@ if [ ! -f $output_file ]; then
     cp /SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv $SCRATCH_DIR/data
     source ~/source_files/afenv.source
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
-    python3 data_creation_scripts/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --run_foldmason
+    python3 data_creation_scripts/foldseek/create_foldseek_struct_with_af50.py $1 ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --run_foldmason
     rm -rf ${SCRATCH_DIR}/data
 fi

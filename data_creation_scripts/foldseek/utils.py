@@ -51,12 +51,12 @@ def modin_make_af50_dictionary(af50_path, clusters_to_include):
     return af50_dict
 
 
-def make_zip_dictionary(zip_index, accessions_to_include=None):
+def make_zip_dictionary(zip_index):
     line_counter = 0
     af2zip = {}
-    # TODO: finish early if we get all the accessions.
     with open(zip_index, "r") as f:
         lines = f.readlines()
+
     for line in lines:
         line = line.strip().split("\t")
         afdb_id = line[0]
@@ -64,13 +64,33 @@ def make_zip_dictionary(zip_index, accessions_to_include=None):
         # todo just make this an if statement
         assert afdb_id == f"AF-{uniprot_id}-F1-model_v4", f"AFDB ID mismatch: {afdb_id} {uniprot_id}"
         zip_file = line[2]
-        if accessions_to_include is None or uniprot_id in accessions_to_include:
-            af2zip[uniprot_id] = zip_file
+        af2zip[uniprot_id] = zip_file
 
         line_counter += 1
         if line_counter % 100000 == 0:
             print("Processed", line_counter, "lines for zip file dictionary", flush=True)
     return af2zip
+
+
+# def make_zip_dictionary(zip_index, accessions_to_include=None):
+#     line_counter = 0
+#     af2zip = {}
+#     # TODO: finish early if we get all the accessions.
+#     with open(zip_index, "r", buffering=1024*1024*1024) as f:  # 1 GB buffer
+#         for line in f:
+#             line = line.strip().split("\t")
+#             afdb_id = line[0]
+#             uniprot_id = afdb_id.split("-")[1]
+#             # todo just make this an if statement
+#             assert afdb_id == f"AF-{uniprot_id}-F1-model_v4", f"AFDB ID mismatch: {afdb_id} {uniprot_id}"
+#             zip_file = line[2]
+#             if accessions_to_include is None or uniprot_id in accessions_to_include:
+#                 af2zip[uniprot_id] = zip_file
+
+#             line_counter += 1
+#             if line_counter % 100000 == 0:
+#                 print("Processed", line_counter, "lines for zip file dictionary", flush=True)
+#     return af2zip
 
 
 def dask_make_zip_dictionary(zip_index, accessions_to_include):
