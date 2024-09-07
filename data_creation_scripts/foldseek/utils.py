@@ -181,7 +181,7 @@ def make_sequence_dictionary(fasta_path):
 
 
 def extract_pdbs_from_zips(pdb_lookup, output_dir, num_processes):
-    print("Extracting pdbs with", num_processes, "processes", flush=True)
+    print(f"Extracting pdbs from {len(pdb_lookup)} zip files with", num_processes, "processes", flush=True)
     seq_fail_counter = 0
     seq_success_counter = 0
     # Parallel extraction of pdb files
@@ -247,7 +247,8 @@ def extract_multi_pdb_files(afdb_ids, zip_filename, output_folder):
 
 def extract_pdbs(zip_filename, afdb_ids, save_dir, zip_index):
     # TODO: for improved efficiency, extract the relevant parts from the pdb file at this point.
-    print("Extracting pdbs", zip_filename, afdb_ids, "cluster index", zip_index, flush=True)
+    if zip_index % 100 == 0:
+        print("Extracting pdbs", zip_filename, afdb_ids, "zip file index", zip_index, flush=True)
     t0 = time.time()
     successes = extract_multi_pdb_files(
          afdb_ids, zip_filename, save_dir,
