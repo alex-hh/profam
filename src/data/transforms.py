@@ -147,6 +147,7 @@ def interleave_structure_sequence(
     max_tokens: int,
     structure_first_prob: float = 1.0,
 ):
+    """Automatically reduces the number of proteinss to fit within max_tokens."""
     assert proteins.has_all_structure_arrays
     coin_flip = np.random.rand()
     interleaved_sequences = []
