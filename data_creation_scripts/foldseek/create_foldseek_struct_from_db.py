@@ -3,16 +3,6 @@ Loads PDB files for the foldseek clusters and
 converts them into parquet files. The parquet files contain sequences,
 foldmason MSTA alignments (both aa and 3di),
 as well as backbone coordinates (N, Ca, C, O).
-
-N.B. this is slow and will require optimisation/parallelisation:
-10000 clusters takes around a day.
-
-There are 1000000 proteome files (i.e. a factor of 200 reduction in
-number of files if we use these rather than pdb files.)
-
-For parallelisation, there are two options: parallelising within
-building of single parquets, and parallelising across building of
-distinct parquets.
 """
 import argparse
 import shutil
