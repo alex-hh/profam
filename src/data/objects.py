@@ -28,6 +28,14 @@ class Protein:
     backbone_coords_mask: Optional[np.ndarray] = None
     structure_tokens: Optional[str] = None
 
+    def __post_init__(self):
+        if self.backbone_coords_mask is None and self.backbone_coords is not None:
+            self.backbone_coords_mask = np.where(
+                np.isnan(self.backbone_coords),
+                np.zeros_like(self.backbone_coords),
+                np.ones_like(self.backbone_coords),
+            )
+
 
 def check_array_lengths(*arrays):  # TODO: name better!
     sequence_lengths = []

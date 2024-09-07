@@ -246,8 +246,8 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 )
                 tokenized.data["plddt_mask"] = plddt_mask
                 tokenized.data["input_ids"][plddt_mask] = self.mask_token_id
-                tokenized.data["coords"][plddt_mask] = 0.
-                tokenized.data["coords_mask"][plddt_mask] = 0.
+                tokenized.data["coords"][plddt_mask] = 0.0
+                tokenized.data["coords_mask"][plddt_mask] = 0.0
 
         # TODO: handle nans
         # TODO: return sequence start and end positions?
