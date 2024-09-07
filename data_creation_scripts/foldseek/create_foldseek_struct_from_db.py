@@ -96,21 +96,21 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
             os.remove(pdb)
 
         # TODO: save representative?
-        results.append(
-            {
-                "sequences": sequences,
-                "fam_id": cluster_id,
-                "N": all_coords["N"],
-                "CA": all_coords["CA"],
-                "C": all_coords["C"],
-                "O": all_coords["O"],
-                "plddts": all_b_factors,
-                "accessions": accessions,
-                "af50_cluster_id": af50_cluster_id,
-                "msta_aa": msta_seqs,
-                "msta_3di": msta_3di,
-            }
-        )
+        res = {
+            "sequences": sequences,
+            "fam_id": cluster_id,
+            "N": all_coords["N"],
+            "CA": all_coords["CA"],
+            "C": all_coords["C"],
+            "O": all_coords["O"],
+            "plddts": all_b_factors,
+            "accessions": accessions,
+            "af50_cluster_id": af50_cluster_id,
+        }
+        if run_foldmason:
+            res["msta_seqs"] = msta_seqs
+            res["msta_3di"] = msta_3di
+        results.append(res)
 
     df = pd.DataFrame(results)
     # Q. why not just df.to_parquet?
@@ -190,11 +190,11 @@ def create_foldseek_parquets(
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
     if parquet_ids is None:
-        db = load_db().set_index("accession")
+        db = load_db()
         parquet_ids = list(range(len(db["parquet_index"].unique())))
     else:
         assert len(parquet_ids) == 1
-        db = load_db(parquet_ids[0]).set_index("accession")
+        db = load_db(parquet_ids[0])
 
     db = db[db["zip_filename"]!=""]
 
@@ -204,6 +204,8 @@ def create_foldseek_parquets(
     elif af50_representative_only:
         db = db[(db["af50_cluster_id"] == db["accession"])]
         cluster_col = "af50_cluster_id"
+
+    db = db.set_index("accession")
 
     if num_processes is None:
         pdb_lookup = dict()
@@ -239,7 +241,7 @@ def create_foldseek_parquets(
     )
 
     for ix, parquet_id in enumerate(parquet_ids):
-        print("Saving pdbs for parquet", parquet_id, flush=True)
+        print("Saving pdbs for parquet", parquet_id, parquet_cluster_membership, flush=True)
         parquet_cluster_membership = cluster_memberships[ix]
         parquet_metadata_lookup = metadata_lookups[ix]
         save_pdbs_to_parquet(
@@ -291,4 +293,6 @@ if __name__ == "__main__":
         num_processes=args.num_processes,
         show_tqdm=args.show_tqdm,
         run_foldmason=args.run_foldmason,
+        representative_only=args.representative_only,
+        af50_representative_only=args.af50_representative_only,
     )
