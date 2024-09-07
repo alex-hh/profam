@@ -115,7 +115,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
         self.add_document_token = add_document_token
-        self.num_start_tokens = int(self.add_bos_token) + int(self.add_document_token)
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
@@ -139,6 +138,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     @property
     def aa_tokens(self):
         return self.convert_tokens_to_ids(list("ACDEFGHIKLMNPQRSTVWY"))
+
+    @property
+    def num_start_tokens(self):
+        return int(self.add_bos_token) + int(self.add_document_token)
 
     def encode(
         self,

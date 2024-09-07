@@ -192,12 +192,22 @@ def load_protein_dataset(
 
     def filter_example(example):
         filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
+        if cfg.interleave_structure_sequence:
+            filter_length = (
+                max([len(s) for s in example["sequences"]])
+                <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
+            )
+        else:
+            filter_length = (
+                max([len(s) for s in example["sequences"]])
+                <= max_tokens - tokenizer.num_start_tokens - 1
+            )
         # TODO: we need to be very careful with this!
         filter_identifier = (
             cfg.holdout_identifiers is None
             or example["identifier"] not in cfg.holdout_identifiers
         )
-        return filter_num_seqs and filter_identifier
+        return filter_num_seqs and filter_identifier and filter_length
 
     def wrapped_preprocess(example):
         if cfg.identifier_col is not None:
