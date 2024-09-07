@@ -21,7 +21,6 @@ AFDB_DATA_PATH = "/SAN/orengolab/cath_plm/ProFam/data/afdb/"
 
 def load_parquet_index(index_file_path):
     index_df = pd.read_csv(index_file_path).set_index("identifier")
-    print(index_df.head(), flush=True)
     cluster_to_parquet = index_df["parquet_file"].to_dict()
     return cluster_to_parquet
 
@@ -36,7 +35,7 @@ def get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=1e-3, num_
     # so what we should do is just find query is cluster_id
     result = ddf[
         (ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)
-    ].compute(scheduler="threads", num_workers=num_processes)
+    ].compute(scheduler="threads", num_workers=num_processes or 1)
     return [result[result["query_id"] == cluster_id]["target_id"].tolist() for cluster_id in cluster_ids]
 
 

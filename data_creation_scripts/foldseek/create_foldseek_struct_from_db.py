@@ -27,7 +27,7 @@ from .utils import extract_pdbs_from_zips
 import subprocess
 
 
-def run_foldmason(filelist, output_dir, tmp_dir):
+def run_foldmason_on_pdbs(filelist, output_dir, tmp_dir):
     cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
     
     try:
@@ -73,7 +73,7 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
         if run_foldmason:
             foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
             os.makedirs(foldmason_outdir)
-            run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
+            run_foldmason_on_pdbs(cluster_filelist, foldmason_outdir, foldmason_outdir)
 
             # Read AA and 3Di alignments, skip the accessions
             labels, msta_seqs = read_fasta(os.path.join(foldmason_outdir, "result_aa.fa"))
