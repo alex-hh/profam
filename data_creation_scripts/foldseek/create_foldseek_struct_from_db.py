@@ -47,7 +47,7 @@ def run_foldmason(filelist, output_dir, tmp_dir):
         raise
 
 
-def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metadata_lookup):
+def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metadata_lookup, run_foldmason=False):
     # TODO: it would be cleaner for clusters_to_save values to be metadata-augmented dicts
     # Save the pdbs to parquet
     results = []
@@ -78,7 +78,7 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
                 all_coords[atom_name].append(coords[:, ix, :].flatten())
             
         # Run FoldMason on the cluster
-        if args.run_foldmason:
+        if run_foldmason:
             foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
             os.makedirs(foldmason_outdir)
             run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
@@ -185,6 +185,7 @@ def create_foldseek_parquets(
     representative_only=False,
     af50_representative_only=False,
     show_tqdm=False,
+    run_foldmason=False,
 ):
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
@@ -247,6 +248,7 @@ def create_foldseek_parquets(
             clusters_to_save=parquet_cluster_membership,
             parquet_id=parquet_id,
             metadata_lookup=parquet_metadata_lookup,
+            run_foldmason=run_foldmason and not (representative_only or af50_representative_only),
         )
     shutil.rmtree(os.path.join(scratch_dir, job_prefix))
 
@@ -288,4 +290,5 @@ if __name__ == "__main__":
         skip_af50=args.skip_af50,
         num_processes=args.num_processes,
         show_tqdm=args.show_tqdm,
+        run_foldmason=args.run_foldmason,
     )
