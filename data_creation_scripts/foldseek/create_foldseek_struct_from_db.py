@@ -18,15 +18,11 @@ import argparse
 import shutil
 from collections import defaultdict
 import multiprocessing
-import tempfile
 import tqdm
-import multiprocessing.managers as mpm
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
 import time
 import os
-from distributed import Client
-import modin.config as modin_config
 import pandas as pd
 from modin import pandas as mpd
 import pyarrow as pa
@@ -193,10 +189,6 @@ def create_foldseek_parquets(
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
     if parquet_ids is None:
-        # 2302908 clusters
-        client = Client(n_workers=num_processes or 1, threads_per_worker=1)
-        modin_config.Engine.put("dask") # # Modin will use Dask engine
-        modin_config.CpuCount.put(num_processes or 1)
         db = load_db().set_index("accession")
         parquet_ids = list(range(len(db["parquet_index"].unique())))
     else:
