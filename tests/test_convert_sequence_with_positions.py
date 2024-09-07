@@ -12,6 +12,14 @@ def test_convert_sequence_with_positions():
             "expected": ["ABC", [1, 2, 3], [True, True, True]],
         },
         {
+            "seq": "ABC",
+            "keep_gaps": True,
+            "keep_insertions": True,
+            "to_upper": True,
+            "use_msa_pos": False,
+            "expected": ["ABC", [1, 2, 3], [True, True, True]],
+        },
+        {
             "seq": "aBC",
             "keep_gaps": True,
             "keep_insertions": True,
