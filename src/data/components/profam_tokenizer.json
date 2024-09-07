@@ -182,6 +182,24 @@
       "rstrip": false,
       "normalized": false,
       "special": true
+    },
+    {
+      "id": 66,
+      "content": "[AFDB]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 67,
+      "content": "[PDB]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
     }
   ],
   "normalizer": null,

@@ -7,10 +7,15 @@ defaults:
 data_weights:
   foldseek: 1.0
 dataset_cfgs:
+  foldseek:
+    preprocessor:
+      document_token: "[AFDB]"
   foldseek_val:
     name: foldseek_val
     data_path_pattern: foldseek_struct/0.parquet
     holdout_data_files: foldseek_struct/0.parquet
+    preprocessor:
+      document_token: "[AFDB]"
 batch_size: 18
 max_tokens: 1536
 data_dir: ${paths.data_dir}
