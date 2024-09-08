@@ -37,10 +37,12 @@ class Protein:
         if self.validate_shapes:
             check_array_lengths(
                 [self.sequence],
-                [self.plddt],
-                [self.backbone_coords],
-                [self.backbone_coords_mask],
-                [self.structure_tokens],
+                [self.plddt] if self.plddt is not None else None,
+                [self.backbone_coords] if self.backbone_coords is not None else None,
+                [self.backbone_coords_mask]
+                if self.backbone_coords_mask is not None
+                else None,
+                [self.structure_tokens] if self.structure_tokens is not None else None,
             )
         if self.backbone_coords_mask is None and self.backbone_coords is not None:
             self.backbone_coords_mask = np.where(
