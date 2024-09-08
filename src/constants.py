@@ -32,3 +32,18 @@ aa_letters = [
 PROFAM_DATA_DIR = os.environ.get(
     "PROFAM_DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data"
 )
+
+
+# features whose first non-batch dim is equal to the number of residues
+RESIDUE_LEVEL_FEATURES = [
+    "input_ids",
+    "attention_mask",
+    "seq_pos",
+    "coords",
+    "coords_mask",
+    "plddts",
+    "plddt_mask",
+    "aa_mask",
+    "seq_pos",
+    "token_type_ids",
+]

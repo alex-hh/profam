@@ -27,8 +27,21 @@ class Protein:
     backbone_coords: Optional[np.ndarray] = None
     backbone_coords_mask: Optional[np.ndarray] = None
     structure_tokens: Optional[str] = None
+    validate_shapes: bool = True
+
+    def __len__(self):
+        assert len(self.sequence) == len(self.plddt)
+        return len(self.sequence)
 
     def __post_init__(self):
+        if self.validate_shapes:
+            check_array_lengths(
+                [self.sequence],
+                [self.plddt],
+                [self.backbone_coords],
+                [self.backbone_coords_mask],
+                [self.structure_tokens],
+            )
         if self.backbone_coords_mask is None and self.backbone_coords is not None:
             self.backbone_coords_mask = np.where(
                 np.isnan(self.backbone_coords),
@@ -65,6 +78,53 @@ class ProteinDocument:
     backbone_coords_masks: Optional[List[np.ndarray]] = None
     structure_tokens: Optional[List[str]] = None
     validate_shapes: bool = True
+    representative_accession: Optional[
+        str
+    ] = None  # e.g. seed or cluster representative
+
+    @classmethod
+    def from_proteins(cls, proteins: List[Protein], **kwargs):
+        return cls(
+            sequences=[p.sequence for p in proteins],
+            accessions=[p.accession for p in proteins],
+            positions=[p.positions for p in proteins],
+            plddts=[p.plddt for p in proteins],
+            backbone_coords=[p.backbone_coords for p in proteins],
+            backbone_coords_masks=[p.backbone_coords_mask for p in proteins],
+            structure_tokens=[p.structure_tokens for p in proteins],
+            **kwargs,
+        )
+
+    @property
+    def representative(self):  # use as target for e.g. inverse folding evaluations
+        assert self.seed_accession is not None
+        seed_index = self.accessions.index(self.seed_accession)
+        return self[seed_index]
+
+    def pop_representative(self):
+        assert self.representative_accession is not None
+        representative_index = self.accessions.index(self.representative_accession)
+        return self.pop(representative_index)
+
+    def pop(self, index):
+        return Protein(
+            sequence=self.sequences.pop(index),
+            accession=self.accessions.pop(index)
+            if self.accessions is not None
+            else None,
+            positions=self.positions.pop(index) if self.positions is not None else None,
+            plddt=self.plddts.pop(index) if self.plddts is not None else None,
+            backbone_coords=self.backbone_coords.pop(index)
+            if self.backbone_coords is not None
+            else None,
+            backbone_coords_masks=self.backbone_coords_masks.pop(index)
+            if self.backbone_coords_masks is not None
+            else None,
+            structure_tokens=self.structure_tokens.pop(index)
+            if self.structure_tokens is not None
+            else None,
+            validate_shapes=self.validate_shapes,
+        )
 
     @classmethod
     def from_fasta_str(cls, identifier: str, fasta_str: str):
