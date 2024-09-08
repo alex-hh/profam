@@ -146,7 +146,10 @@ def interleave_structure_sequence(
     tokenizer: ProFamTokenizer,
     structure_first_prob: float = 1.0,
 ):
-    """Automatically reduces the number of proteinss to fit within max_tokens."""
+    """Automatically reduces the number of proteinss to fit within max_tokens.
+
+    N.B. we hard-code coords padding as 0.
+    """
     assert proteins.has_all_structure_arrays
     coin_flip = np.random.rand()
     interleaved_sequences = []
@@ -177,7 +180,7 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
+                np.concatenate([xyz, np.full((1, 4, 3), 0.0), xyz], axis=0)
             )
             interleaved_coords_masks.append(
                 np.concatenate(
@@ -193,7 +196,7 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), np.nan), xyz], axis=0)
+                np.concatenate([xyz, np.full((1, 4, 3), 0.0), xyz], axis=0)
             )
             interleaved_coords_masks.append(
                 np.concatenate(
