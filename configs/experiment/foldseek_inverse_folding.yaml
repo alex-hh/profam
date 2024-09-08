@@ -37,7 +37,7 @@ model:
   embed_coords: True
 
 data:
-  batch_size: 5
+  batch_size: 42
   num_workers: 12
   evaluate_gym: True
   evaluate_ec_class: True
