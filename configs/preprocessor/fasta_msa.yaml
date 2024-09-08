@@ -1,4 +1,4 @@
-_target_: src.data.preprocessing.FastaPreprocessorConfig
+_target_: src.data.preprocessing.FastaPreprocessor
 keep_gaps: true
 keep_insertions: false
 to_upper: false
