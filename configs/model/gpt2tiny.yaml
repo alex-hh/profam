@@ -5,7 +5,7 @@ lr: 1e-4
 embed_coords: false
 config:
   _target_: transformers.GPT2Config
-  vocab_size: 66
+  vocab_size: ${constants.vocab_size}
   n_embd: 512
   n_head: 4
   n_layer: 6

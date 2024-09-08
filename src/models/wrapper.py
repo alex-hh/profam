@@ -161,7 +161,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # TODO: might want to embed coords mask to allow for masked coords
         if self.embed_coords:
-            coords_embeds = self.coords_embedding(coords)
+            assert coords.ndim == 4, coords.shape  # b, l, n, 3
+            coords_embeds = self.coords_embedding(coords.flatten(start_dim=-2))
             inputs_embeds += coords_embeds
 
         if self.embed_sequence_index:

@@ -191,6 +191,7 @@ def load_protein_dataset(
         ), "Need identifier column for identifier holdout"
 
     def prefilter_example(example):
+        # TODO: base this on max_seq_pos
         if getattr(cfg.preprocessor, "interleave_structure_sequence", False):
             filter_length = (
                 max([len(s) for s in example["sequences"]])

@@ -213,7 +213,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["coords"] = torch.from_numpy(
                 concatenate_pad_array(
                     proteins.backbone_coords,
-                    fill_value=np.nan,
+                    fill_value=0.0,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,
                     pad_to_length=tokenized.input_ids.shape[-1],

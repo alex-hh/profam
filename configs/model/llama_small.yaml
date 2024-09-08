@@ -5,7 +5,7 @@ lr: 1e-4
 embed_coords: false
 config:
   _target_: transformers.LlamaConfig
-  vocab_size: 66
+  vocab_size: ${constants.vocab_size}
   hidden_size: 768
   intermediate_size: 3072
   num_attention_heads: 12

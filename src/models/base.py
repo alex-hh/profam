@@ -361,6 +361,7 @@ class BaseFamilyLitModule(BaseLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
+        embed_coords: bool = False,
     ):
         super().__init__(
             model,
@@ -378,15 +379,22 @@ class BaseFamilyLitModule(BaseLitModule):
         self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
+        self.embed_coords = embed_coords
 
     def get_forward_kwargs(self, batch):
-        return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
+        forward_kwargs = {}
+        if self.embed_coords:
+            forward_kwargs["coords"] = batch["coords"]
+        if self.use_seq_pos:
+            forward_kwargs["seq_pos"] = batch["seq_pos"]
+        return forward_kwargs
 
     def _score_seqs_kv_cache(
         self,
         input_ids,
         completion_ids,
         seq_pos: Optional[torch.LongTensor] = None,
+        coords: Optional[torch.FloatTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
@@ -396,7 +404,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+        forward_kwargs = self.get_forward_kwargs({"seq_pos": seq_pos, "coords": coords})
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -419,6 +427,9 @@ class BaseFamilyLitModule(BaseLitModule):
                     -1, L
                 )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
                 forward_kwargs["seq_pos"] = this_seq_pos
+            if self.embed_coords:
+                assert coords is not None
+                raise NotImplementedError("Coords not yet supported for mutant scoring")
 
             actual_batch_size = this_input_ids.shape[0]
             cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
@@ -448,6 +459,7 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_ids,
         batch_size: int = 1,
         seq_pos: Optional[torch.LongTensor] = None,
+        coords: Optional[torch.FloatTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         verbose: bool = False,
     ):
@@ -482,6 +494,9 @@ class BaseFamilyLitModule(BaseLitModule):
                     dim=1,
                 )
                 forward_kwargs["seq_pos"] = this_seq_pos
+            if self.embed_coords:
+                assert coords is not None
+                raise NotImplementedError("Coords not yet supported for mutant scoring")
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
@@ -500,6 +515,7 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_ids,
         use_cache: bool = True,
         batch_size: int = 1,
+        coords: Optional[torch.FloatTensor] = None,
         input_seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
     ):
@@ -514,6 +530,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids,
                 completion_ids,
                 batch_size=batch_size,
+                coords=coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
             )
@@ -522,6 +539,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids,
                 completion_ids,
                 batch_size=batch_size,
+                coords=coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
             )
@@ -533,6 +551,7 @@ class BaseFamilyLitModule(BaseLitModule):
         batch_size: int = 1,
         max_length: int = 8192,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
+        input_coords: Optional[torch.FloatTensor] = None,
         include_prompt_in_output: bool = False,
         fixed_length: Optional[int] = None,
         greedy: bool = False,
@@ -551,6 +570,8 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
+        if self.embed_coords:
+            raise NotImplementedError("Coords not yet supported for mutant scoring")
         generation_kwargs = {}
         if fixed_length is not None:
             if max_length is not None:

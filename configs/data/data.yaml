@@ -21,7 +21,7 @@ max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_names:
   - interpro
-gym_dms_ids: ${constants.val_assay_list}
+gym_dms_ids: ${constants.gym_val_assay_list}
 evaluate_gym: false # not implemented yet
 evaluate_ec_class: false # not implemented yet
 evaluate_ec_cluster_class: false # not implemented yet

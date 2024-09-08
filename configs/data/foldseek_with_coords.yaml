@@ -28,7 +28,7 @@ data_dir: ${paths.data_dir}
 val_dataset_names:
   - foldseek_val
   - foldseek_3di_val
-gym_dms_ids: ${constants.val_assay_list}
+gym_dms_ids: ${constants.gym_val_assay_list}
 keep_gym_gaps: false
 evaluate_gym: true
 evaluate_ec_class: false

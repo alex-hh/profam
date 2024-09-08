@@ -13,7 +13,7 @@ defaults:
   - extras: default
   - hydra: default
   - tokenizer: profam
-  - constants: gym
+  - constants: profam
 
   # experiment configs allow for version control of specific hyperparameters
   # e.g. best hyperparameters for given model and datamodule
