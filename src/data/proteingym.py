@@ -191,7 +191,7 @@ def build_gym_structure_prompt_df():
     pass
 
 
-def build_gym_msa_prompt_df(
+def build_gym_df(
     dms_ids,
     gym_data_dir: str,
     seed: Optional[int] = None,
