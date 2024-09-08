@@ -5,7 +5,7 @@ import torch
 from src.constants import RESIDUE_LEVEL_FEATURES
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
-    BasePreprocessorConfig,
+    BasePreprocessor,
     preprocess_protein_sequences,
     subsample_and_tokenize_protein_data,
 )
@@ -16,7 +16,7 @@ from src.utils.tokenizers import ProFamTokenizer
 class PromptBuilder:
     def __init__(
         self,
-        preprocessor: BasePreprocessorConfig,
+        preprocessor: BasePreprocessor,
         max_tokens: int,
         seed: Optional[int] = None,
     ):
@@ -29,7 +29,7 @@ class PromptBuilder:
         max_length = max(len(seq) for seq in proteins.sequences)
         batch = subsample_and_tokenize_protein_data(
             proteins,
-            cfg=self.preprocessor,
+            preprocessor=self.preprocessor,
             tokenizer=tokenizer,
             shuffle=True,
             seed=self.seed,
@@ -49,7 +49,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
 
     def __init__(
         self,
-        preprocessor: BasePreprocessorConfig,
+        preprocessor: BasePreprocessor,
         max_tokens: int,
         seed: Optional[int] = None,
         representative_only: bool = False,
@@ -62,57 +62,52 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
     # TODO: write tests for this
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
         representative = proteins.pop_representative()
-        proteins = preprocess_protein_sequences(proteins, self.preprocessor, tokenizer)
         if not self.representative_only:
-            batch = subsample_and_tokenize_protein_data(
+            proteins = preprocess_protein_sequences(
+                proteins, self.preprocessor, tokenizer
+            )
+            example = subsample_and_tokenize_protein_data(
                 proteins,
-                cfg=self.preprocessor,
+                preprocessor=self.preprocessor,
                 tokenizer=tokenizer,
                 shuffle=True,
                 seed=self.seed,
                 padding="longest",
                 max_tokens=self.max_tokens - len(representative),
-                exclude_tokens=2 * len(proteins.seed),
+                exclude_tokens=2 * len(representative),
             )
         # TODO: tokenize representative
         representative_doc = ProteinDocument.from_proteins([representative])
         representative_doc = preprocess_protein_sequences(
             representative_doc, self.preprocessor, tokenizer
         )
-        representative_batch = subsample_and_tokenize_protein_data(
+        representative_example = subsample_and_tokenize_protein_data(
             representative_doc,
-            cfg=self.preprocessor,
+            preprocessor=self.preprocessor,
             tokenizer=tokenizer,
             shuffle=True,
             seed=self.seed,
             padding="longest",
-            max_tokens=len(proteins.seed) + 3,  # TODO: fix?
+            max_tokens=None,
         )
         seq_start = (
             torch.argwhere(
-                batch["input_ids"][0] == tokenizer.seq_struct_sep_token_id
+                representative_example["input_ids"] == tokenizer.seq_struct_sep_token_id
             ).min()
             + 1
         )
-        print("SEQ START", seq_start)
-        assert batch["input_ids"][0, seq_start - 1] == tokenizer.seq_struct_sep_token_id
-        for feat in representative_batch.keys():
+        assert (
+            representative_example["input_ids"][seq_start - 1]
+            == tokenizer.seq_struct_sep_token_id
+        )
+        for feat in representative_example.keys():
             if feat in RESIDUE_LEVEL_FEATURES:
-                representative_batch[feat] = representative_batch[feat][:, :seq_start]
-            else:
-                print("NOT RESIDUE LEVEL", feat)
-
-        if self.representative_only:
-            return representative_batch
-        else:
-            for feat in representative_batch.keys():
-                if feat in RESIDUE_LEVEL_FEATURES:
-                    batch[feat] = torch.cat(
-                        (batch[feat], representative_batch[feat]), dim=1
+                representative_example[feat] = representative_example[feat][:seq_start]
+                if not self.representative_only:
+                    representative_example["feat"] = torch.cat(
+                        (example[feat], representative_example[feat]), dim=1
                     )
-                else:
-                    print("NOT RESIDUE LEVEL", feat)
-            return batch
+        return representative_example
 
 
 class ProFamSampler:

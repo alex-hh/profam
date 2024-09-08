@@ -34,6 +34,9 @@ class Protein:
         return len(self.sequence)
 
     def __post_init__(self):
+        struct_comp = (
+            [self.structure_tokens] if self.structure_tokens is not None else None
+        )
         if self.validate_shapes:
             check_array_lengths(
                 [self.sequence],
@@ -42,7 +45,7 @@ class Protein:
                 [self.backbone_coords_mask]
                 if self.backbone_coords_mask is not None
                 else None,
-                [self.structure_tokens] if self.structure_tokens is not None else None,
+                struct_comp,
             )
         if self.backbone_coords_mask is None and self.backbone_coords is not None:
             self.backbone_coords_mask = np.where(
@@ -89,14 +92,34 @@ class ProteinDocument:
 
     @classmethod
     def from_proteins(cls, proteins: List[Protein], **kwargs):
+        fields = [
+            "sequence",
+            "accession",
+            "positions",
+            "plddt",
+            "backbone_coords",
+            "backbone_coords_mask",
+            "structure_tokens",
+        ]
+        renaming = {
+            "sequence": "sequences",
+            "accession": "accessions",
+            "plddt": "plddts",
+            "backbone_coords_mask": "backbone_coords_masks",
+        }
+        attr_dict = {}
+        for attr in fields:
+            if any(getattr(p, attr) is not None for p in proteins):
+                assert all(
+                    getattr(p, attr) is not None for p in proteins
+                ), f"Missing {attr} for some proteins"
+                attr_dict[renaming.get(attr, attr)] = [
+                    getattr(p, attr) for p in proteins
+                ]
+            else:
+                attr_dict[renaming.get(attr, attr)] = None
         return cls(
-            sequences=[p.sequence for p in proteins],
-            accessions=[p.accession for p in proteins],
-            positions=[p.positions for p in proteins],
-            plddts=[p.plddt for p in proteins],
-            backbone_coords=[p.backbone_coords for p in proteins],
-            backbone_coords_masks=[p.backbone_coords_mask for p in proteins],
-            structure_tokens=[p.structure_tokens for p in proteins],
+            **attr_dict,
             **kwargs,
         )
 
@@ -130,7 +153,7 @@ class ProteinDocument:
             backbone_coords=self.backbone_coords.pop(index)
             if self.backbone_coords is not None
             else None,
-            backbone_coords_masks=self.backbone_coords_masks.pop(index)
+            backbone_coords_mask=self.backbone_coords_masks.pop(index)
             if self.backbone_coords_masks is not None
             else None,
             structure_tokens=self.structure_tokens.pop(index)
@@ -247,7 +270,6 @@ class ProteinDocument:
                 )
             ]
         )
-        # print(f"Missing arrays: {missing_arrays_msg}")
         return all(has_arrays)
 
     def fill_missing_structure_arrays(

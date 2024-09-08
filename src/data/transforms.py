@@ -71,7 +71,7 @@ def sample_to_max_tokens(
             itertools.accumulate(
                 [len(s) + extra_tokens_per_sequence for s in proteins.sequences]
             )
-        )  # +1 for separator
+        )
         insertion_point = bisect.bisect_left(
             cumulative_lengths,
             max_tokens - extra_tokens_per_document,
@@ -168,7 +168,6 @@ def interleave_structure_sequence(
 
     N.B. we hard-code coords padding as 0.
     """
-    assert proteins.has_all_structure_arrays
     coin_flip = np.random.rand()
     interleaved_sequences = []
     interleaved_positions = []
@@ -176,18 +175,26 @@ def interleave_structure_sequence(
     interleaved_coords = []
     interleaved_coords_masks = []
     total_tokens = tokenizer.num_start_tokens
-    for seq, seq_3d, xyz, coords_mask, plddts, positions in zip(
-        proteins.sequences,
-        proteins.structure_tokens,
-        proteins.backbone_coords,
-        proteins.backbone_coords_masks,
-        proteins.plddts,
-        proteins.positions,
-    ):
+    for ix, seq in enumerate(proteins.sequences):
+        if proteins.structure_tokens is not None:
+            seq_3d = proteins.structure_tokens[ix]
+        else:
+            seq_3d = tokenizer.mask_token_id * len(seq)
+        if proteins.backbone_coords is not None:
+            xyz = proteins.backbone_coords[ix]
+            coords_mask = proteins.backbone_coords_masks[ix]
+        else:
+            xyz = np.zeros((len(seq), 4, 3))
+            coords_mask = np.zeros((len(seq), 4, 3))
+        if proteins.plddts is not None:
+            plddts = proteins.plddts[ix]
+        else:
+            plddts = np.full((len(seq),), 100.0)
+        positions = proteins.positions[ix]
         # TODO: monitor max_tokens
         assert (
             len(seq) == len(xyz) == len(plddts)
-        )  # n.b. special tokens can screw this up
+        ), f"seq {seq} length != xyz shape {xyz.shape[0]} or plddts {plddts.shape[0]}"  # n.b. special tokens can screw this up
         assert isinstance(positions, list)
         if coin_flip < structure_first_prob:
             interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token + seq)
@@ -237,7 +244,6 @@ def interleave_structure_sequence(
             break
 
     return proteins.clone(
-        accessions=[f"seq{i}" for i in range(len(interleaved_sequences))],
         sequences=interleaved_sequences,
         positions=interleaved_positions,
         plddts=interleaved_plddts,

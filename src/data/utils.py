@@ -10,7 +10,7 @@ from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
 from src.data.objects import StringObject
-from src.data.preprocessing import BasePreprocessorConfig, preprocess_protein_data
+from src.data.preprocessing import BasePreprocessor, preprocess_protein_data
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
@@ -94,7 +94,7 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
 @dataclass
 class ProteinDatasetConfig:
     name: str
-    preprocessor: Optional[BasePreprocessorConfig] = None
+    preprocessor: Optional[BasePreprocessor] = None
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
     holdout_identifiers: Optional[List[str]] = None

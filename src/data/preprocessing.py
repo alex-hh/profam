@@ -97,11 +97,13 @@ class ParquetSequencePreprocessor(BasePreprocessor):
 
 # TODO: make sure we can handle an aligned version - test
 @dataclass
-class ParquetStructureTokensPreprocessor(BasePreprocessor):
+class ParquetStructurePreprocessor(BasePreprocessor):
     sequence_col: str = "sequences"
-    structure_tokens_col: Optional[str] = "structure_tokens"
+    structure_tokens_col: Optional[str] = None
     interleave_structure_sequence: bool = False
     structure_first_prob: float = 1.0
+    identifier_col: str = "fam_id"
+    infer_representative_from_identifier: bool = False
 
     def __post_init__(self):
         if self.interleave_structure_sequence:
@@ -118,17 +120,17 @@ class ParquetStructureTokensPreprocessor(BasePreprocessor):
     ):
         # TODO: configure whether or not to use alignments, structure tokens col, etc.
         max_sequences_to_preprocess = (max_tokens or 1e8) // 10
-        sequence_iterator = example[self.sequence_col]
         if shuffle:
             sequence_ids = random_subsample(
-                np.arange(len(sequence_iterator)),
+                np.arange(len(example["sequences"])),
                 max_sequences_to_preprocess,
             )
         else:
             sequence_ids = np.arange(
-                min(max_sequences_to_preprocess, len(sequence_iterator))
+                min(max_sequences_to_preprocess, len(example["sequences"]))
             )
-        sequences = [sequence_iterator[i] for i in sequence_ids]
+        sequences = [example["sequences"][i] for i in sequence_ids]
+        accessions = [example["accessions"][i] for i in sequence_ids]
         # we assume sequence processing and structure token processing are consistent.
         # later we will check that everything ends up the same length - which is important
         # because otherwise incorrect config could easily lead to misalignment
@@ -163,9 +165,13 @@ class ParquetStructureTokensPreprocessor(BasePreprocessor):
 
         return ProteinDocument(
             sequences=sequences,
+            accessions=accessions,
             plddts=plddts,
             backbone_coords=coords,
             structure_tokens=structure_tokens,
+            representative_accession=example[self.identifier_col]
+            if self.infer_representative_from_identifier
+            else None,
         )
 
 
