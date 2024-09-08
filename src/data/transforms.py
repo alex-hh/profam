@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from src.data.fasta import convert_sequence_with_positions
-from src.data.objects import ProteinDocument
+from src.data.objects import Protein, ProteinDocument
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
@@ -139,6 +139,24 @@ def fill_missing_fields(proteins: ProteinDocument):
             tokens_fill="[MASK]",
         )
     return proteins
+
+
+def filter_by_length(
+    proteins: ProteinDocument,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+):
+    if min_length is None and max_length is None:
+        return proteins
+    else:
+
+        def length_filter(protein: Protein):
+            assert not "[" in protein.sequence
+            return (min_length is None or len(protein.sequence) >= min_length) and (
+                max_length is None or len(protein.sequence) <= max_length
+            )
+
+        return proteins.filter(length_filter)
 
 
 def interleave_structure_sequence(

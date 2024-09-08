@@ -104,6 +104,7 @@ class ProteinDatasetConfig:
     minimum_sequences: Optional[int] = None
     is_parquet: bool = False
     shuffle: bool = True
+    length_filter: Optional[str] = None  # max_tokens, max_seq_pos
 
 
 def load_protein_dataset(
@@ -195,19 +196,27 @@ def load_protein_dataset(
 
     def prefilter_example(example):
         # TODO: base this on max_seq_pos
-        if max_tokens is None:
+        if cfg.length_filter is None:
             return True
-        if getattr(cfg.preprocessor, "interleave_structure_sequence", False):
-            filter_length = (
-                max([len(s) for s in example["sequences"]])
-                <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
+        elif cfg.length_filter == "max_seq_pos":
+            return any(
+                [len(s) <= tokenizer.max_seq_pos - 1 for s in example["sequences"]]
             )
+        elif cfg.length_filter == "max_tokens":
+            if max_tokens is None:
+                return True
+            elif getattr(cfg.preprocessor, "interleave_structure_sequence", False):
+                return (
+                    max([len(s) for s in example["sequences"]])
+                    <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
+                )
+            else:
+                return (
+                    max([len(s) for s in example["sequences"]])
+                    <= max_tokens - tokenizer.num_start_tokens - 1
+                )
         else:
-            filter_length = (
-                max([len(s) for s in example["sequences"]])
-                <= max_tokens - tokenizer.num_start_tokens - 1
-            )
-        return filter_length
+            raise ValueError(f"Unknown length filter {cfg.length_filter}")
 
     def filter_example(example):
         filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)

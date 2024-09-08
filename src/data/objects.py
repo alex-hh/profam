@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 
@@ -82,6 +82,9 @@ class ProteinDocument:
         str
     ] = None  # e.g. seed or cluster representative
 
+    def __len__(self):
+        return len(self.sequences)
+
     @classmethod
     def from_proteins(cls, proteins: List[Protein], **kwargs):
         return cls(
@@ -105,6 +108,14 @@ class ProteinDocument:
         assert self.representative_accession is not None
         representative_index = self.accessions.index(self.representative_accession)
         return self.pop(representative_index)
+
+    def filter(self, filter_fn: Callable):
+        """Filter by filter_fn.
+
+        Filter_fn should take a protein and return True if it should be kept.
+        """
+        indices = [i for i in range(len(self)) if filter_fn(self[i])]
+        return self[indices]
 
     def pop(self, index):
         return Protein(
