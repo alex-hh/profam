@@ -109,7 +109,7 @@ class ProteinDatasetConfig:
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
-    data_dir="../data",
+    data_dir="data",
     split="train",
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
@@ -119,6 +119,9 @@ def load_protein_dataset(
         # replace hf path resolution with manual glob, to allow repetition
         # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
         data_files = glob.glob(os.path.join(data_dir, cfg.data_path_pattern))
+        assert (
+            len(data_files) > 0
+        ), f"No files found for pattern {cfg.data_path_pattern} in {data_dir}"
     else:
         assert cfg.data_path_file is not None
         with open(os.path.join(data_dir, cfg.data_path_file), "r") as f:
@@ -192,6 +195,8 @@ def load_protein_dataset(
 
     def prefilter_example(example):
         # TODO: base this on max_seq_pos
+        if max_tokens is None:
+            return True
         if getattr(cfg.preprocessor, "interleave_structure_sequence", False):
             filter_length = (
                 max([len(s) for s in example["sequences"]])
