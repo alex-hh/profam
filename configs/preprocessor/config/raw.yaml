@@ -1,3 +1,4 @@
+_target_: src.data.preprocessing.PreprocessingConfig
 keep_gaps: false
 keep_insertions: true
 to_upper: true
