@@ -1,4 +1,4 @@
-_target_: src.data.hf_protein_datamodule.ProteinDataModule
+_target_: src.data.hf_protein_datamodule.ProteinDataMixture
 defaults:
   - dataset/example@dataset_cfgs.openfold_aligned: openfold_aligned
   - dataset/example@dataset_cfgs.openfold_raw: openfold_raw
