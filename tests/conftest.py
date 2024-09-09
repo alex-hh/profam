@@ -82,7 +82,7 @@ def default_model(profam_tokenizer):
 
 @pytest.fixture()
 def parquet_raw_sequence_processor():
-    return preprocessing.ParquetSequencePreprocessorConfig(
+    return preprocessing.ParquetSequencePreprocessor(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
@@ -92,7 +92,7 @@ def parquet_raw_sequence_processor():
 
 @pytest.fixture()
 def parquet_3di_processor():
-    return preprocessing.ParquetStructureTokensPreprocessorConfig(
+    return preprocessing.ParquetStructurePreprocessor(
         structure_tokens_col="msta_3di",
         keep_insertions=True,
         to_upper=True,
@@ -123,7 +123,7 @@ def foldseek_interleaved_structure_sequence_batch(
     profam_tokenizer,
 ):
     max_tokens = 2048
-    parquet_3di_processor = preprocessing.ParquetStructureTokensPreprocessorConfig(
+    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
         structure_tokens_col="msta_3di",
         keep_insertions=True,
         to_upper=True,
