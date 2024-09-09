@@ -24,11 +24,43 @@ class BasePreprocessor:
         List[Any]
     ] = None  # making callable raises an omegaconf validationerror: unsupported value type 'callable'
     allow_unk: bool = False
+    batched_map: bool = False  # should map be called with batched=True
+    map_batch_size: int = 100
 
     def build_document(
         self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         raise NotImplementedError()
+
+    def batched_build_document(
+        self,
+        examples,
+        tokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ):
+        # although we can iterate over examples i dont think? this has any advantages:
+        # advantages come from intrinsically batched operations
+        # keys = list(examples.keys())
+        # dicts = [{k: examples[k][i] for k in keys} for i in range(len(examples[keys[0]]))]
+        # processed_dicts = self.build_document
+        raise NotImplementedError()
+
+
+def single_protein_preprocessor(preprocessor):
+    """Wrap a preprocessing function to operate on BATCHES of single sequences."""
+
+    def wrapped(batch, cfg, tokenizer, **kwargs):
+        # actually this is more complicated than I thought
+        # we first need to chunk the batch, then apply the preprocessor
+        # -- not necessarily! if we don't chunk the batch, we will effectively
+        # end up subsampling sequences at each epoch; we therefore need to be
+        # careful about batch size but this is actually ok...
+        example = preprocessor(batch, cfg, tokenizer, **kwargs)
+        # we need to wrap the result in a list to make it a batch of size 1
+        return {k: [v] for k, v in example.items()}
+
+    return wrapped
 
 
 @dataclass

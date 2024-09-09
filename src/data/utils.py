@@ -195,6 +195,10 @@ def load_protein_dataset(
             streaming=cfg.stream,
             sample_by="document",
         )
+    if cfg.column_name_mapping is not None:
+        for old_name, new_name in cfg.column_name_mapping.items():
+            # https://huggingface.co/docs/datasets/en/stream#rename-remove-and-cast
+            dataset = dataset.rename_column(old_name, new_name)
     print("Dataset n shards", dataset.n_shards)
     print("Verifying dataset content:")
     for i, item in enumerate(dataset.take(3)):
@@ -283,6 +287,8 @@ def load_protein_dataset(
             ]  # shouldnt be necessary but is for plddts - bug?
         else:
             remove_columns = None
+        # TODO: write a separate batched preprocess entrypoint
+        assert not cfg.preprocessor.batched_map
         dataset = (
             dataset.filter(prefilter_example)
             .map(
