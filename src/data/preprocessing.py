@@ -1,6 +1,6 @@
 import functools
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -12,7 +12,7 @@ from src.utils.utils import np_random
 
 
 @dataclass
-class BasePreprocessor:
+class PreprocessingConfig:
     keep_insertions: bool = False
     to_upper: bool = False
     keep_gaps: bool = False
@@ -20,18 +20,149 @@ class BasePreprocessor:
     truncate_after_n_sequences: Optional[int] = None
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
     # https://github.com/mit-ll-responsible-ai/hydra-zen/issues/182
-    transforms: Optional[
-        List[Any]
-    ] = None  # making callable raises an omegaconf validationerror: unsupported value type 'callable'
     allow_unk: bool = False
+
+
+def subsample_fasta_lines(lines, n_lines, shuffle=True):
+    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
+    end_ix = start_ix[1:]
+    end_ix = np.append(end_ix, len(lines))
+    lines_per_seq = len(lines) // len(start_ix)
+    n_samples = min(n_lines // lines_per_seq, len(start_ix))
+    if shuffle:
+        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    else:
+        sample_indices = np.arange(n_samples)
+    starts = start_ix[sample_indices]
+    ends = end_ix[sample_indices]
+    sampled_lines = []
+    for start, end in zip(starts, ends):
+        assert lines[end - 1][0] != ">"
+        sampled_lines.extend(lines[start:end])
+    return sampled_lines
+
+
+def random_subsample(arr, n, seed: Optional[int] = None):
+    rnd = np_random(seed)
+    return rnd.choice(arr, min(n, len(arr)), replace=False)
+
+
+def subsample_and_tokenize_protein_data(
+    proteins: ProteinDocument,
+    cfg: PreprocessingConfig,
+    tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    padding: str = "max_length",
+    shuffle: bool = True,
+    seed: Optional[int] = None,
+    transforms: Optional[List[Callable]] = None,
+):
+    proteins = transforms.sample_to_max_tokens(
+        proteins,
+        tokenizer=tokenizer,
+        max_tokens=max_tokens,
+        shuffle=shuffle,
+        seed=seed,
+    )
+    # if cfg.fill_missing_fields:
+    proteins = transforms.fill_missing_fields(proteins)
+    proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
+    proteins = transforms.apply_transforms(transforms, proteins, tokenizer)
+
+    tokenized = tokenizer.encode(
+        proteins,
+        document_token=cfg.document_token,
+        padding=padding,
+        max_length=max_tokens,
+        add_final_sep=True,
+        allow_unk=getattr(cfg, "allow_unk", False),
+    )
+    # tokenized.input_ids is flat now
+    # n.b. this is after subsampling so not very informative
+    tokenized.data["total_num_sequences"] = len(proteins)  # below length threshold
+
+    return tokenized.data
+
+
+def preprocess_protein_sequences(
+    proteins: ProteinDocument,
+    cfg: PreprocessingConfig,
+    tokenizer: ProFamTokenizer,
+):
+    # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
+    if tokenizer.use_seq_pos:
+        proteins = transforms.convert_sequences_adding_positions(
+            proteins,
+            keep_gaps=cfg.keep_gaps,
+            keep_insertions=cfg.keep_insertions,
+            to_upper=cfg.to_upper,
+            use_msa_pos=cfg.use_msa_pos,
+            truncate_after_n_sequences=cfg.truncate_after_n_sequences,
+        )
+    else:
+        proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
+    return proteins
+
+
+def backbone_coords_from_example(example, sequence_col="sequences"):
+    ns = example["N"]
+    cas = example["CA"]
+    cs = example["C"]
+    oxys = example["O"]
+    coords = []
+    for seq, n, ca, c, o in zip(
+        example[sequence_col],
+        ns,
+        cas,
+        cs,
+        oxys,
+    ):
+        recons_coords = np.zeros((len(seq), 4, 3))
+        recons_coords[:, 0] = np.array(n).reshape(-1, 3)
+        recons_coords[:, 1] = np.array(ca).reshape(-1, 3)
+        recons_coords[:, 2] = np.array(c).reshape(-1, 3)
+        recons_coords[:, 3] = np.array(o).reshape(-1, 3)
+        coords.append(recons_coords)
+    return coords
+
+
+class BasePreprocessor:
+    def __init__(
+        self,
+        cfg: PreprocessingConfig,
+        transforms: Optional[List[Callable]] = None,
+    ):
+        self.cfg = cfg
+        self.transforms = transforms
 
     def build_document(
         self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         raise NotImplementedError()
 
+    def preprocess_protein_data(
+        self,
+        example: Dict[str, Any],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        # N.B. for stockholm format we need to check that sequences aren't split over
+        # multiple lines
+        proteins = self.build_document(
+            example, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+        )
+        proteins = preprocess_protein_sequences(proteins, self.cfg, tokenizer)
+        return subsample_and_tokenize_protein_data(
+            proteins,
+            self.cfg,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            transforms=self.transforms,
+        )
 
-@dataclass
+
 class FastaPreprocessor(BasePreprocessor):
     def build_document_from_text(
         self, text, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -74,9 +205,15 @@ class FastaPreprocessor(BasePreprocessor):
             )
 
 
-@dataclass
 class ParquetSequencePreprocessor(BasePreprocessor):
-    sequence_col: str = "sequences"
+    def __init__(
+        self,
+        cfg: PreprocessingConfig,
+        sequence_col: str = "sequences",
+        transforms: Optional[List[Callable]] = None,
+    ):
+        super().__init__(cfg, transforms)
+        self.sequence_col = sequence_col
 
     def build_document(
         self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -98,22 +235,31 @@ class ParquetSequencePreprocessor(BasePreprocessor):
 # TODO: make sure we can handle an aligned version - test
 @dataclass
 class ParquetStructurePreprocessor(BasePreprocessor):
-    sequence_col: str = "sequences"
-    structure_tokens_col: Optional[str] = None
-    interleave_structure_sequence: bool = False
-    structure_first_prob: float = 1.0
-    identifier_col: str = "fam_id"
-    infer_representative_from_identifier: bool = False
-
-    def __post_init__(self):
-        if self.interleave_structure_sequence:
-            self.transforms = self.transforms or []
+    def __init__(
+        self,
+        cfg: PreprocessingConfig,
+        sequence_col: str = "sequences",
+        structure_tokens_col: Optional[str] = None,
+        interleave_structure_sequence: bool = False,
+        structure_first_prob: float = 1.0,
+        identifier_col: str = "fam_id",
+        infer_representative_from_identifier: bool = False,
+        transforms: Optional[List[Callable]] = None,
+    ):
+        if interleave_structure_sequence:
+            transforms = transforms or []
             self.transforms.append(
                 functools.partial(
                     transforms.interleave_structure_sequence,
-                    structure_first_prob=self.structure_first_prob,
+                    structure_first_prob=structure_first_prob,
                 )
             )
+        super().__init__(cfg, transforms)
+        self.sequence_col = sequence_col
+        self.structure_tokens_col = structure_tokens_col
+        self.interleave_structure_sequence = interleave_structure_sequence
+        self.identifier_col = identifier_col
+        self.infer_representative_from_identifier = infer_representative_from_identifier
 
     def build_document(
         self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -173,127 +319,3 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             if self.infer_representative_from_identifier
             else None,
         )
-
-
-def subsample_fasta_lines(lines, n_lines, shuffle=True):
-    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
-    end_ix = start_ix[1:]
-    end_ix = np.append(end_ix, len(lines))
-    lines_per_seq = len(lines) // len(start_ix)
-    n_samples = min(n_lines // lines_per_seq, len(start_ix))
-    if shuffle:
-        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
-    else:
-        sample_indices = np.arange(n_samples)
-    starts = start_ix[sample_indices]
-    ends = end_ix[sample_indices]
-    sampled_lines = []
-    for start, end in zip(starts, ends):
-        assert lines[end - 1][0] != ">"
-        sampled_lines.extend(lines[start:end])
-    return sampled_lines
-
-
-def random_subsample(arr, n, seed: Optional[int] = None):
-    rnd = np_random(seed)
-    return rnd.choice(arr, min(n, len(arr)), replace=False)
-
-
-def subsample_and_tokenize_protein_data(
-    proteins: ProteinDocument,
-    preprocessor: BasePreprocessor,
-    tokenizer: ProFamTokenizer,
-    max_tokens: Optional[int] = None,
-    padding: str = "max_length",
-    shuffle: bool = True,
-    seed: Optional[int] = None,
-):
-    proteins = transforms.sample_to_max_tokens(
-        proteins,
-        tokenizer=tokenizer,
-        max_tokens=max_tokens,
-        shuffle=shuffle,
-        seed=seed,
-    )
-    # if cfg.fill_missing_fields:
-    proteins = transforms.fill_missing_fields(proteins)
-    proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
-    proteins = transforms.apply_transforms(preprocessor.transforms, proteins, tokenizer)
-
-    tokenized = tokenizer.encode(
-        proteins,
-        document_token=preprocessor.document_token,
-        padding=padding,
-        max_length=max_tokens,
-        add_final_sep=True,
-        allow_unk=getattr(preprocessor, "allow_unk", False),
-    )
-    # tokenized.input_ids is flat now
-    # n.b. this is after subsampling so not very informative
-    tokenized.data["total_num_sequences"] = len(proteins)  # below length threshold
-
-    return tokenized.data
-
-
-def preprocess_protein_sequences(
-    proteins: ProteinDocument,
-    preprocessor: BasePreprocessor,
-    tokenizer: ProFamTokenizer,
-):
-    # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if tokenizer.use_seq_pos:
-        proteins = transforms.convert_sequences_adding_positions(
-            proteins,
-            keep_gaps=preprocessor.keep_gaps,
-            keep_insertions=preprocessor.keep_insertions,
-            to_upper=preprocessor.to_upper,
-            use_msa_pos=preprocessor.use_msa_pos,
-            truncate_after_n_sequences=preprocessor.truncate_after_n_sequences,
-        )
-    else:
-        proteins = proteins[: preprocessor.truncate_after_n_sequences or len(proteins)]
-    return proteins
-
-
-def backbone_coords_from_example(example, sequence_col="sequences"):
-    ns = example["N"]
-    cas = example["CA"]
-    cs = example["C"]
-    oxys = example["O"]
-    coords = []
-    for seq, n, ca, c, o in zip(
-        example[sequence_col],
-        ns,
-        cas,
-        cs,
-        oxys,
-    ):
-        recons_coords = np.zeros((len(seq), 4, 3))
-        recons_coords[:, 0] = np.array(n).reshape(-1, 3)
-        recons_coords[:, 1] = np.array(ca).reshape(-1, 3)
-        recons_coords[:, 2] = np.array(c).reshape(-1, 3)
-        recons_coords[:, 3] = np.array(o).reshape(-1, 3)
-        coords.append(recons_coords)
-    return coords
-
-
-def preprocess_protein_data(
-    example: Dict[str, Any],
-    preprocessor: BasePreprocessor,
-    tokenizer: ProFamTokenizer,
-    max_tokens: Optional[int] = None,
-    shuffle: bool = True,
-) -> Dict[str, Any]:
-    # N.B. for stockholm format we need to check that sequences aren't split over
-    # multiple lines
-    proteins = preprocessor.build_document(
-        example, tokenizer, max_tokens=max_tokens, shuffle=shuffle
-    )
-    proteins = preprocess_protein_sequences(proteins, preprocessor, tokenizer)
-    return subsample_and_tokenize_protein_data(
-        proteins,
-        preprocessor,
-        tokenizer=tokenizer,
-        max_tokens=max_tokens,
-        shuffle=shuffle,
-    )

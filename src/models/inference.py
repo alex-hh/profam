@@ -29,12 +29,13 @@ class PromptBuilder:
         max_length = max(len(seq) for seq in proteins.sequences)
         batch = subsample_and_tokenize_protein_data(
             proteins,
-            preprocessor=self.preprocessor,
+            cfg=self.preprocessing_cfg,
             tokenizer=tokenizer,
             shuffle=True,
             seed=self.seed,
             padding="longest",
             max_tokens=self.max_tokens - max_length,
+            transforms=self.preprocessor.transforms,  # TODO: be careful about randomness here...
         )  # a dictionary
         return batch
 
@@ -55,8 +56,8 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         representative_only: bool = False,
     ):
         super().__init__(preprocessor, max_tokens, seed)
-        assert self.preprocessor.interleave_structure_sequence
         self.representative_only = representative_only
+        assert self.preprocessor.interleave_structure_sequence
 
     # we need to exclude token space for length seed*2 from preprocessing
     # TODO: write tests for this
@@ -64,17 +65,18 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         representative = proteins.pop_representative()
         if not self.representative_only:
             proteins = preprocess_protein_sequences(
-                proteins, self.preprocessor, tokenizer
+                proteins, self.preprocessor.cfg, tokenizer
             )
             example = subsample_and_tokenize_protein_data(
                 proteins,
-                preprocessor=self.preprocessor,
+                cfg=self.preprocessor.cfg,
                 tokenizer=tokenizer,
                 shuffle=True,
                 seed=self.seed,
                 padding="longest",
                 max_tokens=self.max_tokens - len(representative),
                 exclude_tokens=2 * len(representative),
+                transforms=self.preprocessor.transforms,
             )
         # TODO: tokenize representative
         representative_doc = ProteinDocument.from_proteins([representative])

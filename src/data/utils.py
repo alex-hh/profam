@@ -255,9 +255,8 @@ def load_protein_dataset(
         if cfg.identifier_col is not None:
             identifier = cfg.name + "/" + example[cfg.identifier_col]
 
-        example = preprocess_protein_data(
+        example = cfg.preprocessor.preprocess_protein_data(
             example,
-            cfg.preprocessor,
             tokenizer=tokenizer,
             max_tokens=max_tokens,
             shuffle=shuffle,

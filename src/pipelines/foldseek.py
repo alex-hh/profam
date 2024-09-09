@@ -35,7 +35,7 @@ class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
 
     def load_protein_document(self, instance_id: str):
         protein_example = self.get_protein_example(instance_id)
-        # TODO: use preprocessor build_document? handles interleaving and transforms...
+        # TODO: use prompt_builder.preprocessor build_document? with max_tokens=None, shuffle=False should be ok.
         return ProteinDocument(
             identifier=instance_id,
             sequences=protein_example["sequences"],
