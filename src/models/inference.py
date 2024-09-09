@@ -78,7 +78,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
                 padding="longest",
                 max_tokens=self.max_tokens - len(representative),
                 exclude_tokens=2 * len(representative),
-                transforms=self.preprocessor.transforms,
+                transform_fns=self.preprocessor.transform_fns,
             )
         # TODO: tokenize representative
         representative_doc = ProteinDocument.from_proteins([representative])
@@ -93,6 +93,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             seed=self.seed,
             padding="longest",
             max_tokens=None,
+            transform_fns=self.preprocessor.transform_fns,
         )
         seq_start = (
             torch.argwhere(
