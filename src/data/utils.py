@@ -17,6 +17,28 @@ from src.utils.tokenizers import ProFamTokenizer
 # TODO: be careful around loading coords if using alignment - how can we test for this?
 
 
+def filter_on_length(example, cfg, max_tokens, tokenizer):
+    if cfg.length_filter is None:
+        return True
+    elif cfg.length_filter == "max_seq_pos":
+        return any([len(s) <= tokenizer.max_seq_pos - 1 for s in example["sequences"]])
+    elif cfg.length_filter == "max_tokens":
+        if max_tokens is None:
+            return True
+        elif getattr(cfg.preprocessor, "interleave_structure_sequence", False):
+            return (
+                max([len(s) for s in example["sequences"]])
+                <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
+            )
+        else:
+            return (
+                max([len(s) for s in example["sequences"]])
+                <= max_tokens - tokenizer.num_start_tokens - 1
+            )
+    else:
+        raise ValueError(f"Unknown length filter {cfg.length_filter}")
+
+
 class CustomDataCollator:
     """
     Wraps DataCollatorForLanguageModeling
@@ -105,6 +127,7 @@ class ProteinDatasetConfig:
     is_parquet: bool = False
     shuffle: bool = True
     length_filter: Optional[str] = None  # max_tokens, max_seq_pos
+    minimum_mean_plddt: Optional[float] = None
 
 
 def load_protein_dataset(
@@ -196,27 +219,16 @@ def load_protein_dataset(
 
     def prefilter_example(example):
         # TODO: base this on max_seq_pos
-        if cfg.length_filter is None:
-            return True
-        elif cfg.length_filter == "max_seq_pos":
-            return any(
-                [len(s) <= tokenizer.max_seq_pos - 1 for s in example["sequences"]]
-            )
-        elif cfg.length_filter == "max_tokens":
-            if max_tokens is None:
-                return True
-            elif getattr(cfg.preprocessor, "interleave_structure_sequence", False):
-                return (
-                    max([len(s) for s in example["sequences"]])
-                    <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
-                )
+        length_filter = filter_on_length(
+            example, cfg=cfg, max_tokens=max_tokens, tokenizer=tokenizer
+        )
+        if cfg.minimum_mean_plddt is not None:
+            if "plddts" in example:
+                mean_plddt = np.mean(example["plddts"])
+                filter_plddt = mean_plddt >= (cfg.minimum_mean_plddt or 0.0)
             else:
-                return (
-                    max([len(s) for s in example["sequences"]])
-                    <= max_tokens - tokenizer.num_start_tokens - 1
-                )
-        else:
-            raise ValueError(f"Unknown length filter {cfg.length_filter}")
+                filter_plddt = True
+        return length_filter and filter_plddt
 
     def filter_example(example):
         filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
