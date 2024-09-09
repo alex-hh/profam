@@ -26,4 +26,3 @@ if [ ! -f $output_file ]; then
     "${DATA_DIR}/foldseek_af50_struct/index.csv" "${DATA_DIR}/foldseek_af50_aug" \
     --all_vs_all_path "${SCRATCH_DIR}/6-all-vs-all-similarity-queryId_targetId_eValue.tsv" \
     --parquet_id $file_prefix --with_structure
-
