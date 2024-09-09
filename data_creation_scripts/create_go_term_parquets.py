@@ -31,20 +31,31 @@ def stream_go_tsv(file_path: str) -> Iterator[Tuple[str, List[str]]]:
     
     csv.field_size_limit(sys.maxsize)
     
-    logging.info(f"Streaming GO TSV file: {file_path}")
+    logging.info(f"Starting to stream GO TSV file: {file_path}")
     with open_func(file_path, 'rt', encoding='utf-8') as f:
         tsv_reader = csv.reader(f, delimiter='\t')
         for row in tsv_reader:
             if len(row) == 2:
                 go_term, uniprot_accs = row
                 yield go_term, uniprot_accs.split(',')
+    logging.info(f"Finished streaming GO TSV file: {file_path}")
 
 def load_sequence_dict(filepath: str) -> Dict[str, str]:
-    logging.info(f"Loading sequence dictionary from {filepath}...")
-    with open(filepath, 'rb') as f:
-        seq_dict = pickle.load(f)
-    logging.info(f"Loaded {len(seq_dict)} sequences.")
-    return seq_dict
+    logging.info(f"Starting to load sequence dictionary from {filepath}")
+    start_time = time.time()
+    try:
+        with open(filepath, 'rb') as f:
+            seq_dict = pickle.load(f)
+        end_time = time.time()
+        logging.info(f"Loaded {len(seq_dict)} sequences in {end_time - start_time:.2f} seconds")
+        return seq_dict
+    except EOFError:
+        logging.error(f"EOFError: The file {filepath} appears to be incomplete or corrupted.")
+        logging.info(f"File size: {os.path.getsize(filepath)} bytes")
+        raise
+    except Exception as e:
+        logging.error(f"Error loading sequence dictionary: {str(e)}")
+        raise
 
 def process_go_terms(go_tsv_path: str, seq_dict: Dict[str, str], save_dir: str) -> None:
     """
@@ -55,6 +66,7 @@ def process_go_terms(go_tsv_path: str, seq_dict: Dict[str, str], save_dir: str) 
         seq_dict (Dict[str, str]): Dictionary of sequences.
         save_dir (str): Directory to save the Parquet files.
     """
+    logging.info(f"Starting GO term processing")
     os.makedirs(save_dir, exist_ok=True)
     fail_path = os.path.join(save_dir, "failed_sequences.txt")
     index_data = []
@@ -62,7 +74,10 @@ def process_go_terms(go_tsv_path: str, seq_dict: Dict[str, str], save_dir: str) 
     current_parquet = 0
     current_go_terms = 0
     data = []
+    total_go_terms = 0
+    failed_sequences = 0
 
+    start_time = time.time()
     with open(fail_path, "w") as fail_file:
         for go_term, uniprot_accs in stream_go_tsv(go_tsv_path):
             sequences = []
@@ -74,6 +89,7 @@ def process_go_terms(go_tsv_path: str, seq_dict: Dict[str, str], save_dir: str) 
                     sequences.append(seq)
                 else:
                     fail_file.write(f"{acc}\n")
+                    failed_sequences += 1
             
             data.append({
                 'fam_id': go_term,
@@ -81,6 +97,7 @@ def process_go_terms(go_tsv_path: str, seq_dict: Dict[str, str], save_dir: str) 
                 'accessions': success_accs
             })
             current_go_terms += 1
+            total_go_terms += 1
 
             if current_go_terms >= len(data) // NUM_PARQUETS + 1:
                 df = pd.DataFrame(data)
@@ -107,7 +124,15 @@ def process_go_terms(go_tsv_path: str, seq_dict: Dict[str, str], save_dir: str) 
     index_df.to_csv(os.path.join(save_dir, "go_term_index.csv"), index=False)
     logging.info(f"Index file saved")
 
+    end_time = time.time()
+    processing_time = end_time - start_time
+    logging.info(f"GO term processing completed in {processing_time:.2f} seconds")
+    logging.info(f"Total GO terms processed: {total_go_terms}")
+    logging.info(f"Failed sequences: {failed_sequences}")
+    logging.info(f"Average processing time per GO term: {processing_time / total_go_terms:.4f} seconds")
+
 def main(go_tsv_path: str, save_dir: str, seq_dict_path: str) -> None:
+    logging.info("Starting main processing")
     t0 = time.time()
     
     seq_dict = load_sequence_dict(seq_dict_path)
@@ -115,6 +140,7 @@ def main(go_tsv_path: str, save_dir: str, seq_dict_path: str) -> None:
 
     t1 = time.time()
     logging.info(f"Total processing time: {t1 - t0:.2f} seconds")
+    logging.info("Processing completed")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create GO term documents and save them as parquet files.")
@@ -123,4 +149,6 @@ if __name__ == "__main__":
     parser.add_argument("seq_dict_path", type=str, help="Path to the sequence dictionary pickle file")
     args = parser.parse_args()
 
+    logging.info("Script started")
     main(args.go_tsv_path, args.save_dir, args.seq_dict_path)
+    logging.info("Script finished")
