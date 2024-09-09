@@ -10,7 +10,8 @@ defaults:
   - override /trainer: default
   - _self_
 
-tags: ["gym_train"]
+experiment_group: "gym_train"
+tags: ["${.experiment_group}"]
 
 seed: 12345
 
