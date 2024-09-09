@@ -104,7 +104,7 @@ def parquet_3di_processor():
     return preprocessing.ParquetStructurePreprocessor(
         cfg=preprocessing_cfg,
         structure_tokens_col="msta_3di",
-        transforms=[transforms.interleave_structure_sequence],
+        transform_fns=[transforms.interleave_structure_sequence],
     )
 
 
@@ -137,7 +137,7 @@ def foldseek_interleaved_structure_sequence_batch(
     parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
         cfg=preprocessing_cfg,
         structure_tokens_col="msta_3di",
-        transforms=[transforms.interleave_structure_sequence],
+        transform_fns=[transforms.interleave_structure_sequence],
     )
     cfg = ProteinDatasetConfig(
         name="foldseek",

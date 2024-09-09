@@ -55,7 +55,7 @@ def subsample_and_tokenize_protein_data(
     padding: str = "max_length",
     shuffle: bool = True,
     seed: Optional[int] = None,
-    transforms: Optional[List[Callable]] = None,
+    transform_fns: Optional[List[Callable]] = None,
 ):
     proteins = transforms.sample_to_max_tokens(
         proteins,
@@ -67,7 +67,7 @@ def subsample_and_tokenize_protein_data(
     # if cfg.fill_missing_fields:
     proteins = transforms.fill_missing_fields(proteins)
     proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
-    proteins = transforms.apply_transforms(transforms, proteins, tokenizer)
+    proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
 
     tokenized = tokenizer.encode(
         proteins,
@@ -130,10 +130,10 @@ class BasePreprocessor:
     def __init__(
         self,
         cfg: PreprocessingConfig,
-        transforms: Optional[List[Callable]] = None,
+        transform_fns: Optional[List[Callable]] = None,
     ):
         self.cfg = cfg
-        self.transforms = transforms
+        self.transform_fns = transform_fns
 
     def build_document(
         self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -159,7 +159,7 @@ class BasePreprocessor:
             tokenizer=tokenizer,
             max_tokens=max_tokens,
             shuffle=shuffle,
-            transforms=self.transforms,
+            transform_fns=self.transform_fns,
         )
 
 
@@ -185,9 +185,11 @@ class FastaPreprocessor(BasePreprocessor):
             for seq in read_fasta_sequences(
                 lines,
                 # preserve original sequences before getting positions
-                keep_gaps=True if tokenizer.use_seq_pos else self.keep_gaps,
-                keep_insertions=True if tokenizer.use_seq_pos else self.keep_insertions,
-                to_upper=False if tokenizer.use_seq_pos else self.to_upper,
+                keep_gaps=True if tokenizer.use_seq_pos else self.cfg.keep_gaps,
+                keep_insertions=True
+                if tokenizer.use_seq_pos
+                else self.cfg.keep_insertions,
+                to_upper=False if tokenizer.use_seq_pos else self.cfg.to_upper,
             )
         ]
         return ProteinDocument(sequences=sequences)
@@ -210,9 +212,9 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         self,
         cfg: PreprocessingConfig,
         sequence_col: str = "sequences",
-        transforms: Optional[List[Callable]] = None,
+        transform_fns: Optional[List[Callable]] = None,
     ):
-        super().__init__(cfg, transforms)
+        super().__init__(cfg, transform_fns)
         self.sequence_col = sequence_col
 
     def build_document(
@@ -244,17 +246,18 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         structure_first_prob: float = 1.0,
         identifier_col: str = "fam_id",
         infer_representative_from_identifier: bool = False,
-        transforms: Optional[List[Callable]] = None,
+        transform_fns: Optional[List[Callable]] = None,
     ):
         if interleave_structure_sequence:
-            transforms = transforms or []
-            self.transforms.append(
+            # handle like this because useful to have an interleave_structure_sequence attribute for lenght filtering
+            transform_fns = transform_fns or []
+            transform_fns.append(
                 functools.partial(
                     transforms.interleave_structure_sequence,
                     structure_first_prob=structure_first_prob,
                 )
             )
-        super().__init__(cfg, transforms)
+        super().__init__(cfg, transform_fns)
         self.sequence_col = sequence_col
         self.structure_tokens_col = structure_tokens_col
         self.interleave_structure_sequence = interleave_structure_sequence
@@ -285,16 +288,16 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             structure_tokens = [
                 convert_sequence_with_positions(
                     structure_tokens_iterator[i],
-                    keep_gaps=self.keep_gaps,
-                    keep_insertions=self.keep_insertions,
-                    to_upper=self.to_upper,
+                    keep_gaps=self.cfg.keep_gaps,
+                    keep_insertions=self.cfg.keep_insertions,
+                    to_upper=self.cfg.to_upper,
                 )[0].lower()
                 for i in sequence_ids
             ]
         else:
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
-        if "N" in example and not self.keep_gaps:
+        if "N" in example and not self.cfg.keep_gaps:
             assert not any(["-" in seq for seq in sequences])
             if structure_tokens is not None:
                 assert not any(["-" in seq for seq in structure_tokens])

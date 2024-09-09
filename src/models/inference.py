@@ -25,11 +25,13 @@ class PromptBuilder:
         self.max_tokens = max_tokens
 
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-        proteins = preprocess_protein_sequences(proteins, self.preprocessor, tokenizer)
+        proteins = preprocess_protein_sequences(
+            proteins, self.preprocessor.cfg, tokenizer
+        )
         max_length = max(len(seq) for seq in proteins.sequences)
         batch = subsample_and_tokenize_protein_data(
             proteins,
-            cfg=self.preprocessing_cfg,
+            cfg=self.preprocessor.cfg,
             tokenizer=tokenizer,
             shuffle=True,
             seed=self.seed,
@@ -81,11 +83,11 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         # TODO: tokenize representative
         representative_doc = ProteinDocument.from_proteins([representative])
         representative_doc = preprocess_protein_sequences(
-            representative_doc, self.preprocessor, tokenizer
+            representative_doc, self.preprocessor.cfg, tokenizer
         )
         representative_example = subsample_and_tokenize_protein_data(
             representative_doc,
-            preprocessor=self.preprocessor,
+            cfg=self.preprocessor.cfg,
             tokenizer=tokenizer,
             shuffle=True,
             seed=self.seed,
