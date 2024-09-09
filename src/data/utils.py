@@ -128,6 +128,7 @@ class ProteinDatasetConfig:
     shuffle: bool = True
     length_filter: Optional[str] = None  # max_tokens, max_seq_pos
     minimum_mean_plddt: Optional[float] = None
+    stream: bool = True
 
 
 def load_protein_dataset(
@@ -178,7 +179,7 @@ def load_protein_dataset(
             path="parquet",
             data_files=data_files,
             split=split,
-            streaming=True,
+            streaming=cfg.stream,
             verification_mode="no_checks",
         )
     else:
@@ -191,7 +192,7 @@ def load_protein_dataset(
             "text",
             data_files=data_files,
             split=split,
-            streaming=True,
+            streaming=cfg.stream,
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
@@ -242,6 +243,15 @@ def load_protein_dataset(
         return filter_num_seqs and filter_identifier
 
     def wrapped_preprocess(example):
+        """Function to be mapped.
+
+        a map is an instruction for converting an example to a new example.
+        it should return a datapoint dict.
+
+        a batched map is an instruction for converting a set of examples to a
+        new set of examples (not necessarily of the same size). it should return a dict of lists,
+        where the length of the lists determines the size of the new set of examples.
+        """
         if cfg.identifier_col is not None:
             identifier = cfg.name + "/" + example[cfg.identifier_col]
 
@@ -265,6 +275,7 @@ def load_protein_dataset(
         return example
 
     if cfg.preprocessor is not None:
+        # Q. how does batched map interact with interleave datasets?
         if dataset.column_names is not None:
             # Q: what causes None? maybe loading text rather than parquet
             remove_columns = [

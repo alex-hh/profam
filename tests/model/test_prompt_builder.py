@@ -6,7 +6,6 @@ import torch
 
 from src.constants import BASEDIR
 from src.data.preprocessing import ParquetStructurePreprocessor
-from src.data.transforms import interleave_structure_sequence
 from src.models.inference import InterleavedInverseFoldingPromptBuilder
 
 

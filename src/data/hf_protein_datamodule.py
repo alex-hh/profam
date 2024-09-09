@@ -28,6 +28,14 @@ DEFAULT_FEATURE_NAMES = [
 
 
 class ProteinDataModule(LightningDataModule):
+    """Data module for single dataset training."""
+
+    pass
+
+
+class ProteinDataMixture(LightningDataModule):
+    """Data module for training on mixture of datasets."""
+
     def __init__(
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],
