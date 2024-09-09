@@ -1,7 +1,4 @@
 _target_: src.data.preprocessing.ParquetSequencePreprocessor
-keep_gaps: false
-keep_insertions: true
-to_upper: true
-document_token: "[RAW-WITH-MSA-POS]"
+defaults:
+  - config: msa_pos
 truncate_after_n_sequences: null
-use_msa_pos: true

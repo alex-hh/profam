@@ -129,10 +129,10 @@ def backbone_coords_from_example(example, sequence_col="sequences"):
 class BasePreprocessor:
     def __init__(
         self,
-        cfg: PreprocessingConfig,
+        config: PreprocessingConfig,
         transform_fns: Optional[List[Callable]] = None,
     ):
-        self.cfg = cfg
+        self.cfg = config
         self.transform_fns = transform_fns
 
     def build_document(

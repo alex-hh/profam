@@ -1,12 +1,9 @@
 _target_: src.data.preprocessing.ParquetStructurePreprocessor
-keep_gaps: true
-keep_insertions: false
-to_upper: false
-document_token: "[MSA]"
+defaults:
+  - config: msa
 sequence_col: "msta_aa"
 structure_tokens_col: "msta_3di"
 truncate_after_n_sequences: null
-use_msa_pos: true
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
 transforms:

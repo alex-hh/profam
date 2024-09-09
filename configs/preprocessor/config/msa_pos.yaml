@@ -1,0 +1,5 @@
+keep_gaps: false
+keep_insertions: true
+to_upper: true
+document_token: "[RAW-WITH-MSA-POS]"
+use_msa_pos: true
