@@ -43,16 +43,22 @@ def stream_go_tsv(file_path: str) -> Iterator[Tuple[str, List[str]]]:
 def load_sequence_dict(filepath: str) -> Dict[str, str]:
     logging.info(f"Starting to load sequence dictionary from {filepath}")
     start_time = time.time()
+    seq_dict = {}
     try:
         with open(filepath, 'rb') as f:
-            seq_dict = pickle.load(f)
+            while True:
+                try:
+                    key = pickle.load(f)
+                    value = pickle.load(f)
+                    seq_dict[key] = value
+                except EOFError:
+                    break
+                except Exception as e:
+                    logging.warning(f"Error loading a key-value pair: {str(e)}")
+                    continue
         end_time = time.time()
         logging.info(f"Loaded {len(seq_dict)} sequences in {end_time - start_time:.2f} seconds")
         return seq_dict
-    except EOFError:
-        logging.error(f"EOFError: The file {filepath} appears to be incomplete or corrupted.")
-        logging.info(f"File size: {os.path.getsize(filepath)} bytes")
-        raise
     except Exception as e:
         logging.error(f"Error loading sequence dictionary: {str(e)}")
         raise
@@ -132,7 +138,6 @@ def process_go_terms(go_tsv_path: str, seq_dict: Dict[str, str], save_dir: str) 
     logging.info(f"Average processing time per GO term: {processing_time / total_go_terms:.4f} seconds")
 
 def main(go_tsv_path: str, save_dir: str, seq_dict_path: str) -> None:
-    logging.info("Starting main processing")
     t0 = time.time()
     
     seq_dict = load_sequence_dict(seq_dict_path)
@@ -140,7 +145,6 @@ def main(go_tsv_path: str, save_dir: str, seq_dict_path: str) -> None:
 
     t1 = time.time()
     logging.info(f"Total processing time: {t1 - t0:.2f} seconds")
-    logging.info("Processing completed")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create GO term documents and save them as parquet files.")
@@ -149,6 +153,4 @@ if __name__ == "__main__":
     parser.add_argument("seq_dict_path", type=str, help="Path to the sequence dictionary pickle file")
     args = parser.parse_args()
 
-    logging.info("Script started")
     main(args.go_tsv_path, args.save_dir, args.seq_dict_path)
-    logging.info("Script finished")
