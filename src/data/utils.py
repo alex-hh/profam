@@ -153,6 +153,7 @@ def load_protein_dataset(
             data_files = [
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
+            assert all([os.path.exists(f) for f in data_files])
 
     if cfg.holdout_data_files is not None:
         if isinstance(cfg.holdout_data_files, str):
@@ -162,9 +163,12 @@ def load_protein_dataset(
                 cfg.holdout_data_files, ListConfig
             ), f"holdout files is {type(cfg.holdout_data_files)} not list"
             holdout_files = cfg.holdout_data_files
+        assert all([f in data_files for f in holdout_files])
+
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in holdout_files]
         print("Excluding", all_files - len(data_files), "holdout files")
+        assert len(data_files) > 0, "No files left after holdout"
 
     assert isinstance(data_files, list)
     data_files = data_files * cfg.file_repeats
