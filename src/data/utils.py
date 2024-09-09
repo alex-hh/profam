@@ -228,7 +228,9 @@ def load_protein_dataset(
                 filter_plddt = mean_plddt >= (cfg.minimum_mean_plddt or 0.0)
             else:
                 filter_plddt = True
-        return length_filter and filter_plddt
+            return length_filter and filter_plddt
+        else:
+            return length_filter
 
     def filter_example(example):
         filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
