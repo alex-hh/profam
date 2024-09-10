@@ -6,6 +6,15 @@ from Bio import SeqIO
 import lmdb
 from tqdm import tqdm
 
+"""
+Creates or updates an LMDB from AFDB FASTA file (Total records: 214,683,829 | Total size: 93GB).
+
+LMDB structure:
+key: UniProt accession (e.g. "A0A1B2C3D4")
+value: Protein sequence (e.g. "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF...")
+
+"""
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
