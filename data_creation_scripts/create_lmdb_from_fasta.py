@@ -5,6 +5,7 @@ import logging
 from Bio import SeqIO
 import lmdb
 from tqdm import tqdm
+import itertools
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -31,34 +32,37 @@ def create_lmdb_from_fasta(fasta_file, lmdb_path, batch_size=100000):
     record_count = 0
     batch = {}
 
-    # Count total records for progress bar
-    total_records = sum(1 for _ in SeqIO.parse(fasta_file, "fasta"))
+    # Use a generator to parse the FASTA file
+    fasta_parser = SeqIO.parse(fasta_file, "fasta")
     
-    with env.begin(write=True) as txn, tqdm(total=total_records, desc="Processing records") as pbar:
-        for record in SeqIO.parse(fasta_file, "fasta"):
-            try:
-                uniprot_accession = extract_uniprot_accession(record.id)
-                sequence = str(record.seq)
-                
-                # Add to batch
-                batch[uniprot_accession.encode()] = sequence.encode()
-                record_count += 1
-                
-                if len(batch) >= batch_size:
+    with env.begin(write=True) as txn:
+        with tqdm(desc="Processing records", unit=" records") as pbar:
+            while True:
+                try:
+                    chunk = list(itertools.islice(fasta_parser, batch_size))
+                    if not chunk:
+                        break
+
+                    for record in chunk:
+                        try:
+                            uniprot_accession = extract_uniprot_accession(record.id)
+                            sequence = str(record.seq)
+                            
+                            batch[uniprot_accession.encode()] = sequence.encode()
+                            record_count += 1
+                            pbar.update(1)
+                            
+                        except ValueError as e:
+                            logger.warning(f"Skipping record due to error: {str(e)}")
+
                     # Write batch to LMDB
                     with txn.cursor() as curs:
                         curs.putmulti(batch.items())
                     batch.clear()
-                    
-                pbar.update(1)
-                
-            except ValueError as e:
-                logger.warning(f"Skipping record due to error: {str(e)}")
-        
-        # Write any remaining records in the batch
-        if batch:
-            with txn.cursor() as curs:
-                curs.putmulti(batch.items())
+
+                except Exception as e:
+                    logger.error(f"Error processing chunk: {str(e)}")
+                    # Optionally, implement a retry mechanism here
 
     env.close()
     logger.info(f"LMDB database created successfully at {lmdb_path}")
