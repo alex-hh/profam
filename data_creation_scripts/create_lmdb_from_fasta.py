@@ -5,8 +5,6 @@ import logging
 from Bio import SeqIO
 import lmdb
 from tqdm import tqdm
-import multiprocessing as mp
-import itertools
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,23 +22,7 @@ def get_last_processed_accession(lmdb_path):
                 return cursor.key().decode()
     return None
 
-def process_fasta_chunk(chunk, lmdb_path, last_processed):
-    """Process a chunk of FASTA records and write to LMDB."""
-    env = lmdb.open(lmdb_path, map_size=1099511627776)
-    processed_count = 0
-    with env.begin(write=True) as txn:
-        for record in chunk:
-            try:
-                uniprot_accession = record.id.split()[0].split(':')[1].split('-')[1]
-                if last_processed and uniprot_accession <= last_processed:
-                    continue
-                txn.put(uniprot_accession.encode(), str(record.seq).encode())
-                processed_count += 1
-            except IndexError:
-                logger.warning(f"Skipping record: Unable to extract UniProt accession from {record.id}")
-    return processed_count
-
-def create_lmdb_from_fasta(fasta_file, lmdb_path, batch_size=10000, num_processes=mp.cpu_count()):
+def create_lmdb_from_fasta(fasta_file, lmdb_path, batch_size=10000):
     logger.info(f"Starting LMDB creation/update from FASTA file: {fasta_file}")
     os.makedirs(os.path.dirname(lmdb_path), exist_ok=True)
 
@@ -50,17 +32,37 @@ def create_lmdb_from_fasta(fasta_file, lmdb_path, batch_size=10000, num_processe
     else:
         logger.info("Starting new LMDB creation")
 
-    with mp.Pool(processes=num_processes) as pool:
-        fasta_parser = SeqIO.parse(fasta_file, "fasta")
-        chunks = iter(lambda: list(itertools.islice(fasta_parser, batch_size)), [])
-        
-        results = pool.imap(
-            lambda chunk: process_fasta_chunk(chunk, lmdb_path, last_processed),
-            chunks
-        )
-        
-        total_records = sum(tqdm(results, desc="Processing records", unit=" records"))
+    env = lmdb.open(lmdb_path, map_size=1099511627776, writemap=True)
+    total_records = 0
+    batch = []
 
+    with env.begin(write=True) as txn:
+        for record in tqdm(SeqIO.parse(fasta_file, "fasta"), desc="Processing records", unit=" records"):
+            try:
+                uniprot_accession = record.id.split()[0].split(':')[1].split('-')[1]
+                if last_processed and uniprot_accession <= last_processed:
+                    continue
+                batch.append((uniprot_accession.encode(), str(record.seq).encode()))
+                if len(batch) >= batch_size:
+                    with txn.cursor() as cursor:
+                        cursor.putmulti(batch)
+                    total_records += len(batch)
+                    batch = []
+                    txn.commit()
+                    txn = env.begin(write=True)
+            except IndexError:
+                logger.warning(f"Skipping record: Unable to extract UniProt accession from {record.id}")
+            except lmdb.MapFullError:
+                logger.error("LMDB map full. Consider increasing map_size.")
+                break
+
+        # Write any remaining records
+        if batch:
+            with txn.cursor() as cursor:
+                cursor.putmulti(batch)
+            total_records += len(batch)
+
+    env.close()
     logger.info(f"LMDB database created/updated successfully at {lmdb_path}")
     logger.info(f"Total new records processed: {total_records}")
 
