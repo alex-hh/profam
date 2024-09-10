@@ -38,7 +38,7 @@ def create_lmdb_from_fasta(fasta_file, lmdb_path):
                 txn.put(uniprot_accession.encode(), sequence.encode())
                 record_count += 1
                 
-                if record_count % 10000 == 0:
+                if record_count % 1000000 == 0:
                     logger.info(f"Processed {record_count} records")
             except ValueError as e:
                 logger.warning(f"Skipping record due to error: {str(e)}")
