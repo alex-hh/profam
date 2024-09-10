@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=8G
-#$ -l h_vmem=8G
+#$ -l tmem=20G
+#$ -l h_vmem=20G
 #$ -l h_rt=38:55:30
 #$ -S /bin/bash
 #$ -t 1-10000  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100
@@ -17,12 +17,12 @@ file_prefix=$((SGE_TASK_ID - 1))
 output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/${file_prefix}.parquet"
 if [ ! -f $output_file ]; then
     echo "Output file not found: $output_file"
-    SCRATCH_DIR=/scratch0/$USER/$JOB_ID
+    SCRATCH_DIR=/scratch0/$USER/$JOB_ID/$SGE_TASK_ID
     mkdir -p ${SCRATCH_DIR}/data
     echo "Created scratch dir"
     ls /scratch0/$USER/$JOB_ID
     source ~/source_files/afenv.source
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
     python3 -m data_creation_scripts.foldseek.create_foldseek_struct_from_db ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --run_foldmason
-    rm -rf ${SCRATCH_DIR}/data
+    rm -rf ${SCRATCH_DIR}/data/
 fi
