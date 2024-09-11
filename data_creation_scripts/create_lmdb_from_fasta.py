@@ -4,7 +4,6 @@ import os
 import logging
 import argparse
 from typing import List, Tuple
-from Bio import SeqIO
 import lmdb
 from tqdm import tqdm
 import multiprocessing as mp
@@ -24,12 +23,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def process_batch(batch: List[Tuple[bytes, bytes]], lmdb_path: str) -> int:
-    """Process a batch of records and add them to the LMDB."""
-    env = lmdb.open(lmdb_path, map_size=1099511627776, writemap=True, max_dbs=1)
+    env = lmdb.open(lmdb_path, map_size=1099511627776, writemap=True, max_dbs=1, sync=False)
     try:
         with env.begin(write=True) as txn:
-            with txn.cursor() as cursor:
-                cursor.putmulti(batch)
+            for key, value in batch:
+                txn.put(key, value)
         return len(batch)
     finally:
         env.close()
@@ -46,6 +44,22 @@ def extract_uniprot_accession(record_id: str) -> str:
     """Extract UniProt accession from the record ID."""
     return record_id.split()[0].split(':')[1].split('-')[1]
 
+def custom_fasta_parser(fasta_file: str):
+    with open(fasta_file, 'r') as file:
+        header = ''
+        sequence = []
+        for line in file:
+            line = line.strip()
+            if line.startswith('>'):
+                if header:
+                    yield header, ''.join(sequence)
+                header = line[1:]
+                sequence = []
+            else:
+                sequence.append(line)
+        if header:
+            yield header, ''.join(sequence)
+
 def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num_cpus: int):
     logger.info(f"Starting LMDB creation from FASTA file: {fasta_file}")
     os.makedirs(os.path.dirname(lmdb_path), exist_ok=True)
@@ -56,23 +70,20 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num
         process_func = partial(worker_function, lmdb_path=lmdb_path)
 
         with tqdm(total=214683829, desc="Processing records", unit=" records") as pbar:
-            record_iterator = SeqIO.parse(fasta_file, "fasta")
+            batch = []
+            for header, sequence in custom_fasta_parser(fasta_file):
+                batch.append((
+                    extract_uniprot_accession(header).encode(),
+                    sequence.encode()
+                ))
+                
+                if len(batch) >= batch_size:
+                    results = pool.apply_async(process_func, (batch,))
+                    processed = results.get()
+                    pbar.update(processed)
+                    batch = []
             
-            while True:
-                batch = []
-                for _ in range(batch_size):
-                    try:
-                        record = next(record_iterator)
-                        batch.append((
-                            extract_uniprot_accession(record.id).encode(),
-                            str(record.seq).encode()
-                        ))
-                    except StopIteration:
-                        break
-                
-                if not batch:
-                    break
-                
+            if batch:
                 results = pool.apply_async(process_func, (batch,))
                 processed = results.get()
                 pbar.update(processed)
