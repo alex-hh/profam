@@ -65,22 +65,27 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     model_kwargs = model_seq_index.model._get_initial_cache_position(
         input_ids, model_kwargs
     )
-    # cache position is 0,1,2,3,4,5,6,7,8,9,10
+    # cache position is [0,1,2,3,4,5,6,7,8,9,10]
 
     with torch.no_grad():
         outputs = model_seq_index.model(input_ids=input_ids, **model_kwargs)
-        past_key_values = (
-            outputs.past_key_values
-        )  # just a tuple of tensors - doesn't get extended
 
-    # we need to update cache, cache_position
+    # in the loop at this point we sample a token from the logits and cat to input ids
+    # here we imagine that that token is M (third sequence)
+    # given this sampled token, we need to update cache, cache_position
+    # updated cache position is index of input ids to pass to model for next token
+    # i.e. input_ids[:, cache_position] should be the input ids to pass to model
     model_kwargs = model_seq_index.model._update_model_kwargs_for_generation(
         outputs,
         model_kwargs,
         is_encoder_decoder=model_seq_index.model.config.is_encoder_decoder,
     )
 
-    # cache position is 11
+    print(tokenized.input_ids[None], model_kwargs["cache_position"])
+    # what happens to produce input ids
+    print(tokenized.input_ids[None, model_kwargs["cache_position"]])
+
+    # cache position is [11]
     # we have to pass past_key_values for default prepare_inputs_for_generation to slice out added input ids
     inputs = model_seq_index.model.prepare_inputs_for_generation(
         tokenized.input_ids[None],
