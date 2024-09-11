@@ -2,4 +2,3 @@ _target_: src.data.preprocessing.ParquetSequencePreprocessor
 defaults:
   - config: raw
 sequence_col: "sequences"
-use_msa_pos: false
