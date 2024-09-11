@@ -35,13 +35,13 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     # 5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
 
     model_seq_index.eval()  # required for cache to be activated (even with use_cache True)
-    sequences = ["ARC", "MKLL", "M"]
+    sequences = ["ARC", "MKLL", "MK"]
     # imagine we are generating a new sequence after the second prompt sequence
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences), add_final_sep=False
     )
-    input_seq_pos = tokenized.seq_pos[None, :-1]
-    input_ids = tokenized.input_ids[None, :-1]
+    input_seq_pos = tokenized.seq_pos[None, :-2]
+    input_ids = tokenized.input_ids[None, :-2]
 
     model_kwargs = {
         "seq_pos": input_seq_pos,
@@ -54,6 +54,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         input_ids, model_kwargs
     )
     # cache position is [0,1,2,3,4,5,6,7,8,9,10]
+    # seq_pos is [[0,0,2,3,4,0,2,3,4,5,0]]
 
     with torch.no_grad():
         outputs = model_seq_index.model(input_ids=input_ids, **model_kwargs)
@@ -76,11 +77,27 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     # cache position is [11]
     # we have to pass past_key_values for default prepare_inputs_for_generation to slice out added input ids
     inputs = model_seq_index.model.prepare_inputs_for_generation(
-        tokenized.input_ids[None],
+        tokenized.input_ids[None, :-1],
         **model_kwargs,
     )
-    print(inputs["input_ids"], inputs["start_sequence_index"], inputs["seq_pos"])
+    print(inputs["input_ids"], inputs["seq_pos"])
     assert (inputs["start_sequence_index"] == 2).all()
     assert (inputs["seq_pos"] == 2).all()
 
-    # TODO: imagine we have already generated a bit; imagine we are starting from bos
+    # TODO: add next step.
+
+    with torch.no_grad():
+        outputs = model_seq_index.model(**inputs)
+
+    model_kwargs = model_seq_index.model._update_model_kwargs_for_generation(
+        outputs,
+        model_kwargs,
+        is_encoder_decoder=model_seq_index.model.config.is_encoder_decoder,
+    )
+    inputs = model_seq_index.model.prepare_inputs_for_generation(
+        tokenized.input_ids[None],
+        **model_kwargs,
+    )
+    print(inputs["input_ids"], inputs["seq_pos"])
+    assert (inputs["seq_pos"] == 3).all()
+    assert (inputs["start_sequence_index"] == 2).all()
