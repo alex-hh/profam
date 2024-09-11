@@ -86,7 +86,6 @@ def test_prot_gym_pos_encoding():
         sep_token="[SEP]",
         mask_token="[MASK]",
         bos_token="[start-of-document]",
-        add_special_tokens=True,
         add_final_sep=True,
         add_document_token=True,
         add_bos_token=True,
