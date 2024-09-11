@@ -54,8 +54,8 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int):
 
     start_time = time.time()
 
-    # Create a dictionary to hold all shard environments
     shard_envs = {}
+    shard_buffers = {}
 
     with open(fasta_file, 'rb') as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
         file_size = mm.size()
@@ -68,12 +68,26 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int):
                 if shard_key not in shard_envs:
                     shard_path = os.path.join(lmdb_path, f"shard_{shard_key}")
                     shard_envs[shard_key] = lmdb.open(shard_path, map_size=1099511627776 // 27, writemap=True, max_dbs=1)
+                    shard_buffers[shard_key] = []
                 
-                env = shard_envs[shard_key]
-                with env.begin(write=True) as txn:
-                    txn.put(accession, sequence)
+                shard_buffers[shard_key].append((accession, sequence))
+                
+                if len(shard_buffers[shard_key]) >= batch_size:
+                    env = shard_envs[shard_key]
+                    with env.begin(write=True) as txn:
+                        for acc, seq in shard_buffers[shard_key]:
+                            txn.put(acc, seq)
+                    shard_buffers[shard_key] = []
                 
                 pbar.update(1)
+
+    # Write any remaining records in buffers
+    for shard_key, buffer in shard_buffers.items():
+        if buffer:
+            env = shard_envs[shard_key]
+            with env.begin(write=True) as txn:
+                for acc, seq in buffer:
+                    txn.put(acc, seq)
 
     # Close all shard environments
     for env in shard_envs.values():
