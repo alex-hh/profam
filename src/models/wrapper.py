@@ -78,9 +78,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                     )
                 seq_pos = prev_seq_pos + increment
             inputs["seq_pos"] = seq_pos
-            assert kwargs["coords"].ndim == 4  # b, l, n, 3
             bsz = prev_seq_pos.shape[0]
             if self.embed_coords:
+                assert kwargs["coords"].ndim == 4  # b, l, n, 3
                 inputs["coords"] = torch.full(
                     (
                         bsz,
