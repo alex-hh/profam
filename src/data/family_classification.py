@@ -4,6 +4,7 @@ we create a dataset with a target family
 and a mix of decoys (members of other families)
 and non-decoys (members of the target family)
 """
+from typing import List
 import glob
 import random
 from functools import partial
