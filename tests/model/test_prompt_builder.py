@@ -16,7 +16,7 @@ def test_representative_inverse_folding(profam_tokenizer):
     example = df.iloc[0]
     cfg = PreprocessingConfig()
     preprocessor = ParquetStructurePreprocessor(
-        cfg=cfg,
+        config=cfg,
         structure_tokens_col=None,
         interleave_structure_sequence=True,
         infer_representative_from_identifier=True,
