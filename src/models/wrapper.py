@@ -70,15 +70,20 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         """n.b. we need to be aware of main steps of generation pipeline (self.generate)
-        1. (null) cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
-            https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L1854
-        2. prepare cache-aware position ids: get_initial_cache_position:
-            https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L2969
-            n.b. 'cache_position' is a very misleading name for cache-aware position index
+        1. null cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
+        https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L1854
+        2. get_initial_cache_position:
+        https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L2969
+        n.b. cache_position is a very misleading name for cache-aware position index
+        initially, cache position is just arange(len(input_ids))
         Then loop:
-            3. prepare_inputs_for_generation: slice out input ids if using cache
-            4. predict a new token and update input ids
-            5. update_model_kwargs_for_generation: update cache
+        3. prepare_inputs_for_generation: slice out input ids if using cache.
+            in first iteration this does nothing, since cache_position shape == len(input_ids)
+            in subsequent iterations, cache_position is index of newly generated token(s)
+            relative to updated input_ids (i.e. prompt + generated tokens). so input_ids[cache_position]
+            selects just the newly generated token(s) from the last sampling iteration to feed to the model
+        4. compute logits for next position in sequence, predict a new token and update input ids
+        5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
         """
         # TODO: consider putting this in update_model_kwargs_for_generation
 

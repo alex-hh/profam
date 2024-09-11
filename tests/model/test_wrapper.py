@@ -1,9 +1,4 @@
-import os
-
-import hydra
-import pytest
 import torch
-from hydra import compose, initialize_config_dir
 
 from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
@@ -22,29 +17,22 @@ def test_compute_sequence_index(default_model, profam_tokenizer):
     assert (sequence_indices == expected_sequence_indices).all()
 
 
-@pytest.fixture()
-def model_seq_index(profam_tokenizer):
-    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
-        cfg = compose(
-            config_name="train.yaml",
-            return_hydra_config=True,
-            overrides=["model.embed_sequence_index=True"],
-        )
-    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
-
-
 def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     # n.b. we need to be aware of main steps of generation pipeline (self.generate)
-    # Question: what does use_cache effect in generation? Seems like cache gets created regardless
     # 1. null cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
     # https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L1854
     # 2. get_initial_cache_position:
     # https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L2969
     # n.b. cache_position is a very misleading name for cache-aware position index
+    # initially, cache position is just arange(len(input_ids))
     # Then loop:
-    # 3. prepare_inputs_for_generation: slice out input ids if using cache. 'slice input_ids' through cache_position - what does this mean.
-    # 4. predict a new token and update input ids
-    # 5. update_model_kwargs_for_generation: update cache, attention mask, cache positions
+    # 3. prepare_inputs_for_generation: slice out input ids if using cache.
+    #    in first iteration this does nothing, since cache_position shape == len(input_ids)
+    #    in subsequent iterations, cache_position is index of newly generated token(s)
+    #    relative to updated input_ids (i.e. prompt + generated tokens). so input_ids[cache_position]
+    #    selects just the newly generated token(s) from the last sampling iteration to feed to the model
+    # 4. compute logits for next position in sequence, predict a new token and update input ids
+    # 5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
 
     model_seq_index.eval()  # required for cache to be activated (even with use_cache True)
     sequences = ["ARC", "MKLL", "M"]
