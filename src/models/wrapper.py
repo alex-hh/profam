@@ -73,6 +73,20 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # we're going to assume that the prompt ends with a separator token
         assert "seq_pos" in kwargs
         inputs = super().prepare_inputs_for_generation(input_ids, **kwargs)
+        if self.embed_sequence_index:
+            assert not "start_sequence_index" in kwargs
+            # n.b. input_ids is prompt + completion
+            prompt_sequence_index = self.compute_sequence_index(
+                input_ids, start_sequence_index=0
+            )
+            # increment sequence index if prev token was sep
+            start_sequence_index = torch.where(
+                input_ids[:, -1] == self.sep_token_id,
+                prompt_sequence_index[:, -1] + 1,
+                prompt_sequence_index[:, -1],
+            )
+            inputs["start_sequence_index"] = start_sequence_index
+
         if input_ids.shape[-1] != kwargs["seq_pos"].shape[-1]:
             # we have incremented input ids but not seq pos
             increment = input_ids.shape[-1] - kwargs["seq_pos"].shape[-1]
@@ -100,14 +114,17 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                     0.0,
                 ).to(kwargs["coords"])
         else:
+            assert (
+                input_ids[:, -1] == self.sep_token_id
+            ).all()  # n.b. could actually be bos...
             inputs["seq_pos"] = kwargs["seq_pos"]
             if self.embed_coords:
                 inputs["coords"] = kwargs["coords"]
         return inputs
 
-    def compute_sequence_index(self, input_ids):
-        # sep token gets index of PREVIOUS sequence
-        return torch.cat(
+    def compute_sequence_index(self, input_ids, start_sequence_index=0):
+        # cat means sep token gets index of PREVIOUS sequence
+        return start_sequence_index + torch.cat(
             (
                 torch.full_like(input_ids[..., :1], 0),
                 torch.cumsum((input_ids == self.sep_token_id).float(), dim=-1).long()[
@@ -122,6 +139,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         input_ids: Optional[torch.LongTensor],
         seq_pos: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
+        start_sequence_index: int = 0,
     ):
         # n.b. we need to be careful about what happens when caching.
         # I think in that case input_ids should just be the continuation
@@ -152,7 +170,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds += coords_embeds
 
         if self.embed_sequence_index:
-            sequence_index = self.compute_sequence_index(input_ids)
+            sequence_index = self.compute_sequence_index(
+                input_ids, start_sequence_index=start_sequence_index
+            )
             inputs_embeds += self.sequence_index_embedding(sequence_index)
 
         return inputs_embeds
@@ -170,12 +190,25 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         coords: Optional[torch.FloatTensor] = None,
+        start_sequence_index: Optional[
+            torch.Tensor | int
+        ] = None,  # index of sequence within document. modify when using cache.
         **kwargs,  # e.g. labels
     ):
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
-        inputs_embeds = self.embed_inputs(input_ids, seq_pos=seq_pos, coords=coords)
+        inputs_embeds = self.embed_inputs(
+            input_ids,
+            seq_pos=seq_pos,
+            coords=coords,
+            start_sequence_index=start_sequence_index,
+        )
+        if self.embed_sequence_index and past_key_values is not None:
+            assert (
+                start_sequence_index is not None
+            ), "Must pass start_sequence_index if using sequence index embeddings with cache"
+
         # TODO: test these; make sure they get called during generation for example.
         if self.pass_constant_position_ids_for_global_index:
             assert position_ids is None
