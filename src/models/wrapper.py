@@ -69,6 +69,19 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
+        """n.b. we need to be aware of main steps of generation pipeline (self.generate)
+        1. (null) cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
+            https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L1854
+        2. prepare cache-aware position ids: get_initial_cache_position:
+            https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L2969
+            n.b. 'cache_position' is a very misleading name for cache-aware position index
+        Then loop:
+            3. prepare_inputs_for_generation: slice out input ids if using cache
+            4. predict a new token and update input ids
+            5. update_model_kwargs_for_generation: update cache
+        """
+        # TODO: consider putting this in update_model_kwargs_for_generation
+
         # main place this gets called is in sample loop:
         # https://github.com/huggingface/transformers/blob/e7f4ace0929600606424efd4cd91947bd567d323/src/transformers/generation/utils.py#L2413
         # in sample loop 'input_ids' gets incremented with generated tokens
@@ -95,7 +108,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
             # frustratingly slicing of input ids is done on the super prepare inputs for generation
             generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
-            print(generated_tokens, self.sep_token_id)
+
             assert self.sep_token_id is not None
             if (generated_tokens == self.sep_token_id).any():
                 # sep would break incrementaion of seq pos
@@ -105,9 +118,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             prev_seq_pos = kwargs["seq_pos"][:, -1:]
             seq_pos = prev_seq_pos + increment
             inputs["seq_pos"] = seq_pos
-            assert kwargs["coords"].ndim == 4  # b, l, n, 3
             bsz = prev_seq_pos.shape[0]
             if self.embed_coords:
+                assert kwargs["coords"].ndim == 4  # b, l, n, 3
                 inputs["coords"] = torch.full(
                     (
                         bsz,
@@ -211,16 +224,18 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
+        if self.embed_sequence_index and past_key_values is not None:
+            assert (
+                start_sequence_index is not None
+            ), "Must pass start_sequence_index if using sequence index embeddings with cache"
+        elif start_sequence_index is None:
+            start_sequence_index = 0
         inputs_embeds = self.embed_inputs(
             input_ids,
             seq_pos=seq_pos,
             coords=coords,
             start_sequence_index=start_sequence_index,
         )
-        if self.embed_sequence_index and past_key_values is not None:
-            assert (
-                start_sequence_index is not None
-            ), "Must pass start_sequence_index if using sequence index embeddings with cache"
 
         # TODO: test these; make sure they get called during generation for example.
         if self.pass_constant_position_ids_for_global_index:
@@ -230,6 +245,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             assert position_ids is None
             assert seq_pos is not None
             position_ids = seq_pos
+
         return super().forward(
             input_ids=None,
             attention_mask=attention_mask,
