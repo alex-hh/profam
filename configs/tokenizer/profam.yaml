@@ -8,7 +8,7 @@ mask_token: "[MASK]"
 add_final_sep: true
 add_bos_token: true
 add_document_type_token: true
-use_seq_pos: true
-max_seq_pos: 1024
 max_tokens: ${data.max_tokens}
 max_below_plddt: 90  # 'very high' confidence in af browser
+use_seq_pos: true
+max_seq_pos: 1024

@@ -1,10 +1,9 @@
 import bisect
-import importlib
 import itertools
-from functools import partial
 from typing import Optional
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
@@ -47,6 +46,7 @@ def sample_to_max_tokens(
     shuffle: bool = True,
     seed: Optional[int] = None,
     drop_first: bool = False,
+    keep_first: bool = False,
     extra_tokens_per_document: Optional[int] = None,
     **kwargs,
 ):
@@ -58,12 +58,12 @@ def sample_to_max_tokens(
         extra_tokens_per_document = 2
     # extra_arrays = [positions, proteins.coords, proteins.plddts, proteins.structure_tokens]
     rnd = np_random(seed)
-    # TODO: implement keep first, drop first
     if drop_first:
         proteins = proteins[1:]
-
     if shuffle:
         perm = rnd.permutation(len(proteins))
+        if keep_first:
+            perm[0] = 0
         proteins = proteins[perm]
 
     if max_tokens is not None:
@@ -80,6 +80,55 @@ def sample_to_max_tokens(
         insertion_point = len(proteins)
     proteins = proteins[:insertion_point]
     return proteins
+
+
+def rescale_backbones(proteins: ProteinDocument, scale: float = 6.0, **kwargs):
+    # AF3 has a time-dependent scale (constant variance at all timesteps). They use 4 for t -0
+    # We can use a fixed scale for now.
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        new_coords.append(coords / scale)
+    return proteins.clone(backbone_coords=new_coords)
+
+
+def rotate_backbones(proteins: ProteinDocument, **kwargs):
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        # apply a separate random rotation to each protein
+        # TODO: handle nans.
+        assert coords.ndim == 3  # l, 4, 3
+        rotation = R.random().as_matrix()
+        flat_coords = coords.reshape(-1, 3)
+        flat_nan_mask = np.isnan(flat_coords).any(axis=1)
+        flat_coords[~flat_nan_mask] = rotation.apply(flat_coords[~flat_nan_mask])
+        flat_coords = flat_coords.reshape(-1, 4, 3)
+        new_coords.append(flat_coords)
+    return proteins.clone(backbone_coords=new_coords)
+
+
+def centre_backbones(proteins: ProteinDocument, **kwargs):
+    """Centres the coordinates, so that the centroid (average position) of the backbone atoms is at the origin.
+    AF3 centres and then randomly translates (Alg 19.)
+    """
+    # TODO: handle nans.
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        centroid = np.nanmean(coords)
+        new_coords.append(coords - centroid)
+    return proteins.clone(backbone_coords=new_coords)
+
+
+def replace_nans_in_coords(
+    proteins: ProteinDocument, fill_value: float = 0.0, **kwargs
+):
+    # n.b. this should occur after any nan-aware transforms like centering, roation.
+    new_coords = []
+    for coords in proteins.backbone_coords:
+        assert coords.ndim == 3  # l, 4, 3
+        new_coords.append(np.nan_to_num(coords, nan=fill_value))
+    return proteins.clone(backbone_coords=new_coords)
 
 
 def fill_missing_fields(proteins: ProteinDocument):
