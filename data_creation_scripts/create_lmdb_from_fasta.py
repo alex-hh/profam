@@ -23,12 +23,24 @@ value: Protein sequence (e.g. "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF..
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def process_batch(batch: List[Tuple[bytes, bytes]], env: lmdb.Environment) -> int:
+def process_batch(batch: List[Tuple[bytes, bytes]], lmdb_path: str) -> int:
     """Process a batch of records and add them to the LMDB."""
-    with env.begin(write=True) as txn:
-        with txn.cursor() as cursor:
-            cursor.putmulti(batch)
-    return len(batch)
+    env = lmdb.open(lmdb_path, map_size=1099511627776, writemap=True, max_dbs=1)
+    try:
+        with env.begin(write=True) as txn:
+            with txn.cursor() as cursor:
+                cursor.putmulti(batch)
+        return len(batch)
+    finally:
+        env.close()
+
+def worker_function(batch: List[Tuple[bytes, bytes]], lmdb_path: str) -> int:
+    """Worker function for multiprocessing."""
+    try:
+        return process_batch(batch, lmdb_path)
+    except lmdb.MapFullError:
+        logger.error("LMDB map full. Consider increasing map_size.")
+        return 0
 
 def extract_uniprot_accession(record_id: str) -> str:
     """Extract UniProt accession from the record ID."""
@@ -38,12 +50,10 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num
     logger.info(f"Starting LMDB creation from FASTA file: {fasta_file}")
     os.makedirs(os.path.dirname(lmdb_path), exist_ok=True)
 
-    env = lmdb.open(lmdb_path, map_size=1099511627776, writemap=True, max_dbs=1)  # 1 TB map size
-
     logger.info(f"Using {num_cpus} CPUs")
 
     with mp.Pool(num_cpus) as pool:
-        process_func = partial(process_batch, env=env)
+        process_func = partial(worker_function, lmdb_path=lmdb_path)
 
         with tqdm(total=214683829, desc="Processing records", unit=" records") as pbar:
             record_iterator = SeqIO.parse(fasta_file, "fasta")
@@ -63,15 +73,10 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num
                 if not batch:
                     break
                 
-                try:
-                    results = pool.apply_async(process_func, (batch,))
-                    processed = results.get()
-                    pbar.update(processed)
-                except lmdb.MapFullError:
-                    logger.error("LMDB map full. Consider increasing map_size.")
-                    break
+                results = pool.apply_async(process_func, (batch,))
+                processed = results.get()
+                pbar.update(processed)
 
-    env.close()
     logger.info(f"LMDB database created successfully at {lmdb_path}")
 
 def parse_arguments():
