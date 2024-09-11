@@ -2,7 +2,6 @@ _target_: src.data.preprocessing.ParquetStructurePreprocessor
 defaults:
   - config: raw
 structure_tokens_col: "msta_3di"
-truncate_after_n_sequences: null
 interleave_structure_sequence: true
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
