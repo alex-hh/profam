@@ -210,11 +210,11 @@ class FastaPreprocessor(BasePreprocessor):
 class ParquetSequencePreprocessor(BasePreprocessor):
     def __init__(
         self,
-        cfg: PreprocessingConfig,
+        config: PreprocessingConfig,
         sequence_col: str = "sequences",
         transform_fns: Optional[List[Callable]] = None,
     ):
-        super().__init__(cfg, transform_fns)
+        super().__init__(config, transform_fns)
         self.sequence_col = sequence_col
 
     def build_document(
@@ -239,7 +239,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
 class ParquetStructurePreprocessor(BasePreprocessor):
     def __init__(
         self,
-        cfg: PreprocessingConfig,
+        config: PreprocessingConfig,
         sequence_col: str = "sequences",
         structure_tokens_col: Optional[str] = None,
         interleave_structure_sequence: bool = False,
@@ -257,7 +257,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
                     structure_first_prob=structure_first_prob,
                 )
             )
-        super().__init__(cfg, transform_fns)
+        super().__init__(config, transform_fns)
         self.sequence_col = sequence_col
         self.structure_tokens_col = structure_tokens_col
         self.interleave_structure_sequence = interleave_structure_sequence
