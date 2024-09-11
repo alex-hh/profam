@@ -91,7 +91,7 @@ def model_seq_index(profam_tokenizer):
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def parquet_raw_sequence_processor():
     return preprocessing.ParquetSequencePreprocessorConfig(
         keep_insertions=True,
