@@ -89,7 +89,7 @@ def parquet_raw_sequence_processor():
         use_msa_pos=False,
     )
     return preprocessing.ParquetSequencePreprocessor(
-        cfg=preprocessing_cfg,
+        config=preprocessing_cfg,
     )
 
 
@@ -102,7 +102,7 @@ def parquet_3di_processor():
         use_msa_pos=False,
     )
     return preprocessing.ParquetStructurePreprocessor(
-        cfg=preprocessing_cfg,
+        config=preprocessing_cfg,
         structure_tokens_col="msta_3di",
         transform_fns=[transforms.interleave_structure_sequence],
     )
@@ -135,7 +135,7 @@ def foldseek_interleaved_structure_sequence_batch(
         use_msa_pos=False,
     )
     parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
-        cfg=preprocessing_cfg,
+        config=preprocessing_cfg,
         structure_tokens_col="msta_3di",
         transform_fns=[transforms.interleave_structure_sequence],
     )
