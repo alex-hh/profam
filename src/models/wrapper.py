@@ -26,7 +26,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         config,
         token_embedder: str,
         embedding_dim: int,
-        sep_token_id: Optional[int] = None,
+        sep_token_id: int,
         use_seq_pos: bool = False,
         max_seq_pos: int = 2048,
         require_seq_pos: bool = True,
@@ -71,35 +71,37 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         # main place this gets called is in sample loop:
         # https://github.com/huggingface/transformers/blob/e7f4ace0929600606424efd4cd91947bd567d323/src/transformers/generation/utils.py#L2413
+        # in sample loop 'input_ids' gets incremented with generated tokens
+        # # update generated ids, model inputs, and length for next step
+        # input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
         # we're going to assume that the prompt ends with a separator token
+        assert input_ids.ndim == 2
         assert "seq_pos" in kwargs
-        inputs = super().prepare_inputs_for_generation(input_ids, **kwargs)
-        if self.embed_sequence_index:
-            assert not "start_sequence_index" in kwargs
-            # n.b. input_ids is prompt + completion
-            prompt_sequence_index = self.compute_sequence_index(
-                input_ids, start_sequence_index=0
-            )
-            # increment sequence index if prev token was sep
-            start_sequence_index = torch.where(
-                input_ids[:, -1] == self.sep_token_id,
-                prompt_sequence_index[:, -1] + 1,
-                prompt_sequence_index[:, -1],
-            )
-            inputs["start_sequence_index"] = start_sequence_index
+        # AH - to test this we first need to actually compute the cache. It's a complex test!
+        inputs = super().prepare_inputs_for_generation(
+            input_ids, **kwargs
+        )  # slices out prompt and uses cache typically.
 
         if input_ids.shape[-1] != kwargs["seq_pos"].shape[-1]:
             # we have incremented input ids but not seq pos
             increment = input_ids.shape[-1] - kwargs["seq_pos"].shape[-1]
-            assert (
-                inputs["input_ids"].shape[-1] == 1
-            )  # we have sliced out the last token
+            assert inputs["input_ids"].shape[-1] == 1, inputs[
+                "input_ids"
+            ].shape  # we have sliced out the last token and are using cache - does this need to be true?
             # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
             # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
             # we need to slice out all previously considered sequence positions - at what point does this occur for input ids?
             # we need to be very careful about caching - inputs embeds is hopefully not being passed to the outer model? but if it is we
             # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
             # frustratingly slicing of input ids is done on the super prepare inputs for generation
+            generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
+            print(generated_tokens, self.sep_token_id)
+            assert self.sep_token_id is not None
+            if (generated_tokens == self.sep_token_id).any():
+                # sep would break incrementaion of seq pos
+                raise NotImplementedError(
+                    "This code does not handle generation of sequences with separators."
+                )
             prev_seq_pos = kwargs["seq_pos"][:, -1:]
             seq_pos = prev_seq_pos + increment
             inputs["seq_pos"] = seq_pos
@@ -114,10 +116,20 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                     + kwargs["coords"].shape[-2:],
                     0.0,
                 ).to(kwargs["coords"])
+            if self.embed_sequence_index:
+                assert not "start_sequence_index" in kwargs
+                # n.b. input_ids is prompt + completion
+                prompt_sequence_index = self.compute_sequence_index(
+                    input_ids, start_sequence_index=0
+                )
+                # increment sequence index if prev token was sep
+                start_sequence_index = torch.where(
+                    input_ids[:, -1] == self.sep_token_id,
+                    prompt_sequence_index[:, -1] + 1,
+                    prompt_sequence_index[:, -1],
+                )
+            inputs["start_sequence_index"] = start_sequence_index
         else:
-            assert (
-                input_ids[:, -1] == self.sep_token_id
-            ).all()  # n.b. could actually be bos...
             inputs["seq_pos"] = kwargs["seq_pos"]
             if self.embed_coords:
                 inputs["coords"] = kwargs["coords"]
