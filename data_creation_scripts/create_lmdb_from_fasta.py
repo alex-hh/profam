@@ -73,11 +73,15 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num
         with tqdm(total=214683829, desc="Processing records", unit=" records") as pbar:
             record_iterator = SeqIO.parse(fasta_file, "fasta")
             if resume_flag:
-                record_iterator = itertools.dropwhile(
-                    lambda r: extract_uniprot_accession(r.id) <= last_processed,
-                    record_iterator
-                )
-                logger.info(f"Skipped records up to accession: {last_processed}")
+                skipped_count = 0
+                for record in record_iterator:
+                    current_accession = extract_uniprot_accession(record.id)
+                    if current_accession <= last_processed:
+                        skipped_count += 1
+                        continue
+                    break
+                logger.info(f"Skipped {skipped_count} records up to accession: {last_processed}")
+                pbar.update(skipped_count)
 
             for batch in iter(lambda: list(itertools.islice(record_iterator, batch_size)), []):
                 try:
