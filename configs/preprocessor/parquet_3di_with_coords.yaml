@@ -5,7 +5,7 @@ structure_tokens_col: "msta_3di"
 interleave_structure_sequence: false
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
-transforms:
+transform_fns:
   - _target_: src.data.transforms.centre_backbones
     _partial_: true
     scale: 6.0

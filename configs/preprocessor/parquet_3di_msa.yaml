@@ -5,7 +5,7 @@ sequence_col: "msta_aa"
 structure_tokens_col: "msta_3di"
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
-transforms:
+transform_fns:
   - _target_: src.data.transforms.interleave_structure_sequence
     _partial_: true
     max_tokens: ${data.max_tokens}
