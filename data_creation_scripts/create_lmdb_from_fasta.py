@@ -9,6 +9,7 @@ import lmdb
 from tqdm import tqdm
 import multiprocessing as mp
 from functools import partial
+import itertools
 
 """
 Creates or updates an LMDB from AFDB FASTA file (Total records: 214,683,829 | Total size: 93GB).
@@ -70,35 +71,28 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num
         process_func = partial(process_batch, env=env)
 
         with tqdm(total=214683829, desc="Processing records", unit=" records") as pbar:
-            batches = []
-            for record in SeqIO.parse(fasta_file, "fasta"):
+            record_iterator = SeqIO.parse(fasta_file, "fasta")
+            if resume_flag:
+                record_iterator = itertools.dropwhile(
+                    lambda r: extract_uniprot_accession(r.id) <= last_processed,
+                    record_iterator
+                )
+                logger.info(f"Skipped records up to accession: {last_processed}")
+
+            for batch in iter(lambda: list(itertools.islice(record_iterator, batch_size)), []):
                 try:
-                    uniprot_accession = extract_uniprot_accession(record.id)
-                    
-                    if resume_flag:
-                        if uniprot_accession <= last_processed:
-                            continue
-                        else:
-                            resume_flag = False
-                            logger.info(f"Resumed processing from accession: {uniprot_accession}")
-                    
-                    batches.append((uniprot_accession.encode(), str(record.seq).encode()))
-                    if len(batches) >= batch_size:
-                        results = pool.map(process_func, [batches])
-                        total_records += sum(results)
-                        pbar.update(sum(results))
-                        batches = []
-                except IndexError:
-                    logger.warning(f"Skipping record: Unable to extract UniProt accession from {record.id}")
+                    batches = [
+                        (extract_uniprot_accession(record.id).encode(), str(record.seq).encode())
+                        for record in batch
+                    ]
+                    results = pool.apply_async(process_func, (batches,))
+                    total_records += results.get()
+                    pbar.update(len(batches))
+                except IndexError as e:
+                    logger.warning(f"Skipping record: Unable to extract UniProt accession. Error: {e}")
                 except lmdb.MapFullError:
                     logger.error("LMDB map full. Consider increasing map_size.")
                     break
-
-            # Process any remaining records
-            if batches:
-                results = pool.map(process_func, [batches])
-                total_records += sum(results)
-                pbar.update(sum(results))
 
     env.close()
     logger.info(f"LMDB database created/updated successfully at {lmdb_path}")
@@ -108,7 +102,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Create LMDB from FASTA file")
     parser.add_argument("--fasta", required=True, help="Path to input FASTA file")
     parser.add_argument("--lmdb", required=True, help="Path to output LMDB file")
-    parser.add_argument("--batch-size", type=int, default=100000, help="Batch size for processing")
+    parser.add_argument("--batch-size", type=int, default=10000, help="Batch size for processing")
     parser.add_argument("--num-cpus", type=int, default=int(os.environ.get('NPROC', 1)),
                         help="Number of CPUs to use (default: NPROC environment variable or 1)")
     return parser.parse_args()
