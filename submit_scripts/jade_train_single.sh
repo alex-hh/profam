@@ -22,6 +22,5 @@ cd ~/ProFam/profam
 
 # TODO: copy data to local scratch space
 mkdir /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data
-scp -r ~/ProFam/data/pfam /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
-scp -r ~/ProFam/data/ProteinGym /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data/
+scp -r ~/ProFam/data /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/
 WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py +environment=jade_single data.data_dir=/raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data "$@"
