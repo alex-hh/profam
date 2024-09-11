@@ -1,4 +1,5 @@
 import torch
+
 from src.data.objects import ProteinDocument
 
 
@@ -73,7 +74,7 @@ def test_prepare_inputs_for_generation(default_model, profam_tokenizer):
 
     with torch.no_grad():
         outputs = default_model.model(**inputs)
-    
+
     model_kwargs = default_model.model._update_model_kwargs_for_generation(
         outputs,
         model_kwargs,
