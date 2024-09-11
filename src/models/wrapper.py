@@ -6,6 +6,7 @@ from torch import nn
 from src.utils.utils import nested_getattr
 
 
+# TODO: try to modularise...
 class WrappedHFModelWithPositionEmbeddingsMixin:
     """Wrap a pre-trained model to add sequence-relative position embeddings.
 
