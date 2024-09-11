@@ -48,7 +48,7 @@ def extract_uniprot_accession(record_id: str) -> str:
     """Extract UniProt accession from the record ID."""
     return record_id.split()[0].split(':')[1].split('-')[1]
 
-def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int):
+def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num_cpus: int):
     logger.info(f"Starting LMDB creation/update from FASTA file: {fasta_file}")
     os.makedirs(os.path.dirname(lmdb_path), exist_ok=True)
 
@@ -64,13 +64,13 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int):
     batch = []
     resume_flag = last_processed is not None
 
-    num_processes = mp.cpu_count()
-    logger.info(f"Using {num_processes} processes")
+    logger.info(f"Using {num_cpus} CPUs")
 
-    with mp.Pool(num_processes) as pool:
+    with mp.Pool(num_cpus) as pool:
         process_func = partial(process_batch, env=env)
 
         with tqdm(total=214683829, desc="Processing records", unit=" records") as pbar:
+            batches = []
             for record in SeqIO.parse(fasta_file, "fasta"):
                 try:
                     uniprot_accession = extract_uniprot_accession(record.id)
@@ -82,12 +82,12 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int):
                             resume_flag = False
                             logger.info(f"Resumed processing from accession: {uniprot_accession}")
                     
-                    batch.append((uniprot_accession.encode(), str(record.seq).encode()))
-                    if len(batch) >= batch_size:
-                        processed = pool.apply(process_func, (batch,))
-                        total_records += processed
-                        pbar.update(processed)
-                        batch = []
+                    batches.append((uniprot_accession.encode(), str(record.seq).encode()))
+                    if len(batches) >= batch_size:
+                        results = pool.map(process_func, [batches])
+                        total_records += sum(results)
+                        pbar.update(sum(results))
+                        batches = []
                 except IndexError:
                     logger.warning(f"Skipping record: Unable to extract UniProt accession from {record.id}")
                 except lmdb.MapFullError:
@@ -95,10 +95,10 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int):
                     break
 
             # Process any remaining records
-            if batch:
-                processed = pool.apply(process_func, (batch,))
-                total_records += processed
-                pbar.update(processed)
+            if batches:
+                results = pool.map(process_func, [batches])
+                total_records += sum(results)
+                pbar.update(sum(results))
 
     env.close()
     logger.info(f"LMDB database created/updated successfully at {lmdb_path}")
@@ -109,11 +109,13 @@ def parse_arguments():
     parser.add_argument("--fasta", required=True, help="Path to input FASTA file")
     parser.add_argument("--lmdb", required=True, help="Path to output LMDB file")
     parser.add_argument("--batch-size", type=int, default=100000, help="Batch size for processing")
+    parser.add_argument("--num-cpus", type=int, default=int(os.environ.get('NPROC', 1)),
+                        help="Number of CPUs to use (default: NPROC environment variable or 1)")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_arguments()
     
     logger.info("Script started")
-    create_lmdb_from_fasta(args.fasta, args.lmdb, args.batch_size)
+    create_lmdb_from_fasta(args.fasta, args.lmdb, args.batch_size, args.num_cpus)
     logger.info("Script completed")
