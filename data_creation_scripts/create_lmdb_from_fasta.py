@@ -23,19 +23,21 @@ value: Protein sequence (e.g. "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF..
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def process_batch(batch: List[Tuple[bytes, bytes]], env: lmdb.Environment) -> int:
-    with env.begin(write=True) as txn:
-        for key, value in batch:
-            txn.put(key, value)
-    return len(batch)
-
-def worker_function(batch: List[Tuple[bytes, bytes]], env: lmdb.Environment) -> int:
-    """Worker function for multiprocessing."""
+def process_batch(batch: List[Tuple[bytes, bytes]], lmdb_path: str) -> int:
+    env = lmdb.open(lmdb_path, map_size=1099511627776, writemap=True, max_dbs=1, sync=False)
     try:
-        return process_batch(batch, env)
+        with env.begin(write=True) as txn:
+            for key, value in batch:
+                txn.put(key, value)
+        return len(batch)
     except lmdb.MapFullError:
         logger.error("LMDB map full. Consider increasing map_size.")
         return 0
+    finally:
+        env.close()
+
+def worker_function(batch: List[Tuple[bytes, bytes]], lmdb_path: str) -> int:
+    return process_batch(batch, lmdb_path)
 
 def extract_uniprot_accession(record_id: str) -> str:
     """Extract UniProt accession from the record ID."""
@@ -58,12 +60,10 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num
 
     logger.info(f"Using {num_cpus} CPUs")
 
-    env = lmdb.open(lmdb_path, map_size=1099511627776, writemap=True, max_dbs=1, sync=False)
-
     with open(fasta_file, 'rb') as f, mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
         file_size = mm.size()
         with mp.Pool(num_cpus) as pool:
-            process_func = partial(worker_function, env=env)
+            process_func = partial(worker_function, lmdb_path=lmdb_path)
 
             with tqdm(total=214683829, desc="Processing records", unit=" records") as pbar:
                 batch = []
@@ -84,7 +84,6 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int, num
                     processed = results.get()
                     pbar.update(processed)
 
-    env.close()
     logger.info(f"LMDB database created successfully at {lmdb_path}")
 
 def parse_arguments():
