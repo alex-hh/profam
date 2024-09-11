@@ -163,6 +163,8 @@ def load_protein_dataset(
                 cfg.holdout_data_files, ListConfig
             ), f"holdout files is {type(cfg.holdout_data_files)} not list"
             holdout_files = cfg.holdout_data_files
+
+        holdout_files = [os.path.join(data_dir, f) for f in holdout_files]
         assert all([f in data_files for f in holdout_files])
 
         all_files = len(data_files)
