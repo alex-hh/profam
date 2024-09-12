@@ -31,12 +31,6 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         )
 
 
-class WrappedLlamaForCausalLM(
-    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
-):
-    pass
-
-
 class LlamaLitModule(BaseFamilyLitModule):
     def __init__(
         self,
@@ -54,6 +48,8 @@ class LlamaLitModule(BaseFamilyLitModule):
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
+        mask_between_document_attention: bool = False,
+        mask_between_sequence_attention: bool = False,
     ) -> None:
         """
         From the paper:
@@ -77,6 +73,8 @@ class LlamaLitModule(BaseFamilyLitModule):
                 max_sequence_index=max_sequence_index,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
                 pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
+                mask_between_document_attention=mask_between_document_attention,
+                mask_between_sequence_attention=mask_between_sequence_attention,
             )
         else:
             model = LlamaForCausalLM(config)
