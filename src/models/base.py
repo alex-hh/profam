@@ -168,6 +168,13 @@ class BaseLitModule(LightningModule):
             "ppl": torch.exp(loss),
             "aa_accuracy": dataset_accuracies.pop("global"),
         }
+        if "coords" in batch:
+            has_coords_mask = batch["coords"].any(-1)
+            has_coords_frac = (
+                has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
+            )
+            global_metrics["has_coords_frac"] = has_coords_frac
+
         if has_3di:
             dataset_accuracies_3di = accuracy_from_outputs(
                 outputs,
@@ -179,12 +186,6 @@ class BaseLitModule(LightningModule):
                 ),
             )
             global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
-        if "coords" in batch:
-            has_coords_mask = batch["coords"].any(-1)
-            has_coords_frac = (
-                has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
-            )
-            global_metrics["has_coords_frac"] = has_coords_frac
 
         if log_global:
             self.log_dict(
