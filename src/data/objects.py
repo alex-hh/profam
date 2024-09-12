@@ -91,6 +91,10 @@ class ProteinDocument:
     def __len__(self):
         return len(self.sequences)
 
+    @property
+    def sequence_lengths(self):
+        return [len(seq) for seq in self.sequences]
+
     @classmethod
     def from_proteins(cls, proteins: List[Protein], **kwargs):
         fields = [

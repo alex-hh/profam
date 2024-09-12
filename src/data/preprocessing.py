@@ -94,6 +94,8 @@ def batched_subsample_and_tokenize_protein_data(
     seed: Optional[int] = None,
     transform_fns: Optional[List[Callable]] = None,
 ):
+    # N.B. right now this is equivalent to just looping over subsample_and_tokenize_protein_data
+    # but in the future we might want to do something more sophisticated
     proteins_list = []
     for proteins in proteins_list:
         proteins = transforms.sample_to_max_tokens(
@@ -182,60 +184,7 @@ class BasePreprocessor:
     ):
         raise NotImplementedError()
 
-
-class SinglePreprocessor(BasePreprocessor):
-    def preprocess_protein_data(
-        self,
-        example: Dict[str, Any],
-        tokenizer: ProFamTokenizer,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
-    ) -> Dict[str, Any]:
-        # N.B. for stockholm format we need to check that sequences aren't split over
-        # multiple lines
-        proteins = self.build_document(
-            example, tokenizer, max_tokens=max_tokens, shuffle=shuffle
-        )
-        proteins = preprocess_protein_sequences(proteins, self.cfg, tokenizer)
-        return subsample_and_tokenize_protein_data(
-            proteins,
-            self.cfg,
-            tokenizer=tokenizer,
-            max_tokens=max_tokens,
-            shuffle=shuffle,
-            transform_fns=self.transform_fns,
-        )
-
-
-class BatchedPreprocessor(BasePreprocessor):
-    def __init__(
-        self,
-        config: PreprocessingConfig,
-        transform_fns: Optional[List[Callable]] = None,
-        interleave_structure_sequence: bool = False,
-    ):
-        super().__init__(
-            config,
-            transform_fns,
-            interleave_structure_sequence=interleave_structure_sequence,
-        )
-
-    def build_documents(
-        self,
-        examples,
-        tokenizer,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
-    ):
-        example_dicts = examples_to_list_of_dicts(examples)
-        return [
-            self.build_document(
-                example_dict, tokenizer, max_tokens=max_tokens, shuffle=shuffle
-            )
-            for example_dict in example_dicts
-        ]
-
-    def preprocess_protein_data(
+    def batched_preprocess_protein_data(
         self,
         examples: Dict[str, List[Any]],
         tokenizer: ProFamTokenizer,
@@ -262,6 +211,63 @@ class BatchedPreprocessor(BasePreprocessor):
             shuffle=shuffle,
             transform_fns=self.transform_fns,
         )
+
+    def preprocess_protein_data(
+        self,
+        example: Dict[str, Any],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        # N.B. for stockholm format we need to check that sequences aren't split over
+        # multiple lines
+        proteins = self.build_document(
+            example, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+        )
+        proteins = preprocess_protein_sequences(proteins, self.cfg, tokenizer)
+        return subsample_and_tokenize_protein_data(
+            proteins,
+            self.cfg,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            transform_fns=self.transform_fns,
+        )
+
+    def build_documents(
+        self,
+        examples,
+        tokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ):
+        """We assume that documents should be concatenated up to max_tokens.
+
+        TODO: implement document-aware attention masking
+        """
+        example_dicts = examples_to_list_of_dicts(examples)
+        proteins_list = [
+            self.build_document(
+                example_dict, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            )
+            for example_dict in example_dicts
+        ]
+        document_lengths = [
+            sum(proteins.sequence_lengths) for proteins in proteins_list
+        ]
+        assert max_tokens is not None
+        merged_documents = []
+        current_document = None
+        for proteins, length in zip(proteins_list, document_lengths):
+            if current_document is None:
+                current_document = proteins.clone()
+            else:
+                if sum(current_document.sequence_lengths) + length <= max_tokens:
+                    current_document.extend(proteins)
+                else:
+                    merged_documents.append(current_document)
+                    current_document = proteins.clone()
+        return merged_documents
 
 
 class FastaPreprocessor(SinglePreprocessor):

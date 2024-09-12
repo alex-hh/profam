@@ -269,9 +269,6 @@ def load_protein_dataset(
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
-        if cfg.identifier_col is not None:
-            identifier = cfg.name + "/" + example[cfg.identifier_col]
-
         example = cfg.preprocessor.preprocess_protein_data(
             example,
             tokenizer=tokenizer,
@@ -283,10 +280,20 @@ def load_protein_dataset(
             example["coords"] = example["coords"].tolist()
             example["coords_mask"] = example["coords_mask"].tolist()
 
-        example["ds_name"] = cfg.name
-        # TODO: get identifier for fasta files...
-        if cfg.identifier_col is not None:
-            example["identifier"] = identifier
+        if cfg.preprocessor.batched_map:
+            # Q: should we tolist all tensors?
+            assert example["input_ids"].ndim == 2
+            batch_size = example["input_ids"].shape[0]
+            example["ds_name"] = [cfg.name] * batch_size
+            if cfg.identifier_col is not None:
+                example["identifier"] = [
+                    cfg.name + "/" + example[cfg.identifier_col]
+                ] * batch_size
+        else:
+            example["ds_name"] = cfg.name
+            # TODO: get identifier for fasta files...
+            if cfg.identifier_col is not None:
+                example["identifier"] = cfg.name + "/" + example[cfg.identifier_col]
 
         return example
 
