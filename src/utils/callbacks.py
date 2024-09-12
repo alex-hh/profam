@@ -78,7 +78,7 @@ class TokenThroughputMonitor(ThroughputMonitor):
     The length_fn is used to compute items_per_sec (effectively tokens per second)
     """
 
-    def __init__(self, pad_token_id, run_on_validation: bool = False):
+    def __init__(self, run_on_validation: bool = False):
         super().__init__(
             batch_size_fn=lambda x: x["input_ids"].shape[0],
             length_fn=lambda x: x["input_ids"].shape[1] * x["input_ids"].shape[0],
@@ -163,8 +163,9 @@ class TokenThroughputMonitor(ThroughputMonitor):
         if self.length_fn is not None:
             self._lengths[stage] += self.length_fn(batch)
 
-        padding_mask = (batch["input_ids"] != self.pad_token_id).float()
-        self._non_padding_lengths[stage] += padding_mask.sum().item()
+        if hasattr(self.pl_module, "tokenizer"):
+            padding_mask = (batch["input_ids"] != self.pl_module.tokenizer.pad_token_id).float()
+            self._non_padding_lengths[stage] += padding_mask.sum().item()
 
         self._samples[stage] += self.batch_size_fn(batch)
 
