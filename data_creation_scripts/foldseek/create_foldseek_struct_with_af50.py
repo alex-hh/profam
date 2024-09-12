@@ -30,20 +30,8 @@ import pyarrow.parquet as pq
 import os
 from src.data.fasta import read_fasta
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.tools.foldmason import run_foldmason_on_pdbs
 from .utils import make_cluster_dictionary, make_af50_dictionary, make_zip_dictionary, extract_pdbs_from_zips
-import subprocess
-
-
-def run_foldmason(filelist, output_dir, tmp_dir):
-    cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
-    
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"FoldMason stdout: {result.stdout}", flush=True)
-    except subprocess.CalledProcessError as e:
-        print(f"FoldMason execution failed: {e}", flush=True)
-        print(f"FoldMason stderr: {e.stderr}", flush=True)
-        raise
 
 
 def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metadata_lookup):
@@ -79,7 +67,7 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
         if args.run_foldmason:
             foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
             os.makedirs(foldmason_outdir)
-            run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
+            run_foldmason_on_pdbs(cluster_filelist, foldmason_outdir, foldmason_outdir)
 
             # Read AA and 3Di alignments, skip the accessions
             labels, msta_seqs = read_fasta(os.path.join(foldmason_outdir, "result_aa.fa"))

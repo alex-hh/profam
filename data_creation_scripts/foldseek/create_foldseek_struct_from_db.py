@@ -23,20 +23,9 @@ import os
 from src.constants import PROFAM_DATA_DIR
 from src.data.fasta import read_fasta
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.tools.foldmason import run_foldmason_on_pdbs
+from src.tools.foldseek import convert_pdbs_to_3di
 from .utils import extract_pdbs_from_zips
-import subprocess
-
-
-def run_foldmason_on_pdbs(filelist, output_dir, tmp_dir):
-    cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
-    
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"FoldMason stdout: {result.stdout}", flush=True)
-    except subprocess.CalledProcessError as e:
-        print(f"FoldMason execution failed: {e}", flush=True)
-        print(f"FoldMason stderr: {e.stderr}", flush=True)
-        raise
 
 
 def save_pdbs_to_parquet(
@@ -47,6 +36,7 @@ def save_pdbs_to_parquet(
     metadata_lookup,
     run_foldmason=False,
     max_cluster_size_for_foldmason=None,
+    convert_to_3di: bool = False,
 ):
     # TODO: it would be cleaner for clusters_to_save values to be metadata-augmented dicts
     # Save the pdbs to parquet
@@ -100,6 +90,9 @@ def save_pdbs_to_parquet(
         for pdb in cluster_filelist:
             os.remove(pdb)
 
+        if convert_to_3di:
+            sequences_3di = convert_to_3di(cluster_filelist)
+
         # TODO: save representative?
         res = {
             "sequences": sequences,
@@ -115,6 +108,8 @@ def save_pdbs_to_parquet(
         if has_foldmason_results:
             res["msta_seqs"] = msta_seqs
             res["msta_3di"] = msta_3di
+        if convert_to_3di:
+            res["sequences_3di"] = sequences_3di
         results.append(res)
 
     df = pd.DataFrame(results)
@@ -258,6 +253,7 @@ def create_foldseek_parquets(
             metadata_lookup=parquet_metadata_lookup,
             max_cluster_size_for_foldmason=max_cluster_size_for_foldmason,
             run_foldmason=run_foldmason and not (representative_only or af50_representative_only),
+            convert_to_3di=(representative_only or af50_representative_only),
         )
     shutil.rmtree(os.path.join(scratch_dir, job_prefix))
 
