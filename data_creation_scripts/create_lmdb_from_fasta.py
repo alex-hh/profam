@@ -20,20 +20,23 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int = 10
 
     try:
         with env.begin(write=True) as txn:
+            cursor = txn.cursor()
             for record in tqdm(SeqIO.parse(fasta_file, "fasta"), total=total_records, desc="Processing records"):
                 batch.append((record.id.encode(), str(record.seq).encode()))
                 
                 if len(batch) >= batch_size:
-                    txn.putmulti(batch)
+                    cursor.putmulti(batch)
                     batch.clear()
             
             if batch:
-                txn.putmulti(batch)
+                cursor.putmulti(batch)
 
     except lmdb.MapFullError:
         logger.error("LMDB map full. Consider increasing map_size.")
+        return
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
+        return
     finally:
         env.close()
 
