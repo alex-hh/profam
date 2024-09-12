@@ -164,7 +164,7 @@ class TokenThroughputMonitor(ThroughputMonitor):
             self._lengths[stage] += self.length_fn(batch)
 
         if hasattr(self.pl_module, "tokenizer"):
-            padding_mask = (batch["input_ids"] != self.pl_module.tokenizer.pad_token_id).float()
+            padding_mask = (batch["input_ids"] != pl_module.tokenizer.pad_token_id).float()
             self._non_padding_lengths[stage] += padding_mask.sum().item()
 
         self._samples[stage] += self.batch_size_fn(batch)
