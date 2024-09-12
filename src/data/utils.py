@@ -165,7 +165,7 @@ def load_protein_dataset(
             holdout_files = cfg.holdout_data_files
 
         holdout_files = [os.path.join(data_dir, f) for f in holdout_files]
-        assert all([f in data_files for f in holdout_files]), f"Holdout files not found in data files {holdout_files} {data_files}"
+        assert all([f in data_files for f in holdout_files]), f"Not all holdout files {holdout_files} found in data files"
 
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in holdout_files]
