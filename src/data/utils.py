@@ -307,14 +307,14 @@ def load_protein_dataset(
         else:
             remove_columns = None
         # TODO: write a separate batched preprocess entrypoint
-        assert not cfg.preprocessor.batched_map
         dataset = (
             dataset.filter(
                 prefilter_example, required_keys=cfg.preprocessor.required_keys
             )
             .map(
                 wrapped_preprocess,
-                batched=False,
+                batched=cfg.preprocessor.batched_map,
+                batch_size=cfg.preprocessor.map_batch_size,
                 remove_columns=remove_columns,
             )
             .filter(filter_example)
