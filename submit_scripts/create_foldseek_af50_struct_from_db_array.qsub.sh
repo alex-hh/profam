@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=8G
-#$ -l h_vmem=8G
+#$ -l tmem=14G
+#$ -l h_vmem=14G
 #$ -l h_rt=38:55:30
 #$ -S /bin/bash
 #$ -t 1-10000  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100

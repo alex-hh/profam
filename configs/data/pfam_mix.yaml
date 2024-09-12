@@ -1,4 +1,4 @@
-_target_: src.data.hf_protein_datamodule.ProteinDataModule
+_target_: src.data.hf_protein_datamodule.ProteinDataMixture
 # https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
 defaults:
   - dataset@dataset_cfgs.pfam: pfam

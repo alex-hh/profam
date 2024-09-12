@@ -7,6 +7,7 @@ and non-decoys (members of the target family)
 import glob
 import random
 from functools import partial
+from typing import List
 
 import pandas as pd
 from datasets import Dataset
@@ -98,7 +99,7 @@ def load_classifier_dataset(
 def get_prompt_from_ec_num(
     ec_num: str,
     fasta_dir: str,
-    exclusion_ids: list[str],
+    exclusion_ids: List[str],
 ):
     ec_fasta_path = f"{fasta_dir}/{ec_num.replace('.', '_')}.fasta"
     ids, seqs = fasta.read_fasta(

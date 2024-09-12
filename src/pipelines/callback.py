@@ -4,7 +4,6 @@ from typing import Dict, Optional
 
 from lightning.pytorch.callbacks import Callback
 
-from src.data.preprocessing import BasePreprocessorConfig
 from src.evaluators.base import SamplingEvaluator
 from src.models.inference import ProFamSampler, PromptBuilder
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
@@ -15,9 +14,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         self,
         pipeline: GenerationsEvaluatorPipeline,
         evaluator: SamplingEvaluator,
-        preprocessor: BasePreprocessorConfig,
-        max_tokens: int = 8192,
-        seed: Optional[int] = None,
+        prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
     ):
         self.pipeline = pipeline
@@ -26,10 +23,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         ), "Pipeline should not save to file during callback"
         self.evaluator = evaluator
         self.sampling_kwargs = sampling_kwargs or {}
-        self.preprocessor = preprocessor
-        assert self.preprocessor is not None
-        self.max_tokens = max_tokens
-        self.seed = seed
+        self.prompt_builder = prompt_builder
 
     def on_validation_epoch_end(self, trainer, model):
         # run on val epoch end rather than train to stay in sync with other validation metrics
@@ -39,11 +33,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         sampler = ProFamSampler(
             "profam_sampler",
             model,
-            prompt_builder=PromptBuilder(
-                self.preprocessor,
-                max_tokens=self.max_tokens,
-                seed=self.seed,
-            ),
+            prompt_builder=self.prompt_builder,
             sampling_kwargs=self.sampling_kwargs,
         )
         if trainer.is_global_zero:

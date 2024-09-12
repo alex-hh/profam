@@ -1,7 +1,7 @@
 #!/bin/bash
 # set the number of nodes
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=5
 
 # set name of job
@@ -9,7 +9,7 @@
 
 #SBATCH --partition=long
 # set number of GPUs
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:8
 #SBATCH --output=/jmain02/home/J2AD021/dxt03/axh06-dxt03/ProFam/profam/slurm_logs/slurm_%j.out
 
 
@@ -23,4 +23,4 @@ cd ~/ProFam/profam
 # TODO: copy data to local scratch space
 # mkdir /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data÷
 scp -r ~/ProFam/data /raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/
-WANDB_MODE="offline" HYDRA_FULL_ERROR=1 python src/train.py +environment=jade_single data.data_dir=/raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data "$@"
+WANDB_MODE="offline" HYDRA_FULL_ERROR=1 srun python src/train.py +environment=jade data.data_dir=/raid/local_scratch/$SLURM_JOB_USER/$SLURM_JOB_ID/data "$@"

@@ -10,7 +10,7 @@ from omegaconf.listconfig import ListConfig
 from transformers import DataCollatorForLanguageModeling
 
 from src.data.objects import StringObject
-from src.data.preprocessing import BasePreprocessor, preprocess_protein_data
+from src.data.preprocessing import BasePreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
 # TODO: add things like sequence col, structure col, etc.
@@ -25,7 +25,7 @@ def filter_on_length(example, cfg, max_tokens, tokenizer):
     elif cfg.length_filter == "max_tokens":
         if max_tokens is None:
             return True
-        elif getattr(cfg.preprocessor, "interleave_structure_sequence", False):
+        elif cfg.preprocessor.interleave_structure_sequence:
             return (
                 max([len(s) for s in example["sequences"]])
                 <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
@@ -153,6 +153,7 @@ def load_protein_dataset(
             data_files = [
                 os.path.join(data_dir, data_file) for data_file in f.read().splitlines()
             ]
+            assert all([os.path.exists(f) for f in data_files])
 
     if cfg.holdout_data_files is not None:
         if isinstance(cfg.holdout_data_files, str):
@@ -162,9 +163,16 @@ def load_protein_dataset(
                 cfg.holdout_data_files, ListConfig
             ), f"holdout files is {type(cfg.holdout_data_files)} not list"
             holdout_files = cfg.holdout_data_files
+
+        holdout_files = [os.path.join(data_dir, f) for f in holdout_files]
+        assert all(
+            [f in data_files for f in holdout_files]
+        ), f"Not all holdout files {holdout_files} found in data files"
+
         all_files = len(data_files)
         data_files = [f for f in data_files if f not in holdout_files]
         print("Excluding", all_files - len(data_files), "holdout files")
+        assert len(data_files) > 0, "No files left after holdout"
 
     assert isinstance(data_files, list)
     data_files = data_files * cfg.file_repeats
@@ -222,11 +230,16 @@ def load_protein_dataset(
             cfg.identifier_col is not None
         ), "Need identifier column for identifier holdout"
 
-    def prefilter_example(example):
+    def prefilter_example(example, required_keys):
         # TODO: base this on max_seq_pos
         length_filter = filter_on_length(
             example, cfg=cfg, max_tokens=max_tokens, tokenizer=tokenizer
         )
+        if required_keys is not None:
+            for k in required_keys:
+                if k not in example or not example[k]:
+                    return False
+
         if cfg.minimum_mean_plddt is not None:
             if "plddts" in example:
                 mean_plddt = np.mean(example["plddts"])
@@ -259,9 +272,8 @@ def load_protein_dataset(
         if cfg.identifier_col is not None:
             identifier = cfg.name + "/" + example[cfg.identifier_col]
 
-        example = preprocess_protein_data(
+        example = cfg.preprocessor.preprocess_protein_data(
             example,
-            cfg.preprocessor,
             tokenizer=tokenizer,
             max_tokens=max_tokens,
             shuffle=shuffle,
@@ -290,7 +302,9 @@ def load_protein_dataset(
         # TODO: write a separate batched preprocess entrypoint
         assert not cfg.preprocessor.batched_map
         dataset = (
-            dataset.filter(prefilter_example)
+            dataset.filter(
+                prefilter_example, required_keys=cfg.preprocessor.required_keys
+            )
             .map(
                 wrapped_preprocess,
                 batched=False,

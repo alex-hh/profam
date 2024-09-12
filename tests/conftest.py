@@ -82,23 +82,29 @@ def default_model(profam_tokenizer):
 
 @pytest.fixture()
 def parquet_raw_sequence_processor():
-    return preprocessing.ParquetSequencePreprocessor(
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
     )
+    return preprocessing.ParquetSequencePreprocessor(
+        config=preprocessing_cfg,
+    )
 
 
 @pytest.fixture()
 def parquet_3di_processor():
-    return preprocessing.ParquetStructurePreprocessor(
-        structure_tokens_col="msta_3di",
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        transforms=[transforms.interleave_structure_sequence],
+    )
+    return preprocessing.ParquetStructurePreprocessor(
+        config=preprocessing_cfg,
+        structure_tokens_col="msta_3di",
+        transform_fns=[transforms.interleave_structure_sequence],
     )
 
 
@@ -122,13 +128,16 @@ def foldseek_interleaved_structure_sequence_batch(
     profam_tokenizer,
 ):
     max_tokens = 2048
-    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
-        structure_tokens_col="msta_3di",
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        transforms=[transforms.interleave_structure_sequence],
+    )
+    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
+        config=preprocessing_cfg,
+        structure_tokens_col="msta_3di",
+        transform_fns=[transforms.interleave_structure_sequence],
     )
     cfg = ProteinDatasetConfig(
         name="foldseek",

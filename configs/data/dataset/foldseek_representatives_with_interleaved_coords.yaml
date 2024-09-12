@@ -7,6 +7,8 @@ holdout_data_files: null
 holdout_identifiers: null
 identifier_col: fam_id
 is_parquet: true
+length_filter: max_tokens
 preprocessor:
   structure_tokens_col: null
-  document_token: "[AFDB]"
+  config:
+    document_token: "[AFDB]"

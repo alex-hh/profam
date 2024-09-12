@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 
 from src.constants import BASEDIR
-from src.data.preprocessing import ParquetStructurePreprocessor
+from src.data.preprocessing import ParquetStructurePreprocessor, PreprocessingConfig
 from src.models.inference import InterleavedInverseFoldingPromptBuilder
 
 
@@ -14,7 +14,9 @@ def test_representative_inverse_folding(profam_tokenizer):
         os.path.join(BASEDIR, "data/example_data/foldseek_representatives/0.parquet")
     )
     example = df.iloc[0]
+    cfg = PreprocessingConfig()
     preprocessor = ParquetStructurePreprocessor(
+        config=cfg,
         structure_tokens_col=None,
         interleave_structure_sequence=True,
         infer_representative_from_identifier=True,
@@ -47,6 +49,4 @@ def test_representative_inverse_folding(profam_tokenizer):
     assert (example["input_ids"] == expected_tokens).all(), expected_tokens
     assert (example["coords"].numpy() == expected_coords).all(), expected_coords
     # TODO: test the coords etc.
-    assert 1 == 0
-
     # TODO: actually write a test of the sliced prompt input ids (e.g. all mask token ids here.)

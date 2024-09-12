@@ -2,7 +2,10 @@ _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
 defaults:
   - /pipeline: foldseek
   - /evaluator: esmfold
-  - /preprocessor: null  # n.b. must be set
+  - /preprocessor@prompt_builder.preprocessor: null  # must be set
+prompt_builder:
+  max_tokens: ${data.max_tokens}
+  seed: 42
 evaluator:
   num_samples: null
 sampling_kwargs:
@@ -13,4 +16,3 @@ pipeline:
   evaluation_parquet: null
   evaluation_accessions_file: null
   max_instances: 50
-seed: 42  # for prompt builder

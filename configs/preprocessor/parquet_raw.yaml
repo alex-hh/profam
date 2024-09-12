@@ -1,8 +1,4 @@
 _target_: src.data.preprocessing.ParquetSequencePreprocessor
-keep_gaps: false
-keep_insertions: true
-to_upper: true
+defaults:
+  - config: raw
 sequence_col: "sequences"
-document_token: "[RAW]"
-truncate_after_n_sequences: null
-use_msa_pos: false
