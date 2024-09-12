@@ -235,7 +235,6 @@ class ParquetSequencePreprocessor(BasePreprocessor):
 
 
 # TODO: make sure we can handle an aligned version - test
-@dataclass
 class ParquetStructurePreprocessor(BasePreprocessor):
     def __init__(
         self,
