@@ -226,13 +226,13 @@ def load_protein_dataset(
             cfg.identifier_col is not None
         ), "Need identifier column for identifier holdout"
 
-    def prefilter_example(example, required_keys):
+    def prefilter_example(example):
         # TODO: base this on max_seq_pos
         length_filter = filter_on_length(
             example, cfg=cfg, max_tokens=max_tokens, tokenizer=tokenizer
         )
-        if required_keys is not None:
-            for k in required_keys:
+        if cfg.preprocessor.required_keys is not None:
+            for k in cfg.preprocessor.required_keys:
                 if k not in example or not example[k]:
                     return False
 
@@ -296,9 +296,7 @@ def load_protein_dataset(
         else:
             remove_columns = None
         dataset = (
-            dataset.filter(
-                prefilter_example, required_keys=cfg.preprocessor.required_keys
-            )
+            dataset.filter(prefilter_example)
             .map(
                 wrapped_preprocess,
                 batched=False,
