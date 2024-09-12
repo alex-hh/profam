@@ -240,7 +240,7 @@ def interleave_structure_sequence(
             interleaved_coords_masks = interleaved_coords_masks[:-1]
             assert (
                 len(interleaved_sequences) > 0
-            ), f"Cannot fit any sequences in max_tokens {len(total_tokens)}"
+            ), f"Cannot fit any sequences in max_tokens tried {total_tokens} max {tokenizer.max_tokens}"
             break
 
     return proteins.clone(

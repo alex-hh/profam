@@ -4,7 +4,7 @@ defaults:
   - override /trainer: ddp
 
 data:
-  num_workers: 2  # per gpu
+  num_workers: 4  # per gpu
 
 trainer:
   precision: 32
