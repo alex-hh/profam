@@ -80,6 +80,25 @@ class BaseLitModule(LightningModule):
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
 
+    def trim_padding(self, batch):
+        pad_any = torch.argwhere(batch["input_ids"] == self.tokenizer.pad_token_id)
+        pad_any = pad_any[:, 1]  # slice out indices along the L dim
+        if pad_any.any():  # handles case where there is no padding at all as well
+            pad_start = pad_any.min()
+        else:
+            pad_start = batch["input_ids"].shape[-1]
+        batch["input_ids"] = batch["input_ids"][:, :pad_start]
+        batch["attention_mask"] = batch["attention_mask"][:, :pad_start]
+        if "seq_pos" in batch:
+            batch["seq_pos"] = batch["seq_pos"][:, :pad_start]
+        if "coords" in batch:
+            batch["coords"] = batch["coords"][:, :pad_start]
+        if "labels" in batch:
+            batch["labels"] = batch["labels"][:, :pad_start]
+        if "plddts" in batch:
+            batch["plddts"] = batch["plddts"][:, :pad_start]
+        return batch
+
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer = torch.optim.AdamW(
             self.parameters(),
@@ -248,6 +267,7 @@ class BaseLitModule(LightningModule):
             outputs = self.validation_step_family_classification(batch)
             return outputs
         else:
+            batch = self.trim_padding(batch)
             forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
                 input_ids=batch["input_ids"],
@@ -272,6 +292,7 @@ class BaseLitModule(LightningModule):
             outputs = self.validation_step_proteingym(batch)
             return outputs
         else:
+            batch = self.trim_padding(batch)
             forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
                 input_ids=batch["input_ids"],
@@ -780,6 +801,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        batch = self.trim_padding(batch)
         forward_kwargs = self.get_forward_kwargs(batch)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
