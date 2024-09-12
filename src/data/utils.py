@@ -25,7 +25,7 @@ def filter_on_length(example, cfg, max_tokens, tokenizer):
     elif cfg.length_filter == "max_tokens":
         if max_tokens is None:
             return True
-        elif getattr(cfg.preprocessor, "interleave_structure_sequence", False):
+        elif cfg.preprocessor.interleave_structure_sequence:
             return (
                 max([len(s) for s in example["sequences"]])
                 <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
@@ -226,11 +226,16 @@ def load_protein_dataset(
             cfg.identifier_col is not None
         ), "Need identifier column for identifier holdout"
 
-    def prefilter_example(example):
+    def prefilter_example(example, required_keys):
         # TODO: base this on max_seq_pos
         length_filter = filter_on_length(
             example, cfg=cfg, max_tokens=max_tokens, tokenizer=tokenizer
         )
+        if required_keys is not None:
+            for k in required_keys:
+                if k not in example or not example[k]:
+                    return False
+
         if cfg.minimum_mean_plddt is not None:
             if "plddts" in example:
                 mean_plddt = np.mean(example["plddts"])
@@ -291,7 +296,9 @@ def load_protein_dataset(
         else:
             remove_columns = None
         dataset = (
-            dataset.filter(prefilter_example)
+            dataset.filter(
+                prefilter_example, required_keys=cfg.preprocessor.required_keys
+            )
             .map(
                 wrapped_preprocess,
                 batched=False,
