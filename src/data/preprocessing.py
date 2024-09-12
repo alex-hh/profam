@@ -184,7 +184,7 @@ class BasePreprocessor:
     ):
         raise NotImplementedError()
 
-    def batched_preprocess_protein_data(
+    def _batched_preprocess_protein_data(
         self,
         examples: Dict[str, List[Any]],
         tokenizer: ProFamTokenizer,
@@ -212,7 +212,7 @@ class BasePreprocessor:
             transform_fns=self.transform_fns,
         )
 
-    def preprocess_protein_data(
+    def _preprocess_protein_data(
         self,
         example: Dict[str, Any],
         tokenizer: ProFamTokenizer,
@@ -233,6 +233,22 @@ class BasePreprocessor:
             shuffle=shuffle,
             transform_fns=self.transform_fns,
         )
+
+    def preprocess_protein_data(
+        self,
+        examples: Dict[str, Any],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        if self.cfg.batched_map:
+            return self._batched_preprocess_protein_data(
+                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            )
+        else:
+            return self._preprocess_protein_data(
+                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            )
 
     def build_documents(
         self,
@@ -270,7 +286,7 @@ class BasePreprocessor:
         return merged_documents
 
 
-class FastaPreprocessor(SinglePreprocessor):
+class FastaPreprocessor(BasePreprocessor):
     @property
     def required_keys(self):
         return ["text"]
@@ -320,7 +336,7 @@ class FastaPreprocessor(SinglePreprocessor):
             )
 
 
-class ParquetSequencePreprocessor(SinglePreprocessor):
+class ParquetSequencePreprocessor(BasePreprocessor):
     def __init__(
         self,
         config: PreprocessingConfig,
@@ -354,7 +370,7 @@ class ParquetSequencePreprocessor(SinglePreprocessor):
 
 
 # TODO: make sure we can handle an aligned version - test
-class ParquetStructurePreprocessor(SinglePreprocessor):
+class ParquetStructurePreprocessor(BasePreprocessor):
     def __init__(
         self,
         config: PreprocessingConfig,
