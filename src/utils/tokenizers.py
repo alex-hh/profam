@@ -233,9 +233,29 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
             assert tokenized.data["coords_mask"].shape == tokenized.data["coords"].shape
 
+        is_interleaved = (
+            tokenized.data["input_ids"] == self.seq_struct_sep_token_id
+        ).any()
+        special_tokens_mask = torch.isin(
+            tokenized.input_ids,
+            torch.tensor(
+                [
+                    token_id
+                    for token_id in self.all_special_ids
+                    if token_id not in [self.pad_token_id, self.mask_token_id]
+                ]
+            ),
+        )
+        tokenized.data["specials_mask"] = special_tokens_mask
         tokenized.data["aa_mask"] = torch.isin(
             tokenized.input_ids, torch.tensor(self.aa_tokens)
         )
+        if is_interleaved:
+            tokenized.data["structure_mask"] = (
+                ~special_tokens_mask & ~tokenized.data["aa_mask"]
+            )
+        else:
+            tokenized.data["structure_mask"] = tokenized.data["aa_mask"]
         if proteins.plddts is not None:
             tokenized.data["plddts"] = torch.from_numpy(
                 concatenate_pad_array(
