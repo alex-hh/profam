@@ -39,7 +39,15 @@ def run_foldmason_on_pdbs(filelist, output_dir, tmp_dir):
         raise
 
 
-def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metadata_lookup, run_foldmason=False, max_cluster_size_for_foldmason=None):
+def save_pdbs_to_parquet(
+    save_dir,
+    pdbs_dir,
+    clusters_to_save,
+    parquet_id,
+    metadata_lookup,
+    run_foldmason=False,
+    max_cluster_size_for_foldmason=None,
+):
     # TODO: it would be cleaner for clusters_to_save values to be metadata-augmented dicts
     # Save the pdbs to parquet
     results = []
@@ -72,7 +80,7 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
         # Run FoldMason on the cluster
         if run_foldmason:
             if max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason:
-                print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}")
+                print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
                 has_foldmason_results = False
             else:
                 foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
