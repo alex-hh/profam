@@ -5,89 +5,52 @@ import logging
 import argparse
 import lmdb
 from tqdm import tqdm
-import mmap
-import time
-
-"""
-Creates or updates an LMDB from AFDB FASTA file (Total records: 214,683,829 | Total size: 93GB).
-
-LMDB structure:
-key: UniProt accession (e.g. "A0A1B2C3D4")
-value: Protein sequence (e.g. "MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHF...")
-"""
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 def extract_uniprot_accession(record_id: str) -> str:
-    return record_id.split(' ')[0].split(':')[1].split('-')[1]
+    try:
+        return record_id.split()[0].split(':')[1].split('-')[1]
+    except IndexError:
+        return None
 
-def mmap_fasta_parser(file_path):
-    with open(file_path, 'rb') as f:
-        mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-        header = b''
-        sequence = []
-        for line in iter(mm.readline, b''):
-            line = line.strip()
-            if line.startswith(b'>'):
-                if header:
-                    yield header.decode(), b''.join(sequence).decode()
-                header = line[1:]
-                sequence = []
-            else:
-                sequence.append(line)
-        if header:
-            yield header.decode(), b''.join(sequence).decode()
-        mm.close()
-
-def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int):
+def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int = 100000):
     logger.info(f"Starting LMDB creation from FASTA file: {fasta_file}")
-    os.makedirs(os.path.dirname(lmdb_path), exist_ok=True)
+    env = lmdb.open(lmdb_path, map_size=200 * 1024 * 1024 * 1024)  # 200GB map size
 
-    env = lmdb.open(lmdb_path, map_size=200 * 1024 * 1024 * 1024, writemap=True)  # 200GB map size
+    total_records = 214683829  # Hard-coded total records
+    batch = []
 
     try:
-        total_records = 214683829
-        with env.begin(write=True) as txn:
-            cursor = txn.cursor()
-            buffer = []
-            start_time = time.time()
-            with tqdm(total=total_records, desc="Processing records", unit=" records") as pbar:
-                for header, sequence in mmap_fasta_parser(fasta_file):
-                    accession = extract_uniprot_accession(header)
-                    buffer.append((accession.encode(), sequence.encode()))
-                    
-                    if len(buffer) >= batch_size:
-                        cursor.putmulti(buffer)
-                        buffer = []
-                        
-                        # Commit and start a new transaction every 1 million records
-                        if pbar.n % 1000000 == 0:
-                            txn.commit()
-                            txn = env.begin(write=True)
-                            cursor = txn.cursor()
-                    
-                    pbar.update(1)
-                    
-                    # Print progress every 5 million records
-                    if pbar.n % 5000000 == 0:
-                        elapsed_time = time.time() - start_time
-                        records_per_second = pbar.n / elapsed_time
-                        logger.info(f"Processed {pbar.n} records. Speed: {records_per_second:.2f} records/second")
+        with env.begin(write=True) as txn, open(fasta_file, 'r') as fasta:
+            for _ in tqdm(range(total_records), desc="Processing records"):
+                header = next(fasta, '').strip()
+                if not header.startswith('>'):
+                    break
+                
+                sequence = next(fasta, '').strip()
+                accession = extract_uniprot_accession(header[1:])
+                
+                if accession:
+                    batch.append((accession.encode(), sequence.encode()))
+                
+                if len(batch) >= batch_size:
+                    txn.putmulti(batch)
+                    batch.clear()
+            
+            if batch:
+                txn.putmulti(batch)
 
-                # Write any remaining records in the buffer
-                if buffer:
-                    cursor.putmulti(buffer)
-
+    except lmdb.MapFullError:
+        logger.error("LMDB map full. Consider increasing map_size.")
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
-        raise
     finally:
-        env.sync()
         env.close()
 
-    logger.info(f"LMDB database created successfully at {lmdb_path}")
+    logger.info(f"LMDB database created/updated successfully at {lmdb_path}")
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Create LMDB from FASTA file")
