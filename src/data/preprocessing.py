@@ -80,10 +80,43 @@ def subsample_and_tokenize_protein_data(
         allow_unk=getattr(cfg, "allow_unk", False),
     )
     # tokenized.input_ids is flat now
-    # n.b. this is after subsampling so not very informative
-    tokenized.data["total_num_sequences"] = len(proteins)  # below length threshold
 
     return tokenized.data
+
+
+def batched_subsample_and_tokenize_protein_data(
+    proteins_list: List[ProteinDocument],
+    cfg: PreprocessingConfig,
+    tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    padding: str = "max_length",
+    shuffle: bool = True,
+    seed: Optional[int] = None,
+    transform_fns: Optional[List[Callable]] = None,
+):
+    proteins_list = []
+    for proteins in proteins_list:
+        proteins = transforms.sample_to_max_tokens(
+            proteins,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            seed=seed,
+        )
+        # if cfg.fill_missing_fields:
+        proteins = transforms.fill_missing_fields(proteins)
+        proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
+        proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
+        proteins_list.append(proteins)
+
+    return tokenizer.batched_encode(
+        proteins_list,
+        document_token=cfg.document_token,
+        padding=padding,
+        max_length=max_tokens,
+        add_final_sep=True,
+        allow_unk=getattr(cfg, "allow_unk", False),
+    )
 
 
 def preprocess_protein_sequences(
@@ -128,6 +161,11 @@ def backbone_coords_from_example(example, sequence_col="sequences"):
     return coords
 
 
+def examples_to_list_of_dicts(examples):
+    keys = list(examples.keys())
+    return [{k: examples[k][i] for k in keys} for i in range(len(examples[keys[0]]))]
+
+
 class BasePreprocessor:
     def __init__(
         self,
@@ -144,6 +182,8 @@ class BasePreprocessor:
     ):
         raise NotImplementedError()
 
+
+class SinglePreprocessor(BasePreprocessor):
     def preprocess_protein_data(
         self,
         example: Dict[str, Any],
@@ -167,7 +207,64 @@ class BasePreprocessor:
         )
 
 
-class FastaPreprocessor(BasePreprocessor):
+class BatchedPreprocessor(BasePreprocessor):
+    def __init__(
+        self,
+        config: PreprocessingConfig,
+        transform_fns: Optional[List[Callable]] = None,
+        interleave_structure_sequence: bool = False,
+    ):
+        super().__init__(
+            config,
+            transform_fns,
+            interleave_structure_sequence=interleave_structure_sequence,
+        )
+
+    def build_documents(
+        self,
+        examples,
+        tokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ):
+        example_dicts = examples_to_list_of_dicts(examples)
+        return [
+            self.build_document(
+                example_dict, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            )
+            for example_dict in example_dicts
+        ]
+
+    def preprocess_protein_data(
+        self,
+        examples: Dict[str, List[Any]],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        a batched map is an instruction for converting a set of examples to a
+        new set of examples (not necessarily of the same size). it should return a dict whose
+        values are lists, where the length of the lists determines the size of the new set of examples.
+        """
+        proteins_list = self.build_documents(
+            examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+        )
+        proteins_list = [
+            preprocess_protein_sequences(proteins, self.cfg, tokenizer)
+            for proteins in proteins_list
+        ]
+        return batched_subsample_and_tokenize_protein_data(
+            proteins_list,
+            self.cfg,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            transform_fns=self.transform_fns,
+        )
+
+
+class FastaPreprocessor(SinglePreprocessor):
     @property
     def required_keys(self):
         return ["text"]
@@ -200,7 +297,9 @@ class FastaPreprocessor(BasePreprocessor):
                 to_upper=False if tokenizer.use_seq_pos else self.cfg.to_upper,
             )
         ]
-        return ProteinDocument(sequences=sequences)
+        return ProteinDocument(
+            sequences=sequences, original_size=len(lines) // 2
+        )  # upper bound estimate of number of sequences
 
     def build_document(
         self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -215,7 +314,7 @@ class FastaPreprocessor(BasePreprocessor):
             )
 
 
-class ParquetSequencePreprocessor(BasePreprocessor):
+class ParquetSequencePreprocessor(SinglePreprocessor):
     def __init__(
         self,
         config: PreprocessingConfig,
@@ -243,11 +342,13 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         else:
             sequences = sequence_iterator[:max_sequences_to_preprocess]
 
-        return ProteinDocument(sequences=sequences)
+        return ProteinDocument(
+            sequences=sequences, original_size=len(sequence_iterator)
+        )
 
 
 # TODO: make sure we can handle an aligned version - test
-class ParquetStructurePreprocessor(BasePreprocessor):
+class ParquetStructurePreprocessor(SinglePreprocessor):
     def __init__(
         self,
         config: PreprocessingConfig,
@@ -339,4 +440,5 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             representative_accession=example[self.identifier_col]
             if self.infer_representative_from_identifier
             else None,
+            original_size=len(example["sequences"]),
         )

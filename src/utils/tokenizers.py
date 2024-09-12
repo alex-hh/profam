@@ -279,9 +279,23 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 tokenized.data["coords"][plddt_mask] = 0.0
                 tokenized.data["coords_mask"][plddt_mask] = 0.0
 
+        if proteins.original_size is not None:
+            tokenized.data["original_size"] = torch.tensor(proteins.original_size)
+
         # TODO: handle nans
         # TODO: return sequence start and end positions?
         return tokenized
+
+    def batched_encode(
+        self,
+        proteins: List[ProteinDocument],
+        document_token="[RAW]",
+        padding="longest",
+        max_length: Optional[int] = None,
+        add_final_sep: bool = True,
+        allow_unk: bool = False,
+    ):
+        raise NotImplementedError()
 
     def encode_completions(
         self,

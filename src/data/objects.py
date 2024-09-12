@@ -86,6 +86,7 @@ class ProteinDocument:
     representative_accession: Optional[
         str
     ] = None  # e.g. seed or cluster representative
+    original_size: Optional[int] = None  # total number of proteins in original set
 
     def __len__(self):
         return len(self.sequences)
@@ -299,4 +300,5 @@ class ProteinDocument:
             ),
             structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
             validate_shapes=kwargs.get("validate_shapes", self.validate_shapes),
+            original_size=kwargs.get("original_size", self.original_size),
         )
