@@ -179,6 +179,12 @@ class BaseLitModule(LightningModule):
                 ),
             )
             global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
+        if "coords" in batch:
+            has_coords_mask = batch["coords"].any(-1)
+            has_coords_frac = (
+                has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
+            )
+            global_metrics["has_coords_frac"] = has_coords_frac
 
         if log_global:
             self.log_dict(
@@ -197,6 +203,7 @@ class BaseLitModule(LightningModule):
             ds_metrics = {
                 f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name]
             }
+            # TODO: coords frac for each dataset
             if is_single_dataset_batch:
                 # global metrics are dataset specific
                 ds_metrics[f"{step_name}/{ds_name}/loss"] = loss
