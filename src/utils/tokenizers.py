@@ -94,6 +94,23 @@ def concatenate_pad_array(
     return full_array
 
 
+def get_sequence_of_sequences(
+    proteins: ProteinDocument,
+    sep_token: str = "[SEP]",
+    bos_token: Optional[str] = None,
+    add_final_sep: bool = True,
+    document_token: Optional[str] = "[RAW]",
+):
+    concatenated_seqs = sep_token.join(proteins.sequences)
+    if add_final_sep:
+        concatenated_seqs += sep_token
+    if bos_token is not None:
+        concatenated_seqs = bos_token + concatenated_seqs
+    if document_token is not None:
+        concatenated_seqs = document_token + concatenated_seqs
+    return concatenated_seqs
+
+
 class ProFamTokenizer(PreTrainedTokenizerFast):
     """TODO: handle position encoding on here as well.
     (to make this really efficient we'd have to hack underlying rust code i think...)
@@ -146,7 +163,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     def encode(
         self,
         proteins: ProteinDocument,
-        document_token="[RAW]",
+        document_token: Optional[str] = "[RAW]",
         padding="longest",
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
@@ -155,17 +172,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
-        concatenated_seqs = self.sep_token.join(proteins.sequences)
-        if add_final_sep:
-            concatenated_seqs += self.sep_token
-        if self.add_bos_token:
-            concatenated_seqs = self.bos_token + concatenated_seqs
-        if document_token is not None:
-            concatenated_seqs = document_token + concatenated_seqs
-        else:
-            assert (
-                not self.add_document_token
-            ), "Document type token expected but not provided"
+        if self.add_document_token:
+            assert document_token is not None, "Document type token expected"
+        concatenated_seqs = get_sequence_of_sequences(
+            proteins,
+            sep_token=self.sep_token,
+            bos_token=self.bos_token if self.add_bos_token else None,
+            add_final_sep=add_final_sep,
+            document_token=document_token,
+        )
         num_end_tokens = int(add_final_sep)
         tokenized = self(
             concatenated_seqs,
@@ -288,14 +303,54 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
 
     def batched_encode(
         self,
-        proteins: List[ProteinDocument],
+        proteins_list: List[ProteinDocument],
         document_token="[RAW]",
         padding="longest",
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
         allow_unk: bool = False,
+        actually_batched: bool = False,
     ):
-        raise NotImplementedError()
+        if actually_batched:
+            raise NotImplementedError("Actually batched encoding not implemented yet")
+        return [
+            self.encode(
+                proteins,
+                document_token=document_token,
+                padding=padding,
+                max_length=max_length,
+                add_final_sep=add_final_sep,
+                allow_unk=allow_unk,
+            )
+            for proteins in proteins_list
+        ]
+
+        # if self.add_document_token:
+        # assert document_token is not None, "Document type token expected"
+        # concatenated_seqs = [
+        #     get_sequence_of_sequences(
+        #         proteins,
+        #         sep_token=self.sep_token,
+        #         bos_token=self.bos_token if self.add_bos_token else None,
+        #         add_final_sep=add_final_sep,
+        #         document_token=document_token,
+        #     ) for proteins in proteins_list
+        # ]
+        # num_end_tokens = int(add_final_sep)
+        # tokenized = self(
+        #     concatenated_seqs,
+        #     truncation=False,  # shouldnt be necessary: bisection should handle
+        #     return_tensors="pt",
+        #     # padding="longest",
+        #     padding=padding,
+        #     add_special_tokens=False,
+        #     max_length=max_length,
+        # )
+        # if self.max_tokens is not None:
+        #     assert tokenized.input_ids.shape[1] <= self.max_tokens, (
+        #         tokenized.input_ids.shape[1],
+        #         self.max_tokens,
+        #     )
 
     def encode_completions(
         self,
