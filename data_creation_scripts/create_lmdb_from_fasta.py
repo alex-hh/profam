@@ -5,36 +5,23 @@ import logging
 import argparse
 import lmdb
 from tqdm import tqdm
+from Bio import SeqIO
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def extract_uniprot_accession(record_id: str) -> str:
-    try:
-        return record_id.split()[0].split(':')[1].split('-')[1]
-    except IndexError:
-        return None
-
 def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int = 100000):
     logger.info(f"Starting LMDB creation from FASTA file: {fasta_file}")
-    env = lmdb.open(lmdb_path, map_size=200 * 1024 * 1024 * 1024)  # 200GB map size
+    env = lmdb.open(lmdb_path, map_size=300 * 1024 * 1024 * 1024)  # 300GB map size
 
-    total_records = 214683829  # Hard-coded total records
+    total_records = 214683829  # Hard-coded AFDB total records
     batch = []
 
     try:
-        with env.begin(write=True) as txn, open(fasta_file, 'r') as fasta:
-            for _ in tqdm(range(total_records), desc="Processing records"):
-                header = next(fasta, '').strip()
-                if not header.startswith('>'):
-                    break
-                
-                sequence = next(fasta, '').strip()
-                accession = extract_uniprot_accession(header[1:])
-                
-                if accession:
-                    batch.append((accession.encode(), sequence.encode()))
+        with env.begin(write=True) as txn:
+            for record in tqdm(SeqIO.parse(fasta_file, "fasta"), total=total_records, desc="Processing records"):
+                batch.append((record.id.encode(), str(record.seq).encode()))
                 
                 if len(batch) >= batch_size:
                     txn.putmulti(batch)
