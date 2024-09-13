@@ -9,6 +9,10 @@ import lmdb
 from tqdm import tqdm
 import logging
 import psutil
+import sys
+
+# Increase CSV field size limit
+csv.field_size_limit(sys.maxsize)
 
 # Constants
 RECORDS_PER_FILE = 1000
@@ -21,9 +25,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def stream_go_tsv(file_path):
     open_func = gzip.open if file_path.endswith('.gz') else open
     with open_func(file_path, 'rt') as f:
-        for row in csv.reader(f, delimiter='\t'):
-            if len(row) == 2:
-                yield row[0], row[1].split(',')
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) == 2:
+                go_term, uniprot_accs = parts
+                yield go_term, uniprot_accs.split(',')
 
 def setup_lmdb(lmdb_path):
     return lmdb.open(lmdb_path, readonly=True, lock=False, map_size=int(1e12))
