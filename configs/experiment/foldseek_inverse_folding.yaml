@@ -23,6 +23,7 @@ extra_callbacks:
     preprocessor: ${preprocessor}
     pipeline:
       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
+      max_instances: 50
 
 trainer:
   min_epochs: 10

@@ -16,4 +16,4 @@ pipeline:
   save_to_file: false
   evaluation_parquet: null
   evaluation_accessions_file: null
-  max_instances: 50
+  max_instances: null
