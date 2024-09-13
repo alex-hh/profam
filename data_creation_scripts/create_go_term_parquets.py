@@ -125,8 +125,13 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
             if len(current_parquet_data) >= BATCH_SIZE:
                 write_parquet_file()
 
-            if total_go_terms % 1000 == 0:  # Update more frequently
-                pbar.set_postfix({"Total": total_go_terms, "Failed": failed_sequences, "Files": current_file_index})
+            # Update progress bar after every GO term
+            pbar.set_postfix({
+                "Total": total_go_terms, 
+                "Failed": failed_sequences, 
+                "Files": current_file_index,
+                "Current Batch": len(current_parquet_data)
+            })
 
     # Write any remaining data
     write_parquet_file()
