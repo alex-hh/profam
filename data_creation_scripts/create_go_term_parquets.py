@@ -77,9 +77,15 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
     failed_seqs = []
     successful_seqs = []
 
+    total_go_terms = sum(1 for _ in stream_go_tsv(go_tsv_path))
+    pbar = tqdm(total=total_go_terms, desc="Processing GO terms")
+    processed_go_terms = 0
+    total_successful_seqs = 0
+    total_failed_seqs = 0
+
     batch = []
     with env.begin(write=False) as txn:
-        for go_term, uniprot_accs in tqdm(stream_go_tsv(go_tsv_path), desc="Processing GO terms"):
+        for go_term, uniprot_accs in stream_go_tsv(go_tsv_path):
             batch.append((go_term, uniprot_accs))
             
             if len(batch) >= BATCH_SIZE:
@@ -87,6 +93,18 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
                 failed_seqs.extend(new_failed_seqs)
                 successful_seqs.extend(new_successful_seqs)
                 
+                total_failed_seqs += len(new_failed_seqs)
+                total_successful_seqs += len(new_successful_seqs)
+                processed_go_terms += len(batch)
+
+                # Update progress bar
+                pbar.update(len(batch))
+                pbar.set_postfix({
+                    'Processed': processed_go_terms,
+                    'Successful': total_successful_seqs,
+                    'Failed': total_failed_seqs
+                })
+
                 for result in results:
                     if writer is None or record_counter >= RECORDS_PER_FILE:
                         if writer:
@@ -111,6 +129,13 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
             results, new_failed_seqs, new_successful_seqs = process_batch(batch, txn)
             failed_seqs.extend(new_failed_seqs)
             successful_seqs.extend(new_successful_seqs)
+            processed_go_terms += len(batch)
+            pbar.update(len(batch))
+            pbar.set_postfix({
+                'Processed': processed_go_terms,
+                'Successful': total_successful_seqs,
+                'Failed': total_failed_seqs
+            })
             for result in results:
                 if writer is None or record_counter >= RECORDS_PER_FILE:
                     if writer:
@@ -123,6 +148,8 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
                 writer.write_table(pa.Table.from_pydict(result))
                 index_data.append({'fam_id': result['fam_id'], 'parquet_file': file_name})
                 record_counter += 1
+
+    pbar.close()
 
     if writer:
         writer.close()
