@@ -72,10 +72,6 @@ def batch_fetch_sequences(txn: lmdb.Transaction, accessions: List[str]) -> Dict[
         lmdb_key = f"AFDB:AF-{acc}-F1".encode()
         value = txn.get(lmdb_key, default=None)
         results[acc] = value
-        if value is None:
-            logging.warning(f"Sequence not found for accession: {acc}")
-        else:
-            logging.debug(f"Sequence found for accession: {acc}, length: {len(value)}")
     return results
 
 def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str, file_prefix: str) -> None:
