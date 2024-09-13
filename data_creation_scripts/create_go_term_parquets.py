@@ -81,6 +81,7 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
 
     total_go_terms = 0
     failed_sequences = 0
+    successful_sequences = 0
     current_parquet_data = []
     current_file_index = 0
     index_data = []
@@ -109,6 +110,7 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
                 if seq:
                     success_accs.append(acc)
                     sequences.append(seq)  # Keep as bytes
+                    successful_sequences += 1
                 else:
                     fail_file.write(f"{acc}\n")
                     failed_sequences += 1
@@ -131,6 +133,7 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
             # Update progress bar after every GO term
             pbar.set_postfix({
                 "Total": total_go_terms, 
+                "Successful": successful_sequences,
                 "Failed": failed_sequences, 
                 "Files": current_file_index,
                 "Current Batch": len(current_parquet_data)
@@ -162,6 +165,9 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
                 # Example of failed sequence in txt file
                 print(f"Failed Sequence Example (if any): {uniprot_accs[-1]}")
                 
+                print(f"Successful Sequences: {successful_sequences}")
+                print(f"Failed Sequences: {failed_sequences}")
+                
                 print("--- End of Example Data ---\n")
                 example_printed = True
 
@@ -174,7 +180,7 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
     index_df.to_csv(index_file, index=False)
     logger.info(f"Index file saved to {index_file}")
 
-    logger.info(f"GO term processing completed. Total: {total_go_terms}, Failed: {failed_sequences}, Files: {current_file_index}")
+    logger.info(f"GO term processing completed. Total: {total_go_terms}, Successful: {successful_sequences}, Failed: {failed_sequences}, Files: {current_file_index}")
 
 def main(go_tsv_path: str, save_dir: str, lmdb_path: str, file_prefix: str) -> None:
     t0 = time.time()
