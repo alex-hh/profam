@@ -61,7 +61,7 @@ def setup_lmdb_env(lmdb_path: str) -> lmdb.Environment:
     """
     logger.info(f"Setting up LMDB environment at {lmdb_path}")
     try:
-        return lmdb.open(lmdb_path, readonly=True, lock=False)
+        return lmdb.open(lmdb_path, readonly=True, lock=False, map_size=1099511627776)  # 1 TB
     except lmdb.Error as e:
         logger.error(f"Error opening LMDB: {e}")
         raise
@@ -101,92 +101,84 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
 
     writer = get_parquet_writer()
 
-    with open(fail_path, "w") as fail_file, lmdb_env.begin(write=False) as txn:
-        pbar = tqdm(stream_go_tsv(go_tsv_path), desc="Processing GO terms", unit="term")
-        for go_term, uniprot_accs in pbar:
-            sequences = []
-            success_accs = []
-            
-            # Batch fetch sequences
-            seq_dict = batch_fetch_sequences(txn, uniprot_accs)
-            for acc, seq in seq_dict.items():
-                if seq:
-                    success_accs.append(acc)
-                    sequences.append(seq)
-                    successful_sequences += 1
-                else:
-                    fail_file.write(f"{acc}\n")
-                    failed_sequences += 1
-            
-            go_data = pa.Table.from_pydict({
-                'fam_id': [go_term],
-                'sequences': [sequences],
-                'accessions': [success_accs]
-            })
-            
-            writer.write_table(go_data)
-            index_data.append({'fam_id': go_term, 'parquet_file': f'{file_prefix}_{str(current_file_index).zfill(4)}.parquet'})
-            
-            records_in_current_file += 1
-            total_go_terms += 1
-            
-            if records_in_current_file >= BATCH_SIZE:
-                writer.close()
-                current_file_index += 1
-                records_in_current_file = 0
-                writer = get_parquet_writer()
+    try:
+        with open(fail_path, "w") as fail_file, lmdb_env.begin(write=False) as txn:
+            pbar = tqdm(stream_go_tsv(go_tsv_path), desc="Processing GO terms", unit="term")
+            for go_term, uniprot_accs in pbar:
+                try:
+                    sequences = []
+                    success_accs = []
+                    
+                    # Batch fetch sequences
+                    seq_dict = batch_fetch_sequences(txn, uniprot_accs)
+                    for acc, seq in seq_dict.items():
+                        if seq:
+                            success_accs.append(acc)
+                            sequences.append(seq)
+                            successful_sequences += 1
+                        else:
+                            fail_file.write(f"{acc}\n")
+                            failed_sequences += 1
+                    
+                    go_data = pa.Table.from_pydict({
+                        'fam_id': [go_term],
+                        'sequences': [sequences],
+                        'accessions': [success_accs]
+                    })
+                    
+                    writer.write_table(go_data)
+                    index_data.append({'fam_id': go_term, 'parquet_file': f'{file_prefix}_{str(current_file_index).zfill(4)}.parquet'})
+                    
+                    records_in_current_file += 1
+                    total_go_terms += 1
+                    
+                    if records_in_current_file >= BATCH_SIZE:
+                        writer.close()
+                        current_file_index += 1
+                        records_in_current_file = 0
+                        writer = get_parquet_writer()
 
-            # Update progress bar
-            pbar.set_postfix({
-                "Total": total_go_terms, 
-                "Successful": successful_sequences,
-                "Failed": failed_sequences, 
-                "Files": current_file_index,
-                "Current File Records": records_in_current_file
-            })
+                    # Update progress bar
+                    pbar.set_postfix({
+                        "Total": total_go_terms, 
+                        "Successful": successful_sequences,
+                        "Failed": failed_sequences, 
+                        "Files": current_file_index,
+                        "Current File Records": records_in_current_file
+                    })
 
-            if not example_printed:
-                print("\n--- Example Data ---")
-                print(f"GO Term (TSV input): {go_term}")
-                print(f"UniProt Accessions (TSV input): {uniprot_accs[:5]}...")
-                
-                # Example of LMDB data
-                example_acc = uniprot_accs[0]
-                example_seq = batch_fetch_sequences(txn, [example_acc])[example_acc]
-                print(f"LMDB Sequence (for {example_acc}): {example_seq[:50]}...")
-                
-                # Example of Parquet data structure
-                example_parquet_data = {
-                    'fam_id': go_term,
-                    'sequences': [example_seq],
-                    'accessions': [example_acc]
-                }
-                print("Parquet Data Structure:")
-                print(json.dumps(example_parquet_data, indent=2, default=str))
-                
-                # Example of Index CSV data
-                print("Index CSV Data:")
-                print(f"fam_id,parquet_file\n{go_term},{file_prefix}_0000.parquet")
-                
-                # Example of failed sequence in txt file
-                print(f"Failed Sequence Example (if any): {uniprot_accs[-1]}")
-                
-                print(f"Successful Sequences: {successful_sequences}")
-                print(f"Failed Sequences: {failed_sequences}")
-                
-                print("--- End of Example Data ---\n")
-                example_printed = True
+                    # Log memory usage every 100 terms
+                    if total_go_terms % 100 == 0:
+                        log_memory_usage()
 
-    # Close the last writer
-    writer.close()
+                except Exception as e:
+                    logger.error(f"Error processing GO term {go_term}: {str(e)}")
+                    logger.exception("Exception details:")
+                    continue  # Skip to the next GO term
 
-    # Save index file
-    index_df = pd.DataFrame(index_data)
-    index_file = os.path.join(save_dir, "go_term_index.csv")
-    index_df.to_csv(index_file, index=False)
-    logger.info(f"Index file saved to {index_file}")
+    except Exception as e:
+        logger.error(f"Fatal error in process_go_terms: {str(e)}")
+        logger.exception("Exception details:")
+    finally:
+        # Ensure the last writer is closed
+        if 'writer' in locals():
+            writer.close()
+
+        # Save index file
+        try:
+            index_df = pd.DataFrame(index_data)
+            index_file = os.path.join(save_dir, "go_term_index.csv")
+            index_df.to_csv(index_file, index=False)
+            logger.info(f"Index file saved to {index_file}")
+        except Exception as e:
+            logger.error(f"Error saving index file: {str(e)}")
 
     logger.info(f"GO term processing completed. Total: {total_go_terms}, Successful: {successful_sequences}, Failed: {failed_sequences}, Files: {current_file_index + 1}")
+
+def log_memory_usage():
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    logger.info(f"Memory usage: {mem_info.rss / 1024 / 1024:.2f} MB")
 
 def main(go_tsv_path: str, save_dir: str, lmdb_path: str, file_prefix: str) -> None:
     t0 = time.time()
@@ -195,11 +187,11 @@ def main(go_tsv_path: str, save_dir: str, lmdb_path: str, file_prefix: str) -> N
         with setup_lmdb_env(lmdb_path) as lmdb_env:
             process_go_terms(go_tsv_path, lmdb_env, save_dir, file_prefix)
     except Exception as e:
-        logger.error(f"An error occurred during processing: {e}")
-        raise
-
-    t1 = time.time()
-    logger.info(f"Total processing time: {t1 - t0:.2f} seconds")
+        logger.error(f"An error occurred during processing: {str(e)}")
+        logger.exception("Exception details:")
+    finally:
+        t1 = time.time()
+        logger.info(f"Total processing time: {t1 - t0:.2f} seconds")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create GO term documents and save them as parquet files.")
