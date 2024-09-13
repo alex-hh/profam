@@ -89,7 +89,7 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
     def get_parquet_writer():
         nonlocal current_file_index
         output_file = os.path.join(save_dir, f'{file_prefix}_{str(current_file_index).zfill(4)}.parquet')
-        return pq.ParquetWriter(output_file, schema, use_dictionary=False, use_byte_stream_split=True)
+        return pq.ParquetWriter(output_file, schema, use_dictionary=False)
 
     writer = get_parquet_writer()
 
