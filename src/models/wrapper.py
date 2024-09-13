@@ -34,8 +34,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
-        mask_between_sequence_attention: bool = False,
-        mask_between_document_attention: bool = False,
         max_sequence_index: int = 1024,
     ):
         super().__init__(config)
@@ -58,8 +56,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self.pass_sequence_position_ids_for_global_index = (
             pass_sequence_position_ids_for_global_index
         )
-        self.mask_between_document_attention = mask_between_document_attention
-        self.mask_between_sequence_attention = mask_between_sequence_attention
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
                 self.num_atoms * 3, embedding_dim, bias=False
@@ -175,25 +171,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         return inputs_embeds
 
-    def compute_attention_mask(self, input_ids, attention_mask):
-        if self.mask_between_document_attention:
-            assert attention_mask is None
-            assert not self.mask_between_sequence_attention
-            raise NotImplementedError()
-            # document_ids = torch.cumsum(
-            #     (input_ids == self.bos_token_id).float(), dim=-1
-            # )
-        elif self.mask_between_sequence_attention:
-            assert attention_mask is None
-            sequence_ids = self.compute_sequence_index(input_ids)
-            attention_mask = sequence_ids[:, None, :] == sequence_ids[:, :, None]
-            attention_mask = torch.where(
-                attention_mask, 0, -10000.0
-            )  # TODO: fix dtype, device?
-            return attention_mask
-        else:
-            return attention_mask
-
     def forward(
         self,
         input_ids: torch.LongTensor,
@@ -221,7 +198,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             assert position_ids is None
             assert seq_pos is not None
             position_ids = seq_pos
-        attention_mask = self.compute_attention_mask(input_ids, attention_mask)
         return super().forward(
             input_ids=None,
             attention_mask=attention_mask,
