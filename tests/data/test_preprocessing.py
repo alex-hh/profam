@@ -1,0 +1,47 @@
+import os
+import pytest
+from src.constants import BASEDIR
+from src.data import preprocessing
+from src.data.utils import ProteinDatasetConfig, load_protein_dataset
+
+
+@pytest.fixture()
+def foldseek_datapoint(
+    profam_tokenizer
+):
+    cfg = ProteinDatasetConfig(
+        name="foldseek",
+        data_path_pattern="foldseek_struct/0.parquet",
+        is_parquet=True,
+    )
+    data = load_protein_dataset(
+        cfg,
+        tokenizer=profam_tokenizer,
+        max_tokens=2048,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        shuffle=False,
+        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
+    )
+    return next(iter(data))
+
+
+# TODO: add tests for standard preprocessing.
+
+
+def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
+    examples = [foldseek_datapoint, foldseek_datapoint]
+    examples = preprocessing.examples_list_to_dict(examples)
+
+    config = preprocessing.PreprocessingConfig(
+        keep_gaps=False,
+        to_upper=False,
+        keep_insertions=False,
+        use_msa_pos=False,
+    )
+    preprocessor = preprocessing.ParquetStructurePreprocessor(
+        config=config,
+        structure_tokens_col="msta_3di",
+    )
+    proteins_list = preprocessor.build_documents(examples, profam_tokenizer, max_tokens=None, shuffle=False)
+    assert len(proteins_list) == 1  # we expect documents to be combined
+    assert proteins_list[0].sequences == 2 * foldseek_datapoint["sequences"]
