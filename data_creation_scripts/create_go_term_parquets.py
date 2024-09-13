@@ -12,10 +12,11 @@ import logging
 import lmdb
 from tqdm import tqdm
 import json
+import psutil
 
 # Constants
 NUM_PARQUET_FILES = 300
-BATCH_SIZE = 5
+BATCH_SIZE = 100
 
 # Set up basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -82,21 +83,23 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
     total_go_terms = 0
     failed_sequences = 0
     successful_sequences = 0
-    current_parquet_data = []
     current_file_index = 0
+    records_in_current_file = 0
     index_data = []
 
     example_printed = False
 
-    def write_parquet_file():
-        nonlocal current_file_index, current_parquet_data
-        if current_parquet_data:
-            output_file = os.path.join(save_dir, f'{file_prefix}_{str(current_file_index).zfill(4)}.parquet')
-            df = pd.DataFrame(current_parquet_data)
-            df.to_parquet(output_file, index=False)
-            logger.info(f"Saved {len(current_parquet_data)} GO terms to {output_file}")
-            current_parquet_data = []  # Clear the data after writing
-            current_file_index += 1
+    def get_parquet_writer():
+        nonlocal current_file_index
+        output_file = os.path.join(save_dir, f'{file_prefix}_{str(current_file_index).zfill(4)}.parquet')
+        schema = pa.schema([
+            ('fam_id', pa.string()),
+            ('sequences', pa.list_(pa.binary())),
+            ('accessions', pa.list_(pa.string()))
+        ])
+        return pq.ParquetWriter(output_file, schema)
+
+    writer = get_parquet_writer()
 
     with open(fail_path, "w") as fail_file, lmdb_env.begin(write=False) as txn:
         pbar = tqdm(stream_go_tsv(go_tsv_path), desc="Processing GO terms", unit="term")
@@ -109,34 +112,37 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
             for acc, seq in seq_dict.items():
                 if seq:
                     success_accs.append(acc)
-                    sequences.append(seq)  # Keep as bytes
+                    sequences.append(seq)
                     successful_sequences += 1
                 else:
                     fail_file.write(f"{acc}\n")
                     failed_sequences += 1
             
-            go_data = {
-                'fam_id': go_term,
-                'sequences': sequences,
-                'accessions': success_accs
-            }
+            go_data = pa.Table.from_pydict({
+                'fam_id': [go_term],
+                'sequences': [sequences],
+                'accessions': [success_accs]
+            })
             
-            current_parquet_data.append(go_data)
+            writer.write_table(go_data)
             index_data.append({'fam_id': go_term, 'parquet_file': f'{file_prefix}_{str(current_file_index).zfill(4)}.parquet'})
             
+            records_in_current_file += 1
             total_go_terms += 1
             
-            # Write and start a new file if we've accumulated enough GO terms
-            if len(current_parquet_data) >= BATCH_SIZE:
-                write_parquet_file()
+            if records_in_current_file >= BATCH_SIZE:
+                writer.close()
+                current_file_index += 1
+                records_in_current_file = 0
+                writer = get_parquet_writer()
 
-            # Update progress bar after every GO term
+            # Update progress bar
             pbar.set_postfix({
                 "Total": total_go_terms, 
                 "Successful": successful_sequences,
                 "Failed": failed_sequences, 
                 "Files": current_file_index,
-                "Current Batch": len(current_parquet_data)
+                "Current File Records": records_in_current_file
             })
 
             if not example_printed:
@@ -171,8 +177,8 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
                 print("--- End of Example Data ---\n")
                 example_printed = True
 
-    # Write any remaining data
-    write_parquet_file()
+    # Close the last writer
+    writer.close()
 
     # Save index file
     index_df = pd.DataFrame(index_data)
@@ -180,7 +186,7 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
     index_df.to_csv(index_file, index=False)
     logger.info(f"Index file saved to {index_file}")
 
-    logger.info(f"GO term processing completed. Total: {total_go_terms}, Successful: {successful_sequences}, Failed: {failed_sequences}, Files: {current_file_index}")
+    logger.info(f"GO term processing completed. Total: {total_go_terms}, Successful: {successful_sequences}, Failed: {failed_sequences}, Files: {current_file_index + 1}")
 
 def main(go_tsv_path: str, save_dir: str, lmdb_path: str, file_prefix: str) -> None:
     t0 = time.time()
