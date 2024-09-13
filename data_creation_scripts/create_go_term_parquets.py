@@ -157,9 +157,9 @@ def main(go_tsv_path: str, save_dir: str, lmdb_path: str, file_prefix: str) -> N
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create GO term documents and save them as parquet files.")
-    parser.add_argument("go_tsv_path", type=str, help="Path to the GO term TSV file")
-    parser.add_argument("save_dir", type=str, help="Directory to save the parquet files")
-    parser.add_argument("lmdb_path", type=str, help="Path to the LMDB directory containing sequence data")
+    parser.add_argument("--go_tsv_path", type=str, required=True, help="Path to the GO term TSV file")
+    parser.add_argument("--save_dir", type=str, required=True, help="Directory to save the parquet files")
+    parser.add_argument("--lmdb_path", type=str, required=True, help="Path to the LMDB directory containing sequence data")
     parser.add_argument("--file_prefix", type=str, default="GO", help="Prefix for output Parquet files")
     args = parser.parse_args()
 
