@@ -114,7 +114,13 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
                         writer = pq.ParquetWriter(os.path.join(save_dir, file_name), schema)
                         record_counter = 0
                     
-                    writer.write_table(pa.Table.from_pydict(result))
+                    # Write each row separately
+                    table = pa.Table.from_pydict({
+                        'fam_id': [result['fam_id']],
+                        'sequences': [result['sequences']],
+                        'accessions': [result['accessions']]
+                    })
+                    writer.write_table(table)
                     index_data.append({'fam_id': result['fam_id'], 'parquet_file': file_name})
                     record_counter += 1
                 
@@ -145,7 +151,13 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
                     writer = pq.ParquetWriter(os.path.join(save_dir, file_name), schema)
                     record_counter = 0
                 
-                writer.write_table(pa.Table.from_pydict(result))
+                # Write each row separately
+                table = pa.Table.from_pydict({
+                    'fam_id': [result['fam_id']],
+                    'sequences': [result['sequences']],
+                    'accessions': [result['accessions']]
+                })
+                writer.write_table(table)
                 index_data.append({'fam_id': result['fam_id'], 'parquet_file': file_name})
                 record_counter += 1
 
