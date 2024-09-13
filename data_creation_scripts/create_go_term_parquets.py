@@ -15,7 +15,7 @@ import json
 
 # Constants
 NUM_PARQUET_FILES = 300
-BATCH_SIZE = 1000
+BATCH_SIZE = 100
 
 # Set up basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
