@@ -15,7 +15,7 @@ import sys
 csv.field_size_limit(sys.maxsize)
 
 # Constants
-RECORDS_PER_FILE = 1000
+RECORDS_PER_FILE = 100
 BATCH_SIZE = 100
 BUFFER_SIZE = 10000
 
