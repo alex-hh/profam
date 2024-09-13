@@ -66,17 +66,17 @@ def setup_lmdb_env(lmdb_path: str) -> lmdb.Environment:
         raise
 
 def batch_fetch_sequences(txn: lmdb.Transaction, accessions: List[str]) -> Dict[str, Optional[bytes]]:
-    """
-    Fetch sequences for a batch of accessions from LMDB.
-
-    Args:
-        txn (lmdb.Transaction): LMDB transaction object.
-        accessions (List[str]): List of UniProt accessions.
-
-    Returns:
-        Dict[str, Optional[bytes]]: Dictionary of accessions and their sequences (or None if not found).
-    """
-    return {acc: txn.get(acc.encode(), default=None) for acc in accessions}
+    results = {}
+    for acc in accessions:
+        # Construct the key in the format used in the LMDB
+        lmdb_key = f"AFDB:AF-{acc}-F1".encode()
+        value = txn.get(lmdb_key, default=None)
+        results[acc] = value
+        if value is None:
+            logging.warning(f"Sequence not found for accession: {acc}")
+        else:
+            logging.debug(f"Sequence found for accession: {acc}, length: {len(value)}")
+    return results
 
 def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str, file_prefix: str) -> None:
     logging.info(f"Starting GO term processing")
