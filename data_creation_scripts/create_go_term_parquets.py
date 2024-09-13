@@ -11,6 +11,7 @@ import sys
 import logging
 import lmdb
 from tqdm import tqdm
+import json
 
 # Constants
 NUM_PARQUET_FILES = 300
@@ -84,6 +85,8 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
     current_file_index = 0
     index_data = []
 
+    example_printed = False
+
     def write_parquet_file():
         nonlocal current_file_index, current_parquet_data
         if current_parquet_data:
@@ -132,6 +135,35 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
                 "Files": current_file_index,
                 "Current Batch": len(current_parquet_data)
             })
+
+            if not example_printed:
+                print("\n--- Example Data ---")
+                print(f"GO Term (TSV input): {go_term}")
+                print(f"UniProt Accessions (TSV input): {uniprot_accs[:5]}...")
+                
+                # Example of LMDB data
+                example_acc = uniprot_accs[0]
+                example_seq = batch_fetch_sequences(txn, [example_acc])[example_acc]
+                print(f"LMDB Sequence (for {example_acc}): {example_seq[:50]}...")
+                
+                # Example of Parquet data structure
+                example_parquet_data = {
+                    'fam_id': go_term,
+                    'sequences': [example_seq],
+                    'accessions': [example_acc]
+                }
+                print("Parquet Data Structure:")
+                print(json.dumps(example_parquet_data, indent=2, default=str))
+                
+                # Example of Index CSV data
+                print("Index CSV Data:")
+                print(f"fam_id,parquet_file\n{go_term},{file_prefix}_0000.parquet")
+                
+                # Example of failed sequence in txt file
+                print(f"Failed Sequence Example (if any): {uniprot_accs[-1]}")
+                
+                print("--- End of Example Data ---\n")
+                example_printed = True
 
     # Write any remaining data
     write_parquet_file()
