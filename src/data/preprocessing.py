@@ -168,6 +168,11 @@ def examples_to_list_of_dicts(examples):
     return [{k: examples[k][i] for k in keys} for i in range(len(examples[keys[0]]))]
 
 
+def examples_list_to_dict(examples):
+    keys = list(examples[0].keys())
+    return {k: [example[k] for example in examples] for k in keys}
+
+
 class BasePreprocessor:
     def __init__(
         self,
@@ -271,18 +276,21 @@ class BasePreprocessor:
         document_lengths = [
             sum(proteins.sequence_lengths) for proteins in proteins_list
         ]
-        assert max_tokens is not None
         merged_documents = []
         current_document = None
         for proteins, length in zip(proteins_list, document_lengths):
             if current_document is None:
                 current_document = proteins.clone()
             else:
-                if sum(current_document.sequence_lengths) + length <= max_tokens:
-                    current_document.extend(proteins)
+                if sum(current_document.sequence_lengths) + length <= (
+                    max_tokens or 1e8
+                ):
+                    current_document = current_document.extend(proteins)
                 else:
                     merged_documents.append(current_document)
                     current_document = proteins.clone()
+        if current_document is not None:
+            merged_documents.append(current_document)
         return merged_documents
 
 

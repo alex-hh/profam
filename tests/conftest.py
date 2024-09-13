@@ -124,62 +124,6 @@ def proteingym_batch(profam_tokenizer):
 
 
 @pytest.fixture()
-def foldseek_interleaved_structure_sequence_batch(
-    profam_tokenizer,
-):
-    max_tokens = 2048
-    preprocessing_cfg = preprocessing.PreprocessingConfig(
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
-    )
-    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
-        config=preprocessing_cfg,
-        structure_tokens_col="msta_3di",
-        transform_fns=[transforms.interleave_structure_sequence],
-    )
-    cfg = ProteinDatasetConfig(
-        name="foldseek",
-        preprocessor=parquet_3di_processor,
-        data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
-    )
-    data = load_protein_dataset(
-        cfg,
-        tokenizer=profam_tokenizer,
-        max_tokens=max_tokens,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
-    )
-    datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
-    return collator([datapoint])
-
-
-@pytest.fixture()
-def foldseek_interleaved_structure_sequence_datapoint(
-    profam_tokenizer, parquet_3di_processor
-):
-    cfg = ProteinDatasetConfig(
-        name="foldseek",
-        data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
-        preprocessor=None,
-    )
-    data = load_protein_dataset(
-        cfg,
-        tokenizer=profam_tokenizer,
-        max_tokens=2048,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
-    )
-    return next(iter(data))
-
-
-@pytest.fixture()
 def pfam_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         name="pfam",

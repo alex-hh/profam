@@ -203,10 +203,6 @@ def load_protein_dataset(
             streaming=cfg.stream,
             sample_by="document",
         )
-    if cfg.column_name_mapping is not None:
-        for old_name, new_name in cfg.column_name_mapping.items():
-            # https://huggingface.co/docs/datasets/en/stream#rename-remove-and-cast
-            dataset = dataset.rename_column(old_name, new_name)
     print("Dataset n shards", dataset.n_shards)
     print("Verifying dataset content:")
     for i, item in enumerate(dataset.take(3)):

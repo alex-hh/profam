@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing import Callable, ClassVar, List, Optional
 
 import numpy as np
 
@@ -74,6 +74,14 @@ def check_array_lengths(*arrays):  # TODO: name better!
 # TODO: consider how to represent masks
 @dataclass
 class ProteinDocument:
+    residue_level_fields: ClassVar[List[str]] = [
+        "sequences",
+        "accessions",
+        "plddts",
+        "backbone_coords",
+        "backbone_coords_masks",
+        "structure_tokens",
+    ]
     sequences: List[str]
     accessions: Optional[List[str]] = None
     identifier: Optional[str] = None
@@ -95,17 +103,23 @@ class ProteinDocument:
     def sequence_lengths(self):
         return [len(seq) for seq in self.sequences]
 
+    def present_fields(self, residue_level_only: bool = False):
+        if residue_level_only:
+            return [
+                field
+                for field in self.residue_level_fields
+                if getattr(self, field) is not None
+            ]
+        else:
+            return [
+                field
+                for field in self.__dataclass_fields__.keys()
+                if getattr(self, field) is not None
+            ]
+
     @classmethod
-    def from_proteins(cls, proteins: List[Protein], **kwargs):
-        fields = [
-            "sequence",
-            "accession",
-            "positions",
-            "plddt",
-            "backbone_coords",
-            "backbone_coords_mask",
-            "structure_tokens",
-        ]
+    def from_proteins(cls, individual_proteins: List[Protein], **kwargs):
+        # N.B. we ignore representative_accession here
         renaming = {
             "sequence": "sequences",
             "accession": "accessions",
@@ -113,13 +127,13 @@ class ProteinDocument:
             "backbone_coords_mask": "backbone_coords_masks",
         }
         attr_dict = {}
-        for attr in fields:
-            if any(getattr(p, attr) is not None for p in proteins):
+        for attr in cls.residue_level_fields:
+            if any(getattr(p, attr) is not None for p in individual_proteins):
                 assert all(
-                    getattr(p, attr) is not None for p in proteins
+                    getattr(p, attr) is not None for p in individual_proteins
                 ), f"Missing {attr} for some proteins"
                 attr_dict[renaming.get(attr, attr)] = [
-                    getattr(p, attr) for p in proteins
+                    getattr(p, attr) for p in individual_proteins
                 ]
             else:
                 attr_dict[renaming.get(attr, attr)] = None
@@ -306,3 +320,25 @@ class ProteinDocument:
             validate_shapes=kwargs.get("validate_shapes", self.validate_shapes),
             original_size=kwargs.get("original_size", self.original_size),
         )
+
+    def extend(self, proteins: "ProteinDocument"):
+        # n.b. extend may be a bad name as this is not in place
+        constructor_kwargs = {}
+        for field in self.present_fields(residue_level_only=True):
+            attr = getattr(self, field)
+            if isinstance(attr, list):
+                constructor_kwargs[field] = attr + getattr(proteins, field)
+            elif isinstance(attr, np.ndarray):
+                constructor_kwargs[field] = np.concatenate(
+                    [attr, getattr(proteins, field)]
+                )
+            else:
+                raise ValueError(f"Unexpected type: {field} {type(attr)}")
+        if self.original_size is not None and proteins.original_size is not None:
+            constructor_kwargs["original_size"] = (
+                self.original_size + proteins.original_size
+            )
+        constructor_kwargs["validate_shapes"] = (
+            self.validate_shapes and proteins.validate_shapes
+        )
+        return ProteinDocument(**constructor_kwargs)
