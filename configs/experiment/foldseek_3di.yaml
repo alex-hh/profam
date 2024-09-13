@@ -10,7 +10,8 @@ defaults:
   - override /data: foldseek
   - override /model: llama_small
 
-tags: ["foldseek_3di"]
+experiment_group: "foldseek_3di"
+tags: ["${.experiment_group}"]
 
 seed: 12345
 

@@ -23,23 +23,21 @@ import os
 from src.constants import PROFAM_DATA_DIR
 from src.data.fasta import read_fasta
 from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.tools.foldmason import run_foldmason_on_pdbs
+from src.tools.foldseek import convert_pdbs_to_3di
 from .utils import extract_pdbs_from_zips
-import subprocess
 
 
-def run_foldmason(filelist, output_dir, tmp_dir):
-    cmd = ["foldmason", "easy-msa"] + filelist + [os.path.join(output_dir, "result"), tmp_dir]
-    
-    try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(f"FoldMason stdout: {result.stdout}", flush=True)
-    except subprocess.CalledProcessError as e:
-        print(f"FoldMason execution failed: {e}", flush=True)
-        print(f"FoldMason stderr: {e.stderr}", flush=True)
-        raise
-
-
-def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metadata_lookup, run_foldmason=False):
+def save_pdbs_to_parquet(
+    save_dir,
+    pdbs_dir,
+    clusters_to_save,
+    parquet_id,
+    metadata_lookup,
+    run_foldmason=False,
+    max_cluster_size_for_foldmason=None,
+    convert_to_3di: bool = False,
+):
     # TODO: it would be cleaner for clusters_to_save values to be metadata-augmented dicts
     # Save the pdbs to parquet
     results = []
@@ -71,21 +69,29 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
             
         # Run FoldMason on the cluster
         if run_foldmason:
-            foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
-            os.makedirs(foldmason_outdir)
-            run_foldmason(cluster_filelist, foldmason_outdir, foldmason_outdir)
+            if max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason:
+                print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
+                has_foldmason_results = False
+            else:
+                foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
+                os.makedirs(foldmason_outdir)
+                run_foldmason_on_pdbs(cluster_filelist, foldmason_outdir, foldmason_outdir)
 
-            # Read AA and 3Di alignments, skip the accessions
-            labels, msta_seqs = read_fasta(os.path.join(foldmason_outdir, "result_aa.fa"))
-            perm = [labels.index(afdb_id) for afdb_id in cluster_members]
-            msta_seqs = [msta_seqs[ix] for ix in perm]
-            struct_labels, msta_3di = read_fasta(os.path.join(foldmason_outdir, "result_3di.fa"))
-            assert labels == struct_labels
-            msta_3di = [msta_3di[ix] for ix in perm]
-            shutil.rmtree(foldmason_outdir)
+                # Read AA and 3Di alignments, skip the accessions
+                labels, msta_seqs = read_fasta(os.path.join(foldmason_outdir, "result_aa.fa"))
+                perm = [labels.index(afdb_id) for afdb_id in cluster_members]
+                msta_seqs = [msta_seqs[ix] for ix in perm]
+                struct_labels, msta_3di = read_fasta(os.path.join(foldmason_outdir, "result_3di.fa"))
+                assert labels == struct_labels
+                msta_3di = [msta_3di[ix] for ix in perm]
+                shutil.rmtree(foldmason_outdir)
+                has_foldmason_results = True
 
         for pdb in cluster_filelist:
             os.remove(pdb)
+
+        if convert_to_3di:
+            sequences_3di = convert_to_3di(cluster_filelist)
 
         # TODO: save representative?
         res = {
@@ -99,9 +105,11 @@ def save_pdbs_to_parquet(save_dir, pdbs_dir, clusters_to_save, parquet_id, metad
             "accessions": accessions,
             "af50_cluster_id": af50_cluster_id,
         }
-        if run_foldmason:
+        if has_foldmason_results:
             res["msta_seqs"] = msta_seqs
             res["msta_3di"] = msta_3di
+        if convert_to_3di:
+            res["sequences_3di"] = sequences_3di
         results.append(res)
 
     df = pd.DataFrame(results)
@@ -178,6 +186,7 @@ def create_foldseek_parquets(
     af50_representative_only=False,
     show_tqdm=False,
     run_foldmason=False,
+    max_cluster_size_for_foldmason=None,
 ):
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
     # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
@@ -242,7 +251,9 @@ def create_foldseek_parquets(
             clusters_to_save=parquet_cluster_membership,
             parquet_id=parquet_id,
             metadata_lookup=parquet_metadata_lookup,
+            max_cluster_size_for_foldmason=max_cluster_size_for_foldmason,
             run_foldmason=run_foldmason and not (representative_only or af50_representative_only),
+            convert_to_3di=(representative_only or af50_representative_only),
         )
     shutil.rmtree(os.path.join(scratch_dir, job_prefix))
 
@@ -259,6 +270,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_dir", default=None)
     parser.add_argument("--representative_only", action="store_true")
     parser.add_argument("--af50_representative_only", action="store_true")
+    parser.add_argument("--max_cluster_size_for_foldmason", type=int, default=None)
     args = parser.parse_args()
 
     if args.save_dir is None:
@@ -287,4 +299,5 @@ if __name__ == "__main__":
         run_foldmason=args.run_foldmason,
         representative_only=args.representative_only,
         af50_representative_only=args.af50_representative_only,
+        max_cluster_size_for_foldmason=args.max_cluster_size_for_foldmason,
     )

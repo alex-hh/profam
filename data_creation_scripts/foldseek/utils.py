@@ -3,7 +3,7 @@ import multiprocessing
 import re
 import zipfile
 import time
-import modin.pandas as pd
+# import modin.pandas as pd
 from dask import dataframe as dd
 from collections import defaultdict
 
@@ -80,13 +80,13 @@ def dask_make_af50_dictionary(af50_path, clusters_to_include):
     return af50_dict
 
 
-def modin_make_af50_dictionary(af50_path, clusters_to_include):
-    df = pd.read_csv(af50_path, sep="\t", header=None, names=["rep_id", "entry_id", "clu_flag", "tax_id"])
-    df = df[(df["clu_flag"] == 1)&(df["rep_id"].isin(clusters_to_include))]
-    af50_dict = defaultdict(list)
-    for _, row in df.iterrows():
-        af50_dict[row["rep_id"]].append(row["entry_id"])
-    return af50_dict
+# def modin_make_af50_dictionary(af50_path, clusters_to_include):
+#     df = pd.read_csv(af50_path, sep="\t", header=None, names=["rep_id", "entry_id", "clu_flag", "tax_id"])
+#     df = df[(df["clu_flag"] == 1)&(df["rep_id"].isin(clusters_to_include))]
+#     af50_dict = defaultdict(list)
+#     for _, row in df.iterrows():
+#         af50_dict[row["rep_id"]].append(row["entry_id"])
+#     return af50_dict
 
 
 def make_zip_dictionary(zip_index):
@@ -137,10 +137,10 @@ def dask_make_zip_dictionary(zip_index, accessions_to_include):
     return ddf.set_index("uniprot_id")["zip_file"].to_dict()
 
 
-def modin_make_zip_dictionary(zip_index, accessions_to_include):
-    df = pd.read_csv(zip_index, sep="\t", header=None, names=["afdb_id", "uniprot_id", "zip_file"])
-    df = df[df["uniprot_id"].isin(accessions_to_include)]
-    return df.set_index("uniprot_id")["zip_file"].to_dict()
+# def modin_make_zip_dictionary(zip_index, accessions_to_include):
+#     df = pd.read_csv(zip_index, sep="\t", header=None, names=["afdb_id", "uniprot_id", "zip_file"])
+#     df = df[df["uniprot_id"].isin(accessions_to_include)]
+#     return df.set_index("uniprot_id")["zip_file"].to_dict()
 
 
 def make_cluster_dictionary(cluster_path):

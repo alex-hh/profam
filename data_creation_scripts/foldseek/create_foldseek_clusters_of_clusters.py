@@ -13,15 +13,12 @@ import numpy as np
 import pandas as pd
 import pickle
 
-from .utils import make_cluster_dictionary
-
 
 AFDB_DATA_PATH = "/SAN/orengolab/cath_plm/ProFam/data/afdb/"
 
 
 def load_parquet_index(index_file_path):
     index_df = pd.read_csv(index_file_path).set_index("identifier")
-    print(index_df.head(), flush=True)
     cluster_to_parquet = index_df["parquet_file"].to_dict()
     return cluster_to_parquet
 
@@ -36,7 +33,7 @@ def get_cluster_of_cluster_members(cluster_ids, ddf, evalue_threshold=1e-3, num_
     # so what we should do is just find query is cluster_id
     result = ddf[
         (ddf["query_id"].isin(cluster_ids))&(ddf["evalue"]<=evalue_threshold)
-    ].compute(scheduler="threads", num_workers=num_processes)
+    ].compute(scheduler="threads", num_workers=num_processes or 1)
     return [result[result["query_id"] == cluster_id]["target_id"].tolist() for cluster_id in cluster_ids]
 
 
@@ -60,7 +57,7 @@ def save_single_parquet(
         cluster_ids,
         ddf,
         evalue_threshold=evalue_threshold,
-        num_processes=num_processes
+        num_processes=num_processes,
     )
     t1 = time.time()
     print("Time to query all-vs-all:", t1 - t0, "seconds", flush=True)
@@ -138,21 +135,12 @@ def main(args):
     os.makedirs(args.save_dir, exist_ok=True)
 
     # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
-    cluster_dict_pickle_path = os.path.join(args.save_dir, "foldseek_cluster_dict.pkl")
+    cluster_dict_pickle_path = os.path.join(AFDB_DATA_PATH, "foldseek_cluster_dict.pkl")
     parquet_dir = os.path.dirname(args.index_file_path)
 
-    if not os.path.exists(cluster_dict_pickle_path):
-        print("Creating foldseek dataset", flush=True)
-        cluster_dict = make_cluster_dictionary(args.cluster_path)
-        print("Number of clusters:", len(cluster_dict))
-        print("Saving cluster dictionary")
-        with open(args.save_dir + "foldseek_cluster_dict.pkl", "wb") as f:
-            pickle.dump(cluster_dict, f)
-    else:
-        print("Loading cluster dictionary", flush=True)
-        with open(cluster_dict_pickle_path, "rb") as f:
-            cluster_dict = pickle.load(f)
-        print("Number of clusters:", len(cluster_dict), flush=True)
+    with open(cluster_dict_pickle_path, "rb") as f:
+        cluster_dict = pickle.load(f)
+    print("Number of clusters:", len(cluster_dict), flush=True)
 
     # shuffle first so that we de-correlate cluster identities in parquet files
     cluster_ids = sorted(list(cluster_dict.keys()))
@@ -160,7 +148,6 @@ def main(args):
     rng = np.random.default_rng(seed=83)  # may as well seed differently here than for other foldseek
     rng.shuffle(cluster_ids)
     print(f"Post-shuffle cluster ids: {cluster_ids[:10]}", flush=True)
-
 
     # all_accessions = [member_id for cluster_id in cluster_ids for member_id in cluster_dict[cluster_id]]
     print("Loading parquet index", flush=True)
@@ -204,11 +191,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("index_file_path", type=str)
     parser.add_argument("save_dir", type=str)
-    parser.add_argument(
-        "--cluster_path",
-        type=str,
-        default=f"{AFDB_DATA_PATH}/1-AFDBClusters-entryId_repId_taxId.tsv",
-    )
     parser.add_argument(
         "--all_vs_all_path",
         type=str,
