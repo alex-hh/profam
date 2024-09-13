@@ -21,6 +21,7 @@ class PromptBuilder:
         seed: Optional[int] = None,
     ):
         self.preprocessor = preprocessor
+        assert preprocessor is not None
         self.seed = seed
         self.max_tokens = max_tokens
 
@@ -46,8 +47,8 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
     """Prompt builder for interleaved inverse folding tasks.
 
     Instead of finishing with a sep, we finish with a structure sequence sep
-    We also know the ground truth sequence: the seed sequence in the protein
-    document: ProteinDocument.seed
+    We also know the ground truth sequence: the representative sequence in the protein
+    document: ProteinDocument.representative.sequence
     """
 
     def __init__(

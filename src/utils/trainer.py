@@ -11,6 +11,8 @@ class ProFamTrainer(Trainer):
         target_tokens_per_batch=None,
         batch_size=None,
         tokens_per_document=None,
+        # n.b. val_check_interval uses BatchProgresss. This is a local counter.
+        val_check_interval_divide_by_world_size: bool = True,
         **kwargs
     ):
         if target_tokens_per_batch is not None:
@@ -28,4 +30,8 @@ class ProFamTrainer(Trainer):
             print(
                 "Setting accumulate_grad_batches to", kwargs["accumulate_grad_batches"]
             )
+        if val_check_interval_divide_by_world_size:
+            val_check_interval = kwargs.get("val_check_interval", 1)
+            kwargs["val_check_interval"] = val_check_interval // devices
+            print("Setting val_check_interval to", kwargs["val_check_interval"])
         super().__init__(*args, **kwargs)
