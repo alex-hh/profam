@@ -45,6 +45,17 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
     batch_size: int,
 ):
     """
+    TODO: if we want to integrate with hf proper, it would make more sense for attention mask to always be
+    non-inverted.
+
+    We assume that the attention mask is one of the following:
+        - a 2D binary mask, with 1s indicating keys that can be attended to in the full sequence
+        - a 4D binary mask, with 1s indicating permitted attention.
+            shape should be [broadcastable to?] (batch_size, head_dim, query_length, key_value_length)
+            query_length when using cache is equal to number of uncached tokens
+        - a 4D bias mask, with -inf indicating disallowed attention.
+            shape should be [broadcastable to?] (batch_size, head_dim, query_length, key_value_length)
+
     Creates a causal 4D mask of shape `(batch_size, 1, query_length, key_value_length)` from a 2D mask of shape
     `(batch_size, key_value_length)`, or if the input `attention_mask` is already 4D, do nothing.
 
@@ -66,42 +77,38 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
         batch_size (`torch.Tensor`):
             Batch size.
     """
-    if attention_mask is not None and attention_mask.dim() == 4:
-        # TODO: check if attention mask is binary at this point.
-        # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
-        causal_mask = attention_mask
-        if causal_mask.unique() == [0, 1]:
-            # inverted binary mask
-            causal_mask = torch.where(causal_mask, min_dtype, 0).to(dtype)
-        # otherwise constant or bias mask: pass on through
-    else:
+    # original code was optimised for memory - make sure this is too.
+    # for example - masked fill might be better but requires inverted mask
+    if attention_mask is not None:
+        assert torch.is_floating_point(attention_mask) or torch.is_integral(
+            attention_mask
+        ), "Attention mask must be numeric"
+    if attention_mask is None or attention_mask.ndim == 2:
         # N.B. the combination of binary and non-binary masks in the original code here is pretty confusing.
-        causal_mask = torch.zeros(
-            (sequence_length, target_length), torch.int16, device=device
-        )
-        if sequence_length != 1:
-            causal_mask = torch.triu(causal_mask, diagonal=1)
-        causal_mask *= torch.arange(
-            target_length, device=device
-        ) > cache_position.reshape(
-            -1, 1
-        )  # basically a torch.where on this line alone would have sufficed
-        causal_mask = causal_mask[None, None, :, :].expand(batch_size, 1, -1, -1)
+        # we try to first build required binary mask, then convert to a bias mask.
+        causal_mask = (
+            torch.arange(target_length, device=device) <= cache_position.reshape(-1, 1)
+        )[None].expand(batch_size, -1, -1)
         if attention_mask is not None:
-            causal_mask = (
-                causal_mask.clone()
-            )  # copy to contiguous memory for in-place edit
-            mask_length = attention_mask.shape[-1]
-            padding_mask = (
-                causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :]
-            )
-            padding_mask = (
-                padding_mask == 0
-            )  # 0 means allowed in original but banned in attention mask...addition of causal mask appears redundant here in code
-            causal_mask[:, :, :, :mask_length] = causal_mask[
-                :, :, :, :mask_length
-            ].masked_fill(padding_mask, min_dtype)
+            causal_mask[:, :, : attention_mask.shape[-1]] &= attention_mask[
+                :, None, :
+            ].bool()
+        causal_mask = causal_mask[:, None]  # add head dim
+    elif attention_mask.isin([0, 1]).all() and not (attention_mask == 0).all():
+        # if we pass all 0s there is ambiguity, but we assume it means a bias mask, since it would prevent any attention.
+        causal_mask = attention_mask.bool()
+    else:
+        causal_mask = attention_mask
 
+    assert causal_mask.ndim() == 4
+    # TODO: check if attention mask is binary at this point.
+    # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
+    if causal_mask.dtype == torch.bool:
+        # causal mask is binary mask with 1s where attention is allowed
+        # invert and use -inf to mask out disallowed attentions
+        causal_mask = (~causal_mask).masked_fill(min_dtype).to(dtype)
+
+    # otherwise bias mask already: pass on through
     return causal_mask
 
 
@@ -138,6 +145,7 @@ class WrappedLlamaForCausalLM(
         past_key_values: Cache,
         output_attentions: bool,
     ):
+        """Just changed to use our custom prepare_4d_causal_attention_mask_with_cache_position"""
         if self.config._attn_implementation == "flash_attention_2":
             if attention_mask is not None and 0.0 in attention_mask:
                 return attention_mask
@@ -268,11 +276,11 @@ class LlamaLitModule(BaseFamilyLitModule):
                 max_sequence_index=max_sequence_index,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
                 pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
-                mask_between_document_attention=mask_between_document_attention,
-                mask_between_sequence_attention=mask_between_sequence_attention,
             )
         else:
             model = LlamaForCausalLM(config)
+        self.mask_between_document_attention = mask_between_document_attention
+        self.mask_between_sequence_attention = mask_between_sequence_attention
         super().__init__(
             model,
             tokenizer,
