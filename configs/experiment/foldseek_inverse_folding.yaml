@@ -18,7 +18,7 @@ seed: 12345
 
 extra_callbacks:
   esmfold:
-    prompt_builder: 
+    prompt_builder:
       _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
       preprocessor: ${preprocessor}
       max_tokens: ${data.max_tokens}
