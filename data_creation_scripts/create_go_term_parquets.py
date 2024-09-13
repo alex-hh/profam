@@ -95,7 +95,8 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
             current_file_index += 1
 
     with open(fail_path, "w") as fail_file, lmdb_env.begin(write=False) as txn:
-        for go_term, uniprot_accs in tqdm(stream_go_tsv(go_tsv_path), desc="Processing GO terms"):
+        pbar = tqdm(stream_go_tsv(go_tsv_path), desc="Processing GO terms", unit="term")
+        for go_term, uniprot_accs in pbar:
             sequences = []
             success_accs = []
             
@@ -124,8 +125,8 @@ def process_go_terms(go_tsv_path: str, lmdb_env: lmdb.Environment, save_dir: str
             if len(current_parquet_data) >= BATCH_SIZE:
                 write_parquet_file()
 
-            if total_go_terms % 100000 == 0:
-                logger.info(f"Processed {total_go_terms} GO terms. Failed sequences: {failed_sequences}")
+            if total_go_terms % 1000 == 0:  # Update more frequently
+                pbar.set_postfix({"Total": total_go_terms, "Failed": failed_sequences, "Files": current_file_index})
 
     # Write any remaining data
     write_parquet_file()
