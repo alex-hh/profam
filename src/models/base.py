@@ -155,6 +155,7 @@ class BaseLitModule(LightningModule):
                 + [aa.lower() for aa in aa_letters]
                 + self.tokenizer.all_special_tokens
             ),
+            mask=None,
         )
         has_3di = torch.isin(
             batch["input_ids"],
@@ -169,11 +170,33 @@ class BaseLitModule(LightningModule):
             "aa_accuracy": dataset_accuracies.pop("global"),
         }
         if "coords" in batch:
-            has_coords_mask = batch["coords"].any(-1)
+            has_coords_mask = batch["coords_mask"].any(-1)
             has_coords_frac = (
                 has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
             )
             global_metrics["has_coords_frac"] = has_coords_frac
+            is_interleaved = (
+                batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
+            ).any()
+            if is_interleaved:
+                aa_has_coords_mask = batch["interleaved_coords_mask"].any(-1)
+                has_coords_dataset_accuracies = accuracy_from_outputs(
+                    outputs,
+                    batch["labels"],
+                    ignore_index=-100,
+                    dataset_names=batch[
+                        "ds_name"
+                    ].text,  # a list of dataset names (StringObject.text)
+                    ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                        ["-", "X", "x"]
+                        + [aa.lower() for aa in aa_letters]
+                        + self.tokenizer.all_special_tokens
+                    ),
+                    mask=aa_has_coords_mask & batch["aa_mask"],
+                )
+                global_metrics[
+                    "has_coords_aa_accuracy"
+                ] = has_coords_dataset_accuracies.pop("global")
 
         if has_3di:
             dataset_accuracies_3di = accuracy_from_outputs(
@@ -212,6 +235,10 @@ class BaseLitModule(LightningModule):
                 ds_metrics[
                     f"{step_name}/{ds_name}/3di_accuracy"
                 ] = dataset_accuracies_3di[ds_name]
+            if "coords" in batch and is_interleaved:
+                ds_metrics[
+                    f"{step_name}/{ds_name}/has_coords_aa_accuracy"
+                ] = has_coords_dataset_accuracies[ds_name]
             self.log_dict(
                 ds_metrics,
                 on_step=False,

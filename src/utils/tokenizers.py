@@ -228,6 +228,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     pad_to_length=max_length if padding == "max_length" else None,
                 )
             )
+
             assert (
                 tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
@@ -236,6 +237,17 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         is_interleaved = (
             tokenized.data["input_ids"] == self.seq_struct_sep_token_id
         ).any()
+        if is_interleaved and proteins.backbone_coords is not None:
+            tokenized.data["interleaved_coords_mask"] = torch.from_numpy(
+                concatenate_pad_array(
+                    proteins.interleaved_coords_masks,
+                    fill_value=0,
+                    num_start_tokens=self.num_start_tokens,
+                    num_end_tokens=num_end_tokens,
+                    pad_to_length=max_length if padding == "max_length" else None,
+                )
+            )
+
         special_tokens_mask = torch.isin(
             tokenized.input_ids,
             torch.tensor(

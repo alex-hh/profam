@@ -81,6 +81,9 @@ class ProteinDocument:
     plddts: Optional[List[np.ndarray]] = None
     backbone_coords: Optional[List[np.ndarray]] = None
     backbone_coords_masks: Optional[List[np.ndarray]] = None
+    interleaved_coords_masks: Optional[
+        List[np.ndarray]
+    ] = None  # if interleaving, indicates which coords are available at each sequence position
     structure_tokens: Optional[List[str]] = None
     validate_shapes: bool = True
     representative_accession: Optional[
@@ -296,6 +299,9 @@ class ProteinDocument:
             backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
             backbone_coords_masks=kwargs.get(
                 "backbone_coords_masks", self.backbone_coords_masks
+            ),
+            interleaved_coords_masks=kwargs.get(
+                "interleaved_coords_masks", self.interleaved_coords_masks
             ),
             structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
             validate_shapes=kwargs.get("validate_shapes", self.validate_shapes),

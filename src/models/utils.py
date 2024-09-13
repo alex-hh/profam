@@ -40,6 +40,7 @@ def accuracy_from_outputs(
     ignore_index=-100,
     dataset_names=None,
     ignore_token_ids: Optional[List[int]] = None,
+    mask=None,
 ):
     """Compute the accuracy of the target sequence given the model outputs.
 
@@ -63,6 +64,8 @@ def accuracy_from_outputs(
     # Ensure tensors are on the same device
     shift_labels = shift_labels.to(shift_logits.device)
     non_padding_mask = shift_labels != ignore_index
+    if mask is not None:
+        non_padding_mask = non_padding_mask & mask
     # TODO: we might also want to ignore gaps...
     accuracy = (shift_logits.argmax(-1) == shift_labels).float()
     if dataset_names is not None:
