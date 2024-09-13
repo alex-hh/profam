@@ -23,7 +23,7 @@ from src.data.utils import (
 from src.utils.tokenizers import ProFamTokenizer
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def profam_tokenizer():
     tokenizer = ProFamTokenizer(
         tokenizer_file=os.path.join(
@@ -41,7 +41,7 @@ def profam_tokenizer():
     return tokenizer
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def profam_tokenizer_noseqpos():
     tokenizer = ProFamTokenizer(
         tokenizer_file=os.path.join(
@@ -59,7 +59,7 @@ def profam_tokenizer_noseqpos():
     return tokenizer
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def default_model_noseqpos(profam_tokenizer_noseqpos):
     # otherwise could do this via overrides...
     with initialize(config_path="../configs", version_base="1.3"):
@@ -70,7 +70,7 @@ def default_model_noseqpos(profam_tokenizer_noseqpos):
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def default_model(profam_tokenizer):
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
@@ -80,7 +80,7 @@ def default_model(profam_tokenizer):
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def parquet_raw_sequence_processor():
     preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
@@ -93,7 +93,7 @@ def parquet_raw_sequence_processor():
     )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def parquet_3di_processor():
     preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,

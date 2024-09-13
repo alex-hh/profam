@@ -91,7 +91,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if (prev_seq_pos[:, -1] == 0).any():
                 assert (prev_seq_pos[:, -1] == 0).all()
                 # we are starting new sequences
-                seq_pos = self.start_seq_pos + increment - 1
+                seq_pos = torch.full_like(
+                    prev_seq_pos, self.start_seq_pos + increment - 1
+                )
                 # seq_pos corresponds to position of previously generated token in the sequence
                 # when increment is 1, seq_pos is self.start_seq_pos
             else:
@@ -101,9 +103,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                     )
                 seq_pos = prev_seq_pos + increment
             inputs["seq_pos"] = seq_pos
-            assert kwargs["coords"].ndim == 4  # b, l, n, 3
             bsz = prev_seq_pos.shape[0]
             if self.embed_coords:
+                assert kwargs["coords"].ndim == 4  # b, l, n, 3
                 inputs["coords"] = torch.full(
                     (
                         bsz,

@@ -2,7 +2,7 @@ import torch
 
 from src.data.objects import ProteinDocument
 from src.data.transforms import convert_sequences_adding_positions
-from src.utils.tokenizers import ProFamTokenizer, get_seq_pos_from_positions
+from src.utils.tokenizers import get_seq_pos_from_positions
 
 """
 replicates the pre-processing and
@@ -78,23 +78,7 @@ test_cases_indels = [
 # fmt: on
 
 
-def test_prot_gym_pos_encoding():
-    tokenizer = ProFamTokenizer(
-        tokenizer_file="src/data/components/profam_tokenizer.json",
-        unk_token="[UNK]",
-        pad_token="[PAD]",
-        sep_token="[SEP]",
-        mask_token="[MASK]",
-        bos_token="[start-of-document]",
-        add_final_sep=True,
-        add_document_token=True,
-        add_bos_token=True,
-        use_seq_pos=True,
-        max_seq_pos=1024,
-        max_tokens=5000,
-        seq_struct_sep_token="[SEQ-STRUCT-SEP]",
-    )
-
+def test_prot_gym_pos_encoding(profam_tokenizer):
     for case in test_cases_subs:
         # Process MSA sequences
         msa_proteins = ProteinDocument(sequences=case["msa_seqs"])
@@ -117,23 +101,23 @@ def test_prot_gym_pos_encoding():
         )
 
         # Tokenize MSA
-        msa_tokenized = tokenizer.encode(
+        msa_tokenized = profam_tokenizer.encode(
             msa_proteins,
             document_token="[MSA]",
             add_final_sep=False,
         )
 
-        completion_tokenized = tokenizer.encode_completions(
+        completion_tokenized = profam_tokenizer.encode_completions(
             completion_proteins.sequences,
-            bos_token=tokenizer.sep_token,
+            bos_token=profam_tokenizer.sep_token,
         )
 
         msa_seq_pos = get_seq_pos_from_positions(
             msa_tokenized.input_ids,
             msa_proteins.positions,
-            pad_token_id=tokenizer.pad_token_id,
-            max_seq_pos=tokenizer.max_seq_pos,
-            num_start_tokens=tokenizer.num_start_tokens,
+            pad_token_id=profam_tokenizer.pad_token_id,
+            max_seq_pos=profam_tokenizer.max_seq_pos,
+            num_start_tokens=profam_tokenizer.num_start_tokens,
             num_end_tokens=0,  # No end tokens for MSA
         )
 
@@ -152,8 +136,3 @@ def test_prot_gym_pos_encoding():
         assert (
             completion_tokenized.seq_pos == torch.tensor(case["completion_pos"])
         ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos} != {case['completion_pos']}"
-
-
-print("Running positional embedding tests...")
-test_prot_gym_pos_encoding()
-print("All tests passed!")
