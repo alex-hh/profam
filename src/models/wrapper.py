@@ -3,6 +3,7 @@ from typing import List, Optional
 import torch
 from torch import nn
 
+from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import nested_getattr
 
 
@@ -26,31 +27,27 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         config,
         token_embedder: str,
         embedding_dim: int,
-        sep_token_id: int,
-        start_seq_pos: int = 2,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
+        tokenizer: ProFamTokenizer,
         require_seq_pos: bool = True,
         embed_coords: bool = False,
+        start_seq_pos: int = 2,
         embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
     ):
         super().__init__(config)
-        self.use_seq_pos = use_seq_pos
-        self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent
         # TODO: avoid re-tracking - does this happen automatically?
         self.token_embedder = nested_getattr(
             self, token_embedder
         )  # TODO: use self.embed_tokens or sthg
         self.require_seq_pos = require_seq_pos
-        self.max_seq_pos = max_seq_pos
+        self.tokenizer = tokenizer
         self.embed_coords = embed_coords
+        self.start_seq_pos = start_seq_pos
         self.num_atoms = 4
         self.embed_sequence_index = embed_sequence_index
         self.max_sequence_index = max_sequence_index
-        self.sep_token_id = sep_token_id
         self.pass_constant_position_ids_for_global_index = (
             pass_constant_position_ids_for_global_index
         )
@@ -61,10 +58,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             self.coords_embedding = nn.Linear(
                 self.num_atoms * 3, embedding_dim, bias=False
             )
-        if self.use_seq_pos:
-            self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
+        if self.tokenizer.use_seq_pos:
+            self.seq_pos_embedding = nn.Embedding(
+                self.tokenizer.max_seq_pos, embedding_dim
+            )
         if self.embed_sequence_index:
-            assert self.sep_token_id is not None
             self.sequence_index_embedding = nn.Embedding(
                 self.max_sequence_index, embedding_dim
             )
@@ -116,14 +114,20 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # frustratingly slicing of input ids is done on the super prepare inputs for generation
             generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
 
-            assert self.sep_token_id is not None
-            if (generated_tokens == self.sep_token_id).any():
+            if (generated_tokens == self.tokenizer.sep_token_id).any() or (
+                generated_tokens == self.tokenizer.seq_struct_sep_token_id
+            ).any():
                 # sep would break incrementaion of seq pos
                 raise NotImplementedError(
                     "This code does not handle generation of sequences with separators."
                 )
+
             prev_seq_pos = kwargs["seq_pos"][:, -1:]
-            if (prev_seq_pos[:, -1] == 0).any():
+            if (prev_seq_pos[:, -1] == 0).any():  # handles sep cases
+                assert input_ids[0, -1].item() in [
+                    self.tokenizer.sep_token_id,
+                    self.tokenizer.seq_struct_sep_token_id,
+                ]
                 assert (prev_seq_pos[:, -1] == 0).all()
                 # we are starting new sequences
                 seq_pos = torch.full_like(
@@ -157,7 +161,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 )
                 # increment sequence index if prev token was sep
                 start_sequence_index = torch.where(
-                    input_ids[:, -1] == self.sep_token_id,
+                    input_ids[:, -1] == self.tokenizer.sep_token_id,
                     prompt_sequence_index[:, -1] + 1,
                     prompt_sequence_index[:, -1],
                 )
@@ -173,9 +177,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return start_sequence_index + torch.cat(
             (
                 torch.full_like(input_ids[..., :1], 0),
-                torch.cumsum((input_ids == self.sep_token_id).float(), dim=-1).long()[
-                    ..., :-1
-                ],
+                torch.cumsum(
+                    (input_ids == self.tokenizer.sep_token_id).float(), dim=-1
+                ).long()[..., :-1],
             ),
             dim=-1,
         )
@@ -203,7 +207,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
-        if self.use_seq_pos:
+        if self.tokenizer.use_seq_pos:
             if self.require_seq_pos:
                 assert seq_pos is not None
             if seq_pos is not None:

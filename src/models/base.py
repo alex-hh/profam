@@ -645,18 +645,11 @@ class BaseFamilyLitModule(BaseLitModule):
             bad_aas = bad_aas + [aa.lower() for aa in aa_letters]
 
         # each 'word' is treated as a list of tokens
+        # TODO: write test for this with random model.
         generation_kwargs["bad_words_ids"] = [
-            [tok]
-            for tok in self.tokenizer.convert_tokens_to_ids(
-                [
-                    t
-                    for t in list(self.tokenizer.get_added_vocab().keys())
-                    if t != self.tokenizer.eos_token_id
-                    and t.startswith("[")
-                    and t.endswith("]")
-                ]
-                + bad_aas
-            )  # a bit of a nasty hack
+            [tok_id]
+            for tok_id in self.tokenizer.all_special_ids
+            if tok_id != self.tokenizer.eos_token_id
         ]
 
         assert (
@@ -664,7 +657,11 @@ class BaseFamilyLitModule(BaseLitModule):
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
         assert input_ids.ndim == 2  # b, L
-        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
+        # why is ending in sep token necessary?
+        assert (
+            input_ids[:, -1]
+            in [self.tokenizer.sep_token_id, self.tokenizer.seq_struct_sep_token_id]
+        ).all()
         assert input_seq_pos.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
