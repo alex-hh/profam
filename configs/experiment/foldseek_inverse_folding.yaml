@@ -7,8 +7,8 @@
 defaults:
   # TODO: write an inverse folding evaluator
   - /extra_callbacks@extra_callbacks.esmfold: esmfold
-  - override /prompt_builder@extra_callbacks.esmfold: interleaved_inverse_folding
-  - override /preprocessor@extra_callbacks.esmfold.prompt_builder.preprocessor: parquet_3di_with_interleaved_coords
+  - /preprocessor: parquet_3di_with_interleaved_coords
+  - override /prompt_builder@globals.if_prompt_builder: interleaved_inverse_folding
   - override /callbacks: default_with_shuffle
   - override /data: foldseek_representatives_interleaved
   - override /model: llama_small
@@ -17,10 +17,12 @@ tags: ["foldseek_if"]
 
 seed: 12345
 
-# extra_callbacks:
-#   esmfold:
-#     pipeline:
-#       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
+extra_callbacks:
+  esmfold:
+    prompt_builder: ${interleaved_inverse_folding}
+    preprocessor: ${preprocessor}
+    pipeline:
+      evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
 
 trainer:
   min_epochs: 10
