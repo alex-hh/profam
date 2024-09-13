@@ -9,3 +9,4 @@ config:
   n_layer: 12
   n_positions: 2048
 embed_coords: false
+embed_sequence_index: false

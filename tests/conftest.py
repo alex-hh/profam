@@ -8,7 +8,7 @@ import hydra
 import pandas as pd
 import pytest
 import rootutils
-from hydra import compose, initialize
+from hydra import compose, initialize, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
 
@@ -76,6 +76,17 @@ def default_model(profam_tokenizer):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
+        )
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
+
+
+@pytest.fixture(scope="package")
+def model_seq_index(profam_tokenizer):
+    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
+        cfg = compose(
+            config_name="train.yaml",
+            return_hydra_config=True,
+            overrides=["model.embed_sequence_index=True"],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
