@@ -182,7 +182,8 @@ class Throughput:
         if self._non_padding_lengths:
             metrics["_non_padding_lengths"] = self._non_padding_lengths[-1]
 
-        add_global_metrics = self.world_size > 1
+        # add_global_metrics = self.world_size > 1
+        add_global_metrics = True
         # a different but valid design choice would be to still compute all these metrics even if the window of values
         # has not been filled
         if len(self._time) == self._time.maxlen:
