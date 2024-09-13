@@ -31,6 +31,36 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         )
 
 
+class WrappedLlamaForCausalLM(
+    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
+):
+
+    # todo: modify update_causal_mask to accept bias or binary mask
+    # bias directly specifies attention
+    # binary mask gets combined with ar mask.
+
+    # n.b. its still fine to use rope - since its relative
+    def compute_attention_mask(self, input_ids, attention_mask):
+        # this needs to be combined with the causal mask
+        if self.mask_between_document_attention:
+            assert attention_mask is None
+            assert not self.mask_between_sequence_attention
+            raise NotImplementedError()
+            # document_ids = torch.cumsum(
+            #     (input_ids == self.bos_token_id).float(), dim=-1
+            # )
+        elif self.mask_between_sequence_attention:
+            assert attention_mask is None
+            sequence_ids = self.compute_sequence_index(input_ids)
+            attention_mask = sequence_ids[:, None, :] == sequence_ids[:, :, None]
+            attention_mask = torch.where(
+                attention_mask, 0, -10000.0
+            )  # TODO: fix dtype, device?
+            return attention_mask
+        else:
+            return attention_mask
+
+
 class LlamaLitModule(BaseFamilyLitModule):
     def __init__(
         self,
