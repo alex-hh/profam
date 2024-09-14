@@ -218,7 +218,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     num_end_tokens=num_end_tokens,
                     pad_to_length=tokenized.input_ids.shape[-1],
                 )
-            )
+            ).float()
             tokenized.data["coords_mask"] = torch.from_numpy(
                 concatenate_pad_array(
                     proteins.backbone_coords_masks,
@@ -277,7 +277,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     num_end_tokens=num_end_tokens,
                     pad_to_length=tokenized.input_ids.shape[-1],
                 )
-            )
+            ).float()
             assert (
                 tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
