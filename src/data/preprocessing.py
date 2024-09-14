@@ -138,7 +138,7 @@ class BasePreprocessor:
         self.interleave_structure_sequence = interleave_structure_sequence
 
     def build_document(
-        self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
+        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         raise NotImplementedError()
 
@@ -152,7 +152,7 @@ class BasePreprocessor:
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
         proteins = self.build_document(
-            example, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            example, max_tokens=max_tokens, shuffle=shuffle
         )
         proteins = preprocess_protein_sequences(proteins, self.cfg, tokenizer)
         return subsample_and_tokenize_protein_data(
@@ -171,7 +171,7 @@ class FastaPreprocessor(BasePreprocessor):
         return ["text"]
 
     def build_document_from_text(
-        self, text, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
+        self, text, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         lines = text.split("\n")
         if not len(lines[-1]):
@@ -190,26 +190,24 @@ class FastaPreprocessor(BasePreprocessor):
             seq
             for seq in read_fasta_sequences(
                 lines,
-                # preserve original sequences before getting positions
-                keep_gaps=True if tokenizer.use_seq_pos else self.cfg.keep_gaps,
-                keep_insertions=True
-                if tokenizer.use_seq_pos
-                else self.cfg.keep_insertions,
-                to_upper=False if tokenizer.use_seq_pos else self.cfg.to_upper,
+                # preserve original sequences before further preprocessing
+                keep_gaps=True,
+                keep_insertions=True,
+                to_upper=False,
             )
         ]
         return ProteinDocument(sequences=sequences)
 
     def build_document(
-        self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
+        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         if isinstance(example, str):
             return self.build_document_from_text(
-                example, tokenizer, max_tokens, shuffle
+                example, max_tokens, shuffle
             )
         else:
             return self.build_document_from_text(
-                example["text"], tokenizer, max_tokens, shuffle
+                example["text"], max_tokens, shuffle
             )
 
 
@@ -228,7 +226,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         return [self.sequence_col]
 
     def build_document(
-        self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
+        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         sequence_iterator = example[self.sequence_col]
         max_sequences_to_preprocess = max_tokens // 10
@@ -283,7 +281,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         return [self.sequence_col, self.structure_tokens_col]
 
     def build_document(
-        self, example, tokenizer, max_tokens: Optional[int] = None, shuffle: bool = True
+        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         # TODO: configure whether or not to use alignments, structure tokens col, etc.
         max_sequences_to_preprocess = (max_tokens or 1e8) // 10
