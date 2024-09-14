@@ -129,7 +129,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                 for coords, l in zip(protein_document.backbone_coords, ref_lengths)
             ]
             if protein_document.plddts is not None:
-                prompt_plddts = [np.mean(plddts) for plddts in protein_document.plddts]
+                prompt_plddts = [0.01*np.mean(plddts) for plddts in protein_document.plddts]
             else:
                 prompt_plddts = []
 

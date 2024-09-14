@@ -5,7 +5,7 @@ import pytest
 
 from src.constants import BASEDIR
 from src.data import preprocessing
-from src.data.utils import ProteinDatasetConfig, load_protein_dataset
+from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 
 
 @pytest.fixture()
