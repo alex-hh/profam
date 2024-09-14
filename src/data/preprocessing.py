@@ -278,6 +278,8 @@ class ParquetStructurePreprocessor(BasePreprocessor):
 
     @property
     def required_keys(self):
+        if self.structure_tokens_col is None:
+            return [self.sequence_col]
         return [self.sequence_col, self.structure_tokens_col]
 
     def build_document(

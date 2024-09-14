@@ -278,6 +278,9 @@ def load_protein_dataset(
             # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
             example["coords"] = example["coords"].tolist()
             example["coords_mask"] = example["coords_mask"].tolist()
+            example["interleaved_coords_mask"] = example[
+                "interleaved_coords_mask"
+            ].tolist()
 
         example["ds_name"] = cfg.name
         # TODO: get identifier for fasta files...

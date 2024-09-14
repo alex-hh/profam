@@ -170,7 +170,8 @@ class BaseLitModule(LightningModule):
             "aa_accuracy": dataset_accuracies.pop("global"),
         }
         if "coords" in batch:
-            has_coords_mask = batch["coords_mask"].any(-1)
+            has_coords_mask = batch["coords_mask"].any((-1, -2))
+            assert has_coords_mask.ndim == 2  # b, L
             has_coords_frac = (
                 has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
             )
@@ -179,7 +180,7 @@ class BaseLitModule(LightningModule):
                 batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
             ).any()
             if is_interleaved:
-                aa_has_coords_mask = batch["interleaved_coords_mask"].any(-1)
+                aa_has_coords_mask = batch["interleaved_coords_mask"].any((-1, -2))
                 has_coords_dataset_accuracies = accuracy_from_outputs(
                     outputs,
                     batch["labels"],
@@ -192,7 +193,7 @@ class BaseLitModule(LightningModule):
                         + [aa.lower() for aa in aa_letters]
                         + self.tokenizer.all_special_tokens
                     ),
-                    mask=aa_has_coords_mask & batch["aa_mask"],
+                    mask=(aa_has_coords_mask & batch["aa_mask"]),
                 )
                 global_metrics[
                     "has_coords_aa_accuracy"

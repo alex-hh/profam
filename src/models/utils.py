@@ -61,11 +61,14 @@ def accuracy_from_outputs(
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
     shift_labels = labels[..., start_ix + 1 :].contiguous()  # b, L
+    if mask is not None:
+        # Shift mask to match the shifted labels
+        shift_mask = mask[..., start_ix + 1 :]
     # Ensure tensors are on the same device
     shift_labels = shift_labels.to(shift_logits.device)
     non_padding_mask = shift_labels != ignore_index
     if mask is not None:
-        non_padding_mask = non_padding_mask & mask
+        non_padding_mask = non_padding_mask & shift_mask
     # TODO: we might also want to ignore gaps...
     accuracy = (shift_logits.argmax(-1) == shift_labels).float()
     if dataset_names is not None:
