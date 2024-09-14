@@ -97,7 +97,7 @@ def batched_subsample_and_tokenize_protein_data(
 ):
     # N.B. right now this is equivalent to just looping over subsample_and_tokenize_protein_data
     # but in the future we might want to do something more sophisticated
-    proteins_list = []
+    new_proteins_list = []
     for proteins in proteins_list:
         proteins = transforms.sample_to_max_tokens(
             proteins,
@@ -110,10 +110,10 @@ def batched_subsample_and_tokenize_protein_data(
         proteins = transforms.fill_missing_fields(proteins)
         proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
         proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
-        proteins_list.append(proteins)
+        new_proteins_list.append(proteins)
 
     return tokenizer.batched_encode(
-        proteins_list,
+        new_proteins_list,
         document_token=cfg.document_token,
         padding=padding,
         max_length=max_tokens,
@@ -269,6 +269,7 @@ class BasePreprocessor:
         ]
         merged_documents = []
         current_document = None
+        total_sequence_length = 0
         for proteins, length in zip(proteins_list, document_lengths):
             if current_document is None:
                 current_document = proteins.clone()
@@ -277,11 +278,14 @@ class BasePreprocessor:
                     max_tokens or 1e8
                 ):
                     current_document = current_document.extend(proteins)
+                    total_sequence_length += sum(proteins.sequence_lengths)
                 else:
                     merged_documents.append(current_document)
                     current_document = proteins.clone()
+                    total_sequence_length = sum(current_document.sequence_lengths)
         if current_document is not None:
             merged_documents.append(current_document)
+
         return merged_documents
 
 

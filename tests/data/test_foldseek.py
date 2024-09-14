@@ -1,4 +1,3 @@
-import itertools
 import os
 
 import numpy as np
@@ -7,14 +6,11 @@ import pytest
 import torch
 
 from src.constants import BASEDIR
-from src.data import preprocessing, transforms
+from src.data import preprocessing
+from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 from src.data.preprocessing import backbone_coords_from_example
-from src.data.utils import (
-    CustomDataCollator,
-    ProteinDatasetConfig,
-    load_protein_dataset,
-)
+from src.data.utils import CustomDataCollator
 
 
 @pytest.fixture
@@ -92,6 +88,7 @@ def foldseek_interleaved_structure_sequence_batch(
     return collator([datapoint])
 
 
+@pytest.fixture()
 def foldseek_datapoint(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         name="foldseek",
@@ -248,7 +245,6 @@ def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
 
 def test_foldseek_representative_concatenation(profam_tokenizer):
     # verify that building representatives into a single document is successful
-    max_tokens = 2048
     preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
@@ -260,7 +256,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
     parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
         config=preprocessing_cfg,
         structure_tokens_col=None,
-        interleave_structure_sequence=True,
+        interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
     )
     cfg = ProteinDatasetConfig(
         name="foldseek",
@@ -269,12 +265,12 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         is_parquet=True,
         shuffle=False,
     )
-    # This is really slow...why? TODO: profile
     dataset = load_protein_dataset(
         cfg,
         profam_tokenizer,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
+        max_tokens=profam_tokenizer.max_tokens,
         shuffle=False,
     )
-    batch = next(iter(dataset))
-    print((batch["input_ids"] == profam_tokenizer.sep_token_id).sum())
+    example = next(iter(dataset))
+    assert (example["input_ids"] == profam_tokenizer.sep_token_id).sum() > 1

@@ -3,10 +3,14 @@ import os
 import random
 from dataclasses import dataclass
 from typing import List, Optional
+
+import numpy as np
+import torch
+from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
+
 from src.data.preprocessing import BasePreprocessor
 from src.utils.tokenizers import ProFamTokenizer
-from datasets import Dataset, load_dataset
 
 
 @dataclass
@@ -188,25 +192,30 @@ def load_protein_dataset(
             max_tokens=max_tokens,
             shuffle=shuffle,
         )
-        if "coords" in example:
-            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-            example["coords"] = example["coords"].tolist()
-            example["coords_mask"] = example["coords_mask"].tolist()
 
         if cfg.preprocessor.cfg.batched_map:
             # Q: should we tolist all tensors?
-            assert example["input_ids"].ndim == 2
-            batch_size = example["input_ids"].shape[0]
+            if torch.is_tensor(example["input_ids"]):
+                assert example["input_ids"].ndim == 2
+            batch_size = len(example["input_ids"])
             example["ds_name"] = [cfg.name] * batch_size
             if cfg.identifier_col is not None:
                 example["identifier"] = [
                     cfg.name + "/" + example[cfg.identifier_col]
                 ] * batch_size
+            if "coords" in example:
+                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+                example["coords"] = [c.tolist() for c in example["coords"]]
+                example["coords_mask"] = [m.tolist() for m in example["coords_mask"]]
         else:
             example["ds_name"] = cfg.name
             # TODO: get identifier for fasta files...
             if cfg.identifier_col is not None:
                 example["identifier"] = cfg.name + "/" + example[cfg.identifier_col]
+            if "coords" in example:
+                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+                example["coords"] = example["coords"].tolist()
+                example["coords_mask"] = example["coords_mask"].tolist()
 
         return example
 

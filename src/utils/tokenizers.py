@@ -314,6 +314,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         if actually_batched:
             raise NotImplementedError("Actually batched encoding not implemented yet")
+
         return examples_list_to_dict(
             [
                 self.encode(
