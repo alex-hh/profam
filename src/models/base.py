@@ -424,8 +424,10 @@ class BaseFamilyLitModule(BaseLitModule):
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
         if self.embed_coords:
+            assert batch["coords"] is not None
             forward_kwargs["coords"] = batch["coords"]
         if self.use_seq_pos:
+            assert batch["seq_pos"] is not None
             forward_kwargs["seq_pos"] = batch["seq_pos"]
         return forward_kwargs
 
@@ -623,8 +625,6 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
-        if self.embed_coords:
-            raise NotImplementedError("Coords not yet supported for mutant scoring")
         generation_kwargs = {}
         if fixed_length is not None:
             if max_length is not None:
@@ -654,21 +654,22 @@ class BaseFamilyLitModule(BaseLitModule):
         ]
 
         assert (
-            input_ids.shape[0] == 1
+            input_ids.shape[0] == 1 and input_ids.ndim == 2
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
-        assert input_ids.ndim == 2  # b, L
-        # why is ending in sep token necessary?
-        assert (
-            input_ids[:, -1]
-            in [self.tokenizer.sep_token_id, self.tokenizer.seq_struct_sep_token_id]
-        ).all()
+        # why is ending in sep token necessary? may not be...
+        assert input_ids[:, -1].item() in [
+            self.tokenizer.sep_token_id,
+            self.tokenizer.seq_struct_sep_token_id,
+        ]
         assert input_seq_pos.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
-            forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
+            forward_kwargs = self.get_forward_kwargs(
+                {"seq_pos": input_seq_pos, "coords": input_coords}
+            )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
             # N.B. we need to be careful about generationconfig -- in particular eos token id

@@ -139,6 +139,9 @@ class ProFamSampler:
                 prompt["input_ids"].unsqueeze(0).to(self.model.device),
                 num_samples=num_samples,
                 input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),
+                input_coords=prompt["coords"]
+                if self.model.embed_coords
+                else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
                 **self.sampling_kwargs
             )
             return self.model.tokenizer.decode_tokens(tokens)
