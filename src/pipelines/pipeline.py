@@ -8,6 +8,7 @@ import pandas as pd
 from src import constants
 from src.data import fasta
 from src.data.objects import ProteinDocument
+from src.data.preprocessing import BasePreprocessor
 from src.evaluators.base import SamplingEvaluator
 from src.utils.utils import maybe_print
 
@@ -26,10 +27,15 @@ class BaseEvaluatorPipeline:
     def __init__(
         self,
         pipeline_id: str,
+        preprocessor: BasePreprocessor,  # we only use the build_document method
         benchmark_directory: str = None,
         save_to_file: bool = True,
     ):
         self.pipeline_id = pipeline_id
+        self.preprocessor = preprocessor
+        assert (
+            self.preprocessor.transform_fns is None
+        ), "Pipeline preprocessor should not have transforms"
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
@@ -110,6 +116,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         self,
         num_generations: int,
         pipeline_id: str,
+        preprocessor: BasePreprocessor,
         benchmark_directory: str = None,
         save_to_file: bool = True,
     ):
@@ -120,6 +127,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         )
         super().__init__(
             pipeline_id,
+            preprocessor=preprocessor,
             benchmark_directory=benchmark_directory,
             save_to_file=save_to_file,
         )
@@ -151,8 +159,13 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         # an exception. (TODO: allow overriding with an ignore_config_mismatch flag).
         raise NotImplementedError()
 
-    def load_protein_document(self, instance_id):
+    def get_protein_example(self, instance_id):
+        """Load a protein example (a dict to be parsed by preprocessor)."""
         raise NotImplementedError()
+
+    def load_protein_document(self, instance_id):
+        example = self.get_protein_example(instance_id)
+        return self.preprocessor.build_document(example, max_tokens=None, shuffle=False)
 
     def run_evaluator_on_instance(
         self,
