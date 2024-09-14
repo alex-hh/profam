@@ -10,7 +10,7 @@
 #$ -tc 1000
 #$ -j y
 #$ -l avx2=yes  # for foldmason
-#$ -l tscratch=50G
+##$ -l tscratch=5G
 
 date
 hostname
