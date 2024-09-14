@@ -216,7 +216,7 @@ class BasePreprocessor:
         example_dicts = examples_to_list_of_dicts(examples)
         proteins_list = [
             self.build_document(
-                example_dict, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+                example_dict, max_tokens=max_tokens, shuffle=shuffle
             )
             for example_dict in example_dicts
         ]
