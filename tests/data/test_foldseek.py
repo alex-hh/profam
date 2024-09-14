@@ -1,3 +1,4 @@
+import itertools
 import os
 
 import numpy as np
@@ -70,7 +71,7 @@ def foldseek_interleaved_structure_sequence_batch(
     parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
         config=preprocessing_cfg,
         structure_tokens_col="msta_3di",
-        transform_fns=[transforms.interleave_structure_sequence],
+        interleave_structure_sequence=True,
     )
     cfg = ProteinDatasetConfig(
         name="foldseek",
@@ -243,3 +244,35 @@ def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
         batch["input_ids"][0][batch["aa_mask"][0]] == profam_tokenizer.mask_token_id
     ).any()
     assert not batch["plddts"].isnan().any()
+
+
+def test_foldseek_representative_concatenation(profam_tokenizer):
+    # verify that building representatives into a single document is successful
+    max_tokens = 2048
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
+        keep_insertions=True,
+        to_upper=True,
+        keep_gaps=False,
+        use_msa_pos=False,
+    )
+    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
+        config=preprocessing_cfg,
+        structure_tokens_col="msta_3di",
+        interleave_structure_sequence=True,
+    )
+    cfg = ProteinDatasetConfig(
+        name="foldseek",
+        preprocessor=parquet_3di_processor,
+        data_path_pattern="foldseek_representatives/0.parquet",
+        is_parquet=True,
+        shuffle=False,
+    )
+    # This is really slow...
+    dataset = load_protein_dataset(
+        cfg,
+        profam_tokenizer,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        shuffle=False,
+    )
+    batch = next(iter(dataset))
+    print((batch["input_ids"] == profam_tokenizer.sep_token_id).sum())

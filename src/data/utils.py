@@ -226,13 +226,19 @@ def load_protein_dataset(
             cfg.identifier_col is not None
         ), "Need identifier column for identifier holdout"
 
-    def prefilter_example(example, required_keys):
+    def prefilter_example(example):
         # TODO: base this on max_seq_pos
+        filter_num_seqs = len(example["sequences"]) >= (cfg.minimum_sequences or 1)
+        # TODO: we need to be very careful with this!
+        filter_identifier = (
+            cfg.holdout_identifiers is None
+            or example[cfg.identifier_col] not in cfg.holdout_identifiers
+        )
         length_filter = filter_on_length(
             example, cfg=cfg, max_tokens=max_tokens, tokenizer=tokenizer
         )
-        if required_keys is not None:
-            for k in required_keys:
+        if cfg.preprocessor.required_keys is not None:
+            for k in cfg.preprocessor.required_keys:
                 if k not in example or not example[k]:
                     return False
 
@@ -242,18 +248,11 @@ def load_protein_dataset(
                 filter_plddt = mean_plddt >= (cfg.minimum_mean_plddt or 0.0)
             else:
                 filter_plddt = True
-            return length_filter and filter_plddt
+            return (
+                length_filter and filter_plddt and filter_identifier and filter_num_seqs
+            )
         else:
-            return length_filter
-
-    def filter_example(example):
-        filter_num_seqs = example["total_num_sequences"] >= (cfg.minimum_sequences or 1)
-        # TODO: we need to be very careful with this!
-        filter_identifier = (
-            cfg.holdout_identifiers is None
-            or example["identifier"] not in cfg.holdout_identifiers
-        )
-        return filter_num_seqs and filter_identifier
+            return length_filter and filter_identifier and filter_num_seqs
 
     def wrapped_preprocess(example):
         """Function to be mapped.
@@ -276,7 +275,7 @@ def load_protein_dataset(
             example["coords"] = example["coords"].tolist()
             example["coords_mask"] = example["coords_mask"].tolist()
 
-        if cfg.preprocessor.batched_map:
+        if cfg.preprocessor.cfg.batched_map:
             # Q: should we tolist all tensors?
             assert example["input_ids"].ndim == 2
             batch_size = example["input_ids"].shape[0]
@@ -303,17 +302,11 @@ def load_protein_dataset(
         else:
             remove_columns = None
         # TODO: write a separate batched preprocess entrypoint
-        dataset = (
-            dataset.filter(
-                prefilter_example, required_keys=cfg.preprocessor.required_keys
-            )
-            .map(
-                wrapped_preprocess,
-                batched=cfg.preprocessor.batched_map,
-                batch_size=cfg.preprocessor.map_batch_size,
-                remove_columns=remove_columns,
-            )
-            .filter(filter_example)
+        dataset = dataset.filter(prefilter_example).map(
+            wrapped_preprocess,
+            batched=cfg.preprocessor.cfg.batched_map,
+            batch_size=cfg.preprocessor.cfg.map_batch_size,
+            remove_columns=remove_columns,
         )
         # n.b. coords is returned as a list...
 

@@ -22,6 +22,7 @@ DEFAULT_FEATURE_NAMES = [
     "attention_mask",
     "labels",
     "ds_name",
+    "original_size",
     "seq_pos",
     "identifier",
 ]
