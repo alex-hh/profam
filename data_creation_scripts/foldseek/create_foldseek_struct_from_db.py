@@ -51,11 +51,15 @@ def save_pdbs_to_parquet(
 
         for afdb_id in cluster_members:
             pdb = os.path.join(pdbs_dir, afdb_id + ".pdb")
-            cluster_filelist.append(pdb)
+            try:
+                structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
+            except Exception as e:
+                print(f"Error loading {pdb}: {e}")
+                continue
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
             af50_cluster_id.append(metadata["af50_cluster_id"])
-            structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
+            cluster_filelist.append(pdb)
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
             residue_identities = get_residues(structure)[1]
             b_factors = structure.b_factor[get_residue_starts(structure)]
