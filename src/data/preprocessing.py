@@ -55,6 +55,7 @@ def subsample_and_tokenize_protein_data(
     padding: str = "max_length",
     shuffle: bool = True,
     seed: Optional[int] = None,
+    add_final_sep: bool = True,
     transform_fns: Optional[List[Callable]] = None,
 ):
     proteins = transforms.sample_to_max_tokens(
@@ -74,7 +75,7 @@ def subsample_and_tokenize_protein_data(
         document_token=cfg.document_token,
         padding=padding,
         max_length=max_tokens,
-        add_final_sep=True,
+        add_final_sep=add_final_sep,
         allow_unk=getattr(cfg, "allow_unk", False),
     )
     # tokenized.input_ids is flat now

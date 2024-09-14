@@ -653,8 +653,7 @@ class BaseFamilyLitModule(BaseLitModule):
             if tok_id != self.tokenizer.eos_token_id
         ]
         generation_kwargs["bad_words_ids"] += [
-            [self.tokenizer.convert_tokens_to_ids(bad_aa)]
-            for bad_aa in bad_aas
+            [self.tokenizer.convert_tokens_to_ids(bad_aa)] for bad_aa in bad_aas
         ]
 
         assert (

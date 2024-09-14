@@ -15,11 +15,14 @@ class ParquetMixin:
         parquet_index: str = None,
         evaluation_accessions: list = None,
         max_instances: Optional[int] = None,
+        max_sequence_length: Optional[int] = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.instance_id_col = instance_id_col
         self.max_instances = max_instances
+        self.max_sequence_length = max_sequence_length
+
         if evaluation_parquet is not None:
             assert evaluation_accessions_file is None
             self.evaluation_df = pd.read_parquet(evaluation_parquet).set_index(
@@ -29,7 +32,16 @@ class ParquetMixin:
                 self.evaluation_df = self.evaluation_df.loc[evaluation_accessions]
             self.evaluation_accessions = list(self.evaluation_df.index.values)
             self.parquet_index = None
+            if self.max_sequence_length is not None:
+                self.evaluation_df["min_sequence_lengths"] = self.evaluation_df[
+                    "sequences"
+                ].apply(lambda x: min([len(seq) for seq in x]))
+                self.evaluation_df = self.evaluation_df[
+                    self.evaluation_df["min_sequence_lengths"]
+                    <= self.max_sequence_length
+                ]
         else:
+            assert self.max_sequence_length is None
             assert (
                 evaluation_parquet is None
                 and evaluation_accessions is None

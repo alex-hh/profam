@@ -112,27 +112,27 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # we need to be very careful about caching - inputs embeds is hopefully not being passed to the outer model? but if it is we
             # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
             # frustratingly slicing of input ids is done on the super prepare inputs for generation
-            prev_seq_pos = kwargs["seq_pos"][:, -1:]
-            if (prev_seq_pos[:, -1] == 0).any():  # handles sep cases
-                assert input_ids[0, -1].item() in [
+            input_final_seq_pos = kwargs["seq_pos"][:, -1:]
+            if (input_final_seq_pos[:, -1] == 0).any():  # handles sep cases
+                assert input_ids[0, input_final_seq_pos.shape[-1]].item() in [
                     self.tokenizer.sep_token_id,
                     self.tokenizer.seq_struct_sep_token_id,
-                ]
-                assert (prev_seq_pos[:, -1] == 0).all()
+                ], f"{input_ids} {kwargs['seq_pos']}"
+                assert (input_final_seq_pos[:, -1] == 0).all()
                 # we are starting new sequences
                 seq_pos = torch.full_like(
-                    prev_seq_pos, self.start_seq_pos + increment - 1
+                    input_final_seq_pos, self.start_seq_pos + increment - 1
                 )
                 # seq_pos corresponds to position of previously generated token in the sequence
                 # when increment is 1, seq_pos is self.start_seq_pos
             else:
                 if increment == 1:
                     print(
-                        "Warning: not sampling a new sequence, check inputs if this is desired behaviour."
+                        f"Warning: not sampling a new sequence, check inputs if this is desired behaviour ({kwargs['seq_pos']}, {input_ids})"
                     )
-                seq_pos = prev_seq_pos + increment
+                seq_pos = input_final_seq_pos + increment
             inputs["seq_pos"] = seq_pos
-            bsz = prev_seq_pos.shape[0]
+            bsz = input_final_seq_pos.shape[0]
             if self.embed_coords:
                 assert kwargs["coords"].ndim == 4  # b, l, n, 3
                 inputs["coords"] = torch.full(

@@ -79,6 +79,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
                 padding="longest",
                 max_tokens=self.max_tokens - len(representative),
                 exclude_tokens=2 * len(representative),
+                add_final_sep=False,
                 transform_fns=self.preprocessor.transform_fns,
             )
         # TODO: tokenize representative
@@ -94,6 +95,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             seed=self.seed,
             padding="longest",
             max_tokens=None,
+            add_final_sep=False,
             transform_fns=self.preprocessor.transform_fns,
         )
         seq_start = (
@@ -103,9 +105,9 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             + 1
         )
         assert (
-            representative_example["input_ids"][seq_start - 1]
+            representative_example["input_ids"][:seq_start][-1]
             == tokenizer.seq_struct_sep_token_id
-        )
+        ), f"seq_start: {seq_start}, input_ids: {representative_example['input_ids'][:seq_start]}"
         for feat in representative_example.keys():
             if feat in RESIDUE_LEVEL_FEATURES:
                 representative_example[feat] = representative_example[feat][:seq_start]
@@ -142,6 +144,6 @@ class ProFamSampler:
                 input_coords=prompt["coords"].unsqueeze(0).to(self.model.device).float()
                 if self.model.embed_coords
                 else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
-                **self.sampling_kwargs
+                **self.sampling_kwargs,
             )
             return self.model.tokenizer.decode_tokens(tokens)

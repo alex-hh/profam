@@ -199,7 +199,9 @@ def interleave_structure_sequence(
         assert isinstance(positions, list)
         if coin_flip < structure_first_prob:
             interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token + seq)
-            interleaved_positions.append(positions + [0] + positions)
+            interleaved_positions.append(
+                positions + [-1] + positions
+            )  # 1 will be added to positions in tokenizer so we use -1
             interleaved_plddts.append(
                 np.concatenate(
                     [np.array(plddts), np.full((1,), 100.0), np.array(plddts)]
@@ -220,7 +222,7 @@ def interleave_structure_sequence(
             )
         else:
             interleaved_sequences.append(seq + tokenizer.seq_struct_sep_token + seq_3d)
-            interleaved_positions.append(positions + [0] + positions)
+            interleaved_positions.append(positions + [-1] + positions)
             interleaved_plddts.append(
                 np.concatenate(
                     [np.array(plddts), np.full((1,), 100.0), np.array(plddts)]
