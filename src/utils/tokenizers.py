@@ -6,6 +6,7 @@ from torch import stack
 from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
+from src.data.utils import examples_list_to_dict
 from src.utils import RankedLogger
 
 log = RankedLogger(__name__, rank_zero_only=True)
@@ -313,17 +314,19 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         if actually_batched:
             raise NotImplementedError("Actually batched encoding not implemented yet")
-        return [
-            self.encode(
-                proteins,
-                document_token=document_token,
-                padding=padding,
-                max_length=max_length,
-                add_final_sep=add_final_sep,
-                allow_unk=allow_unk,
-            )
-            for proteins in proteins_list
-        ]
+        return examples_list_to_dict(
+            [
+                self.encode(
+                    proteins,
+                    document_token=document_token,
+                    padding=padding,
+                    max_length=max_length,
+                    add_final_sep=add_final_sep,
+                    allow_unk=allow_unk,
+                )
+                for proteins in proteins_list
+            ]
+        )
 
         # if self.add_document_token:
         # assert document_token is not None, "Document type token expected"

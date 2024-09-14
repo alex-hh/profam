@@ -5,16 +5,13 @@ from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
+from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.family_classification import (
     load_classifier_dataset,
     load_ec_cluster_classifier_dataset,
 )
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import (
-    CustomDataCollator,
-    ProteinDatasetConfig,
-    load_protein_dataset,
-)
+from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
 
 DEFAULT_FEATURE_NAMES = [

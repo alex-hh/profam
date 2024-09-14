@@ -7,6 +7,7 @@ import numpy as np
 from src.data import transforms
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 from src.data.objects import ProteinDocument
+from src.data.utils import examples_to_list_of_dicts
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
@@ -161,16 +162,6 @@ def backbone_coords_from_example(example, sequence_col="sequences"):
         recons_coords[:, 3] = np.array(o).reshape(-1, 3)
         coords.append(recons_coords)
     return coords
-
-
-def examples_to_list_of_dicts(examples):
-    keys = list(examples.keys())
-    return [{k: examples[k][i] for k in keys} for i in range(len(examples[keys[0]]))]
-
-
-def examples_list_to_dict(examples):
-    keys = list(examples[0].keys())
-    return {k: [example[k] for example in examples] for k in keys}
 
 
 class BasePreprocessor:
@@ -411,6 +402,8 @@ class ParquetStructurePreprocessor(BasePreprocessor):
 
     @property
     def required_keys(self):
+        if self.structure_tokens_col is None:
+            return [self.sequence_col]
         return [self.sequence_col, self.structure_tokens_col]
 
     def build_document(

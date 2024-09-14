@@ -254,10 +254,12 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
+        batched_map=True,
+        map_batch_size=30,
     )
     parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
         config=preprocessing_cfg,
-        structure_tokens_col="msta_3di",
+        structure_tokens_col=None,
         interleave_structure_sequence=True,
     )
     cfg = ProteinDatasetConfig(
@@ -267,7 +269,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         is_parquet=True,
         shuffle=False,
     )
-    # This is really slow...
+    # This is really slow...why? TODO: profile
     dataset = load_protein_dataset(
         cfg,
         profam_tokenizer,
