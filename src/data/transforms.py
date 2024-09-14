@@ -136,7 +136,7 @@ def fill_missing_fields(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
         proteins = proteins.fill_missing_structure_arrays(
             coords_fill=np.nan,
             plddts_fill=100.0,
-            tokens_fill=tokenizer.mask_token_id,
+            tokens_fill=tokenizer.mask_token,
         )
     return proteins
 

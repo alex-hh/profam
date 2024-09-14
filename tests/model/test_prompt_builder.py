@@ -21,9 +21,7 @@ def test_representative_inverse_folding(profam_tokenizer):
         interleave_structure_sequence=True,
         infer_representative_from_identifier=True,
     )
-    proteins = preprocessor.build_document(
-        example, max_tokens=1536, shuffle=False
-    )
+    proteins = preprocessor.build_document(example, max_tokens=1536, shuffle=False)
     rep_seq = proteins[0].sequence
     expected_coords = np.concatenate(
         (np.zeros((2, 4, 3)), proteins[0].backbone_coords, np.zeros((1, 4, 3))), axis=0

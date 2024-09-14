@@ -125,7 +125,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             input_final_seq_pos = kwargs["seq_pos"][:, -1:]
             input_length = kwargs["seq_pos"].shape[-1]
             if (input_final_seq_pos[:, -1] == 0).any():  # handles sep cases
-                assert input_ids[0, input_length-1].item() in [
+                assert input_ids[0, input_length - 1].item() in [
                     self.tokenizer.sep_token_id,
                     self.tokenizer.seq_struct_sep_token_id,
                 ], f"{input_ids[0, input_length-1]} {increment}"

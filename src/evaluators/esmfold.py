@@ -123,9 +123,11 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                         final_atom_positions[0, ..., ca_index, :].cpu().numpy()
                     )
         else:
-            ref_sequences = protein_document.sequences
+            ref_sequences = [seq.split("|")[0] for seq in protein_document.sequences]
+            ref_lengths = [len(seq) for seq in ref_sequences]
             reference_cas = [
-                coords[:, 1, :] for coords in protein_document.backbone_coords
+                coords[:l, 1, :]
+                for coords, l in zip(protein_document.backbone_coords, ref_lengths)
             ]
 
         sample_plddts = []
