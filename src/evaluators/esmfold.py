@@ -100,9 +100,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
     ):
         # TODO: add average best TM score or similar to structures in document.
         # https://github.com/blt2114/twisted_diffusion_sampler/blob/968f77111b44e9c711b64e650c41745498ba470d/protein_exp/experiments/inference_se3_diffusion.py#L392
-        prompt_plddts = []
         self.esmfold = self.esmfold.to(self.device)
-        reference_cas = []
         ca_index = atom_order["CA"]
         if self.save_structures:
             os.makedirs(output_dir, exist_ok=True)
@@ -112,6 +110,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             not self.use_precomputed_reference_structures
             or protein_document.backbone_coords is None
         ):
+            reference_cas = []
+            prompt_plddts = []
             for seq in protein_document.sequences:
                 if len(seq) <= self.max_length:
                     out = self.esmfold.infer(seq)
@@ -128,6 +128,10 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                 coords[:l, 1, :]
                 for coords, l in zip(protein_document.backbone_coords, ref_lengths)
             ]
+            if protein_document.plddts is not None:
+                prompt_plddts = [np.mean(plddts) for plddts in protein_document.plddts]
+            else:
+                prompt_plddts = []
 
         sample_plddts = []
         all_tm_scores = []
