@@ -23,7 +23,7 @@ class ParquetMixin:
         if evaluation_parquet is not None:
             assert evaluation_accessions_file is None
             self.evaluation_df = pd.read_parquet(evaluation_parquet).set_index(
-                self.instance_id_col
+                self.instance_id_col, drop=False
             )
             if evaluation_accessions is not None:
                 self.evaluation_df = self.evaluation_df.loc[evaluation_accessions]
