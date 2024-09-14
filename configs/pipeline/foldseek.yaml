@@ -1,3 +1,5 @@
+defaults:
+  - /preprocessor/config@preprocessor.config: raw
 _target_: src.pipelines.foldseek.FoldseekGenerationsPipeline
 evaluation_parquet: null
 evaluation_accessions_file: null
@@ -6,12 +8,5 @@ pipeline_id: foldseek_n${.num_generations}
 num_generations: 10
 preprocessor:
   _target_: src.data.preprocessing.ParquetStructurePreprocessor
-  config:
-    _target_: src.data.preprocessing.PreprocessingConfig
-    keep_gaps: false
-    keep_insertions: true
-    to_upper: true
-    document_token: "[RAW]"
-    truncate_after_n_sequences: null
-    use_msa_pos: false
   interleave_structure_sequence: false
+  infer_representative_from_identifier: true
