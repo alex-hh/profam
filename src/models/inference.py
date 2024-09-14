@@ -65,6 +65,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
     # we need to exclude token space for length seed*2 from preprocessing
     # TODO: write tests for this
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+        proteins = proteins.clone()
         representative = proteins.pop_representative()
         if not self.representative_only:
             proteins = preprocess_protein_sequences(

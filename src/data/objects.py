@@ -126,17 +126,19 @@ class ProteinDocument:
             "plddt": "plddts",
             "backbone_coords_mask": "backbone_coords_masks",
         }
+        reverse_naming = {v: k for k, v in renaming.items()}
         attr_dict = {}
-        for attr in cls.residue_level_fields:
-            if any(getattr(p, attr) is not None for p in individual_proteins):
+        for field in cls.residue_level_fields:
+            single_field = reverse_naming.get(field, field)
+            if any(getattr(p, single_field) is not None for p in individual_proteins):
                 assert all(
-                    getattr(p, attr) is not None for p in individual_proteins
-                ), f"Missing {attr} for some proteins"
-                attr_dict[renaming.get(attr, attr)] = [
-                    getattr(p, attr) for p in individual_proteins
+                    getattr(p, single_field) is not None for p in individual_proteins
+                ), f"Missing {single_field} for some proteins"
+                attr_dict[field] = [
+                    getattr(p, single_field) for p in individual_proteins
                 ]
             else:
-                attr_dict[renaming.get(attr, attr)] = None
+                attr_dict[field] = None
         return cls(
             **attr_dict,
             **kwargs,
@@ -317,6 +319,9 @@ class ProteinDocument:
                 "interleaved_coords_masks", self.interleaved_coords_masks
             ),
             structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
+            representative_accession=kwargs.get(
+                "representative_accession", self.representative_accession
+            ),
             original_size=kwargs.get("original_size", self.original_size),
         )
 

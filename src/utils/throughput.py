@@ -106,6 +106,7 @@ class Throughput:
         self._time: _MonotonicWindow[float] = _MonotonicWindow(maxlen=window_size)
         self._batches: _MonotonicWindow[int] = _MonotonicWindow(maxlen=window_size)
         self._samples: _MonotonicWindow[int] = _MonotonicWindow(maxlen=window_size)
+        self._proteins: _MonotonicWindow[int] = _MonotonicWindow(maxlen=window_size)
         self._lengths: _MonotonicWindow[int] = _MonotonicWindow(maxlen=window_size)
         self._non_padding_lengths: _MonotonicWindow[int] = _MonotonicWindow(
             maxlen=window_size
@@ -120,6 +121,7 @@ class Throughput:
         samples: int,
         lengths: Optional[int] = None,
         non_padding_lengths: Optional[int] = None,
+        proteins: Optional[int] = None,
         flops: Optional[int] = None,
     ) -> None:
         """Update throughput metrics.
@@ -143,6 +145,17 @@ class Throughput:
             )
         self._batches.append(batches)
         self._samples.append(samples)
+        if proteins is not None:
+            if proteins < samples:
+                raise ValueError(
+                    f"Expected sequences ({proteins}) to be greater or equal than samples ({samples})"
+                )
+            self._proteins.append(proteins)
+            if len(self._samples) != len(self._proteins):
+                raise RuntimeError(
+                    f"If proteins are passed ({len(self._proteins)}), there needs to be the same number of samples"
+                    f" ({len(self._samples)})"
+                )
         if lengths is not None:
             if lengths < samples:
                 raise ValueError(
@@ -177,6 +190,8 @@ class Throughput:
             "batches": self._batches[-1],
             "samples": self._samples[-1],
         }
+        if self._proteins:
+            metrics["proteins"] = self._proteins[-1]
         if self._lengths:
             metrics["lengths"] = self._lengths[-1]
         if self._non_padding_lengths:
@@ -208,6 +223,16 @@ class Throughput:
                         "samples_per_sec": dev_samples_per_sec * self.world_size,
                     }
                 )
+
+            if len(self._proteins) == self._proteins.maxlen:
+                elapsed_proteins = self._proteins[-1] - self._proteins[0]
+                dev_proteins_per_sec = elapsed_proteins / elapsed_time
+                metrics[
+                    f"device{self.separator}proteins_per_sec"
+                ] = dev_proteins_per_sec
+                if add_global_metrics:
+                    proteins_per_sec = dev_proteins_per_sec * self.world_size
+                    metrics["proteins_per_sec"] = proteins_per_sec
 
             if len(self._lengths) == self._lengths.maxlen:
                 elapsed_lengths = self._lengths[-1] - self._lengths[0]

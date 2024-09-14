@@ -86,6 +86,7 @@ class TokenThroughputMonitor(ThroughputMonitor):
         self.run_on_validation = run_on_validation
         self._samples: Dict[RunningStage, int] = {}
         self._non_padding_lengths: Dict[RunningStage, int] = {}
+        self._proteins: Dict[RunningStage, int] = {}
 
     @override
     def setup(
@@ -142,6 +143,7 @@ class TokenThroughputMonitor(ThroughputMonitor):
         self._t0s[stage] = time.perf_counter()
         self._samples[stage] = 0
         self._non_padding_lengths[stage] = 0
+        self._proteins[stage] = 0
 
     @torch.inference_mode()  # in case `length_fn` or `batch_size_fn` computes grads
     def _update(
@@ -168,6 +170,9 @@ class TokenThroughputMonitor(ThroughputMonitor):
                 batch["input_ids"] != pl_module.tokenizer.pad_token_id
             ).float()
             self._non_padding_lengths[stage] += padding_mask.sum().item()
+            self._proteins[stage] += (
+                (batch["input_ids"] == pl_module.tokenizer.sep_token_id).sum().item()
+            )
 
         self._samples[stage] += self.batch_size_fn(batch)
 
@@ -187,5 +192,6 @@ class TokenThroughputMonitor(ThroughputMonitor):
             samples=self._samples[stage],
             lengths=None if self.length_fn is None else self._lengths[stage],
             non_padding_lengths=self._non_padding_lengths[stage],
+            proteins=self._proteins[stage],
             flops=flops_per_batch,
         )

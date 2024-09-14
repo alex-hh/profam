@@ -186,6 +186,9 @@ def load_protein_dataset(
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
+        if cfg.identifier_col is not None and not cfg.preprocessor.cfg.batched_map:
+            # when batched mapping, we cat multiple identifiers together...
+            identifier = example[cfg.identifier_col]
         example = cfg.preprocessor.preprocess_protein_data(
             example,
             tokenizer=tokenizer,
@@ -199,23 +202,25 @@ def load_protein_dataset(
                 assert example["input_ids"].ndim == 2
             batch_size = len(example["input_ids"])
             example["ds_name"] = [cfg.name] * batch_size
-            if cfg.identifier_col is not None:
-                example["identifier"] = [
-                    cfg.name + "/" + example[cfg.identifier_col]
-                ] * batch_size
             if "coords" in example:
                 # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
                 example["coords"] = [c.tolist() for c in example["coords"]]
                 example["coords_mask"] = [m.tolist() for m in example["coords_mask"]]
+                example["interleaved_coords_mask"] = [
+                    m.tolist() for m in example["interleaved_coords_mask"]
+                ]
         else:
             example["ds_name"] = cfg.name
             # TODO: get identifier for fasta files...
             if cfg.identifier_col is not None:
-                example["identifier"] = cfg.name + "/" + example[cfg.identifier_col]
+                example["identifier"] = cfg.name + "/" + identifier
             if "coords" in example:
                 # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
                 example["coords"] = example["coords"].tolist()
                 example["coords_mask"] = example["coords_mask"].tolist()
+                example["interleaved_coords_mask"] = example[
+                    "interleaved_coords_mask"
+                ].tolist()
 
         return example
 
