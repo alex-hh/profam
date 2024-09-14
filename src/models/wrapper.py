@@ -112,16 +112,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # we need to be very careful about caching - inputs embeds is hopefully not being passed to the outer model? but if it is we
             # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
             # frustratingly slicing of input ids is done on the super prepare inputs for generation
-            generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
-
-            if (generated_tokens == self.tokenizer.sep_token_id).any() or (
-                generated_tokens == self.tokenizer.seq_struct_sep_token_id
-            ).any():
-                # sep would break incrementaion of seq pos
-                raise NotImplementedError(
-                    "This code does not handle generation of sequences with separators."
-                )
-
             prev_seq_pos = kwargs["seq_pos"][:, -1:]
             if (prev_seq_pos[:, -1] == 0).any():  # handles sep cases
                 assert input_ids[0, -1].item() in [
@@ -165,7 +155,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                     prompt_sequence_index[:, -1] + 1,
                     prompt_sequence_index[:, -1],
                 )
-            inputs["start_sequence_index"] = start_sequence_index
+                inputs["start_sequence_index"] = start_sequence_index
         else:
             inputs["seq_pos"] = kwargs["seq_pos"]
             if self.embed_coords:
