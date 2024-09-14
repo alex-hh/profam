@@ -8,7 +8,7 @@ mask_token: "?"
 seq_struct_sep_token: "|"
 add_final_sep: true
 add_bos_token: true
-add_document_type_token: true
+add_document_token: true
 max_tokens: ${data.max_tokens}
 mask_below_plddt: 80  # > 90 is 'very high' confidence in af browser
 use_seq_pos: true

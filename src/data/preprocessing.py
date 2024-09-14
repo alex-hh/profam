@@ -7,6 +7,7 @@ import numpy as np
 from src.data import transforms
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 from src.data.objects import ProteinDocument
+from src.data.utils import examples_to_list_of_dicts
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
@@ -21,6 +22,8 @@ class PreprocessingConfig:
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
     # https://github.com/mit-ll-responsible-ai/hydra-zen/issues/182
     allow_unk: bool = False
+    batched_map: bool = False  # should map be called with batched=True
+    map_batch_size: int = 100
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -79,10 +82,45 @@ def subsample_and_tokenize_protein_data(
         allow_unk=getattr(cfg, "allow_unk", False),
     )
     # tokenized.input_ids is flat now
-    # n.b. this is after subsampling so not very informative
-    tokenized.data["total_num_sequences"] = len(proteins)  # below length threshold
 
     return tokenized.data
+
+
+def batched_subsample_and_tokenize_protein_data(
+    proteins_list: List[ProteinDocument],
+    cfg: PreprocessingConfig,
+    tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    padding: str = "max_length",
+    shuffle: bool = True,
+    seed: Optional[int] = None,
+    transform_fns: Optional[List[Callable]] = None,
+):
+    # N.B. right now this is equivalent to just looping over subsample_and_tokenize_protein_data
+    # but in the future we might want to do something more sophisticated
+    new_proteins_list = []
+    for proteins in proteins_list:
+        proteins = transforms.sample_to_max_tokens(
+            proteins,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            seed=seed,
+        )
+        # if cfg.fill_missing_fields:
+        proteins = transforms.fill_missing_fields(proteins)
+        proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
+        proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
+        new_proteins_list.append(proteins)
+
+    return tokenizer.batched_encode(
+        new_proteins_list,
+        document_token=cfg.document_token,
+        padding=padding,
+        max_length=max_tokens,
+        add_final_sep=True,
+        allow_unk=getattr(cfg, "allow_unk", False),
+    )
 
 
 def preprocess_protein_sequences(
@@ -143,7 +181,35 @@ class BasePreprocessor:
     ):
         raise NotImplementedError()
 
-    def preprocess_protein_data(
+    def _batched_preprocess_protein_data(
+        self,
+        examples: Dict[str, List[Any]],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        a batched map is an instruction for converting a set of examples to a
+        new set of examples (not necessarily of the same size). it should return a dict whose
+        values are lists, where the length of the lists determines the size of the new set of examples.
+        """
+        proteins_list = self.build_documents(
+            examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+        )
+        proteins_list = [
+            preprocess_protein_sequences(proteins, self.cfg, tokenizer)
+            for proteins in proteins_list
+        ]
+        return batched_subsample_and_tokenize_protein_data(
+            proteins_list,
+            self.cfg,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            transform_fns=self.transform_fns,
+        )
+
+    def _preprocess_protein_data(
         self,
         example: Dict[str, Any],
         tokenizer: ProFamTokenizer,
@@ -162,6 +228,64 @@ class BasePreprocessor:
             shuffle=shuffle,
             transform_fns=self.transform_fns,
         )
+
+    def preprocess_protein_data(
+        self,
+        examples: Dict[str, Any],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        if self.cfg.batched_map:
+            return self._batched_preprocess_protein_data(
+                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            )
+        else:
+            return self._preprocess_protein_data(
+                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            )
+
+    def build_documents(
+        self,
+        examples,
+        tokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ):
+        """We assume that documents should be concatenated up to max_tokens.
+
+        TODO: implement document-aware attention masking
+        """
+        example_dicts = examples_to_list_of_dicts(examples)
+        proteins_list = [
+            self.build_document(
+                example_dict, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            )
+            for example_dict in example_dicts
+        ]
+        document_lengths = [
+            sum(proteins.sequence_lengths) for proteins in proteins_list
+        ]
+        merged_documents = []
+        current_document = None
+        total_sequence_length = 0
+        for proteins, length in zip(proteins_list, document_lengths):
+            if current_document is None:
+                current_document = proteins.clone()
+            else:
+                if sum(current_document.sequence_lengths) + length <= (
+                    max_tokens or 1e8
+                ):
+                    current_document = current_document.extend(proteins)
+                    total_sequence_length += sum(proteins.sequence_lengths)
+                else:
+                    merged_documents.append(current_document)
+                    current_document = proteins.clone()
+                    total_sequence_length = sum(current_document.sequence_lengths)
+        if current_document is not None:
+            merged_documents.append(current_document)
+
+        return merged_documents
 
 
 class FastaPreprocessor(BasePreprocessor):
@@ -195,7 +319,9 @@ class FastaPreprocessor(BasePreprocessor):
                 to_upper=False,
             )
         ]
-        return ProteinDocument(sequences=sequences)
+        return ProteinDocument(
+            sequences=sequences, original_size=len(lines) // 2
+        )  # upper bound estimate of number of sequences
 
     def build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -241,6 +367,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
             representative_accession=example[self.identifier_col]
             if self.infer_representative_from_identifier
             else None,
+            original_size=len(sequence_iterator),
         )
 
 
@@ -339,4 +466,5 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             representative_accession=example[self.identifier_col]
             if self.infer_representative_from_identifier
             else None,
+            original_size=len(example["sequences"]),
         )

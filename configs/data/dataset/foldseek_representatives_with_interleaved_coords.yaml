@@ -1,6 +1,6 @@
 defaults:
   - /preprocessor: parquet_3di_with_interleaved_coords
-_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+_target_: src.data.datasets.ProteinDatasetConfig
 name: foldseek_with_3di
 data_path_pattern: foldseek_representatives/*.parquet
 holdout_data_files: null
