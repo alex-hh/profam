@@ -39,11 +39,12 @@ class SamplingEvaluator:
         if num_samples is not None and len(samples) != num_samples:
             assert len(samples) >= num_samples, f"Need at least {num_samples} samples"
             samples = samples[:num_samples]  # assuming samples are unsorted
+
         return self._evaluate_samples(protein_document, samples, output_dir=output_dir)
 
     def _evaluate_samples(
         self,
-        protein_document: ProteinDocument,
+        prompt: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
     ) -> Dict[str, float]:
@@ -94,8 +95,8 @@ class SamplingEvaluator:
                 num_samples >= self.num_samples
             ), f"Expecting at least {self.num_samples} samples"
 
-        samples = sampler.sample_seqs(protein_document, num_samples)
-        return samples
+        samples, prompt = sampler.sample_seqs(protein_document, num_samples)
+        return samples, prompt
 
     def __call__(
         self,
@@ -103,5 +104,5 @@ class SamplingEvaluator:
         protein_document: ProteinDocument,
         num_samples: int,
     ):
-        samples = self.run_sampling(sampler, protein_document, num_samples)
-        return self.evaluate_samples(protein_document, samples)
+        samples, prompt = self.run_sampling(sampler, protein_document, num_samples)
+        return self.evaluate_samples(prompt, samples)

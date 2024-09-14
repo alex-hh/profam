@@ -245,7 +245,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
-                generated_sequences = evaluator.run_sampling(
+                generated_sequences, prompt = evaluator.run_sampling(
                     sampler,
                     protein_document,
                     self.num_generations,
@@ -261,7 +261,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                         sampler.name,
                         instance_id=instance_id,
                         evaluator=evaluator,
-                        protein_document=protein_document,
+                        protein_document=prompt,
                         rerun_evaluator=rerun_evaluator,
                     )
                 except Exception as e:

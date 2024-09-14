@@ -50,84 +50,30 @@ def random_subsample(arr, n, seed: Optional[int] = None):
     return rnd.choice(arr, min(n, len(arr)), replace=False)
 
 
-def subsample_and_tokenize_protein_data(
-    proteins: ProteinDocument,
-    cfg: PreprocessingConfig,
-    tokenizer: ProFamTokenizer,
+def default_transforms(
     max_tokens: Optional[int] = None,
-    padding: str = "max_length",
     shuffle: bool = True,
     seed: Optional[int] = None,
-    add_final_sep: bool = True,
-    transform_fns: Optional[List[Callable]] = None,
 ):
-    proteins = transforms.sample_to_max_tokens(
-        proteins,
-        tokenizer=tokenizer,
-        max_tokens=max_tokens,
-        shuffle=shuffle,
-        seed=seed,
-    )
-    # if cfg.fill_missing_fields:
-    proteins = transforms.fill_missing_fields(proteins, tokenizer)
-    proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
-    proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
-
-    tokenized = tokenizer.encode(
-        proteins,
-        document_token=cfg.document_token,
-        padding=padding,
-        max_length=max_tokens,
-        add_final_sep=add_final_sep,
-        allow_unk=getattr(cfg, "allow_unk", False),
-    )
-    # tokenized.input_ids is flat now
-
-    return tokenized.data
-
-
-def batched_subsample_and_tokenize_protein_data(
-    proteins_list: List[ProteinDocument],
-    cfg: PreprocessingConfig,
-    tokenizer: ProFamTokenizer,
-    max_tokens: Optional[int] = None,
-    padding: str = "max_length",
-    shuffle: bool = True,
-    seed: Optional[int] = None,
-    transform_fns: Optional[List[Callable]] = None,
-):
-    # N.B. right now this is equivalent to just looping over subsample_and_tokenize_protein_data
-    # but in the future we might want to do something more sophisticated
-    new_proteins_list = []
-    for proteins in proteins_list:
-        proteins = transforms.sample_to_max_tokens(
-            proteins,
-            tokenizer=tokenizer,
+    return [
+        functools.partial(
+            transforms.sample_to_max_tokens,
             max_tokens=max_tokens,
             shuffle=shuffle,
             seed=seed,
-        )
-        # if cfg.fill_missing_fields:
-        proteins = transforms.fill_missing_fields(proteins)
-        proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
-        proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
-        new_proteins_list.append(proteins)
-
-    return tokenizer.batched_encode(
-        new_proteins_list,
-        document_token=cfg.document_token,
-        padding=padding,
-        max_length=max_tokens,
-        add_final_sep=True,
-        allow_unk=getattr(cfg, "allow_unk", False),
-    )
+        ),
+        transforms.fill_missing_fields,
+        transforms.replace_selenocysteine_pyrrolysine,
+    ]
 
 
 def preprocess_protein_sequences(
     proteins: ProteinDocument,
     cfg: PreprocessingConfig,
     tokenizer: ProFamTokenizer,
+    transform_fns: Optional[List[Callable]] = None,
 ):
+    transform_fns = transform_fns or []
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
     if tokenizer.use_seq_pos:
         proteins = transforms.convert_sequences_adding_positions(
@@ -140,6 +86,7 @@ def preprocess_protein_sequences(
         )
     else:
         proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
+    proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
     return proteins
 
 
@@ -193,20 +140,25 @@ class BasePreprocessor:
         new set of examples (not necessarily of the same size). it should return a dict whose
         values are lists, where the length of the lists determines the size of the new set of examples.
         """
+        # TODO: remove max tokens from build document?
         proteins_list = self.build_documents(
             examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
         )
+        transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+        transform_fns += self.transform_fns or []
         proteins_list = [
-            preprocess_protein_sequences(proteins, self.cfg, tokenizer)
+            preprocess_protein_sequences(
+                proteins, self.cfg, tokenizer, transform_fns=transform_fns
+            )
             for proteins in proteins_list
         ]
-        return batched_subsample_and_tokenize_protein_data(
+        return tokenizer.batched_encode(
             proteins_list,
-            self.cfg,
-            tokenizer=tokenizer,
-            max_tokens=max_tokens,
-            shuffle=shuffle,
-            transform_fns=self.transform_fns,
+            document_token=self.cfg.document_token,
+            padding="max_length",
+            max_length=max_tokens,
+            add_final_sep=True,
+            allow_unk=getattr(self.cfg, "allow_unk", False),
         )
 
     def _preprocess_protein_data(
@@ -219,15 +171,20 @@ class BasePreprocessor:
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
         proteins = self.build_document(example, max_tokens=max_tokens, shuffle=shuffle)
-        proteins = preprocess_protein_sequences(proteins, self.cfg, tokenizer)
-        return subsample_and_tokenize_protein_data(
-            proteins,
-            self.cfg,
-            tokenizer=tokenizer,
-            max_tokens=max_tokens,
-            shuffle=shuffle,
-            transform_fns=self.transform_fns,
+        transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+        transform_fns += self.transform_fns or []
+        proteins = preprocess_protein_sequences(
+            proteins, self.cfg, tokenizer, transform_fns=transform_fns
         )
+        tokenized = tokenizer.encode(
+            proteins,
+            document_token=self.cfg.document_token,
+            padding="max_length",
+            max_length=max_tokens,
+            add_final_sep=True,
+            allow_unk=getattr(self.cfg, "allow_unk", False),
+        )
+        return tokenized.data
 
     def preprocess_protein_data(
         self,

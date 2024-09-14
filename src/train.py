@@ -67,6 +67,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     datamodule: LightningDataModule = hydra.utils.instantiate(
         cfg.data,
         tokenizer=tokenizer,
+        _convert_="partial",
     )
 
     log.info(f"Instantiating model <{cfg.model._target_}>")

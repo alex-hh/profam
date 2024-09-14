@@ -307,18 +307,42 @@ class ProteinDocument:
     def clone(self, **kwargs):
         return ProteinDocument(
             identifier=kwargs.get("identifier", self.identifier),
-            sequences=kwargs.get("sequences", self.sequences),
-            accessions=kwargs.get("accessions", self.accessions),
-            positions=kwargs.get("positions", self.positions),
-            plddts=kwargs.get("plddts", self.plddts),
-            backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
+            sequences=kwargs.get("sequences", self.sequences.copy()),
+            accessions=kwargs.get(
+                "accessions",
+                self.accessions.copy() if self.accessions is not None else None,
+            ),
+            positions=kwargs.get(
+                "positions",
+                self.positions.copy() if self.positions is not None else None,
+            ),
+            plddts=kwargs.get(
+                "plddts", self.plddts.copy() if self.plddts is not None else None
+            ),
+            backbone_coords=kwargs.get(
+                "backbone_coords",
+                self.backbone_coords.copy()
+                if self.backbone_coords is not None
+                else None,
+            ),
             backbone_coords_masks=kwargs.get(
-                "backbone_coords_masks", self.backbone_coords_masks
+                "backbone_coords_masks",
+                self.backbone_coords_masks.copy()
+                if self.backbone_coords_masks is not None
+                else None,
             ),
             interleaved_coords_masks=kwargs.get(
-                "interleaved_coords_masks", self.interleaved_coords_masks
+                "interleaved_coords_masks",
+                self.interleaved_coords_masks.copy()
+                if self.interleaved_coords_masks is not None
+                else None,
             ),
-            structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
+            structure_tokens=kwargs.get(
+                "structure_tokens",
+                self.structure_tokens.copy()
+                if self.structure_tokens is not None
+                else None,
+            ),
             representative_accession=kwargs.get(
                 "representative_accession", self.representative_accession
             ),

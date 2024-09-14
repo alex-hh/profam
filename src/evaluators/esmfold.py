@@ -106,13 +106,13 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         ca_index = atom_order["CA"]
         if self.save_structures:
             os.makedirs(output_dir, exist_ok=True)
+
+        assert len(protein_document) > 0
         if (
             not self.use_precomputed_reference_structures
             or protein_document.backbone_coords is None
         ):
-            raise NotImplementedError("Need to implement reference structure inference")
-            ref_sequences, _ = self.build_prompt(protein_document)
-            for seq in ref_sequences:
+            for seq in protein_document.sequences:
                 if len(seq) <= self.max_length:
                     out = self.esmfold.infer(seq)
                     final_atom_positions = atom14_to_atom37(out["positions"][-1], out)

@@ -145,6 +145,7 @@ def filter_by_length(
     proteins: ProteinDocument,
     min_length: Optional[int] = None,
     max_length: Optional[int] = None,
+    **kwargs,
 ):
     if min_length is None and max_length is None:
         return proteins
@@ -268,7 +269,7 @@ def interleave_structure_sequence(
     )
 
 
-def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument):
+def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
     new_sequences = [
         seq.replace("U", "C").replace("O", "K") for seq in proteins.sequences
     ]

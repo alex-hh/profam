@@ -26,7 +26,7 @@ extra_callbacks:
     pipeline:
       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
       max_instances: 50
-      max_sequence_length: 766
+      max_sequence_length: 512
 
 trainer:
   min_epochs: 10

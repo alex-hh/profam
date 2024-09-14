@@ -6,8 +6,8 @@ from src.constants import RESIDUE_LEVEL_FEATURES
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     BasePreprocessor,
+    default_transforms,
     preprocess_protein_sequences,
-    subsample_and_tokenize_protein_data,
 )
 from src.models.base import BaseFamilyLitModule
 from src.utils.tokenizers import ProFamTokenizer
@@ -26,21 +26,21 @@ class PromptBuilder:
         self.max_tokens = max_tokens
 
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-        proteins = preprocess_protein_sequences(
-            proteins, self.preprocessor.cfg, tokenizer
-        )
         max_length = max(len(seq) for seq in proteins.sequences)
-        batch = subsample_and_tokenize_protein_data(
+        transform_fns = default_transforms(
+            max_tokens=self.max_tokens - max_length, shuffle=True, seed=self.seed
+        ) + (self.preprocessor.transform_fns or [])
+        proteins = preprocess_protein_sequences(
+            proteins, self.preprocessor.cfg, tokenizer, transform_fns=transform_fns
+        )
+        # TODO: maybe just return the prompt, tokenize elsewhere.
+        encoded = tokenizer.encode(
             proteins,
-            cfg=self.preprocessor.cfg,
-            tokenizer=tokenizer,
-            shuffle=True,
-            seed=self.seed,
+            document_token=self.preprocessor.cfg.document_token,
             padding="longest",
-            max_tokens=self.max_tokens - max_length,
-            transforms=self.preprocessor.transforms,  # TODO: be careful about randomness here...
-        )  # a dictionary
-        return batch
+            add_final_sep=True,
+        )
+        return proteins, encoded
 
 
 class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
@@ -68,36 +68,37 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         proteins = proteins.clone()
         representative = proteins.pop_representative()
         if not self.representative_only:
+            raise NotImplementedError("Not implemented yet")
+            max_tokens = self.max_tokens - len(representative)
+            transform_fns = default_transforms(
+                max_tokens=max_tokens, shuffle=False, seed=self.seed
+            ) + (self.preprocessor.transform_fns or [])
             proteins = preprocess_protein_sequences(
-                proteins, self.preprocessor.cfg, tokenizer
+                proteins, self.preprocessor.cfg, tokenizer, transform_fns=transform_fns
             )
-            example = subsample_and_tokenize_protein_data(
+            example = tokenizer.encode(
                 proteins,
-                cfg=self.preprocessor.cfg,
-                tokenizer=tokenizer,
-                shuffle=True,
-                seed=self.seed,
+                document_token=self.preprocessor.cfg.document_token,
                 padding="longest",
-                max_tokens=self.max_tokens - len(representative),
-                exclude_tokens=2 * len(representative),
                 add_final_sep=False,
-                transform_fns=self.preprocessor.transform_fns,
             )
+
         # TODO: tokenize representative
         representative_doc = ProteinDocument.from_proteins([representative])
-        representative_doc = preprocess_protein_sequences(
-            representative_doc, self.preprocessor.cfg, tokenizer
+        transform_fns = default_transforms(max_tokens=None, shuffle=False) + (
+            self.preprocessor.transform_fns or []
         )
-        representative_example = subsample_and_tokenize_protein_data(
+        representative_doc = preprocess_protein_sequences(
             representative_doc,
-            cfg=self.preprocessor.cfg,
-            tokenizer=tokenizer,
-            shuffle=True,
-            seed=self.seed,
+            self.preprocessor.cfg,
+            tokenizer,
+            transform_fns=transform_fns,
+        )
+        representative_example = tokenizer.encode(
+            representative_doc,
+            document_token=self.preprocessor.cfg.document_token,
             padding="longest",
-            max_tokens=None,
             add_final_sep=False,
-            transform_fns=self.preprocessor.transform_fns,
         )
         seq_start = (
             torch.argwhere(
@@ -109,14 +110,16 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             representative_example["input_ids"][:seq_start][-1]
             == tokenizer.seq_struct_sep_token_id
         ), f"seq_start: {seq_start}, input_ids: {representative_example['input_ids'][:seq_start]}"
+        # TODO: maybe just return the prompt, tokenize elsewhere. Difficult thing is slicing out target sequence.
         for feat in representative_example.keys():
             if feat in RESIDUE_LEVEL_FEATURES:
                 representative_example[feat] = representative_example[feat][:seq_start]
                 if not self.representative_only:
-                    representative_example["feat"] = torch.cat(
-                        (example[feat], representative_example[feat]), dim=1
-                    )
-        return representative_example
+                    raise NotImplementedError("Not implemented yet")
+                    # representative_example["feat"] = torch.cat(
+                    #     (example[feat], representative_example[feat]), dim=1
+                    # )
+        return representative_doc, representative_example
 
 
 class ProFamSampler:
@@ -136,15 +139,18 @@ class ProFamSampler:
         self.model.to(device)
 
     def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
-        prompt = self.prompt_builder(protein_document, self.model.tokenizer)
+        prompt, encoded = self.prompt_builder(protein_document, self.model.tokenizer)
         with torch.no_grad():  # prob unnecessary
             tokens = self.model._sample_seqs(
-                prompt["input_ids"].unsqueeze(0).to(self.model.device),
+                encoded["input_ids"].unsqueeze(0).to(self.model.device),
                 num_samples=num_samples,
-                input_seq_pos=prompt["seq_pos"].unsqueeze(0).to(self.model.device),
-                input_coords=prompt["coords"].unsqueeze(0).to(self.model.device).float()
+                input_seq_pos=encoded["seq_pos"].unsqueeze(0).to(self.model.device),
+                input_coords=encoded["coords"]
+                .unsqueeze(0)
+                .to(self.model.device)
+                .float()
                 if self.model.embed_coords
                 else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
                 **self.sampling_kwargs,
             )
-            return self.model.tokenizer.decode_tokens(tokens)
+            return self.model.tokenizer.decode_tokens(tokens), prompt
