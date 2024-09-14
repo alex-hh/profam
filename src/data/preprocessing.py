@@ -151,9 +151,7 @@ class BasePreprocessor:
     ) -> Dict[str, Any]:
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
-        proteins = self.build_document(
-            example, max_tokens=max_tokens, shuffle=shuffle
-        )
+        proteins = self.build_document(example, max_tokens=max_tokens, shuffle=shuffle)
         proteins = preprocess_protein_sequences(proteins, self.cfg, tokenizer)
         return subsample_and_tokenize_protein_data(
             proteins,
@@ -202,13 +200,9 @@ class FastaPreprocessor(BasePreprocessor):
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         if isinstance(example, str):
-            return self.build_document_from_text(
-                example, max_tokens, shuffle
-            )
+            return self.build_document_from_text(example, max_tokens, shuffle)
         else:
-            return self.build_document_from_text(
-                example["text"], max_tokens, shuffle
-            )
+            return self.build_document_from_text(example["text"], max_tokens, shuffle)
 
 
 class ParquetSequencePreprocessor(BasePreprocessor):
@@ -217,9 +211,11 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         config: PreprocessingConfig,
         sequence_col: str = "sequences",
         transform_fns: Optional[List[Callable]] = None,
+        infer_representative_from_identifier: bool = False,
     ):
         super().__init__(config, transform_fns)
         self.sequence_col = sequence_col
+        self.infer_representative_from_identifier = infer_representative_from_identifier
 
     @property
     def required_keys(self):
@@ -239,7 +235,12 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         else:
             sequences = sequence_iterator[:max_sequences_to_preprocess]
 
-        return ProteinDocument(sequences=sequences)
+        return ProteinDocument(
+            sequences=sequences,
+            representative_accession=example[self.identifier_col]
+            if self.infer_representative_from_identifier
+            else None,
+        )
 
 
 # TODO: make sure we can handle an aligned version - test
