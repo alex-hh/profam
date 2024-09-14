@@ -22,7 +22,7 @@ def test_representative_inverse_folding(profam_tokenizer):
         infer_representative_from_identifier=True,
     )
     proteins = preprocessor.build_document(
-        example, profam_tokenizer, max_tokens=1536, shuffle=False
+        example, max_tokens=1536, shuffle=False
     )
     rep_seq = proteins[0].sequence
     expected_coords = np.concatenate(

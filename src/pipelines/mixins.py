@@ -30,7 +30,6 @@ class ParquetMixin:
             )
             if evaluation_accessions is not None:
                 self.evaluation_df = self.evaluation_df.loc[evaluation_accessions]
-            self.evaluation_accessions = list(self.evaluation_df.index.values)
             self.parquet_index = None
             if self.max_sequence_length is not None:
                 self.evaluation_df["min_sequence_lengths"] = self.evaluation_df[
@@ -40,6 +39,7 @@ class ParquetMixin:
                     self.evaluation_df["min_sequence_lengths"]
                     <= self.max_sequence_length
                 ]
+            self.evaluation_accessions = list(self.evaluation_df.index.values)
         else:
             assert self.max_sequence_length is None
             assert (

@@ -54,10 +54,16 @@ def load_residues(pdb_file):
     return residues
 
 
+class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
+    # need to handle interleaving...
+    pass
+
+
 class ESMFoldSamplingEvaluator(SamplingEvaluator):
     # TODO: run on single device in multi-gpu setting? or figure out how to distribute?
     # TODO: support caching structure predictions for prompt.
     # TODO: support multimodal prompt.
+    # TODO: handle interleaving
     def __init__(
         self,
         name,
@@ -105,6 +111,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
             not self.use_precomputed_reference_structures
             or protein_document.backbone_coords is None
         ):
+            raise NotImplementedError("Need to implement reference structure inference")
             ref_sequences, _ = self.build_prompt(protein_document)
             for seq in ref_sequences:
                 if len(seq) <= self.max_length:

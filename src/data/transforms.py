@@ -131,12 +131,12 @@ def replace_nans_in_coords(
     return proteins.clone(backbone_coords=new_coords)
 
 
-def fill_missing_fields(proteins: ProteinDocument):
+def fill_missing_fields(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
     if not proteins.has_all_structure_arrays:
         proteins = proteins.fill_missing_structure_arrays(
             coords_fill=np.nan,
             plddts_fill=100.0,
-            tokens_fill="[MASK]",
+            tokens_fill=tokenizer.mask_token_id,
         )
     return proteins
 
@@ -265,7 +265,6 @@ def interleave_structure_sequence(
         backbone_coords_masks=interleaved_structure_coords_masks,
         interleaved_coords_masks=interleaved_sequence_coords_masks,
         structure_tokens=None,
-        validate_shapes=False,  # a hack because of special token in interleaved sequences
     )
 
 

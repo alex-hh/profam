@@ -27,7 +27,6 @@ class Protein:
     backbone_coords: Optional[np.ndarray] = None
     backbone_coords_mask: Optional[np.ndarray] = None
     structure_tokens: Optional[str] = None
-    validate_shapes: bool = True
 
     def __len__(self):
         assert len(self.sequence) == len(self.plddt)
@@ -37,16 +36,15 @@ class Protein:
         struct_comp = (
             [self.structure_tokens] if self.structure_tokens is not None else None
         )
-        if self.validate_shapes:
-            check_array_lengths(
-                [self.sequence],
-                [self.plddt] if self.plddt is not None else None,
-                [self.backbone_coords] if self.backbone_coords is not None else None,
-                [self.backbone_coords_mask]
-                if self.backbone_coords_mask is not None
-                else None,
-                struct_comp,
-            )
+        check_array_lengths(
+            [self.sequence],
+            [self.plddt] if self.plddt is not None else None,
+            [self.backbone_coords] if self.backbone_coords is not None else None,
+            [self.backbone_coords_mask]
+            if self.backbone_coords_mask is not None
+            else None,
+            struct_comp,
+        )
         if self.backbone_coords_mask is None and self.backbone_coords is not None:
             self.backbone_coords_mask = np.where(
                 np.isnan(self.backbone_coords),
@@ -85,7 +83,6 @@ class ProteinDocument:
         List[np.ndarray]
     ] = None  # if interleaving, indicates which coords are available at each sequence position
     structure_tokens: Optional[List[str]] = None
-    validate_shapes: bool = True
     representative_accession: Optional[
         str
     ] = None  # e.g. seed or cluster representative
@@ -162,7 +159,6 @@ class ProteinDocument:
             structure_tokens=self.structure_tokens.pop(index)
             if self.structure_tokens is not None
             else None,
-            validate_shapes=self.validate_shapes,
         )
 
     @classmethod
@@ -176,14 +172,13 @@ class ProteinDocument:
         return cls(identifier, sequences, accessions)
 
     def __post_init__(self):
-        if self.validate_shapes:
-            check_array_lengths(
-                self.sequences,
-                self.plddts,
-                self.backbone_coords,
-                self.backbone_coords_masks,
-                self.structure_tokens,
-            )
+        check_array_lengths(
+            self.sequences,
+            self.plddts,
+            self.backbone_coords,
+            self.backbone_coords_masks,
+            self.structure_tokens,
+        )
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
             self.backbone_coords_masks = [
                 np.ones_like(xyz) for xyz in self.backbone_coords
@@ -276,7 +271,7 @@ class ProteinDocument:
         return all(has_arrays)
 
     def fill_missing_structure_arrays(
-        self, coords_fill=np.nan, plddts_fill=np.nan, tokens_fill="[MASK]"
+        self, coords_fill=np.nan, plddts_fill=np.nan, tokens_fill="?"
     ):
         assert isinstance(tokens_fill, str)
         return self.clone(
@@ -286,7 +281,6 @@ class ProteinDocument:
             or [np.full((len(seq), 4, 3), coords_fill) for seq in self.sequences],
             structure_tokens=self.structure_tokens
             or [tokens_fill * len(seq) for seq in self.sequences],
-            validate_shapes=False,  # because of mask in strs -- TODO: figure out how to deal with this
         )
 
     def clone(self, **kwargs):
@@ -304,5 +298,4 @@ class ProteinDocument:
                 "interleaved_coords_masks", self.interleaved_coords_masks
             ),
             structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
-            validate_shapes=kwargs.get("validate_shapes", self.validate_shapes),
         )

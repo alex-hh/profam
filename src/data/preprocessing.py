@@ -66,7 +66,7 @@ def subsample_and_tokenize_protein_data(
         seed=seed,
     )
     # if cfg.fill_missing_fields:
-    proteins = transforms.fill_missing_fields(proteins)
+    proteins = transforms.fill_missing_fields(proteins, tokenizer)
     proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
     proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
 

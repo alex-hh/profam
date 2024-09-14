@@ -100,6 +100,16 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             input_ids, **kwargs
         )  # slices out prompt and uses cache typically.
 
+        # generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
+        # if (generated_tokens == self.tokenizer.sep_token_id).any() or (
+        #     generated_tokens == self.tokenizer.seq_struct_sep_token_id
+        # ).any():
+        #     # sep would break incrementaion of seq pos
+        #     raise NotImplementedError(
+        #         "This code does not handle generation of sequences with separators."
+        #     )
+
+        # TODO: handle sep token generation
         if input_ids.shape[-1] != kwargs["seq_pos"].shape[-1]:
             # we have incremented input ids but not seq pos
             increment = input_ids.shape[-1] - kwargs["seq_pos"].shape[-1]
@@ -113,11 +123,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
             # frustratingly slicing of input ids is done on the super prepare inputs for generation
             input_final_seq_pos = kwargs["seq_pos"][:, -1:]
+            input_length = kwargs["seq_pos"].shape[-1]
             if (input_final_seq_pos[:, -1] == 0).any():  # handles sep cases
-                assert input_ids[0, input_final_seq_pos.shape[-1]].item() in [
+                assert input_ids[0, input_length-1].item() in [
                     self.tokenizer.sep_token_id,
                     self.tokenizer.seq_struct_sep_token_id,
-                ], f"{input_ids} {kwargs['seq_pos']}"
+                ], f"{input_ids[0, input_length-1]} {increment}"
                 assert (input_final_seq_pos[:, -1] == 0).all()
                 # we are starting new sequences
                 seq_pos = torch.full_like(

@@ -108,7 +108,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
-        seq_struct_sep_token="[SEQ-STRUCT-SEP]",
+        seq_struct_sep_token="|",
         mask_below_plddt: Optional[float] = None,
         **kwargs,
     ):
