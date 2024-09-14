@@ -1,0 +1,36 @@
+_target_: src.data.hf_protein_datamodule.ProteinDataMixture
+# https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
+defaults:
+  - dataset@dataset_cfgs.foldseek: foldseek_representatives_with_interleaved_coords
+  - dataset@dataset_cfgs.foldseek_val: foldseek_representatives_with_interleaved_coords
+  - _self_
+data_weights:
+  foldseek: 1.0
+dataset_cfgs:
+  foldseek:
+    name: foldseek
+    holdout_data_files: foldseek_representatives/0.parquet
+    minimum_mean_plddt: 0.6
+    preprocessor:
+      batched_map: true
+      batch_map_size: 250
+  foldseek_val:
+    name: foldseek_val
+    data_path_pattern: foldseek_representatives/0.parquet
+    minimum_mean_plddt: 0.6
+    preprocessor:
+      batched_map: true
+      batch_map_size: 250
+batch_size: 1
+max_tokens: 8192
+data_dir: ${paths.data_dir}
+val_dataset_names:
+  - foldseek_val
+gym_dms_ids: ${constants.gym_val_assay_list}
+keep_gym_gaps: false
+evaluate_gym: true
+evaluate_ec_class: false
+num_workers: null # None means use all available CPU cores
+gym_data_dir: ProteinGym
+use_filtered_gym_msas: true
+feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "total_num_sequences", "aa_mask", "coords", "coords_mask", "interleaved_coords_mask", "structure_mask"]

@@ -42,13 +42,6 @@ model:
   scoring_max_tokens: 10240
   embed_coords: True
 
-data:
-  batch_size: 42
-  num_workers: 12
-  evaluate_gym: True
-  evaluate_ec_class: True
-  evaluate_ec_cluster_class: True
-
 logger:
   wandb:
     tags: ${tags}
