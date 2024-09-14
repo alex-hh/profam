@@ -652,6 +652,10 @@ class BaseFamilyLitModule(BaseLitModule):
             for tok_id in self.tokenizer.all_special_ids
             if tok_id != self.tokenizer.eos_token_id
         ]
+        generation_kwargs["bad_words_ids"] += [
+            [self.tokenizer.convert_tokens_to_ids(bad_aa)]
+            for bad_aa in bad_aas
+        ]
 
         assert (
             input_ids.shape[0] == 1 and input_ids.ndim == 2
