@@ -201,7 +201,7 @@ def create_foldseek_parquets(
         assert len(parquet_ids) == 1
         db = load_db(parquet_ids[0])
 
-    db = db[db["zip_filename"]!=""]
+    db = db[(db["zip_filename"]!="")&(~db["zip_filename"].isnull())]
 
     cluster_col = "cluster_id"
     if representative_only:

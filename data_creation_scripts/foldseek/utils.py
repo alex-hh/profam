@@ -191,6 +191,7 @@ def extract_pdbs_from_zips(pdb_lookup, output_dir, num_processes):
 
     if num_processes is None:
         for zip_index, (zip_filename, afdb_ids) in enumerate(pdb_lookup.items()):
+            # todo handle nan / none filename
             print("Zip filename", zip_filename, "ids", afdb_ids, flush=True)
             success_count, fail_count = extract_pdbs(zip_filename, afdb_ids, output_dir, zip_index)
             seq_success_counter += success_count
