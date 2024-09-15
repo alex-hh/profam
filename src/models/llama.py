@@ -16,6 +16,8 @@ class WrappedLlamaForCausalLM(
     WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
 ):
 
+    # TODO: verify that model outputs using wrapper and causal mask are same as without.
+
     # todo: modify update_causal_mask to accept bias or binary mask
     # bias directly specifies attention
     # binary mask gets combined with ar mask.
@@ -31,9 +33,7 @@ class WrappedLlamaForCausalLM(
         """Just changed to use our custom prepare_4d_causal_attention_mask_with_cache_position"""
         if self.config._attn_implementation == "flash_attention_2":
             if attention_mask is not None:
-                raise ValueError()
-
-        self.prepare_binary_attention_mask()
+                raise NotImplementedError()
 
         # For SDPA, when possible, we will rely on its `is_causal` argument instead of its `attn_mask` argument, in
         # order to dispatch on Flash Attention 2. This feature is not compatible with static cache, as SDPA will fail
@@ -49,11 +49,15 @@ class WrappedLlamaForCausalLM(
             and not using_static_cache
             and not output_attentions
         ):
-            if AttentionMaskConverter._ignore_causal_mask_sdpa(
-                attention_mask,
-                inputs_embeds=input_tensor,
-                past_key_values_length=past_seen_tokens,
-                is_training=self.training,
+            # TODO: understand this...
+            if (
+                self.attention_mask_type == "causal"
+                and AttentionMaskConverter._ignore_causal_mask_sdpa(
+                    attention_mask,
+                    inputs_embeds=input_tensor,
+                    past_key_values_length=past_seen_tokens,
+                    is_training=self.training,
+                )
             ):
                 return None
 
@@ -69,9 +73,16 @@ class WrappedLlamaForCausalLM(
                 else past_seen_tokens + sequence_length + 1
             )
 
+        binary_mask_4d = self.prepare_binary_attention_mask(
+            attention_mask,
+            sequence_length=sequence_length,
+            target_length=target_length,
+            cache_position=cache_position,
+            batch_size=input_tensor.shape[0],
+        )
         # In case the provided `attention` mask is 2D, we generate a causal mask here (4D).
         causal_mask = _prepare_4d_causal_attention_mask_with_cache_position(
-            attention_mask,
+            binary_mask_4d,
             sequence_length=sequence_length,
             target_length=target_length,
             dtype=dtype,
@@ -87,6 +98,7 @@ class WrappedLlamaForCausalLM(
             and attention_mask.device.type == "cuda"
             and not output_attentions
         ):
+            # TODO: understand this...should it apply to all attention types?
             # Attend to all tokens in fully masked rows in the causal_mask, for example the relevant first rows when
             # using left padding. This is required by F.scaled_dot_product_attention memory-efficient attention path.
             # Details: https://github.com/pytorch/pytorch/issues/110213
