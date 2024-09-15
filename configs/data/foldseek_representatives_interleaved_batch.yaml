@@ -23,7 +23,7 @@ dataset_cfgs:
       config:
         batched_map: true
         map_batch_size: 250
-batch_size: 1
+batch_size: 6
 max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_names:

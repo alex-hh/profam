@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 from torch import nn
@@ -243,7 +243,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return_dict: Optional[bool] = None,
         coords: Optional[torch.FloatTensor] = None,
         start_sequence_index: Optional[
-            torch.Tensor | int
+            Union[torch.Tensor, int]
         ] = None,  # index of sequence within document. modify when using cache.
         **kwargs,  # e.g. labels
     ):
