@@ -63,14 +63,19 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
         # N.B. the combination of binary and non-binary masks in the original code here is pretty confusing.
         # we try to first build required binary mask, then convert to a bias mask.
         causal_mask = (
-            torch.arange(target_length, device=device) <= cache_position.reshape(-1, 1)
+            torch.arange(target_length, device=device) <= cache_position.unsqueeze(1)
         )[None].expand(
             batch_size, -1, -1
         )  # sequence_length, target_length
         if attention_mask is not None:
-            causal_mask[:, :, : attention_mask.shape[-1]] &= attention_mask[
-                :, None, :
-            ].bool()
+            if attention_mask.shape[-1] < target_length:
+                full_attention_mask = torch.ones(
+                    batch_size, target_length, device=device
+                )
+                full_attention_mask[:, : attention_mask.shape[-1]] = attention_mask
+            else:
+                full_attention_mask = attention_mask
+            causal_mask = causal_mask & full_attention_mask[:, None, :].bool()
         causal_mask = causal_mask[:, None]  # add head dim
     elif attention_mask.isin([0, 1]).all() and not (attention_mask == 0).all():
         # if we pass all 0s there is ambiguity, but we assume it means a bias mask, since it would prevent any attention.
