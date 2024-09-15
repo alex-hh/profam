@@ -178,21 +178,29 @@ def _prepare_prefix_lm_4d_binary_mask(
     # now we identify pairs of positions that belong to the same prefix. currently we assume
     # that no uncached position can be in a prefix.
     raise NotImplementedError("Check sep /pref ids get assigned correctly.")
+    prefix_index = torch.cumsum(input_ids == prefix_separator_token_id, dim=-1) + 1
+    sequence_index = torch.cumsum(input_ids == item_separator_token_id, dim=-1) + 1
+    is_prefix = prefix_index == sequence_index
+    prefix_index = torch.where(is_prefix, prefix_index, 0)
+    full_prefix_index = torch.zeros(batch_size, target_length, device=device)
+    full_prefix_index[:, cache_position] = prefix_index
     if last_prefix_end == last_seq_end:
         assert last_prefix_end is None and last_seq_end is None
         # we have a new sequence. we're therefore in a prefix which ends at the first prefix separator.
         # a prefix is somewhere where the prefix index is equal to the sequence index
-        prefix_index = torch.cumsum(input_ids == prefix_separator_token_id, dim=-1)
-        sequence_index = torch.cumsum(input_ids == item_separator_token_id, dim=-1)
-        is_prefix = prefix_index == sequence_index
-        prefix_index = torch.where(is_prefix, prefix_index, 0)
-        same_prefix_mask = prefix_index[:, None, :] == prefix_index[:, :, None]
+        pass
+
     elif last_seq_end > last_prefix_end:
         # we start with a prefix
-        raise NotImplementedError()
+        full_prefix_index[:,last_seq_end+1:cache_position[0]] = 1
+
     else:
         # we start with a suffix
-        raise NotImplementedError()
+        pass
+
+    same_prefix_mask = prefix_index[:, None, :] == full_prefix_index[:, :, None]
+    causal_mask.masked_fill(same_prefix_mask, 1)
+    return causal_mask
 
 
 def is_integer(tensor: torch.Tensor, signed: bool | None = None) -> bool:
