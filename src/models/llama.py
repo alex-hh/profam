@@ -49,7 +49,7 @@ class WrappedLlamaForCausalLM(
             and not using_static_cache
             and not output_attentions
         ):
-            # TODO: understand this...
+            # just check if we can ignore input attention_mask
             if (
                 self.attention_mask_type == "causal"
                 and AttentionMaskConverter._ignore_causal_mask_sdpa(
@@ -98,7 +98,10 @@ class WrappedLlamaForCausalLM(
             and attention_mask.device.type == "cuda"
             and not output_attentions
         ):
-            # TODO: understand this...should it apply to all attention types?
+            # With torch v2.1, scaled_dot_product_attention on GPU gives nan when a sequence has all
+            # large negative values (e.g torch.finfo(q.dtype).min - in order to mean no attention at
+            # all places). On CPU, it won't give nan.
+
             # Attend to all tokens in fully masked rows in the causal_mask, for example the relevant first rows when
             # using left padding. This is required by F.scaled_dot_product_attention memory-efficient attention path.
             # Details: https://github.com/pytorch/pytorch/issues/110213
@@ -132,12 +135,6 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
         )
-
-
-class WrappedLlamaForCausalLM(
-    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
-):
-    pass
 
 
 class LlamaLitModule(BaseFamilyLitModule):
