@@ -9,6 +9,43 @@ from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
+def is_integer(tensor: torch.Tensor, signed: bool | None = None) -> bool:
+    """Determines if a PyTorch tensor has an integer dtype.
+
+    Source:
+    https://github.com/pytorch/pytorch/issues/52161
+    It also can force `tensor` to be singed or unsinged.
+
+    Parameters
+    ----------
+    tensor
+        The tensor to check.
+    signed
+        Determines which dtypes are allowed for `tensor`:
+
+        - If ``None`` both unsinged and signed integer will be allowed.
+
+        - If ``False`` only unsigned dtypes will be allowed.
+
+        - If ``True`` only signed dtypes will be allowed.
+
+    Returns
+    -------
+    bool
+        ``True`` if the input tensor satisfies the requested condition, ``False``
+        otherwise.
+
+    """
+    uint_types = [torch.uint8]
+    sint_types = [torch.int8, torch.int16, torch.int32, torch.int64]
+    if signed is None:
+        return tensor.dtype in uint_types + sint_types
+    elif signed:
+        return tensor.dtype in sint_types
+    else:
+        return tensor.dtype in uint_types
+
+
 def _prepare_4d_causal_attention_mask_with_cache_position(
     attention_mask: torch.Tensor,
     sequence_length: int,
@@ -56,7 +93,7 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
     # original code was optimised for memory - make sure this is too.
     # for example - masked fill might be better but requires inverted mask
     if attention_mask is not None:
-        assert torch.is_floating_point(attention_mask) or torch.is_integral(
+        assert torch.is_floating_point(attention_mask) or is_integer(
             attention_mask
         ), "Attention mask must be numeric"
     if attention_mask is None or attention_mask.ndim == 2:
@@ -77,7 +114,12 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
                 full_attention_mask = attention_mask
             causal_mask = causal_mask & full_attention_mask[:, None, :].bool()
         causal_mask = causal_mask[:, None]  # add head dim
-    elif attention_mask.isin([0, 1]).all() and not (attention_mask == 0).all():
+    elif (
+        torch.isin(
+            attention_mask, torch.tensor([0, 1], device=attention_mask.device)
+        ).all()
+        and not (attention_mask == 0).all()
+    ):
         # if we pass all 0s there is ambiguity, but we assume it means a bias mask, since it would prevent any attention.
         causal_mask = attention_mask.bool()
     else:
