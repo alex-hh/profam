@@ -46,7 +46,7 @@ def stitch_tokens(tokenizer, struct_tokens, seq_tokens):
     for struct, seq in zip(struct_tokens, seq_tokens):
         tensors += [
             struct,
-            torch.full((1,), tokenizer.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")),
+            torch.full((1,), tokenizer.seq_struct_sep_token_id),
             seq,
         ]
         tensors.append(torch.full((1,), tokenizer.convert_tokens_to_ids("[SEP]")))
@@ -165,13 +165,14 @@ def test_foldseek_interleaved_tokenization(
     ).flatten()
     struct_sep_locations = torch.argwhere(
         foldseek_interleaved_structure_sequence_batch["input_ids"][0]
-        == profam_tokenizer.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")
+        == profam_tokenizer.seq_struct_sep_token_id
     ).flatten()
     assert (
         sep_locations.shape[0]
         == struct_sep_locations.shape[0]
         == num_sequences_in_batch
     )
+    # TODO: assertion on seq pos at seps
     struct_start_index = profam_tokenizer.num_start_tokens
 
     for i in range(num_sequences_in_batch):
@@ -241,6 +242,7 @@ def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
         batch["input_ids"][0][batch["aa_mask"][0]] == profam_tokenizer.mask_token_id
     ).any()
     assert not batch["plddts"].isnan().any()
+    profam_tokenizer.mask_below_plddt = None
 
 
 def test_foldseek_representative_concatenation(profam_tokenizer):

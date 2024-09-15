@@ -1,7 +1,6 @@
 """This file prepares config fixtures for other tests."""
 
 import os
-from functools import partial
 from pathlib import Path
 
 import hydra
@@ -35,6 +34,7 @@ def profam_tokenizer():
         use_seq_pos=True,
         max_seq_pos=2048,
         max_tokens=2048,
+        mask_below_plddt=None,
     )
     return tokenizer
 
@@ -54,6 +54,7 @@ def profam_tokenizer_noseqpos():
         use_seq_pos=False,
         max_seq_pos=2048,
         max_tokens=2048,
+        mask_below_plddt=None,
     )
     return tokenizer
 

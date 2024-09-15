@@ -51,7 +51,7 @@ def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
     example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]
     example_3dis = [s.lower() for s in example_sequences]
     sequences = [
-        seq_3d + "[SEQ-STRUCT-SEP]" + seq
+        seq_3d + profam_tokenizer.seq_struct_sep_token + seq
         for seq_3d, seq in zip(example_sequences, example_3dis)
     ]
     concatenated_sequence = (
@@ -66,7 +66,6 @@ def test_interleaved_sequence_structure_tokenization(profam_tokenizer):
         add_special_tokens=False,
     )
     assert (
-        tokenized.input_ids
-        == profam_tokenizer.convert_tokens_to_ids("[SEQ-STRUCT-SEP]")
+        tokenized.input_ids == profam_tokenizer.seq_struct_sep_token_id
     ).sum() == len(example_sequences)
     # TODO: test aa mask

@@ -71,7 +71,7 @@ class BaseLitModule(LightningModule):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
-        self.save_hyperparameters(logger=False)
+        self.save_hyperparameters(logger=False, ignore=["model"])
         self.lr = lr
         self.weight_decay = weight_decay
         self.eps = eps

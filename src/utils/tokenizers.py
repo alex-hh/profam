@@ -127,7 +127,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         max_seq_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
         seq_struct_sep_token="|",
-        mask_below_plddt: Optional[float] = None,
+        mask_below_plddt: Optional[
+            float
+        ] = None,  # TODO: this prob shouldn't be attr on tokenizer
         **kwargs,
     ):
         super().__init__(*args, **kwargs)

@@ -6,6 +6,7 @@ import pytest
 from src.constants import BASEDIR
 from src.data import preprocessing
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.utils import examples_list_to_dict
 
 
 @pytest.fixture()
@@ -31,7 +32,7 @@ def foldseek_datapoint(profam_tokenizer):
 
 def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
     examples = [foldseek_datapoint, foldseek_datapoint]
-    examples = preprocessing.examples_list_to_dict(examples)
+    examples = examples_list_to_dict(examples)
 
     config = preprocessing.PreprocessingConfig(
         keep_gaps=False,
@@ -71,7 +72,7 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
         len(example["sequences"][0]) + profam_tokenizer.num_start_tokens + 1
     )  # +1 for the end token
     examples = [example] * 20
-    examples = preprocessing.examples_list_to_dict(examples)
+    examples = examples_list_to_dict(examples)
 
     config = preprocessing.PreprocessingConfig(
         keep_gaps=False,
