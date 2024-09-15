@@ -7,6 +7,10 @@ from transformers.utils import ModelOutput
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import nested_getattr
 
+# TODO: really we want to write our own cache class.
+# we can just overwrite update and add relevant attributes.
+# we then need to make sure that we instantiate the right type of cache
+# in relevant places (e.g. in the model forward with use_cache True.)
 
 def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
     # as long as we pad after sep, it doesn't matter what seq_pos is associated with sep
@@ -67,7 +71,6 @@ def _prepare_intra_separator_bidirectional_4d_binary_mask(
     sep_token_id: int,
 ):
     """Mask for attention within a sequence/document, but not between sequences/documents."""
-    # TODO: allow causal within sequence or bidirectional within sequence
     raise NotImplementedError()
     assert cache_position.shape[0] == sequence_length
     full_attention_mask_2d = torch.ones(batch_size, target_length, device=device)
@@ -76,14 +79,16 @@ def _prepare_intra_separator_bidirectional_4d_binary_mask(
     full_attention_mask_2d = full_attention_mask_2d[:, None, None, :]
     sequence_index = torch.cumsum(input_ids == sep_token_id, dim=-1)
     intra_mask_4d = torch.zeros(batch_size, sequence_length, target_length)
-    intra_mask_4d[:, :, sequence_length:] = (
+    intra_mask_4d[:, :, cache_position] = (
         sequence_index[:, None, :] == sequence_index[:, :, None]
     ).int()
     intra_mask_4d[:, :, last_sep_position:sequence_length] = first_sequence_mask[
         None, :, None
     ]
     last_cached_seq_end = sequence_index  # b
-    intra_mask_4d[:, :last_cached_seq_end, last_cached_seq_start:-sequence_length] = 1
+    intra_mask_4d[
+        :, :last_cached_seq_end, last_cached_seq_start : cache_position[0]
+    ] = 1
     # intra_mask_4d = intra_mask_4d[:, cache_position, :]  would be right if input ids contained everything.
     return intra_mask_4d[:, None] * full_attention_mask_2d
 
@@ -100,6 +105,7 @@ def _prepare_intra_separator_causal_4d_binary_mask(
     batch_size: int,
     sep_token_id: int,
 ):
+    raise NotImplementedError("check sep ids get assigned correctly")
     bidirectional_intra_separator_mask = (
         _prepare_intra_separator_bidirectional_4d_binary_mask(
             input_ids,
@@ -123,6 +129,7 @@ def _prepare_intra_separator_causal_4d_binary_mask(
 
 def _prepare_sequence_causal_bidirectional_4d_binary_mask(
     input_ids: torch.LongTensor,
+    last_cached_seq_start: Optional[int],
     attention_mask_2d: Optional[torch.Tensor],
     sequence_length: int,
     target_length: int,
@@ -132,12 +139,25 @@ def _prepare_sequence_causal_bidirectional_4d_binary_mask(
     sep_token_id: int,
 ):
     """Same-sequence attention is bidirectional, different-sequence attention is causal."""
-    raise NotImplementedError()
+    raise NotImplementedError("Check sep ids get assigned correctly.")
+    if attention_mask_2d is not None:
+        raise NotImplementedError()
+    # To create a sequence-causal mask, we can just look at sequence index.
+    sequence_index = (
+        torch.cumsum(input_ids == sep_token_id, dim=-1) + 1
+    )  # batch_size, sequence_length
+    full_sequence_index = torch.zeros(batch_size, target_length, device=device)
+    full_sequence_index[:, cache_position] = sequence_index
+    full_sequence_index[:, last_cached_seq_start : cache_position[0]] = 1
+    # this is automatically bidirectional within-sequence
+    sequence_causal_mask = sequence_index[:, None, :] <= full_sequence_index[:, :, None]
+    return sequence_causal_mask.int()[:, None]
 
 
 def _prepare_prefix_lm_4d_binary_mask(
     input_ids: torch.LongTensor,
-    last_prefix_end: int,  # we assume that when using cache, we are always in suffix. need to be careful!
+    last_cached_prefix_start: Optional[int],
+    last_cached_seq_start: Optional[int],
     attention_mask_2d: Optional[torch.Tensor],
     sequence_length: int,
     target_length: int,
@@ -154,7 +174,34 @@ def _prepare_prefix_lm_4d_binary_mask(
 
     Current version allows attention between items (proteins).
     """
-    raise NotImplementedError()
+    input_ids
+    # we can start with a standard causal mask. then 'fill in' prefix blocks with bidirectional attention.
+    causal_mask = _prepare_causal_4d_binary_mask(
+        attention_mask_2d,
+        sequence_length,
+        target_length,
+        device,
+        cache_position,
+        batch_size,
+    )
+    # now we identify pairs of positions that belong to the same prefix. currently we assume
+    # that no uncached position can be in a prefix.
+    raise NotImplementedError("Check sep /pref ids get assigned correctly.")
+    if last_prefix_end == last_seq_end:
+        assert last_prefix_end is None and last_seq_end is None
+        # we have a new sequence. we're therefore in a prefix which ends at the first prefix separator.
+        # a prefix is somewhere where the prefix index is equal to the sequence index
+        prefix_index = torch.cumsum(input_ids == prefix_separator_token_id, dim=-1)
+        sequence_index = torch.cumsum(input_ids == item_separator_token_id, dim=-1)
+        is_prefix = prefix_index == sequence_index
+        prefix_index = torch.where(is_prefix, prefix_index, 0)
+        same_prefix_mask = prefix_index[:, None, :] == prefix_index[:, :, None]
+    elif last_seq_end > last_prefix_end:
+        # we start with a prefix
+        raise NotImplementedError()
+    else:
+        # we start with a suffix
+        raise NotImplementedError()
 
 
 def is_integer(tensor: torch.Tensor, signed: bool | None = None) -> bool:
