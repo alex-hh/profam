@@ -7,6 +7,8 @@ from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import nested_getattr
 
 
+# Isnt cache position always just -sequence_length:?
+# Test that when using this we get same as when using auto-generated mask.
 def _prepare_causal_4d_binary_mask(
     attention_mask_2d: Optional[torch.Tensor],
     sequence_length: int,
@@ -44,7 +46,7 @@ def _prepare_bidirectional_4d_binary_mask(
     return full_attention_mask_2d
 
 
-def _prepare_intra_separator_4d_binary_mask(
+def _prepare_intra_separator_bidirectional_4d_binary_mask(
     input_ids: torch.Tensor,
     last_cached_seq_start: torch.Tensor,  # b, equivalent to current sequence start...
     attention_mask_2d: Optional[torch.Tensor],
@@ -55,6 +57,8 @@ def _prepare_intra_separator_4d_binary_mask(
     batch_size: int,
     sep_token_id: int,
 ):
+    """Mask for attention within a sequence/document, but not between sequences/documents."""
+    # TODO: allow causal within sequence or bidirectional within sequence
     raise NotImplementedError()
     assert cache_position.shape[0] == sequence_length
     full_attention_mask_2d = torch.ones(batch_size, target_length, device=device)
@@ -73,6 +77,75 @@ def _prepare_intra_separator_4d_binary_mask(
     intra_mask_4d[:, :last_cached_seq_end, last_cached_seq_start:-sequence_length] = 1
     # intra_mask_4d = intra_mask_4d[:, cache_position, :]  would be right if input ids contained everything.
     return intra_mask_4d[:, None] * full_attention_mask_2d
+
+
+# One test for this is that if we have a single sequence, we should observe same as standard causal mask.
+def _prepare_intra_separator_causal_4d_binary_mask(
+    input_ids: torch.Tensor,
+    last_cached_seq_start: torch.Tensor,  # b, equivalent to current sequence start...
+    attention_mask_2d: Optional[torch.Tensor],
+    sequence_length: int,
+    target_length: int,
+    device: torch.device,
+    cache_position: torch.Tensor,
+    batch_size: int,
+    sep_token_id: int,
+):
+    bidirectional_intra_separator_mask = (
+        _prepare_intra_separator_bidirectional_4d_binary_mask(
+            input_ids,
+            last_cached_seq_start,
+            attention_mask_2d,
+            sequence_length,
+            target_length,
+            device,
+            cache_position,
+            batch_size,
+            sep_token_id,
+        )
+    )
+    causal_mask = (
+        torch.arange(target_length, device=device) <= cache_position.unsqueeze(1)
+    )[None].expand(
+        batch_size, -1, -1
+    )  # sequence_length, target_length
+    return causal_mask[:, None] * bidirectional_intra_separator_mask
+
+
+def _prepare_sequence_causal_bidirectional_4d_binary_mask(
+    input_ids: torch.LongTensor,
+    attention_mask_2d: Optional[torch.Tensor],
+    sequence_length: int,
+    target_length: int,
+    device: torch.device,
+    cache_position: torch.Tensor,
+    batch_size: int,
+    sep_token_id: int,
+):
+    """Same-sequence attention is bidirectional, different-sequence attention is causal."""
+    raise NotImplementedError()
+
+
+def _prepare_prefix_lm_4d_binary_mask(
+    input_ids: torch.LongTensor,
+    last_prefix_end: int,  # we assume that when using cache, we are always in suffix. need to be careful!
+    attention_mask_2d: Optional[torch.Tensor],
+    sequence_length: int,
+    target_length: int,
+    device: torch.device,
+    cache_position: torch.Tensor,
+    batch_size: int,
+    prefix_separator_token_id: int,
+    item_separator_token_id: int,
+):
+    """If you're in the prefix, you can do bidirectional attention. If you're in the suffix, you can't.
+
+    This attention mask is likely particularly useful for multimodal structure + sequence models:
+    bidirectional attention within the structure and causal attention within the sequence.
+
+    Current version allows attention between items (proteins).
+    """
+    raise NotImplementedError()
 
 
 def is_integer(tensor: torch.Tensor, signed: bool | None = None) -> bool:
@@ -318,7 +391,16 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # )
         elif self.attention_mask_type == "prefix-lm":
             # need a prefix indicator
-            raise NotImplementedError()
+            return _prepare_prefix_lm_4d_binary_mask(
+                attention_mask_2d,
+                sequence_length,
+                target_length,
+                device,
+                cache_position,
+                batch_size,
+                self.tokenizer.seq_struct_sep_token_id,
+                self.tokenizer.sep_token_id,
+            )
         else:
             raise ValueError(
                 "Unsupported attention mask type", self.attention_mask_type
