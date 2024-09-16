@@ -1,9 +1,23 @@
+"""We don't separate position indexing and attention stuff because both benefit from input ids Cache.
+
+TODO: I need to know - and be sure this handles - all the places where Cache gets created
+and updated.
+
+Created:
+    - in model forward with use_cache True
+    - in generation utils?
+
+
+"""
+
 from typing import Any, Dict, List, Optional, Union
 
 import torch
 from torch import nn
-from transformers.utils import ModelOutput
+from transformers import ModelOutput
+from transformers.cache_utils import Cache
 
+from src.models.utils import UpdatedDynamicCache
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import nested_getattr
 
@@ -326,6 +340,19 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         ] = None,  # index of sequence within document. modify when using cache.
         **kwargs,  # e.g. labels
     ):
+        if (
+            use_cache and not isinstance(past_key_values, Cache) and not self.training
+        ):  # kept for BC (non `Cache` `past_key_values` inputs)
+            assert (
+                past_key_values is None
+            ), "We need to know input ids, which can't be passed in legacy format"
+            past_key_values = UpdatedDynamicCache()
+
+        if past_key_values is not None:
+            assert isinstance(past_key_values, UpdatedDynamicCache)
+            # TODO: only if use cahce?
+            past_key_values.update_inputs(input_ids)
+
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
