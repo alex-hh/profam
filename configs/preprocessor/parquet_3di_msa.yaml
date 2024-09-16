@@ -3,6 +3,7 @@ defaults:
   - config: msa
 sequence_col: "msta_aa"
 structure_tokens_col: "msta_3di"
+infer_representative_from_identifier: true
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
 transform_fns:

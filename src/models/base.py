@@ -865,6 +865,7 @@ class BaseFamilyLitModule(BaseLitModule):
             .mean()
             .item(),
             on_step=True,
+            prog_bar=True,
             on_epoch=False,
         )
         self.log_ds_sample_counts(batch)

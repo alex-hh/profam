@@ -82,15 +82,15 @@ def convert_list_of_arrays_to_list_of_lists(list_of_arrays):
 # TODO: consider how to represent masks
 @dataclass
 class ProteinDocument:
-    residue_level_fields: ClassVar[List[str]] = [
+    # TODO: make this a mapping?
+    # fields that are present on individual protein instances
+    protein_fields: ClassVar[List[str]] = [
         "sequences",
         "accessions",
         "plddts",
         "backbone_coords",
         "backbone_coords_masks",
-        "interleaved_coords_masks",
         "structure_tokens",
-        "modality_masks",
     ]
     sequences: List[str]
     accessions: Optional[List[str]] = None
@@ -164,7 +164,7 @@ class ProteinDocument:
         if residue_level_only:
             return [
                 field
-                for field in self.residue_level_fields
+                for field in self.protein_fields
                 if getattr(self, field) is not None
             ]
         else:
@@ -185,7 +185,7 @@ class ProteinDocument:
         }
         reverse_naming = {v: k for k, v in renaming.items()}
         attr_dict = {}
-        for field in cls.residue_level_fields:
+        for field in cls.protein_fields:
             single_field = reverse_naming.get(field, field)
             if any(getattr(p, single_field) is not None for p in individual_proteins):
                 assert all(
