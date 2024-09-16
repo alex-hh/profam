@@ -1,0 +1,12 @@
+defaults:
+  - /preprocessor: parquet_3di_with_coords
+_target_: src.data.datasets.ProteinDatasetConfig
+name: foldseek_with_3di
+data_path_pattern: example_data/foldseek_representatives/*.parquet
+holdout_data_files: null
+holdout_identifiers: null
+identifier_col: fam_id
+is_parquet: true
+preprocessor:
+  structure_tokens_col: null
+  document_token: "[AFDB]"
