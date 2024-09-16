@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from typing import Callable, ClassVar, List, Optional
 
 import numpy as np
@@ -67,6 +68,15 @@ def check_array_lengths(*arrays):  # TODO: name better!
     return sequence_lengths
 
 
+def convert_list_of_arrays_to_list_of_lists(list_of_arrays):
+    if list_of_arrays is None:
+        return None
+    elif isinstance(list_of_arrays[0], np.ndarray):
+        return [arr.tolist() for arr in list_of_arrays]
+    else:
+        return list_of_arrays
+
+
 # want to be consistent with fields in parquet files so we can load from there
 # TODO: look into how openai evals uses data classes or similar
 # TODO: consider how to represent masks
@@ -95,6 +105,28 @@ class ProteinDocument:
         str
     ] = None  # e.g. seed or cluster representative
     original_size: Optional[int] = None  # total number of proteins in original set
+
+    def __post_init__(self):
+        for field in [
+            "plddts",
+            "backbone_coords",
+            "backbone_coords_masks",
+            "interleaved_coords_masks",
+        ]:
+            if isinstance(getattr(self, field)[0], list):
+                setattr(self, field, [np.array(arr) for arr in getattr(self, field)])
+
+        check_array_lengths(
+            self.sequences,
+            self.plddts,
+            self.backbone_coords,
+            self.backbone_coords_masks,
+            self.structure_tokens,
+        )
+        if self.backbone_coords_masks is None and self.backbone_coords is not None:
+            self.backbone_coords_masks = [
+                np.ones_like(xyz) for xyz in self.backbone_coords
+            ]
 
     def __len__(self):
         return len(self.sequences)
@@ -144,6 +176,25 @@ class ProteinDocument:
             **kwargs,
         )
 
+    @classmethod
+    def from_json(cls, json_file, strict: bool = False):
+        with open(json_file, "r") as f:
+            protein_dict = json.load(f)
+
+        if strict:
+            assert all(
+                field in protein_dict for field in cls.__dataclass_fields__.keys()
+            ), f"Missing fields in {json_file}"
+        return cls(**protein_dict)
+
+    def to_json(self, json_file):
+        with open(json_file, "w") as f:
+            protein_dict = {
+                k: convert_list_of_arrays_to_list_of_lists(v)
+                for k, v in asdict(self).items()
+            }
+            json.dump(protein_dict, f)
+
     @property
     def representative(self):  # use as target for e.g. inverse folding evaluations
         assert self.seed_accession is not None
@@ -191,19 +242,6 @@ class ProteinDocument:
             sequences.append(seq)
             accessions.append(accession)
         return cls(identifier, sequences, accessions)
-
-    def __post_init__(self):
-        check_array_lengths(
-            self.sequences,
-            self.plddts,
-            self.backbone_coords,
-            self.backbone_coords_masks,
-            self.structure_tokens,
-        )
-        if self.backbone_coords_masks is None and self.backbone_coords is not None:
-            self.backbone_coords_masks = [
-                np.ones_like(xyz) for xyz in self.backbone_coords
-            ]
 
     def __getitem__(self, key):
         if isinstance(key, slice):

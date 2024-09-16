@@ -123,6 +123,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     ):
         self.num_generations = num_generations
         self.generations = defaultdict(dict)
+        self.prompts = defaultdict(dict)
         print(
             f"Initialised pipeline ID {pipeline_id} num generations {num_generations}"
         )
@@ -211,6 +212,13 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         else:
             self.generations[model_name][instance_id] = sequences
 
+    def save_prompt(self, instance_id, model_name, prompt: str) -> None:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+            prompt.to_json(os.path.join(outputs_dir, "prompt.json"))
+        else:
+            self.prompts[model_name][instance_id] = prompt
+
     def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
         if self.save_results_to_file:
             outputs_dir = os.path.join(
@@ -222,6 +230,18 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         else:
             sequences = self.generations[sampler_name][instance_id]
             return sequences
+
+    def load_prompt(self, instance_id: str, sampler_name: str) -> ProteinDocument:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, instance_id, sampler_name
+            )
+            prompt_file = os.path.join(outputs_dir, "prompt.json")
+            prompt = ProteinDocument.from_json(prompt_file)
+            return prompt
+        else:
+            prompt = self.prompts[sampler_name][instance_id]
+            return prompt
 
     def run(
         self,
@@ -253,8 +273,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 sampler.to("cpu")
                 self.save_generations(instance_id, sampler.name, generated_sequences)
+                self.save_prompt(instance_id, sampler.name, prompt)
             else:
                 generated_sequences = self.load_generations(instance_id, sampler.name)
+                prompt = self.load_prompt(instance_id, sampler.name)
 
             if not sampling_only:
                 try:

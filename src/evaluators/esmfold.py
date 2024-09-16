@@ -73,6 +73,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
         save_structures: bool = False,
+        verbose: bool = False,
         max_length: int = 512,  # TODO look into cpu offloading...
         **kwargs,
     ):
@@ -88,6 +89,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.use_precomputed_reference_structures = use_precomputed_reference_structures
         self.save_structures = save_structures
         self.max_length = max_length  # TODO: we can actually enforce this on sampling.
+        self.verbose = verbose
         if self.half_precision:
             print("Using half precision")
             self.esmfold = self.esmfold.half()
@@ -158,6 +160,11 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                     f.write(pdb_str)
 
         self.esmfold = self.esmfold.to("cpu")
+        if self.verbose:
+            print(
+                f"Sample PLDDT: {np.mean(sample_plddts)} TM Score: {np.mean(all_tm_scores)}",
+                flush=True,
+            )
         return {
             "prompt_plddt": np.mean(prompt_plddts),
             "sample_plddt": np.mean(sample_plddts),

@@ -47,7 +47,7 @@ def run(cfg: DictConfig) -> None:
     )
     evaluator = hydra.utils.instantiate(cfg.evaluator)
     pipeline = hydra.utils.instantiate(cfg.pipeline)
-    sampler = hydra.utils.instantiate(cfg.sampler)
+    sampler = hydra.utils.instantiate(cfg.sampler, _convert_="partial")
     # TODO: save sampler config to results directory and verify that it matches on rerun.
     pipeline.run(
         sampler,

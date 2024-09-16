@@ -7,7 +7,7 @@ name: northern-plant  # suggestion: use wandb run name
 checkpoint_path: outputs/inverse_folding/batched_preprocess/2024-09-15_12-28-15/checkpoints/last.ckpt
 sampling_kwargs:
   batch_size: 3
-  max_length: 512
+  max_generated_length: 512
 prompt_builder:
   _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
   preprocessor:
