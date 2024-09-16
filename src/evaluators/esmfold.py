@@ -101,6 +101,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         samples: List[str],
         output_dir: Optional[str] = None,
     ):
+        # TODO: really we should compare to ProteinDocument and not to prompt, which may differ...
+
         # TODO: add average best TM score or similar to structures in document.
         # https://github.com/blt2114/twisted_diffusion_sampler/blob/968f77111b44e9c711b64e650c41745498ba470d/protein_exp/experiments/inference_se3_diffusion.py#L392
         self.esmfold = self.esmfold.to(self.device)
@@ -108,10 +110,10 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         if self.save_structures:
             os.makedirs(output_dir, exist_ok=True)
 
-        assert len(protein_document) > 0
+        assert len(prompt) > 0
         if (
             not self.use_precomputed_reference_structures
-            or protein_document.backbone_coords is None
+            or prompt.backbone_coords is None
         ):
             reference_cas = []
             prompt_plddts = []
@@ -137,7 +139,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                 if np.isnan(prompt.plddts).any():
                     print("WARNING: NaNs in prompt PLDDTs")
                 prompt_plddts = [
-                    0.01 * np.mean(plddts[:l]) for plddts, l in zip(prompt.plddts, prompt_lens)
+                    0.01 * np.mean(plddts[:l])
+                    for plddts, l in zip(prompt.plddts, prompt_lens)
                 ]
             else:
                 prompt_plddts = []

@@ -174,6 +174,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         sampler_name: str,
         instance_id: str,
         evaluator: SamplingEvaluator,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         rerun_evaluator: bool = False,
     ) -> None:
@@ -187,9 +188,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             if rerun_evaluator:
                 if os.path.isdir(output_dir):
                     shutil.rmtree(output_dir)
+            # print("Prompt to evaluate", prompt)
             metrics = evaluator.evaluate_samples(
-                protein_document,
-                generated_sequences,
+                prompt=prompt,
+                protein_document=protein_document,
+                samples=generated_sequences,
                 output_dir=output_dir,
             )
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
@@ -284,7 +287,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                         sampler.name,
                         instance_id=instance_id,
                         evaluator=evaluator,
-                        protein_document=prompt,
+                        prompt=prompt,
+                        protein_document=protein_document,
                         rerun_evaluator=rerun_evaluator,
                     )
                 except Exception as e:

@@ -29,11 +29,14 @@ class SamplingEvaluator:
             assert len(samples) >= num_samples, f"Need at least {num_samples} samples"
             samples = samples[:num_samples]  # assuming samples are unsorted
 
-        return self._evaluate_samples(prompt, protein_document, samples, output_dir=output_dir)
+        return self._evaluate_samples(
+            prompt, protein_document, samples, output_dir=output_dir
+        )
 
     def _evaluate_samples(
         self,
         prompt: ProteinDocument,
+        protein_document: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
     ) -> Dict[str, float]:

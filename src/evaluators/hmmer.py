@@ -93,6 +93,7 @@ class ProfileHMMEvaluator(BaseHMMEREvaluator):
 
     def _evaluate_samples(
         self,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
@@ -173,6 +174,7 @@ class HMMAlignmentStatisticsEvaluator(BaseHMMEREvaluator):
 
     def _evaluate_samples(
         self,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
