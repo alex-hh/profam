@@ -145,13 +145,13 @@ def apply_plddt_mask(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
     threshold: float = 80.0,
-    **kwargs,
 ):
     # only mask structure tokens
     # must be before replace nans and before interleaving
     masked_coords = []
     masked_coords_masks = []
     masked_sequences = []
+    masked_plddts = []
     assert (
         proteins.interleaved_coords_masks is None
     ), "plddt masking should be applied before interleaving"
@@ -176,6 +176,7 @@ def apply_plddt_mask(
                 )
             ]
         )
+        masked_plddts.append(np.where(plddt_mask, np.nan, plddts))
 
     return proteins.clone(
         sequences=masked_sequences,
