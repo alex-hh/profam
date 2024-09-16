@@ -204,8 +204,23 @@ def interleave_structure_sequence(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
     structure_first_prob: float = 1.0,
+    # TODO: allow arbitrary mask probability generating functions
+    conditioning_sequence_mask_prob: tuple = (1.0, 1.0),  # range for uniform sampling of probability
+    conditioning_structure_mask_prob: tuple = (1.0, 1.0),
+    remove_conditioning_sequence_from_targets: bool = False,
+    remove_conditioning_structure_from_targets: bool = False,
+    use_structure_tokens: bool = True,
 ):
-    """Automatically reduces the number of proteinss to fit within max_tokens.
+    """Interleave structure and sequence tokens.
+
+    This transform allows structure-conditioned sequence generation and sequence-conditioned structure generation.
+
+    To increase flexibility, we allow conditioning on known amino acids during structure-conditioned
+    sequence generation and known structure during sequence-conditioned structure generation.
+    This is done by masking the target modality at positions belonging to the conditioning modality
+    according to the probabilities.
+
+    The function automatically reduces the number of proteins to fit within max_tokens.
 
     N.B. we hard-code coords padding as 0.
     """
@@ -218,6 +233,11 @@ def interleave_structure_sequence(
     interleaved_sequence_coords_masks = []
     interleaved_modality_masks = []
     total_tokens = tokenizer.num_start_tokens
+    if remove_conditioning_sequence_from_targets:
+        raise NotImplementedError("Not implemented yet - also applies to interleaved coords mask etc")
+    if remove_conditioning_structure_from_targets:
+        raise NotImplementedError("Not implemented yet - also applies to interleaved coords mask etc")
+    # verify_mask_probs(conditioning_sequence_mask_prob, conditioning_structure_mask_prob)
     for ix, seq in enumerate(proteins.sequences):
         if proteins.structure_tokens is not None:
             seq_3d = proteins.structure_tokens[ix]
@@ -240,33 +260,56 @@ def interleave_structure_sequence(
         ), f"seq {seq} length != xyz shape {xyz.shape[0]} or plddts {plddts.shape[0]}"  # n.b. special tokens can screw this up
         assert isinstance(positions, list)
         if coin_flip < structure_first_prob:
-            interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token + seq)
+
+            targets_plddts = np.array(plddts)
+            targets_coords = np.zeros_like(xyz)
+            targets_coords_mask = np.zeros_like(coords_mask)
+            targets_interleaved_sequence_coords_mask = coords_mask
+            targets_sequence_mask = np.ones((xyz.shape[0],))
+            targets_structure_mask = np.zeros((xyz.shape[0],))
+
+            if use_structure_tokens:
+                assert conditioning_sequence_mask_prob[0] == 1.0
+                assert not remove_conditioning_sequence_from_targets
+                interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token + seq)
+            else:
+                mask_frac = np.random.uniform(*conditioning_sequence_mask_prob)
+                mask = np.random.rand(len(seq)) < mask_frac
+                masked_seq = "".join(
+                    [aa if not m else tokenizer.mask_token for aa, m in zip(seq, mask)]
+                )
+                interleaved_sequences.append(
+                    masked_seq + tokenizer.seq_struct_sep_token + seq
+                )
+                if remove_conditioning_sequence_from_targets:
+                    raise NotImplementedError("Not implemented yet")
+
             interleaved_positions.append(
                 positions + [-1] + positions
             )  # 1 will be added to positions in tokenizer so we use -1
             interleaved_plddts.append(
                 np.concatenate(
-                    [np.array(plddts), np.full((1,), 100.0), np.array(plddts)]
+                    [np.array(plddts), np.full((1,), 100.0), targets_plddts]
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), 0.0), xyz], axis=0)
+                np.concatenate([xyz, np.full((1, 4, 3), 0.0), targets_coords], axis=0)
             )
             interleaved_structure_coords_masks.append(
                 np.concatenate(
-                    [coords_mask, np.zeros((1, 4, 3)), np.zeros_like(xyz)], axis=0
+                    [coords_mask, np.zeros((1, 4, 3)), targets_coords_mask], axis=0
                 )
             )
             interleaved_sequence_coords_masks.append(
                 np.concatenate(
-                    [np.zeros_like(xyz), np.zeros((1, 4, 3)), coords_mask], axis=0
+                    [np.zeros_like(xyz), np.zeros((1, 4, 3)), targets_interleaved_sequence_coords_mask], axis=0
                 )
             )
             sequence_mask = np.concatenate(
-                [np.zeros((xyz.shape[0] + 1,)), np.ones((xyz.shape[0],))]
+                [np.zeros((xyz.shape[0] + 1,)), targets_sequence_mask]
             )
             structure_mask = np.concatenate(
-                [np.ones((xyz.shape[0],)), np.zeros((xyz.shape[0] + 1,))]
+                [np.ones((xyz.shape[0],)), np.zeros((1,)), targets_structure_mask]
             )
             interleaved_modality_masks.append(
                 np.stack([sequence_mask, structure_mask], axis=-1).astype(bool)
