@@ -87,7 +87,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.half_precision = half_precision
         self.use_precomputed_reference_structures = use_precomputed_reference_structures
         self.save_structures = save_structures
-        self.max_length = max_length
+        self.max_length = max_length  # TODO: we can actually enforce this on sampling.
         if self.half_precision:
             print("Using half precision")
             self.esmfold = self.esmfold.half()

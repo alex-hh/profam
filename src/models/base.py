@@ -604,7 +604,10 @@ class BaseFamilyLitModule(BaseLitModule):
         input_ids,
         num_samples,
         batch_size: int = 1,
-        max_length: int = 8192,  # maximum length of inputs plus completions
+        max_generated_length: Optional[int] = None,
+        max_total_length: Optional[
+            int
+        ] = None,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
         input_coords: Optional[torch.FloatTensor] = None,
         include_prompt_in_output: bool = False,
@@ -625,17 +628,31 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
+        if max_total_length is None:
+            if self.use_seq_pos:
+                max_total_length = min(
+                    self.tokenizer.max_tokens,
+                    input_ids.shape[1] + self.tokenizer.max_seq_pos,
+                )
+            else:
+                max_total_length = self.tokenizer.max_tokens
+        if max_generated_length is not None:
+            assert max_generated_length <= max_total_length
         generation_kwargs = {}
         if fixed_length is not None:
-            if max_length is not None:
-                assert input_ids.shape[1] + fixed_length <= max_length
+            if max_total_length is not None:
+                assert input_ids.shape[1] + fixed_length <= max_total_length
             generation_kwargs["min_new_tokens"] = fixed_length
             generation_kwargs["max_new_tokens"] = fixed_length
             generation_kwargs["eos_token_id"] = None
+        elif max_generated_length is not None:
+            generation_kwargs["min_new_tokens"] = 3
+            generation_kwargs["max_new_tokens"] = max_generated_length
+            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
         else:
             generation_kwargs["min_new_tokens"] = 3  # for esmfold
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
-            generation_kwargs["max_length"] = max_length
+            generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
         bad_aas = ["X", "x"]
         if not sample_gaps:

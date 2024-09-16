@@ -12,22 +12,10 @@ class SamplingEvaluator:
         name: str,
         seed: int = 52,
         num_samples: Optional[int] = None,
-        max_tokens: int = 8192,
-        keep_gaps: bool = False,
-        keep_insertions: bool = True,
-        to_upper: bool = True,
-        use_msa_pos: bool = True,
-        document_token: str = "[RAW]",
     ):
         self.name = name
         self.seed = seed
-        self.max_tokens = max_tokens
         self.num_samples = num_samples
-        self.keep_gaps = keep_gaps
-        self.keep_insertions = keep_insertions
-        self.to_upper = to_upper
-        self.use_msa_pos = use_msa_pos
-        self.document_token = document_token
 
     def evaluate_samples(
         self,
