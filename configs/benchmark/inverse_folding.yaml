@@ -1,0 +1,6 @@
+# @package _global_
+
+defaults:
+  - override /pipeline: foldseek
+  - override /evaluator: esmfold
+  -
