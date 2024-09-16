@@ -167,14 +167,12 @@ def apply_plddt_mask(
             np.where(plddt_mask[:, None, None], 0.0, coords_mask)
         )
         masked_sequences.append(
-            [
-                "".join(
-                    [
-                        aa if not m else tokenizer.mask_token
-                        for aa, m in zip(sequence, plddt_mask)
-                    ]
-                )
-            ]
+            "".join(
+                [
+                    aa if not m else tokenizer.mask_token
+                    for aa, m in zip(sequence, plddt_mask)
+                ]
+            )
         )
         masked_plddts.append(np.where(plddt_mask, np.nan, plddts))
 
@@ -182,6 +180,7 @@ def apply_plddt_mask(
         sequences=masked_sequences,
         backbone_coords=masked_coords,
         backbone_coords_masks=masked_coords_masks,
+        plddts=masked_plddts,
     )
 
 

@@ -8,7 +8,7 @@ interleave_structure_sequence: true
 transform_fns:
   - _target_: src.data.transforms.apply_plddt_mask
     _partial_: true
-    threshold: 80.0
+    threshold: 80.0  # TODO: make this easier to configure
   - _target_: src.data.transforms.centre_backbones
     _partial_: true
     scale: 6.0
