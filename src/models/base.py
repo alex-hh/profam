@@ -176,6 +176,19 @@ class BaseLitModule(LightningModule):
                 has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
             )
             global_metrics["has_coords_frac"] = has_coords_frac
+            if "plddts" in batch:
+                mean_plddt = (
+                    batch["plddts"] * batch["structure_mask"].float()
+                ).sum() / batch["structure_mask"].float().sum()
+                global_metrics["mean_plddt"] = mean_plddt
+                if "plddt_mask" in batch:
+                    mean_plddt_unmasked = (
+                        batch["plddts"] * batch["plddt_mask"].float()
+                    ).sum() / batch["plddt_mask"].float().sum()
+                    global_metrics["mean_plddt_unmasked"] = mean_plddt_unmasked
+                    global_metrics["plddt_mask_frac"] = (
+                        batch["plddt_mask"] * batch["structure_mask"]
+                    ).float().sum() / batch["structure_mask"].float().sum()
             is_interleaved = (
                 batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
             ).any()
