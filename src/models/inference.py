@@ -129,11 +129,19 @@ class ProFamSampler:
         model: BaseFamilyLitModule,
         prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
+        checkpoint_path: Optional[str] = None,
     ):
         self.name = name
         self.model = model
         self.prompt_builder = prompt_builder
         self.sampling_kwargs = sampling_kwargs
+        self.checkpoint_path = checkpoint_path
+        if self.checkpoint_path is not None:
+            checkpoint = torch.load(
+                self.checkpoint_path, map_location=self.model.device
+            )["state_dict"]
+            self.model.load_state_dict(checkpoint)
+        self.model.eval()
 
     def to(self, device):
         self.model.to(device)
@@ -154,3 +162,20 @@ class ProFamSampler:
                 **self.sampling_kwargs,
             )
             return self.model.tokenizer.decode_tokens(tokens), prompt
+
+    @classmethod
+    def from_checkpoint_dir(
+        cls,
+        checkpoint_dir: str,
+        prompt_builder: PromptBuilder,
+        sampling_kwargs: Optional[Dict] = None,
+        name_suffix: str = "",
+    ):
+        # automatically load checkpoint path and, if possible, wandb run name
+        raise NotImplementedError("Not implemented yet")
+        return cls(
+            model=model,
+            prompt_builder=prompt_builder,
+            sampling_kwargs=sampling_kwargs,
+            checkpoint_path=checkpoint_dir,
+        )

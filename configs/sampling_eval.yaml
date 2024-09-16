@@ -14,5 +14,3 @@ defaults:
 rerun_model: false
 rerun_evaluator: false
 task_name: "eval"
-
-tags: ["dev"]
