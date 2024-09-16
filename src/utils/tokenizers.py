@@ -290,6 +290,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["high_plddt_mask"] = tokenized.data[
                 "structure_mask"
             ] & ~torch.isnan(tokenized.data["plddts"])
+            tokenized.data["plddts"] = tokenized.data["plddts"].masked_fill(
+                torch.isnan(tokenized.data["plddts"]), 0.0
+            )
 
         if proteins.original_size is not None:
             tokenized.data["original_size"] = torch.tensor(proteins.original_size)
