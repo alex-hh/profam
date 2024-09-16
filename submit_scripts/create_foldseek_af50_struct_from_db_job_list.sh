@@ -4,9 +4,8 @@ job_list_file=$1
 date
 hostname
 
-while IFS= read -r task_id; do
+while IFS= read -r file_prefix; do
   # Execute the SUBMIT JOB command (replace it with the actual command)
-    file_prefix=$(($task_id - 1))
     echo Submitting job to create parquet $file_prefix
     qsub ~/profam/submit_scripts/create_foldseek_af50_struct_from_db_single.qsub.sh $file_prefix
 done < $1
