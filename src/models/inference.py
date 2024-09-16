@@ -1,3 +1,4 @@
+import copy
 from typing import Dict, Optional
 
 import torch
@@ -130,12 +131,14 @@ class ProFamSampler:
         prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
         checkpoint_path: Optional[str] = None,
+        match_representative_length: bool = False,
     ):
         self.name = name
         self.model = model
         self.prompt_builder = prompt_builder
         self.sampling_kwargs = sampling_kwargs
         self.checkpoint_path = checkpoint_path
+        self.match_representative_length = match_representative_length
         if self.checkpoint_path is not None:
             checkpoint = torch.load(
                 self.checkpoint_path, map_location=self.model.device
@@ -148,6 +151,11 @@ class ProFamSampler:
 
     def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
         prompt, encoded = self.prompt_builder(protein_document, self.model.tokenizer)
+        sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
+        if self.match_representative_length:
+            sampling_kwargs["fixed_length"] = len(
+                protein_document.representative.sequence
+            )
         with torch.no_grad():  # prob unnecessary
             tokens = self.model._sample_seqs(
                 encoded["input_ids"].unsqueeze(0).to(self.model.device),
@@ -159,7 +167,7 @@ class ProFamSampler:
                 .float()
                 if self.model.embed_coords
                 else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
-                **self.sampling_kwargs,
+                **sampling_kwargs,
             )
             return self.model.tokenizer.decode_tokens(tokens), prompt
 
