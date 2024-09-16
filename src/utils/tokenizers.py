@@ -127,9 +127,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         max_seq_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
         seq_struct_sep_token="|",
-        mask_below_plddt: Optional[
-            float
-        ] = None,  # TODO: this prob shouldn't be attr on tokenizer
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -139,7 +136,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
         self.seq_struct_sep_token = seq_struct_sep_token
-        self.mask_below_plddt = mask_below_plddt
 
         if not self.additional_special_tokens:
             additional_special_tokens = [
@@ -291,15 +287,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert (
                 tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
-            if self.mask_below_plddt is not None:
-                # only mask structure tokens
-                plddt_mask = (tokenized.data["plddts"] < self.mask_below_plddt) & ~(
-                    tokenized.data["aa_mask"]
-                )
-                tokenized.data["plddt_mask"] = plddt_mask
-                tokenized.data["input_ids"][plddt_mask] = self.mask_token_id
-                tokenized.data["coords"][plddt_mask] = 0.0
-                tokenized.data["coords_mask"][plddt_mask] = 0.0
 
         if proteins.original_size is not None:
             tokenized.data["original_size"] = torch.tensor(proteins.original_size)

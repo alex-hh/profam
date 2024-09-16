@@ -141,6 +141,49 @@ def fill_missing_fields(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
     return proteins
 
 
+def apply_plddt_mask(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    threshold: float = 80.0,
+    **kwargs,
+):
+    # only mask structure tokens
+    # must be before replace nans and before interleaving
+    masked_coords = []
+    masked_coords_masks = []
+    masked_sequences = []
+    assert (
+        proteins.interleaved_coords_masks is None
+    ), "plddt masking should be applied before interleaving"
+    for sequence, coords, coords_mask, plddts in zip(
+        proteins.sequences,
+        proteins.backbone_coords,
+        proteins.backbone_coords_masks,
+        proteins.plddts,
+    ):
+        plddt_mask = plddts < threshold
+        masked_coords.append(np.where(plddt_mask[:, None, None], np.nan, coords))
+        masked_coords_masks.append(
+            np.where(plddt_mask[:, None, None], 0.0, coords_mask)
+        )
+        masked_sequences.append(
+            [
+                "".join(
+                    [
+                        aa if not m else tokenizer.mask_token
+                        for aa, m in zip(sequence, plddt_mask)
+                    ]
+                )
+            ]
+        )
+
+    return proteins.clone(
+        sequences=masked_sequences,
+        backbone_coords=masked_coords,
+        backbone_coords_masks=masked_coords_masks,
+    )
+
+
 def filter_by_length(
     proteins: ProteinDocument,
     min_length: Optional[int] = None,
