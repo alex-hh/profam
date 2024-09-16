@@ -10,7 +10,7 @@ sampling_kwargs:
 prompt_builder:
   _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
   preprocessor:
-    structure_tokens_col: "sequences_3di"
+    structure_tokens_col: null
     config:
       document_token: "[AFDB]"
   max_tokens: 1536

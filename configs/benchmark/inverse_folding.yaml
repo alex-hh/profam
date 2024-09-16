@@ -1,6 +1,9 @@
 # @package _global_
 
 defaults:
-  - override /pipeline: foldseek
+  - override /pipeline: parquet
   - override /evaluator: esmfold
-  -
+
+pipeline:
+  pipeline_id: foldseek_representatives_n
+  num_generations: 10

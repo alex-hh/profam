@@ -29,7 +29,7 @@ class BaseEvaluatorPipeline:
         pipeline_id: str,
         preprocessor: BasePreprocessor,  # we only use the build_document method
         benchmark_directory: str = None,
-        save_to_file: bool = True,
+        save_results_to_file: bool = True,
     ):
         self.pipeline_id = pipeline_id
         self.preprocessor = preprocessor
@@ -40,7 +40,7 @@ class BaseEvaluatorPipeline:
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
         )
-        self.save_to_file = save_to_file
+        self.save_results_to_file = save_results_to_file
         self.load_results()
 
     def instance_ids(self):
@@ -52,7 +52,7 @@ class BaseEvaluatorPipeline:
     def load_results(self) -> pd.DataFrame:
         """Load results dataframe from local disk location."""
         results_path = os.path.join(self.pipeline_directory, "results.csv")
-        if self.save_to_file and os.path.exists(results_path):
+        if self.save_results_to_file and os.path.exists(results_path):
             self.results_df = pd.read_csv(results_path)
         else:
             self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
@@ -84,7 +84,7 @@ class BaseEvaluatorPipeline:
 
     def save_results(self) -> None:
         """Save results dataframe to local disk location."""
-        if self.save_to_file:
+        if self.save_results_to_file:
             results_path = os.path.join(self.pipeline_directory, "results.csv")
             self.results_df.to_csv(results_path, index=True)
 
@@ -118,7 +118,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         pipeline_id: str,
         preprocessor: BasePreprocessor,
         benchmark_directory: str = None,
-        save_to_file: bool = True,
+        save_results_to_file: bool = True,
     ):
         self.num_generations = num_generations
         self.generations = defaultdict(dict)
@@ -129,11 +129,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             pipeline_id,
             preprocessor=preprocessor,
             benchmark_directory=benchmark_directory,
-            save_to_file=save_to_file,
+            save_results_to_file=save_results_to_file,
         )
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:
-        if not self.save_to_file:
+        if not self.save_results_to_file:
             return (
                 model_id in self.generations
                 and instance_id in self.generations[model_id]
@@ -199,7 +199,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             self.add_result(evaluator.name, instance_id, sampler_name, metrics)
 
     def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
-        if self.save_to_file:
+        if self.save_results_to_file:
             outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
             os.makedirs(outputs_dir, exist_ok=True)
             fasta.output_fasta(
@@ -211,7 +211,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             self.generations[model_name][instance_id] = sequences
 
     def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
-        if self.save_to_file:
+        if self.save_results_to_file:
             outputs_dir = os.path.join(
                 self.pipeline_directory, instance_id, sampler_name
             )
