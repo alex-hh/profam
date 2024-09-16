@@ -16,6 +16,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         evaluator: SamplingEvaluator,
         prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
+        match_representative_length: bool = False,
     ):
         self.pipeline = pipeline
         assert (
@@ -24,6 +25,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         self.evaluator = evaluator
         self.sampling_kwargs = sampling_kwargs or {}
         self.prompt_builder = prompt_builder
+        self.match_representative_length = match_representative_length
 
     def on_validation_epoch_end(self, trainer, model):
         # run on val epoch end rather than train to stay in sync with other validation metrics
@@ -35,6 +37,7 @@ class SamplingEvaluationPipelineCallback(Callback):
             model,
             prompt_builder=self.prompt_builder,
             sampling_kwargs=self.sampling_kwargs,
+            match_representative_length=self.match_representative_length,
         )
         if trainer.is_global_zero:
             # https://lightning.ai/docs/pytorch/stable/visualize/logging_advanced.html#rank-zero-only

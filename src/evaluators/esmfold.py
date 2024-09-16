@@ -96,6 +96,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
 
     def _evaluate_samples(
         self,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
@@ -114,7 +115,9 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         ):
             reference_cas = []
             prompt_plddts = []
-            for seq in protein_document.sequences:
+            prompt_lens = []
+            for seq in prompt.sequences:
+                prompt_lens.append(len(seq))
                 if len(seq) <= self.max_length:
                     out = self.esmfold.infer(seq)
                     final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
@@ -124,23 +127,27 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                         final_atom_positions[0, ..., ca_index, :].cpu().numpy()
                     )
         else:
-            ref_sequences = [seq.split("|")[0] for seq in protein_document.sequences]
-            ref_lengths = [len(seq) for seq in ref_sequences]
+            ref_sequences = [seq.split("|")[0] for seq in prompt.sequences]
+            prompt_lens = [len(seq) for seq in ref_sequences]
             reference_cas = [
-                coords[:l, 1, :]
-                for coords, l in zip(protein_document.backbone_coords, ref_lengths)
+                coords[:l, 1, :]  # slice handles possible interleaving
+                for coords, l in zip(prompt.backbone_coords, prompt_lens)
             ]
-            if protein_document.plddts is not None:
+            if prompt.plddts is not None:
+                if np.isnan(prompt.plddts).any():
+                    print("WARNING: NaNs in prompt PLDDTs")
                 prompt_plddts = [
-                    0.01 * np.mean(plddts) for plddts in protein_document.plddts
+                    0.01 * np.mean(plddts[:l]) for plddts, l in zip(prompt.plddts, prompt_lens)
                 ]
             else:
                 prompt_plddts = []
 
         sample_plddts = []
+        sample_lens = []
         all_tm_scores = []
         num_samples_greater_than_max_length = 0
         for i, seq in enumerate(samples):
+            sample_lens.append(len(seq))
             if len(seq) <= self.max_length:
                 out = self.esmfold.infer(seq)
                 # pdb_str = self.model.output_to_pdb(out)[0]
@@ -168,6 +175,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         return {
             "prompt_plddt": np.mean(prompt_plddts),
             "sample_plddt": np.mean(sample_plddts),
+            "prompt_lens": np.mean(prompt_lens),
+            "sample_lens": np.mean(sample_lens),
             "min_tm_score": np.mean([min(tm_scores) for tm_scores in all_tm_scores]),
             "max_tm_score": np.mean([max(tm_scores) for tm_scores in all_tm_scores]),
             "num_samples_greater_than_max_length": num_samples_greater_than_max_length,

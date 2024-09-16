@@ -222,9 +222,9 @@ class ProteinDocument:
 
     @property
     def representative(self):  # use as target for e.g. inverse folding evaluations
-        assert self.seed_accession is not None
-        seed_index = self.accessions.index(self.seed_accession)
-        return self[seed_index]
+        assert self.representative_accession is not None
+        rep_index = self.accessions.index(self.representative_accession)
+        return self[rep_index]
 
     def pop_representative(self):
         assert self.representative_accession is not None
