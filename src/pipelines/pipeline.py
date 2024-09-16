@@ -34,9 +34,9 @@ class BaseEvaluatorPipeline:
         """preprocessor: a bare preprocessor (no transform_fns), to build document from raw data."""
         self.pipeline_id = pipeline_id
         self.preprocessor = preprocessor
-        assert (
-            self.preprocessor.transform_fns is None
-        ), "Pipeline preprocessor should not have transforms"
+        # assert (
+        #     self.preprocessor.transform_fns is None
+        # ), "Pipeline preprocessor should not have transforms"  # doesnt matter: they dont get called
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,

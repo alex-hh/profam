@@ -136,6 +136,7 @@ class ProFamSampler:
         self.name = name
         self.model = model
         self.prompt_builder = prompt_builder
+        assert prompt_builder is not None
         self.sampling_kwargs = sampling_kwargs
         self.checkpoint_path = checkpoint_path
         self.match_representative_length = match_representative_length

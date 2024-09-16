@@ -19,7 +19,7 @@ class SamplingEvaluationPipelineCallback(Callback):
     ):
         self.pipeline = pipeline
         assert (
-            not self.pipeline.save_to_file
+            not self.pipeline.save_results_to_file
         ), "Pipeline should not save to file during callback"
         self.evaluator = evaluator
         self.sampling_kwargs = sampling_kwargs or {}
