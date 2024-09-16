@@ -20,17 +20,40 @@ class UpdatedDynamicCache(DynamicCache):
     """A DynamicCache that allows for batched key-value caching.
     Manually implements latest version of DynamicCache from transformers.
     (once this is released we can remove this class)
+
+    If we use this in a wrapper, we can call update_inputs in forward,
+    then pass the cache on to the model.
+
+    Q. why doesn't HF already have an attention mask cache? surely
+    2D attention mask could be inconsistent with causal mask?
+
+    Oh - is it because attention_mask is expected to align with target length?
+    Seemingly yes
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.input_ids_cache = None
 
     def batch_repeat_interleave(self, repeats: int):
         """Repeat the cache `repeats` times in the batch dimension. Used in contrastive search."""
-        for layer_idx in range(len(self)):
-            self.key_cache[layer_idx] = self.key_cache[layer_idx].repeat_interleave(
-                repeats, dim=0
-            )
-            self.value_cache[layer_idx] = self.value_cache[layer_idx].repeat_interleave(
-                repeats, dim=0
-            )
+        super().batch_repeat_interleave(repeats)
+        if self.input_ids_cache is not None:
+            raise NotImplementedError()
+
+    def update_inputs(self, input_ids, attention_mask):
+        assert input_ids.ndim == 2
+        assert attention_mask.ndim == 2
+        if self.input_ids_cache is None:
+            self.input_ids_cache = input_ids.clone()
+        else:
+            self.input_ids_cache = torch.cat([self.input_ids_cache, input_ids], dim=-1)
+
+    @classmethod
+    def from_dynamic_cache(cls, cache):
+        assert not cache.key_cache
+        # basically we just create a new cache - we can do this ourselves
+        raise NotImplementedError()
 
 
 def accuracy_from_outputs(
