@@ -6,9 +6,9 @@ defaults:
   - sampler: null  # needs to be set
   - pipeline: pfam_example
   - evaluator: pfam_profile_hmm
+  - paths: benchmark  # TODO: handle hydra path?
   - extras: default
-  - tokenizer: profam
+  - constants: profam
 
-rerun_model: false
+rerun_sampler: false
 rerun_evaluator: false
-task_name: "eval"

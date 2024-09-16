@@ -6,6 +6,9 @@ defaults:
   - override /evaluator: esmfold
 
 pipeline:
-  pipeline_id: foldseek_representatives_n${pipeline.num_generations}
+  pipeline_id: foldseek_representatives_n10
   num_generations: 10
-  evaluation_parquet: "foldseek_representatives/0.parquet"
+  evaluation_parquet: "${paths.data_dir}/foldseek_representatives/0.parquet"
+
+evaluator:
+  num_samples: 10
