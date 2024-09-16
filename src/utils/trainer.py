@@ -15,12 +15,11 @@ class ProFamTrainer(Trainer):
         val_check_interval_divide_by_world_size: bool = True,
         **kwargs
     ):
+        devices = kwargs.get("devices", "auto")
+        if devices == "auto":
+            assert torch.cuda.is_available()
+            devices = torch.cuda.device_count()
         if target_tokens_per_batch is not None:
-            devices = kwargs.get("devices", "auto")
-            if devices == "auto":
-                assert torch.cuda.is_available()
-                devices = torch.cuda.device_count()
-
             assert (
                 "accumulate_grad_batches" not in kwargs
             ), "accumulate_grad_batches should not be set when target_tokens_per_batch is set"
