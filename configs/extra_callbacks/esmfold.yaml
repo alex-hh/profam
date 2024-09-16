@@ -19,3 +19,7 @@ pipeline:
   evaluation_accessions_file: null
   max_instances: null
   pipeline_id: foldseek_n${.pipeline.num_generations}  # for callback this doesnt matter
+  preprocessor:
+    _target_: src.data.preprocessing.ParquetStructurePreprocessor
+    structure_tokens_col: null
+    infer_representative_from_identifier: True

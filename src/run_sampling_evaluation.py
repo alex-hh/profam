@@ -42,7 +42,7 @@ def run(cfg: DictConfig) -> None:
     """
     print(OmegaConf.to_yaml(cfg))  # useful for spotting any possible errors
     print(
-        f"Running validation {cfg.evaluator.name} on generator {cfg.pretrained_model.name}"
+        f"Running validation {cfg.evaluator.name} on generator {cfg.sampler.name}"
         f" on data from pipeline {cfg.pipeline.pipeline_id}"
     )
     evaluator = hydra.utils.instantiate(cfg.evaluator)

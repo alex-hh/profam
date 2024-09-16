@@ -2,12 +2,8 @@ _target_: src.evaluators.hmmer.PFAMHMMAlignmentStatistics
 seed: 52
 pfam_hmm_dir: "../data/pfam_hmms"
 pfam_database: "../data/pfam/Pfam-A.hmm"
-keep_gaps: False
-keep_insertions: True
-to_upper: True
 num_reference: 5000
 num_samples: 3000
-max_tokens: ${data.max_tokens}
 is_pre_aligned: False
 name: "pfam_msa_statistics"  # n
 document_token: "[RAW]"

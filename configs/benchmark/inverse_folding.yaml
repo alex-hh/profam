@@ -1,9 +1,11 @@
 # @package _global_
 
 defaults:
-  - override /pipeline: parquet
+  - override /sampler: northern-plant_if
+  - override /pipeline: foldseek_with_coords
   - override /evaluator: esmfold
 
 pipeline:
-  pipeline_id: foldseek_representatives_n
+  pipeline_id: foldseek_representatives_n${pipeline.num_generations}
   num_generations: 10
+  evaluation_parquet: "foldseek_representatives/0.parquet"

@@ -31,6 +31,7 @@ class BaseEvaluatorPipeline:
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
     ):
+        """preprocessor: a bare preprocessor (no transform_fns), to build document from raw data."""
         self.pipeline_id = pipeline_id
         self.preprocessor = preprocessor
         assert (
