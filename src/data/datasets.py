@@ -150,7 +150,13 @@ def load_protein_dataset(
 
     def prefilter_example(example):
         # TODO: base this on max_seq_pos
-        filter_num_seqs = len(example["sequences"]) >= (cfg.minimum_sequences or 1)
+        if "sequences" in example:
+            filter_num_seqs = len(example["sequences"]) >= (cfg.minimum_sequences or 1)
+        else:
+            # TODO: this is inexact
+            filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
+                cfg.minimum_sequences or 1
+            )
         # TODO: we need to be very careful with this!
         filter_identifier = (
             cfg.holdout_identifiers is None
