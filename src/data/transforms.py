@@ -176,6 +176,7 @@ def interleave_structure_sequence(
     interleaved_coords = []
     interleaved_structure_coords_masks = []
     interleaved_sequence_coords_masks = []
+    interleaved_modality_masks = []
     total_tokens = tokenizer.num_start_tokens
     for ix, seq in enumerate(proteins.sequences):
         if proteins.structure_tokens is not None:
@@ -221,6 +222,15 @@ def interleave_structure_sequence(
                     [np.zeros_like(xyz), np.zeros((1, 4, 3)), coords_mask], axis=0
                 )
             )
+            sequence_mask = np.concatenate(
+                [np.zeros((xyz.shape[0] + 1,)), np.ones((xyz.shape[0],))]
+            )
+            structure_mask = np.concatenate(
+                [np.ones((xyz.shape[0],)), np.zeros((xyz.shape[0] + 1,))]
+            )
+            interleaved_modality_masks.append(
+                np.stack([sequence_mask, structure_mask], axis=-1).astype(bool)
+            )
         else:
             interleaved_sequences.append(seq + tokenizer.seq_struct_sep_token + seq_3d)
             interleaved_positions.append(positions + [-1] + positions)
@@ -242,6 +252,15 @@ def interleave_structure_sequence(
                     [coords_mask, np.zeros((1, 4, 3)), np.zeros_like(xyz)], axis=0
                 )
             )
+            sequence_mask = np.concatenate(
+                [np.ones((xyz.shape[0],)), np.zeros((xyz.shape[0] + 1,))]
+            )
+            structure_mask = np.concatenate(
+                [np.zeros((xyz.shape[0] + 1,)), np.ones((xyz.shape[0],))]
+            )
+            interleaved_modality_masks.append(
+                np.stack([sequence_mask, structure_mask], axis=-1).astype(bool)
+            )
 
         assert not "[" in seq
         total_tokens += len(seq) * 2 + 2  # +1 for each separator
@@ -253,6 +272,7 @@ def interleave_structure_sequence(
             interleaved_coords = interleaved_coords[:-1]
             interleaved_structure_coords_masks = interleaved_structure_coords_masks[:-1]
             interleaved_sequence_coords_masks = interleaved_sequence_coords_masks[:-1]
+            interleaved_modality_masks = interleaved_modality_masks[:-1]
             assert (
                 len(interleaved_sequences) > 0
             ), f"Cannot fit any sequences in max_tokens tried {total_tokens} max {tokenizer.max_tokens}"
@@ -265,6 +285,7 @@ def interleave_structure_sequence(
         backbone_coords=interleaved_coords,
         backbone_coords_masks=interleaved_structure_coords_masks,
         interleaved_coords_masks=interleaved_sequence_coords_masks,
+        modality_masks=interleaved_modality_masks,
         structure_tokens=None,
     )
 

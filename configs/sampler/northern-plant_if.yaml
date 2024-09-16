@@ -8,6 +8,7 @@ checkpoint_path: outputs/inverse_folding/batched_preprocess/2024-09-15_12-28-15/
 sampling_kwargs:
   batch_size: 3
   max_generated_length: 512
+  temperature: 0.1
 prompt_builder:
   _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
   preprocessor:

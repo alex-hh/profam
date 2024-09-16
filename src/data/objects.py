@@ -88,7 +88,9 @@ class ProteinDocument:
         "plddts",
         "backbone_coords",
         "backbone_coords_masks",
+        "interleaved_coords_masks",
         "structure_tokens",
+        "modality_masks",
     ]
     sequences: List[str]
     accessions: Optional[List[str]] = None
@@ -101,6 +103,9 @@ class ProteinDocument:
         List[np.ndarray]
     ] = None  # if interleaving, indicates which coords are available at each sequence position
     structure_tokens: Optional[List[str]] = None
+    # L x 2, boolean mask for modality (0: sequence, 1: structure)
+    # really tells us about what we are predicting: we could condition on e.g. sequence within interleaved structure.
+    modality_masks: Optional[np.ndarray] = None
     representative_accession: Optional[
         str
     ] = None  # e.g. seed or cluster representative
@@ -112,8 +117,10 @@ class ProteinDocument:
             "backbone_coords",
             "backbone_coords_masks",
             "interleaved_coords_masks",
+            "modality_masks",
         ]:
-            if isinstance(getattr(self, field)[0], list):
+            attr = getattr(self, field)
+            if attr is not None and isinstance(attr[0], list):
                 setattr(self, field, [np.array(arr) for arr in getattr(self, field)])
 
         check_array_lengths(
@@ -122,10 +129,28 @@ class ProteinDocument:
             self.backbone_coords,
             self.backbone_coords_masks,
             self.structure_tokens,
+            self.interleaved_coords_masks,
+            self.modality_masks,
         )
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
             self.backbone_coords_masks = [
                 np.ones_like(xyz) for xyz in self.backbone_coords
+            ]
+        if self.modality_masks is None:
+            assert (
+                self.interleaved_coords_masks is None
+            ), "Must pass modality masks if interleaved coords are present"
+            sequences_masks = [np.ones(len(seq)) for seq in self.sequences]
+            has_struct = (
+                self.structure_tokens is not None or self.backbone_coords is not None
+            )
+            structure_masks = [
+                np.ones(len(seq)) if has_struct else np.zeros(len(seq))
+                for seq in self.sequences
+            ]
+            self.modality_masks = [
+                np.stack([seq_mask, struct_mask], axis=1).astype(bool)
+                for seq_mask, struct_mask in zip(sequences_masks, structure_masks)
             ]
 
     def __len__(self):
@@ -385,6 +410,10 @@ class ProteinDocument:
                 "representative_accession", self.representative_accession
             ),
             original_size=kwargs.get("original_size", self.original_size),
+            modality_masks=kwargs.get(
+                "modality_masks",
+                self.modality_masks.copy() if self.modality_masks is not None else None,
+            ),
         )
 
     def extend(self, proteins: "ProteinDocument"):

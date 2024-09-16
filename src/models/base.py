@@ -16,11 +16,8 @@ from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
-from src.models.utils import (
-    UpdatedDynamicCache,
-    accuracy_from_outputs,
-    log_likelihood_from_outputs,
-)
+from src.models import metrics
+from src.models.utils import UpdatedDynamicCache, log_likelihood_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -143,7 +140,7 @@ class BaseLitModule(LightningModule):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
 
-        dataset_accuracies = accuracy_from_outputs(
+        dataset_accuracies = metrics.accuracy_from_outputs(
             outputs,
             batch["labels"],
             ignore_index=-100,
@@ -170,31 +167,15 @@ class BaseLitModule(LightningModule):
             "aa_accuracy": dataset_accuracies.pop("global"),
         }
         if "coords" in batch:
-            has_coords_mask = batch["coords_mask"].any((-1, -2))
-            assert has_coords_mask.ndim == 2  # b, L
-            has_coords_frac = (
-                has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
-            )
-            global_metrics["has_coords_frac"] = has_coords_frac
+            global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
             if "plddts" in batch:
-                mean_plddt = (
-                    batch["plddts"] * batch["structure_mask"].float()
-                ).sum() / batch["structure_mask"].float().sum()
-                global_metrics["mean_plddt"] = mean_plddt
-                if "plddt_mask" in batch:
-                    mean_plddt_unmasked = (
-                        batch["plddts"] * batch["plddt_mask"].float()
-                    ).sum() / batch["plddt_mask"].float().sum()
-                    global_metrics["mean_plddt_unmasked"] = mean_plddt_unmasked
-                    global_metrics["plddt_mask_frac"] = (
-                        batch["plddt_mask"] * batch["structure_mask"]
-                    ).float().sum() / batch["structure_mask"].float().sum()
+                global_metrics.update(metrics.plddt_metrics(**batch))
             is_interleaved = (
                 batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
             ).any()
             if is_interleaved:
                 aa_has_coords_mask = batch["interleaved_coords_mask"].any((-1, -2))
-                has_coords_dataset_accuracies = accuracy_from_outputs(
+                has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
                     outputs,
                     batch["labels"],
                     ignore_index=-100,
@@ -213,7 +194,7 @@ class BaseLitModule(LightningModule):
                 ] = has_coords_dataset_accuracies.pop("global")
 
         if has_3di:
-            dataset_accuracies_3di = accuracy_from_outputs(
+            dataset_accuracies_3di = metrics.accuracy_from_outputs(
                 outputs,
                 batch["labels"],
                 ignore_index=-100,

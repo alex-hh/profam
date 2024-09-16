@@ -140,6 +140,9 @@ class ProFamSampler:
         self.checkpoint_path = checkpoint_path
         self.match_representative_length = match_representative_length
         if self.checkpoint_path is not None:
+            print(
+                f"Initialising ProFam sampler, loading checkpoint {self.checkpoint_path}"
+            )
             checkpoint = torch.load(
                 self.checkpoint_path, map_location=self.model.device
             )["state_dict"]
