@@ -181,53 +181,17 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 "Unsupported attention mask type", self.attention_mask_type
             )
 
-    def update_seq_pos_for_generation(self, input_ids, prompt_seq_pos):
-        # n.b. generate automatically adds pad token to the end of finished sequences.
-        # so if we want to support generation only of single sequences, we can just not worry about
-        # effect of sep token on incrementation of seq pos.
-        prompt_length = prompt_seq_pos.shape[-1]
-        if input_ids.shape[-1] != prompt_length:
-            generated_tokens = input_ids[:, prompt_length:]
-            # basically we are saying that eos_token_id in generation config must be sep_token_id
-            assert_only_padding_after_eos(
-                generated_tokens,
-                self.tokenizer.sep_token_id,
-                self.tokenizer.pad_token_id,
-            )
-
-            # we have incremented input ids but not seq pos
-            increment = input_ids.shape[-1] - prompt_length
-
-            # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
-            # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
-
-            input_final_seq_pos = prompt_seq_pos[:, -1:]
-            if (input_final_seq_pos[:, -1] == 0).any():  # handles sep cases
-                assert input_ids[0, prompt_length - 1].item() in [
-                    self.tokenizer.sep_token_id,
-                    self.tokenizer.seq_struct_sep_token_id,
-                ], f"{input_ids[0, prompt_length-1]} {increment}"
-                assert (input_final_seq_pos[:, -1] == 0).all()
-                # we are starting new sequences
-                seq_pos = torch.full_like(
-                    input_final_seq_pos, self.start_seq_pos + increment - 1
-                )
-                # seq_pos corresponds to position of previously generated token in the sequence
-                # when increment is 1, seq_pos is self.start_seq_pos
-            else:
-                if increment == 1:
-                    print(
-                        f"Warning: not sampling a new sequence, check inputs if this is desired behaviour "
-                        f"({prompt_seq_pos}, {input_ids})"
-                    )
-                seq_pos = input_final_seq_pos + increment
-        else:
-            seq_pos = prompt_seq_pos
-
-        return seq_pos
-
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
-    def prepare_inputs_for_generation(self, input_ids, **kwargs):
+    def prepare_inputs_for_generation(
+        self,
+        input_ids,
+        past_key_values=None,
+        seq_pos=None,
+        cache_position=None,
+        use_cache=True,
+        coords=None,
+        **kwargs,
+    ):
         """Build inputs dictionary for next step in generation, given full input_ids (
         prompt + generated tokens), and other model kwargs (also full length).
 
@@ -259,7 +223,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         assert input_ids.ndim == 2
 
         inputs = super().prepare_inputs_for_generation(
-            input_ids, **kwargs
+            input_ids,
+            past_key_values=past_key_values,
+            cache_position=cache_position,
+            use_cache=use_cache,
+            **kwargs,
         )  # slices out prompt and uses cache typically.
 
         # input_ids is prompt + generated tokens
@@ -267,7 +235,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # inputs["input_ids"] is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
         if self.use_seq_pos:
-            inputs["seq_pos"] = kwargs["seq_pos"][:, kwargs["cache_position"]]
+            inputs["seq_pos"] = (
+                seq_pos[:, cache_position] if past_key_values is not None else seq_pos
+            )
 
         if self.embed_sequence_index:
             inputs["start_sequence_index"] = kwargs["start_sequence_index"]
@@ -275,7 +245,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.embed_coords:
             # updated in _update_model_kwargs_for_generation
             assert input_ids.shape[-1] == kwargs["coords"].shape[1]
-            inputs["coords"] = kwargs["coords"][:, kwargs["cache_position"]]
+            inputs["coords"] = (
+                coords[:, cache_position] if past_key_values is not None else coords
+            )
 
         return inputs
 
@@ -312,7 +284,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         assert model_kwargs["use_cache"]
         assert (
             "past_key_values" in outputs
-        ), "We assume we're using cache and past_key_values is cache_name"
+        ), "We assume we're using cache and past_key_values is cache_name, otherwise sequence index is hard to compute"
         past_key_values = outputs.past_key_values
 
         if self.embed_sequence_index:
