@@ -117,6 +117,7 @@ def save_pdbs_to_parquet(
         results.append(res)
 
     df = pd.DataFrame(results)
+    df[["N", "CA", "C", "O", "plddts"]] = df[["N", "CA", "C", "O", "plddts"]].astype("float16")
     # Q. why not just df.to_parquet?
     table = pa.Table.from_pandas(df)
     output_file = os.path.join(f'{save_dir}', f'{parquet_id}.parquet')

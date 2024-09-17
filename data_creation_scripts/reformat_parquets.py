@@ -26,6 +26,24 @@ def rename_column_in_parquet(file_path, old_column_name, new_column_name):
         return
 
 
+def convert_coords_to_float16(file_path, column_names):
+    """
+    Converts columns in a Parquet file to float16.
+    
+    :param file_path: Path to the input Parquet file.
+    :param column_names: List of column names to convert to float16.
+    :param output_dir: Directory where the updated file will be saved. If None, it overwrites the original file.
+    """
+    # Read the Parquet file into a Pandas DataFrame
+    df = pd.read_parquet(file_path)
+
+    # Convert columns to float16
+    df[column_names] = df[column_names].astype('float16')
+
+    # Save the updated file
+    df.to_parquet(file_path, index=False)
+
+
 def process_parquet_files(file_list, old_column_name, new_column_name):
     """
     Processes a list of Parquet files, renaming a specific column in each file.
@@ -37,6 +55,7 @@ def process_parquet_files(file_list, old_column_name, new_column_name):
     """
     for file_path in tqdm.tqdm(file_list):
         rename_column_in_parquet(file_path, old_column_name, new_column_name)
+        convert_coords_to_float16(file_path, ["N", "CA", "C", "O", "plddts"])
 
 
 # Example usage
