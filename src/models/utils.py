@@ -16,13 +16,16 @@ def calc_grad_norm(params):
     return grad_norm
 
 
-class UpdatedDynamicCache(DynamicCache):
+class InputAwareDynamicCache(DynamicCache):
     """A DynamicCache that allows for batched key-value caching.
     Manually implements latest version of DynamicCache from transformers.
     (once this is released we can remove this class)
 
     If we use this in a wrapper, we can call update_inputs in forward,
     then pass the cache on to the model.
+
+    Notes on various cache types:
+    https://huggingface.co/docs/transformers/main/en/kv_cache
 
     Q. why doesn't HF already have an attention mask cache? surely
     2D attention mask could be inconsistent with causal mask?
