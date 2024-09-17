@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
 from lightning.fabric.utilities.throughput import get_available_flops
@@ -154,9 +154,11 @@ class TokenThroughputMonitor(ThroughputMonitor):
         throughput = self._throughputs[stage]
         metrics = throughput.compute()
         # prefix with the stage to avoid collisions
-        metrics = {f"throughput/{stage.value}{throughput.separator}{k}": v for k, v in metrics.items()}
+        metrics = {
+            f"throughput/{stage.value}{throughput.separator}{k}": v
+            for k, v in metrics.items()
+        }
         trainer._logger_connector.log_metrics(metrics, step=iter_num)  # type: ignore[arg-type]
-
 
     @torch.inference_mode()  # in case `length_fn` or `batch_size_fn` computes grads
     def _update(
