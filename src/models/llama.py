@@ -68,11 +68,9 @@ class LlamaLitModule(BaseFamilyLitModule):
             model = WrappedLlamaForCausalLM(
                 config,
                 token_embedder="model.embed_tokens",
+                tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
-                use_seq_pos=tokenizer.use_seq_pos,
-                max_seq_pos=tokenizer.max_seq_pos,
                 embed_coords=embed_coords,
-                sep_token_id=tokenizer.sep_token_id,
                 embed_sequence_index=embed_sequence_index,
                 max_sequence_index=max_sequence_index,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,

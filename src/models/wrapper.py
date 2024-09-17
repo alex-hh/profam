@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from transformers.utils import ModelOutput
 
+from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import nested_getattr
 
 
@@ -39,10 +40,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         config,
         token_embedder: str,
         embedding_dim: int,
-        sep_token_id: int,
+        tokenizer: ProFamTokenizer,
         start_seq_pos: int = 2,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 2048,
         require_seq_pos: bool = True,
         embed_coords: bool = False,
         embed_sequence_index: bool = False,
@@ -51,19 +50,18 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         max_sequence_index: int = 1024,
     ):
         super().__init__(config)
-        self.use_seq_pos = use_seq_pos
+        self.use_seq_pos = tokenizer.use_seq_pos
         self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent
         # TODO: avoid re-tracking - does this happen automatically?
         self.token_embedder = nested_getattr(
             self, token_embedder
         )  # TODO: use self.embed_tokens or sthg
         self.require_seq_pos = require_seq_pos
-        self.max_seq_pos = max_seq_pos
+        self.max_seq_pos = tokenizer.max_seq_pos
         self.embed_coords = embed_coords
         self.num_atoms = 4
         self.embed_sequence_index = embed_sequence_index
         self.max_sequence_index = max_sequence_index
-        self.sep_token_id = sep_token_id
         self.pass_constant_position_ids_for_global_index = (
             pass_constant_position_ids_for_global_index
         )
@@ -77,7 +75,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.use_seq_pos:
             self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
         if self.embed_sequence_index:
-            assert self.sep_token_id is not None
             self.sequence_index_embedding = nn.Embedding(
                 self.max_sequence_index, embedding_dim
             )
