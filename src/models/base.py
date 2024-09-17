@@ -12,15 +12,13 @@ from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
 from transformers import PreTrainedTokenizerFast
+from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
-from src.models.utils import (
-    InputAwareDynamicCache,
-    accuracy_from_outputs,
-    log_likelihood_from_outputs,
-)
+from src.models import metrics
+from src.models.utils import InputAwareDynamicCache, log_likelihood_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -143,7 +141,7 @@ class BaseLitModule(LightningModule):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
 
-        dataset_accuracies = accuracy_from_outputs(
+        dataset_accuracies = metrics.accuracy_from_outputs(
             outputs,
             batch["labels"],
             ignore_index=-100,
@@ -170,18 +168,15 @@ class BaseLitModule(LightningModule):
             "aa_accuracy": dataset_accuracies.pop("global"),
         }
         if "coords" in batch:
-            has_coords_mask = batch["coords_mask"].any((-1, -2))
-            assert has_coords_mask.ndim == 2  # b, L
-            has_coords_frac = (
-                has_coords_mask.float().sum() / batch["structure_mask"].float().sum()
-            )
-            global_metrics["has_coords_frac"] = has_coords_frac
+            global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
+            if "plddts" in batch:
+                global_metrics.update(metrics.plddt_metrics(**batch))
             is_interleaved = (
                 batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
             ).any()
             if is_interleaved:
                 aa_has_coords_mask = batch["interleaved_coords_mask"].any((-1, -2))
-                has_coords_dataset_accuracies = accuracy_from_outputs(
+                has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
                     outputs,
                     batch["labels"],
                     ignore_index=-100,
@@ -198,9 +193,13 @@ class BaseLitModule(LightningModule):
                 global_metrics[
                     "has_coords_aa_accuracy"
                 ] = has_coords_dataset_accuracies.pop("global")
+                global_metrics["aa_has_coords_frac"] = (
+                    aa_has_coords_mask & batch["aa_mask"]
+                ).float().sum() / batch["aa_mask"].float().sum()
+            global_metrics["aa_count"] = batch["aa_mask"].float().sum()
 
         if has_3di:
-            dataset_accuracies_3di = accuracy_from_outputs(
+            dataset_accuracies_3di = metrics.accuracy_from_outputs(
                 outputs,
                 batch["labels"],
                 ignore_index=-100,
@@ -604,7 +603,10 @@ class BaseFamilyLitModule(BaseLitModule):
         input_ids,
         num_samples,
         batch_size: int = 1,
-        max_length: int = 8192,  # maximum length of inputs plus completions
+        max_generated_length: Optional[int] = None,
+        max_total_length: Optional[
+            int
+        ] = None,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
         input_coords: Optional[torch.FloatTensor] = None,
         include_prompt_in_output: bool = False,
@@ -625,17 +627,31 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
+        if max_total_length is None:
+            if self.use_seq_pos:
+                max_total_length = min(
+                    self.tokenizer.max_tokens,
+                    input_ids.shape[1] + self.tokenizer.max_seq_pos,
+                )
+            else:
+                max_total_length = self.tokenizer.max_tokens
+        if max_generated_length is not None:
+            assert max_generated_length <= max_total_length
         generation_kwargs = {}
         if fixed_length is not None:
-            if max_length is not None:
-                assert input_ids.shape[1] + fixed_length <= max_length
+            if max_total_length is not None:
+                assert input_ids.shape[1] + fixed_length <= max_total_length
             generation_kwargs["min_new_tokens"] = fixed_length
             generation_kwargs["max_new_tokens"] = fixed_length
             generation_kwargs["eos_token_id"] = None
+        elif max_generated_length is not None:
+            generation_kwargs["min_new_tokens"] = 3
+            generation_kwargs["max_new_tokens"] = max_generated_length
+            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
         else:
             generation_kwargs["min_new_tokens"] = 3  # for esmfold
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
-            generation_kwargs["max_length"] = max_length
+            generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
         bad_aas = ["X", "x"]
         if not sample_gaps:
@@ -854,6 +870,7 @@ class BaseFamilyLitModule(BaseLitModule):
             .mean()
             .item(),
             on_step=True,
+            prog_bar=True,
             on_epoch=False,
         )
         self.log_ds_sample_counts(batch)

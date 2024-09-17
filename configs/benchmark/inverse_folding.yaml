@@ -1,0 +1,15 @@
+# @package _global_
+
+defaults:
+  - override /sampler: northern-plant_if
+  - override /pipeline: foldseek_with_coords
+  - override /evaluator: esmfold
+
+pipeline:
+  pipeline_id: foldseek_representatives_n10
+  num_generations: 10
+  evaluation_parquet: "${paths.data_dir}/foldseek_representatives/0.parquet"
+
+evaluator:
+  num_samples: 10
+  verbose: true

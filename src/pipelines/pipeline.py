@@ -29,18 +29,19 @@ class BaseEvaluatorPipeline:
         pipeline_id: str,
         preprocessor: BasePreprocessor,  # we only use the build_document method
         benchmark_directory: str = None,
-        save_to_file: bool = True,
+        save_results_to_file: bool = True,
     ):
+        """preprocessor: a bare preprocessor (no transform_fns), to build document from raw data."""
         self.pipeline_id = pipeline_id
         self.preprocessor = preprocessor
-        assert (
-            self.preprocessor.transform_fns is None
-        ), "Pipeline preprocessor should not have transforms"
+        # assert (
+        #     self.preprocessor.transform_fns is None
+        # ), "Pipeline preprocessor should not have transforms"  # doesnt matter: they dont get called
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
         )
-        self.save_to_file = save_to_file
+        self.save_results_to_file = save_results_to_file
         self.load_results()
 
     def instance_ids(self):
@@ -52,7 +53,7 @@ class BaseEvaluatorPipeline:
     def load_results(self) -> pd.DataFrame:
         """Load results dataframe from local disk location."""
         results_path = os.path.join(self.pipeline_directory, "results.csv")
-        if self.save_to_file and os.path.exists(results_path):
+        if self.save_results_to_file and os.path.exists(results_path):
             self.results_df = pd.read_csv(results_path)
         else:
             self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
@@ -84,7 +85,7 @@ class BaseEvaluatorPipeline:
 
     def save_results(self) -> None:
         """Save results dataframe to local disk location."""
-        if self.save_to_file:
+        if self.save_results_to_file:
             results_path = os.path.join(self.pipeline_directory, "results.csv")
             self.results_df.to_csv(results_path, index=True)
 
@@ -118,10 +119,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         pipeline_id: str,
         preprocessor: BasePreprocessor,
         benchmark_directory: str = None,
-        save_to_file: bool = True,
+        save_results_to_file: bool = True,
     ):
         self.num_generations = num_generations
         self.generations = defaultdict(dict)
+        self.prompts = defaultdict(dict)
         print(
             f"Initialised pipeline ID {pipeline_id} num generations {num_generations}"
         )
@@ -129,11 +131,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             pipeline_id,
             preprocessor=preprocessor,
             benchmark_directory=benchmark_directory,
-            save_to_file=save_to_file,
+            save_results_to_file=save_results_to_file,
         )
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:
-        if not self.save_to_file:
+        if not self.save_results_to_file:
             return (
                 model_id in self.generations
                 and instance_id in self.generations[model_id]
@@ -172,6 +174,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         sampler_name: str,
         instance_id: str,
         evaluator: SamplingEvaluator,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         rerun_evaluator: bool = False,
     ) -> None:
@@ -185,9 +188,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             if rerun_evaluator:
                 if os.path.isdir(output_dir):
                     shutil.rmtree(output_dir)
+            # print("Prompt to evaluate", prompt)
             metrics = evaluator.evaluate_samples(
-                protein_document,
-                generated_sequences,
+                prompt=prompt,
+                protein_document=protein_document,
+                samples=generated_sequences,
                 output_dir=output_dir,
             )
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
@@ -199,7 +204,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             self.add_result(evaluator.name, instance_id, sampler_name, metrics)
 
     def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
-        if self.save_to_file:
+        if self.save_results_to_file:
             outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
             os.makedirs(outputs_dir, exist_ok=True)
             fasta.output_fasta(
@@ -210,8 +215,15 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         else:
             self.generations[model_name][instance_id] = sequences
 
+    def save_prompt(self, instance_id, model_name, prompt: str) -> None:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+            prompt.to_json(os.path.join(outputs_dir, "prompt.json"))
+        else:
+            self.prompts[model_name][instance_id] = prompt
+
     def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
-        if self.save_to_file:
+        if self.save_results_to_file:
             outputs_dir = os.path.join(
                 self.pipeline_directory, instance_id, sampler_name
             )
@@ -221,6 +233,18 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         else:
             sequences = self.generations[sampler_name][instance_id]
             return sequences
+
+    def load_prompt(self, instance_id: str, sampler_name: str) -> ProteinDocument:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, instance_id, sampler_name
+            )
+            prompt_file = os.path.join(outputs_dir, "prompt.json")
+            prompt = ProteinDocument.from_json(prompt_file)
+            return prompt
+        else:
+            prompt = self.prompts[sampler_name][instance_id]
+            return prompt
 
     def run(
         self,
@@ -252,8 +276,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 sampler.to("cpu")
                 self.save_generations(instance_id, sampler.name, generated_sequences)
+                self.save_prompt(instance_id, sampler.name, prompt)
             else:
                 generated_sequences = self.load_generations(instance_id, sampler.name)
+                prompt = self.load_prompt(instance_id, sampler.name)
 
             if not sampling_only:
                 try:
@@ -261,7 +287,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                         sampler.name,
                         instance_id=instance_id,
                         evaluator=evaluator,
-                        protein_document=prompt,
+                        prompt=prompt,
+                        protein_document=protein_document,
                         rerun_evaluator=rerun_evaluator,
                     )
                 except Exception as e:

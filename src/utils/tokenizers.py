@@ -127,9 +127,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         max_seq_pos: int = 1024,
         max_tokens: Optional[int] = 5000,
         seq_struct_sep_token="|",
-        mask_below_plddt: Optional[
-            float
-        ] = None,  # TODO: this prob shouldn't be attr on tokenizer
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -139,7 +136,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.max_seq_pos = max_seq_pos
         self.max_tokens = max_tokens
         self.seq_struct_sep_token = seq_struct_sep_token
-        self.mask_below_plddt = mask_below_plddt
 
         if not self.additional_special_tokens:
             additional_special_tokens = [
@@ -266,26 +262,18 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 )
             )
 
-        special_tokens_mask = torch.isin(
-            tokenized.input_ids,
-            torch.tensor(
-                [
-                    token_id
-                    for token_id in self.all_special_ids
-                    if token_id not in [self.pad_token_id, self.mask_token_id]
-                ]
-            ),
-        )
-        tokenized.data["specials_mask"] = special_tokens_mask
-        tokenized.data["aa_mask"] = torch.isin(
-            tokenized.input_ids, torch.tensor(self.aa_tokens)
-        )
-        if is_interleaved:
-            tokenized.data["structure_mask"] = (
-                ~special_tokens_mask & ~tokenized.data["aa_mask"]
+        modality_mask = torch.from_numpy(
+            concatenate_pad_array(
+                proteins.modality_masks,
+                fill_value=False,
+                num_start_tokens=self.num_start_tokens,
+                num_end_tokens=num_end_tokens,
+                pad_to_length=max_length if padding == "max_length" else None,
             )
-        else:
-            tokenized.data["structure_mask"] = tokenized.data["aa_mask"]
+        )
+        # these really denote where you're PREDICTING the modality. because you could have fixed residue identities in structure regions.
+        tokenized.data["aa_mask"] = modality_mask[:, 0]
+        tokenized.data["structure_mask"] = modality_mask[:, 1]
         if proteins.plddts is not None:
             tokenized.data["plddts"] = torch.from_numpy(
                 concatenate_pad_array(
@@ -299,15 +287,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert (
                 tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
-            if self.mask_below_plddt is not None:
-                # only mask structure tokens
-                plddt_mask = (tokenized.data["plddts"] < self.mask_below_plddt) & ~(
-                    tokenized.data["aa_mask"]
-                )
-                tokenized.data["plddt_mask"] = plddt_mask
-                tokenized.data["input_ids"][plddt_mask] = self.mask_token_id
-                tokenized.data["coords"][plddt_mask] = 0.0
-                tokenized.data["coords_mask"][plddt_mask] = 0.0
 
         if proteins.original_size is not None:
             tokenized.data["original_size"] = torch.tensor(proteins.original_size)

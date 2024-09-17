@@ -1,3 +1,4 @@
+import functools
 import os
 
 import numpy as np
@@ -6,7 +7,7 @@ import pytest
 import torch
 
 from src.constants import BASEDIR
-from src.data import preprocessing
+from src.data import preprocessing, transforms
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 from src.data.preprocessing import backbone_coords_from_example
@@ -195,7 +196,7 @@ def test_foldseek_interleaved_tokenization(
             foldseek_interleaved_structure_sequence_batch["coords"][
                 0, seq_start_index:seq_end_index
             ]
-            == torch.from_numpy(batch_coords[i])
+            == torch.zeros_like(torch.tensor(batch_coords[i]))
         ).all()
         assert (
             foldseek_interleaved_structure_sequence_batch["plddts"][
@@ -206,11 +207,27 @@ def test_foldseek_interleaved_tokenization(
         struct_start_index = sep_locations[i] + 1
 
 
-def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
-    profam_tokenizer.mask_below_plddt = 90
+def test_foldseek_plddt_masking(profam_tokenizer):
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
+        keep_insertions=True,
+        to_upper=True,
+        keep_gaps=False,
+        use_msa_pos=False,
+    )
+    plddt_cutoff = 80.0
+    preprocessor = preprocessing.ParquetStructurePreprocessor(
+        config=preprocessing_cfg,
+        structure_tokens_col="msta_3di",
+        transform_fns=[
+            functools.partial(
+                transforms.apply_plddt_mask, threshold=plddt_cutoff, mask_plddts=True
+            ),
+            transforms.interleave_structure_sequence,
+        ],
+    )
     cfg = ProteinDatasetConfig(
         name="foldseek",
-        preprocessor=parquet_3di_processor,
+        preprocessor=preprocessor,
         data_path_pattern="foldseek_struct/0.parquet",
         is_parquet=True,
     )
@@ -226,23 +243,28 @@ def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
     batch = collator([datapoint])
 
+    plddt_mask = (batch["plddts"] == 0.0) & batch["structure_mask"]
+
     assert (
-        torch.where(batch["plddt_mask"], batch["plddts"], torch.tensor(-1e6)).max() < 90
+        torch.where(plddt_mask, batch["plddts"], torch.tensor(-1e6)).max()
+        < plddt_cutoff
     )
     assert (
-        torch.where(batch["plddt_mask"], batch["labels"], torch.tensor(-100)) == -100
-    ).all()
-    assert (
         torch.where(
-            batch["plddt_mask"], batch["input_ids"], profam_tokenizer.mask_token_id
-        )
+            ~plddt_mask & batch["structure_mask"], batch["plddts"], torch.tensor(100)
+        ).min()
+        >= plddt_cutoff
+    )
+
+    # N.B. this only applies to structure tokens due to intersection with structure mask
+    assert (
+        torch.where(plddt_mask, batch["input_ids"], profam_tokenizer.mask_token_id)
         == profam_tokenizer.mask_token_id
     ).all()
     assert not (
         batch["input_ids"][0][batch["aa_mask"][0]] == profam_tokenizer.mask_token_id
     ).any()
     assert not batch["plddts"].isnan().any()
-    profam_tokenizer.mask_below_plddt = None
 
 
 def test_foldseek_representative_concatenation(profam_tokenizer):

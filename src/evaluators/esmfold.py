@@ -73,6 +73,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
         save_structures: bool = False,
+        verbose: bool = False,
         max_length: int = 512,  # TODO look into cpu offloading...
         **kwargs,
     ):
@@ -87,17 +88,21 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.half_precision = half_precision
         self.use_precomputed_reference_structures = use_precomputed_reference_structures
         self.save_structures = save_structures
-        self.max_length = max_length
+        self.max_length = max_length  # TODO: we can actually enforce this on sampling.
+        self.verbose = verbose
         if self.half_precision:
             print("Using half precision")
             self.esmfold = self.esmfold.half()
 
     def _evaluate_samples(
         self,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
     ):
+        # TODO: really we should compare to ProteinDocument and not to prompt, which may differ...
+
         # TODO: add average best TM score or similar to structures in document.
         # https://github.com/blt2114/twisted_diffusion_sampler/blob/968f77111b44e9c711b64e650c41745498ba470d/protein_exp/experiments/inference_se3_diffusion.py#L392
         self.esmfold = self.esmfold.to(self.device)
@@ -105,14 +110,16 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         if self.save_structures:
             os.makedirs(output_dir, exist_ok=True)
 
-        assert len(protein_document) > 0
+        assert len(prompt) > 0
         if (
             not self.use_precomputed_reference_structures
-            or protein_document.backbone_coords is None
+            or prompt.backbone_coords is None
         ):
             reference_cas = []
             prompt_plddts = []
-            for seq in protein_document.sequences:
+            prompt_lens = []
+            for seq in prompt.sequences:
+                prompt_lens.append(len(seq))
                 if len(seq) <= self.max_length:
                     out = self.esmfold.infer(seq)
                     final_atom_positions = atom14_to_atom37(out["positions"][-1], out)
@@ -122,23 +129,28 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                         final_atom_positions[0, ..., ca_index, :].cpu().numpy()
                     )
         else:
-            ref_sequences = [seq.split("|")[0] for seq in protein_document.sequences]
-            ref_lengths = [len(seq) for seq in ref_sequences]
+            ref_sequences = [seq.split("|")[0] for seq in prompt.sequences]
+            prompt_lens = [len(seq) for seq in ref_sequences]
             reference_cas = [
-                coords[:l, 1, :]
-                for coords, l in zip(protein_document.backbone_coords, ref_lengths)
+                coords[:l, 1, :]  # slice handles possible interleaving
+                for coords, l in zip(prompt.backbone_coords, prompt_lens)
             ]
-            if protein_document.plddts is not None:
+            if prompt.plddts is not None:
+                if np.isnan(prompt.plddts).any():
+                    print("WARNING: NaNs in prompt PLDDTs")
                 prompt_plddts = [
-                    0.01 * np.mean(plddts) for plddts in protein_document.plddts
+                    0.01 * np.mean(plddts[:l])
+                    for plddts, l in zip(prompt.plddts, prompt_lens)
                 ]
             else:
                 prompt_plddts = []
 
         sample_plddts = []
+        sample_lens = []
         all_tm_scores = []
         num_samples_greater_than_max_length = 0
         for i, seq in enumerate(samples):
+            sample_lens.append(len(seq))
             if len(seq) <= self.max_length:
                 out = self.esmfold.infer(seq)
                 # pdb_str = self.model.output_to_pdb(out)[0]
@@ -158,9 +170,16 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                     f.write(pdb_str)
 
         self.esmfold = self.esmfold.to("cpu")
+        if self.verbose:
+            print(
+                f"Sample PLDDT: {np.mean(sample_plddts)} TM Score: {np.mean(all_tm_scores)}",
+                flush=True,
+            )
         return {
             "prompt_plddt": np.mean(prompt_plddts),
             "sample_plddt": np.mean(sample_plddts),
+            "prompt_lens": np.mean(prompt_lens),
+            "sample_lens": np.mean(sample_lens),
             "min_tm_score": np.mean([min(tm_scores) for tm_scores in all_tm_scores]),
             "max_tm_score": np.mean([max(tm_scores) for tm_scores in all_tm_scores]),
             "num_samples_greater_than_max_length": num_samples_greater_than_max_length,

@@ -12,25 +12,14 @@ class SamplingEvaluator:
         name: str,
         seed: int = 52,
         num_samples: Optional[int] = None,
-        max_tokens: int = 8192,
-        keep_gaps: bool = False,
-        keep_insertions: bool = True,
-        to_upper: bool = True,
-        use_msa_pos: bool = True,
-        document_token: str = "[RAW]",
     ):
         self.name = name
         self.seed = seed
-        self.max_tokens = max_tokens
         self.num_samples = num_samples
-        self.keep_gaps = keep_gaps
-        self.keep_insertions = keep_insertions
-        self.to_upper = to_upper
-        self.use_msa_pos = use_msa_pos
-        self.document_token = document_token
 
     def evaluate_samples(
         self,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         samples: List[str],
         num_samples: Optional[int] = None,
@@ -40,11 +29,14 @@ class SamplingEvaluator:
             assert len(samples) >= num_samples, f"Need at least {num_samples} samples"
             samples = samples[:num_samples]  # assuming samples are unsorted
 
-        return self._evaluate_samples(protein_document, samples, output_dir=output_dir)
+        return self._evaluate_samples(
+            prompt, protein_document, samples, output_dir=output_dir
+        )
 
     def _evaluate_samples(
         self,
         prompt: ProteinDocument,
+        protein_document: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
     ) -> Dict[str, float]:
@@ -78,7 +70,7 @@ class SamplingEvaluator:
     def run_sampling(
         self,
         sampler,
-        protein_document,
+        protein_document: ProteinDocument,
         num_samples: Optional[int] = None,
     ):
         num_samples = num_samples or self.num_samples

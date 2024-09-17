@@ -36,4 +36,4 @@ evaluate_ec_cluster_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
 use_filtered_gym_msas: true
-feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "total_num_sequences", "aa_mask", "coords", "coords_mask", "interleaved_coords_mask", "structure_mask"]
+feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "original_size", "aa_mask", "coords", "coords_mask", "interleaved_coords_mask", "structure_mask", "plddts", "high_plddt_mask"]

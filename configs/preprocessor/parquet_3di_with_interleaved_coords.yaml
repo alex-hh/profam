@@ -3,9 +3,13 @@ defaults:
   - config: raw
 structure_tokens_col: "msta_3di"
 interleave_structure_sequence: true
+infer_representative_from_identifier: true
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
 transform_fns:
+  - _target_: src.data.transforms.apply_plddt_mask
+    _partial_: true
+    threshold: 80.0  # TODO: make this easier to configure
   - _target_: src.data.transforms.centre_backbones
     _partial_: true
     scale: 6.0

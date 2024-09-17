@@ -58,9 +58,9 @@ class GPT2LitModule(BaseFamilyLitModule):
             model = WrappedGP2LMHeadModel(
                 config,
                 "transformer.wte",
+                tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,
-                tokenizer=tokenizer,
                 embed_sequence_index=embed_sequence_index,
                 max_sequence_index=max_sequence_index,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,

@@ -35,6 +35,7 @@ def convert_sequences_adding_positions(
     return proteins.clone(
         sequences=sequences,
         positions=positions,
+        modality_masks=None,  # reset
     )
 
 
@@ -141,6 +142,71 @@ def fill_missing_fields(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
     return proteins
 
 
+def apply_plddt_mask(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    threshold: float = 80.0,
+    mask_plddts: bool = False,
+    mask_sequences: bool = False,
+):
+    # only mask structure tokens
+    # must be before replace nans and before interleaving
+    masked_coords = []
+    masked_coords_masks = []
+    masked_sequences = []
+    masked_structure_tokens = []
+    masked_plddts = []
+    assert (
+        proteins.interleaved_coords_masks is None
+    ), "plddt masking should be applied before interleaving"
+    for ix, (sequence, coords, coords_mask, plddts) in enumerate(
+        zip(
+            proteins.sequences,
+            proteins.backbone_coords,
+            proteins.backbone_coords_masks,
+            proteins.plddts,
+        )
+    ):
+        plddt_mask = plddts < threshold
+        masked_coords.append(np.where(plddt_mask[:, None, None], np.nan, coords))
+        masked_coords_masks.append(
+            np.where(plddt_mask[:, None, None], 0.0, coords_mask)
+        )
+        if proteins.structure_tokens is not None:
+            structure_tokens = proteins.structure_tokens[ix]
+            masked_structure_tokens.append(
+                "".join(
+                    [
+                        tok if not m else tokenizer.mask_token
+                        for tok, m in zip(structure_tokens, plddt_mask)
+                    ]
+                )
+            )
+        if mask_sequences:
+            masked_sequences.append(
+                "".join(
+                    [
+                        aa if not m else tokenizer.mask_token
+                        for aa, m in zip(sequence, plddt_mask)
+                    ]
+                )
+            )
+        else:
+            masked_sequences.append(sequence)
+        if mask_plddts:
+            masked_plddts.append(np.where(plddt_mask, 0.0, plddts))
+        else:
+            masked_plddts.append(plddts)
+
+    return proteins.clone(
+        sequences=masked_sequences,
+        structure_tokens=masked_structure_tokens if masked_structure_tokens else None,
+        backbone_coords=masked_coords,
+        backbone_coords_masks=masked_coords_masks,
+        plddts=masked_plddts,
+    )
+
+
 def filter_by_length(
     proteins: ProteinDocument,
     min_length: Optional[int] = None,
@@ -164,6 +230,7 @@ def interleave_structure_sequence(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
     structure_first_prob: float = 1.0,
+    repeat_coords: bool = False,  # in first runs we used repeat coords - this requires modified sampling code.
 ):
     """Automatically reduces the number of proteinss to fit within max_tokens.
 
@@ -176,6 +243,7 @@ def interleave_structure_sequence(
     interleaved_coords = []
     interleaved_structure_coords_masks = []
     interleaved_sequence_coords_masks = []
+    interleaved_modality_masks = []
     total_tokens = tokenizer.num_start_tokens
     for ix, seq in enumerate(proteins.sequences):
         if proteins.structure_tokens is not None:
@@ -209,7 +277,14 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), 0.0), xyz], axis=0)
+                np.concatenate(
+                    [
+                        xyz,
+                        np.full((1, 4, 3), 0.0),
+                        xyz if repeat_coords else np.zeros_like(xyz),
+                    ],
+                    axis=0,
+                )
             )
             interleaved_structure_coords_masks.append(
                 np.concatenate(
@@ -220,6 +295,15 @@ def interleave_structure_sequence(
                 np.concatenate(
                     [np.zeros_like(xyz), np.zeros((1, 4, 3)), coords_mask], axis=0
                 )
+            )
+            sequence_mask = np.concatenate(
+                [np.zeros((xyz.shape[0] + 1,)), np.ones((xyz.shape[0],))]
+            )
+            structure_mask = np.concatenate(
+                [np.ones((xyz.shape[0],)), np.zeros((xyz.shape[0] + 1,))]
+            )
+            interleaved_modality_masks.append(
+                np.stack([sequence_mask, structure_mask], axis=-1).astype(bool)
             )
         else:
             interleaved_sequences.append(seq + tokenizer.seq_struct_sep_token + seq_3d)
@@ -230,7 +314,9 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), 0.0), xyz], axis=0)
+                np.concatenate(
+                    [np.zeros_like(xyz), np.full((1, 4, 3), 0.0), xyz], axis=0
+                )
             )
             interleaved_structure_coords_masks.append(
                 np.concatenate(
@@ -241,6 +327,15 @@ def interleave_structure_sequence(
                 np.concatenate(
                     [coords_mask, np.zeros((1, 4, 3)), np.zeros_like(xyz)], axis=0
                 )
+            )
+            sequence_mask = np.concatenate(
+                [np.ones((xyz.shape[0],)), np.zeros((xyz.shape[0] + 1,))]
+            )
+            structure_mask = np.concatenate(
+                [np.zeros((xyz.shape[0] + 1,)), np.ones((xyz.shape[0],))]
+            )
+            interleaved_modality_masks.append(
+                np.stack([sequence_mask, structure_mask], axis=-1).astype(bool)
             )
 
         assert not "[" in seq
@@ -253,6 +348,7 @@ def interleave_structure_sequence(
             interleaved_coords = interleaved_coords[:-1]
             interleaved_structure_coords_masks = interleaved_structure_coords_masks[:-1]
             interleaved_sequence_coords_masks = interleaved_sequence_coords_masks[:-1]
+            interleaved_modality_masks = interleaved_modality_masks[:-1]
             assert (
                 len(interleaved_sequences) > 0
             ), f"Cannot fit any sequences in max_tokens tried {total_tokens} max {tokenizer.max_tokens}"
@@ -265,6 +361,7 @@ def interleave_structure_sequence(
         backbone_coords=interleaved_coords,
         backbone_coords_masks=interleaved_structure_coords_masks,
         interleaved_coords_masks=interleaved_sequence_coords_masks,
+        modality_masks=interleaved_modality_masks,
         structure_tokens=None,
     )
 

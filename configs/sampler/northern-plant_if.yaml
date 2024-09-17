@@ -1,0 +1,30 @@
+_target_: src.models.inference.ProFamSampler
+defaults:
+  - /model: llama_small
+  - /tokenizer@model.tokenizer: profam
+  - /preprocessor@prompt_builder.preprocessor: parquet_3di_with_interleaved_coords
+name: northern-plant  # suggestion: use wandb run name
+checkpoint_path: outputs/inverse_folding/batched_preprocess/2024-09-15_12-28-15/checkpoints/last.ckpt
+sampling_kwargs:
+  batch_size: 3
+  max_generated_length: 512
+  temperature: 0.1
+prompt_builder:
+  _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
+  preprocessor:
+    structure_tokens_col: null
+    config:
+      document_token: "[AFDB]"
+  max_tokens: 1536
+  seed: 42
+  representative_only: true
+model:
+  scoring_max_tokens: 10240
+  embed_coords: True
+  tokenizer:
+    max_tokens: 1536
+
+# alternative model loading
+# model:
+#   _target_: src.models.base.load_checkpoint
+#   checkpoint_dir: outputs/pfam_train_seqpos
