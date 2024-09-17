@@ -5,9 +5,7 @@ and updated.
 
 Created:
     - in model forward with use_cache True
-    - in generation utils?
-
-
+    - in generate _prepare_cache_for_generation
 """
 
 from typing import Any, Dict, List, Optional
@@ -116,6 +114,25 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             self.sequence_index_embedding = nn.Embedding(
                 self.max_sequence_index, embedding_dim
             )
+
+    def _prepare_cache_for_generation(
+        self,
+        generation_config: GenerationConfig,
+        model_kwargs: Dict,
+        assistant_model: "PreTrainedModel",
+        batch_size: int,
+        max_cache_length: int,
+        device: torch.device,
+    ) -> bool:
+        cache_name = (
+            "past_key_values"
+            if "mamba" not in self.__class__.__name__.lower()
+            else "cache_params"
+        )
+        assert cache_name == "past_key_values"
+        assert generation_config.use_cache
+
+        model_kwargs[cache_name] = InputAwareDynamicCache()
 
     def prepare_binary_attention_mask(
         self,
@@ -343,21 +360,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             model_kwargs["seq_pos"] = torch.cat(
                 [model_kwargs["seq_pos"], new_seq_pos], dim=-1
             )
-
-        # IF we use our inputaware cache, and give seq_pos L+1 to sep, it should be possible to infer seq_pos here
-        # this would mean use_cache has to be true.
-
-        # now update our additional inputs: seq_pos, coords, start_sequence_index
-        # TODO: does any of this depend on the identity of the new token?
-        # if "seq_pos" in model_kwargs:
-        #     assert num_new_tokens == 1, "This code does not handle multiple new tokens for now"
-        #     prev_seq_pos = model_kwargs["seq_pos"][:, -1:]
-        #     new_seq_pos = torch.where(
-        #         prev_seq_pos == 0,
-        #         torch.full_like(prev_seq_pos, self.start_seq_pos),
-        #         prev_seq_pos + 1,
-        #     )
-        #     model_kwargs["seq_pos"] = torch.cat([model_kwargs["seq_pos"], new_seq_pos], dim=-1)
 
         if "coords" in model_kwargs:
             bsz, _, n_atoms, _ = model_kwargs["coords"].shape
