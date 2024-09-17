@@ -1,3 +1,5 @@
+# N.B. this model requires COORDS TO BE DUPLICATED ON THE SEQUENCE SIDE
+
 _target_: src.models.inference.ProFamSampler
 defaults:
   - /model: llama_small
