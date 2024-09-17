@@ -181,7 +181,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.embed_coords:
             # updated in _update_model_kwargs_for_generation
             assert input_ids.shape[-1] == kwargs["coords"].shape[1]
-            inputs["coords"] = kwargs["coords"]
+            inputs["coords"] = kwargs["coords"][:, -inputs["input_ids"].shape[-1] :]
 
         return inputs
 
