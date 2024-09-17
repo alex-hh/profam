@@ -50,6 +50,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         max_sequence_index: int = 1024,
     ):
         super().__init__(config)
+        self.tokenizer = tokenizer
         self.use_seq_pos = tokenizer.use_seq_pos
         self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent
         # TODO: avoid re-tracking - does this happen automatically?
@@ -240,7 +241,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return start_sequence_index + torch.cat(
             (
                 torch.full_like(input_ids[..., :1], 0),
-                torch.cumsum((input_ids == self.sep_token_id).float(), dim=-1).long()[
+                torch.cumsum((input_ids == self.tokenizer.sep_token_id).float(), dim=-1).long()[
                     ..., :-1
                 ],
             ),
