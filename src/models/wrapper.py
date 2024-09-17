@@ -10,6 +10,10 @@ from src.utils.utils import nested_getattr
 class WrappedHFModelWithPositionEmbeddingsMixin:
     """Wrap a pre-trained model to add sequence-relative position embeddings.
 
+    This wrapper is PARTIALLY agnostic to the underlying model. However the underlying
+    model must be able to handle a DynamicCache object as past_key_values, and must
+    accept a 4d attention (bias) mask.
+
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 
     args:
@@ -69,6 +73,124 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 self.max_sequence_index, embedding_dim
             )
 
+    def prepare_binary_attention_mask(
+        self,
+        attention_mask_2d: Optional[torch.Tensor],
+        sequence_length: int,
+        target_length: int,
+        device: torch.device,
+        cache_position: torch.Tensor,
+        batch_size: int,
+        input_ids: Optional[torch.LongTensor] = None,
+    ):
+        if self.attention_mask_type == "causal":
+            return attention_masking._prepare_causal_4d_binary_mask(
+                attention_mask_2d,
+                sequence_length,
+                target_length,
+                device,
+                cache_position,
+                batch_size,
+            )
+        elif self.attention_mask_type == "bidirectional":
+            return attention_masking._prepare_bidirectional_4d_binary_mask(
+                attention_mask_2d,
+                sequence_length,
+                target_length,
+                device,
+                cache_position,
+                batch_size,
+            )
+        elif self.attention_mask_type == "sequence":
+            assert input_ids is not None
+            return attention_masking._prepare_intra_separator_4d_binary_mask(
+                input_ids,
+                attention_mask_2d,
+                sequence_length,
+                target_length,
+                device,
+                cache_position,
+                batch_size,
+                self.tokenizer.sep_token_id,
+            )
+        elif self.attention_mask_type == "document":
+            raise NotImplementedError()  # would require document concatenation to be implemented
+            # return _prepare_intra_separator_4d_binary_mask(
+            #     attention_mask_2d,
+            #     sequence_length,
+            #     target_length,
+            #     device,
+            #     cache_position,
+            #     batch_size,
+            #     self.tokenizer.bos_token_id,
+            # )
+        elif self.attention_mask_type == "prefix-lm":
+            # need a prefix indicator
+            return attention_masking._prepare_prefix_lm_4d_binary_mask(
+                attention_mask_2d,
+                sequence_length,
+                target_length,
+                device,
+                cache_position,
+                batch_size,
+                self.tokenizer.seq_struct_sep_token_id,
+                self.tokenizer.sep_token_id,
+            )
+        else:
+            raise ValueError(
+                "Unsupported attention mask type", self.attention_mask_type
+            )
+
+    def update_seq_pos_given_cache_position(self, input_ids, **kwargs):
+        # How this should work: we should be able to do some standard input position
+        # handling, but with an offset, that extends up to the first token of the next sequence.
+        # however, if we know that we only deal with a single token at a time, we can do something simpler.
+        # indeed - we can just extend kwargs["seq_pos"]
+
+        # we can't just directly infer positions from input ids because we allow custom seq_pos input
+        position_ids = 1 + torch.cumsum(
+            torch.isin(
+                input_ids,
+                [
+                    self.tokenizer.document_token_ids
+                    + [self.tokenizer.bos_token_id, self.tokenizer.sep_token_id]
+                ],
+            ),
+            dim=-1,
+        )  # [0, 0, 1, 2, ]
+
+        # we have incremented input ids but not seq pos
+        increment = input_ids.shape[-1] - kwargs["seq_pos"].shape[-1]
+        assert increment == 1
+        assert inputs["input_ids"].shape[-1] == 1, inputs[
+            "input_ids"
+        ].shape  # we have sliced out the last token and are using cache - does this need to be true?
+        # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
+        # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
+
+        prev_seq_pos = kwargs["seq_pos"][:, -1:]
+        input_length = kwargs["seq_pos"].shape[-1]
+        if (prev_seq_pos[:, -1] == 0).any():  # handles sep cases
+            assert input_ids[0, input_length - 1].item() in [
+                self.tokenizer.sep_token_id,
+                self.tokenizer.seq_struct_sep_token_id,
+            ], f"{input_ids[0, input_length-1]} {increment}"
+            assert (input_final_seq_pos[:, -1] == 0).all()
+            # we are starting new sequences
+            seq_pos = torch.full_like(
+                input_final_seq_pos, self.start_seq_pos + increment - 1
+            )
+            # seq_pos corresponds to position of previously generated token in the sequence
+            # when increment is 1, seq_pos is self.start_seq_pos
+        else:
+            if increment == 1:
+                print(
+                    f"Warning: not sampling a new sequence, check inputs if this is desired behaviour ({kwargs['seq_pos']}, {input_ids})"
+                )
+            seq_pos = input_final_seq_pos + increment
+
+        return seq_pos
+
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
         """n.b. we need to be aware of main steps of generation pipeline (self.generate)
@@ -87,69 +209,48 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         4. compute logits for next position in sequence, predict a new token and update input ids
         5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
         """
-        # TODO: consider putting this in update_model_kwargs_for_generation
+        # TODO: consider putting this in update_model_kwargs_for_generation - definitely yes!.
 
         # main place this gets called is in sample loop:
         # https://github.com/huggingface/transformers/blob/e7f4ace0929600606424efd4cd91947bd567d323/src/transformers/generation/utils.py#L2413
         # in sample loop 'input_ids' gets incremented with generated tokens
-        # # update generated ids, model inputs, and length for next step
-        # input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
-        # we're going to assume that the prompt ends with a separator token
+
         assert input_ids.ndim == 2
         assert "seq_pos" in kwargs
-        # AH - to test this we first need to actually compute the cache. It's a complex test!
+
         inputs = super().prepare_inputs_for_generation(
             input_ids, **kwargs
         )  # slices out prompt and uses cache typically.
 
-        if input_ids.shape[-1] != kwargs["seq_pos"].shape[-1]:
-            # we have incremented input ids but not seq pos
-            increment = input_ids.shape[-1] - kwargs["seq_pos"].shape[-1]
-            assert inputs["input_ids"].shape[-1] == 1, inputs[
-                "input_ids"
-            ].shape  # we have sliced out the last token and are using cache - does this need to be true?
-            # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
-            # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
-            # we need to slice out all previously considered sequence positions - at what point does this occur for input ids?
-            # we need to be very careful about caching - inputs embeds is hopefully not being passed to the outer model? but if it is we
-            # need to handle that. and we also need to ensure that slicing of seq pos is consistent with slicing of input ids.
-            # frustratingly slicing of input ids is done on the super prepare inputs for generation
-            generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
+        generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
+        if (generated_tokens == self.tokenizer.sep_token_id).any() or (
+            generated_tokens == self.tokenizer.seq_struct_sep_token_id
+        ).any():
+            # sep would break incrementaion of seq pos and sequence index
+            raise NotImplementedError(
+                "This code does not handle generation of sequences with separators."
+            )
 
-            assert self.sep_token_id is not None
-            if (generated_tokens == self.sep_token_id).any():
-                # sep would break incrementaion of seq pos
-                raise NotImplementedError(
-                    "This code does not handle generation of sequences with separators."
-                )
-            prev_seq_pos = kwargs["seq_pos"][:, -1:]
-            if (prev_seq_pos[:, -1] == 0).any():
-                assert (prev_seq_pos[:, -1] == 0).all()
-                # we are starting new sequences
-                seq_pos = torch.full_like(
-                    prev_seq_pos, self.start_seq_pos + increment - 1
-                )
-                # seq_pos corresponds to position of previously generated token in the sequence
-                # when increment is 1, seq_pos is self.start_seq_pos
-            else:
-                if increment == 1:
-                    print(
-                        "Warning: not sampling a new sequence, check inputs if this is desired behaviour."
-                    )
-                seq_pos = prev_seq_pos + increment
-            inputs["seq_pos"] = seq_pos
-            bsz = prev_seq_pos.shape[0]
+        # input_ids is prompt + generated tokens
+        # kwargs["seq_pos"] is prompt only
+        # inputs["input_ids"] is last generated token - so far not passed through model.
+        # last token is sliced out in super().prepare_inputs_for_generation
+        if input_ids.shape[-1] != kwargs["seq_pos"].shape[-1]:
+
+            inputs["seq_pos"] = self.update_seq_pos_given_cache_position(
+                kwargs["seq_pos"], inputs["cache_position"]
+            )
+            bsz = inputs["input_ids"].shape[0]
             if self.embed_coords:
+                # extend coords with zeros
                 assert kwargs["coords"].ndim == 4  # b, l, n, 3
-                inputs["coords"] = torch.full(
-                    (
-                        bsz,
-                        1,
-                    )
-                    + kwargs["coords"].shape[-2:],
-                    0.0,
-                ).to(kwargs["coords"])
+                n_atoms = kwargs["coords"].shape[-2]
+                inputs["coords"] = torch.full((bsz, 1, n_atoms, 3), 0.0).to(
+                    kwargs["coords"]
+                )
+
             if self.embed_sequence_index:
+                raise NotImplementedError("TODO: infer from cache instead.")
                 assert not "start_sequence_index" in kwargs
                 # n.b. input_ids is prompt + completion
                 prompt_sequence_index = self.compute_sequence_index(
@@ -166,6 +267,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs["seq_pos"] = kwargs["seq_pos"]
             if self.embed_coords:
                 inputs["coords"] = kwargs["coords"]
+
         return inputs
 
     def compute_sequence_index(self, input_ids, start_sequence_index=0):
@@ -187,19 +289,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         coords: Optional[torch.FloatTensor] = None,
         start_sequence_index: int = 0,
     ):
-        # n.b. we need to be careful about what happens when caching.
-        # I think in that case input_ids should just be the continuation
-        # and inputs_embeds should also.
-        # different models will have different token embedders.
         # we assume (which is case for e.g. gpt2 and mistral)
         # that the model will itself add its own position embeddings to inputs_embeds
         assert input_ids.ndim == 2
-        # gpt2 code
-        # elif input_ids is not None:
-        #     self.warn_if_padding_and_no_attention_mask(input_ids, attention_mask)
-        #     input_shape = input_ids.size()
-        #     input_ids = input_ids.view(-1, input_shape[-1])
-        #     batch_size = input_ids.shape[0]
 
         # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
@@ -222,6 +314,23 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds += self.sequence_index_embedding(sequence_index)
 
         return inputs_embeds
+
+    def get_position_ids_for_model_forward(self, input_ids, seq_pos, position_ids):
+        # TODO: test these; make sure they get called during generation for example.
+        if self.pass_constant_position_ids_for_global_index:
+            assert position_ids is None
+            position_ids = torch.full_like(input_ids, 10).long()
+        if self.pass_sequence_position_ids_for_global_index:
+            assert position_ids is None
+            assert seq_pos is not None
+            position_ids = seq_pos
+        return position_ids
+
+    def compute_start_sequence_index(self, past_key_values):
+        if past_key_values is None:
+            return 0
+        else:
+            raise NotImplementedError("Compute from cached input ids")
 
     def forward(
         self,
@@ -256,15 +365,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             coords=coords,
             start_sequence_index=start_sequence_index,
         )
-
-        # TODO: test these; make sure they get called during generation for example.
-        if self.pass_constant_position_ids_for_global_index:
-            assert position_ids is None
-            position_ids = torch.full_like(input_ids, 10).long()
-        if self.pass_sequence_position_ids_for_global_index:
-            assert position_ids is None
-            assert seq_pos is not None
-            position_ids = seq_pos
+        position_ids = self.get_position_ids_for_model_forward(
+            input_ids, seq_pos, position_ids
+        )
 
         return super().forward(
             input_ids=None,

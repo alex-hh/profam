@@ -12,14 +12,16 @@ from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
 from transformers import PreTrainedTokenizerFast
+from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.models.utils import (
-    UpdatedDynamicCache,
     accuracy_from_outputs,
     log_likelihood_from_outputs,
 )
+from src.models.utils import log_likelihood_from_outputs
+
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -465,7 +467,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 forward_kwargs["start_sequence_index"] = start_sequence_index
 
             actual_batch_size = this_input_ids.shape[0]
-            cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            cache = DynamicCache.from_legacy_cache(past_key_values)
             cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
 
             outputs = self.model(
