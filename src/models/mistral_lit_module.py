@@ -34,9 +34,9 @@ class MistralLitModule(BaseFamilyLitModule):
             model = WrappedMistralForCausalLM(
                 config,
                 "model.embed_tokens",
+                tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,
-                tokenizer=tokenizer,
                 embed_sequence_index=embed_sequence_index,
                 max_sequence_index=max_sequence_index,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
