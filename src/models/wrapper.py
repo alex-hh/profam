@@ -13,7 +13,7 @@ def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
     sep_counts = (input_ids == eos_token_id).cumsum(dim=-1)
     assert sep_counts.max() <= 1
     should_pad = sep_counts.cumsum(-1) > 1
-    assert (should_pad == padding_token_id).all()
+    assert (input_ids[should_pad] == padding_token_id).all()
 
 
 # TODO: try to modularise...
@@ -127,7 +127,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
-        """n.b. we need to be aware of main steps of generation pipeline (self.generate)
+        """Build inputs dictionary for next step in generation, given full input_ids (prompt + generated tokens), and model kwargs.
+
+        n.b. we need to be aware of main steps of generation pipeline (self.generate)
         1. null cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
         https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L1854
         2. get_initial_cache_position:
@@ -157,8 +159,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # input_ids is prompt + generated tokens
         # kwargs["seq_pos"] is prompt only
-        # inputs["input_ids"] is last generated token - so far not passed through model.
-        # last token is sliced out in super().prepare_inputs_for_generation
+        # inputs["input_ids"] is last generated token - so far not passed through model:
+        # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
         if self.use_seq_pos:
             inputs["seq_pos"] = self.update_seq_pos_for_generation(
                 input_ids, kwargs["seq_pos"]
@@ -173,8 +175,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             assert not "start_sequence_index" in kwargs
             inputs["start_sequence_index"] = full_sequence_index[:, -1]
 
-        assert input_ids.shape[-1] == kwargs["coords"].shape[1]
         if self.embed_coords:
+            assert input_ids.shape[-1] == kwargs["coords"].shape[1]
             inputs["coords"] = kwargs["coords"]
 
         return inputs
@@ -241,9 +243,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return start_sequence_index + torch.cat(
             (
                 torch.full_like(input_ids[..., :1], 0),
-                torch.cumsum((input_ids == self.tokenizer.sep_token_id).float(), dim=-1).long()[
-                    ..., :-1
-                ],
+                torch.cumsum(
+                    (input_ids == self.tokenizer.sep_token_id).float(), dim=-1
+                ).long()[..., :-1],
             ),
             dim=-1,
         )
