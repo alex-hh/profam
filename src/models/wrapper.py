@@ -181,7 +181,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         return inputs
 
-    def _udpate_model_kwargs_for_generation(
+    def _update_model_kwargs_for_generation(
         self,
         outputs: ModelOutput,
         model_kwargs: Dict[str, Any],
@@ -203,7 +203,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         """
         # update past_key_values using model output, token_type_ids, attention_mask, cache_position
         # TODO: check whether attention_mask update assumes 2d?
-        super()._udpate_model_kwargs_for_generation(
+        super()._update_model_kwargs_for_generation(
             outputs,
             model_kwargs,
             is_encoder_decoder=is_encoder_decoder,
