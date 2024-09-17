@@ -228,7 +228,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
     # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(self, input_ids, **kwargs):
-        """Build inputs dictionary for next step in generation, given full input_ids (prompt + generated tokens), and model kwargs.
+        """Build inputs dictionary for next step in generation, given full input_ids (
+        prompt + generated tokens), and other model kwargs (also full length).
+
+        Main function is to use cache_position to slice out the unprocessed tokens,
+        and corresponding inputs.
+
+        This is a model-specific method in HF.
 
         n.b. we need to be aware of main steps of generation pipeline (self.generate)
         1. null cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
@@ -246,8 +252,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         4. compute logits for next position in sequence, predict a new token and update input ids
         5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
         """
-        # TODO: consider putting this in update_model_kwargs_for_generation - definitely yes!.
-
         # main place this gets called is in sample loop:
         # https://github.com/huggingface/transformers/blob/e7f4ace0929600606424efd4cd91947bd567d323/src/transformers/generation/utils.py#L2413
         # in sample loop 'input_ids' gets incremented with generated tokens
@@ -263,23 +267,15 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # inputs["input_ids"] is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
         if self.use_seq_pos:
-            inputs["seq_pos"] = self.update_seq_pos_for_generation(
-                input_ids, kwargs["seq_pos"]
-            )
+            inputs["seq_pos"] = kwargs["seq_pos"][:, kwargs["cache_position"]]
 
         if self.embed_sequence_index:
-            # model will automatically do compute_sequence_index on new tokens
-            # so we just need to tell it the sequence index of the new tokens
-            # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
-            # to previous sequence, and in forward will just pass through start_sequence_index
-            full_sequence_index = self.compute_sequence_index(input_ids)
-            assert not "start_sequence_index" in kwargs
-            inputs["start_sequence_index"] = full_sequence_index[:, -1]
+            inputs["start_sequence_index"] = kwargs["start_sequence_index"]
 
         if self.embed_coords:
             # updated in _update_model_kwargs_for_generation
             assert input_ids.shape[-1] == kwargs["coords"].shape[1]
-            inputs["coords"] = kwargs["coords"]
+            inputs["coords"] = kwargs["coords"][:, kwargs["cache_position"]]
 
         return inputs
 
@@ -305,13 +301,49 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if prev token is sep, then new seq pos should be 0 and new sequence index should be incremented.
         """
         # update past_key_values using model output, token_type_ids, attention_mask, cache_position
-        # TODO: check whether attention_mask update assumes 2d?
+        # TODO: handle attention mask update - maybe pop from model_kwargs and update here instead
         super()._update_model_kwargs_for_generation(
             outputs,
             model_kwargs,
             is_encoder_decoder=is_encoder_decoder,
             num_new_tokens=num_new_tokens,
         )
+
+        assert model_kwargs["use_cache"]
+        assert (
+            "past_key_values" in outputs
+        ), "We assume we're using cache and past_key_values is cache_name"
+        past_key_values = outputs.past_key_values
+
+        if self.embed_sequence_index:
+            # model will automatically do compute_sequence_index on new tokens
+            # so we just need to tell it the sequence index of the new tokens
+            # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
+            # to previous sequence, and in forward will just pass through start_sequence_index
+            full_sequence_index = self.compute_sequence_index(
+                past_key_values.input_ids_cache
+            )
+            model_kwargs["start_sequence_index"] = full_sequence_index[:, -1]
+
+        if self.tokenizer.use_seq_pos:
+            assert num_new_tokens == 1
+            # we assume we only increment by one, which makes things easier
+            assert model_kwargs["cache_position"].shape[-1] == 1
+            prev_seq_pos = model_kwargs["seq_pos"][:, -1:]
+            new_seq_pos = torch.where(
+                torch.isin(
+                    past_key_values.input_ids_cache[:, -1:],
+                    [
+                        self.tokenizer.sep_token_id,
+                        self.tokenizer.seq_struct_sep_token_id,
+                    ],
+                ),
+                torch.full_like(prev_seq_pos, self.start_seq_pos),
+                prev_seq_pos + 1,
+            )
+            model_kwargs["seq_pos"] = torch.cat(
+                [model_kwargs["seq_pos"], new_seq_pos], dim=-1
+            )
 
         # IF we use our inputaware cache, and give seq_pos L+1 to sep, it should be possible to infer seq_pos here
         # this would mean use_cache has to be true.
