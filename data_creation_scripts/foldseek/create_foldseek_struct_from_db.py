@@ -73,7 +73,7 @@ def save_pdbs_to_parquet(
             
         # Run FoldMason on the cluster
         if run_foldmason:
-            if max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason:
+            if (max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason) or len(cluster_filelist) < 3:
                 print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
                 has_foldmason_results = False
             else:
@@ -95,7 +95,7 @@ def save_pdbs_to_parquet(
             os.remove(pdb)
 
         if convert_to_3di:
-            sequences_3di = convert_to_3di(cluster_filelist)
+            sequences_3di = convert_pdbs_to_3di(cluster_filelist)
 
         # TODO: save representative?
         res = {
