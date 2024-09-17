@@ -147,35 +147,52 @@ def apply_plddt_mask(
     tokenizer: ProFamTokenizer,
     threshold: float = 80.0,
     mask_plddts: bool = False,
+    mask_sequences: bool = False,
 ):
     # only mask structure tokens
     # must be before replace nans and before interleaving
     masked_coords = []
     masked_coords_masks = []
     masked_sequences = []
+    masked_structure_tokens = []
     masked_plddts = []
     assert (
         proteins.interleaved_coords_masks is None
     ), "plddt masking should be applied before interleaving"
-    for sequence, coords, coords_mask, plddts in zip(
-        proteins.sequences,
-        proteins.backbone_coords,
-        proteins.backbone_coords_masks,
-        proteins.plddts,
+    for ix, (sequence, coords, coords_mask, plddts) in enumerate(
+        zip(
+            proteins.sequences,
+            proteins.backbone_coords,
+            proteins.backbone_coords_masks,
+            proteins.plddts,
+        )
     ):
         plddt_mask = plddts < threshold
         masked_coords.append(np.where(plddt_mask[:, None, None], np.nan, coords))
         masked_coords_masks.append(
             np.where(plddt_mask[:, None, None], 0.0, coords_mask)
         )
-        masked_sequences.append(
-            "".join(
-                [
-                    aa if not m else tokenizer.mask_token
-                    for aa, m in zip(sequence, plddt_mask)
-                ]
+        if proteins.structure_tokens is not None:
+            structure_tokens = proteins.structure_tokens[ix]
+            masked_structure_tokens.append(
+                "".join(
+                    [
+                        tok if not m else tokenizer.mask_token
+                        for tok, m in zip(structure_tokens, plddt_mask)
+                    ]
+                )
             )
-        )
+        if mask_sequences:
+            masked_sequences.append(
+                "".join(
+                    [
+                        aa if not m else tokenizer.mask_token
+                        for aa, m in zip(sequence, plddt_mask)
+                    ]
+                )
+            )
+        else:
+            masked_sequences.append(sequence)
         if mask_plddts:
             masked_plddts.append(np.where(plddt_mask, 0.0, plddts))
         else:
@@ -183,6 +200,7 @@ def apply_plddt_mask(
 
     return proteins.clone(
         sequences=masked_sequences,
+        structure_tokens=masked_structure_tokens if masked_structure_tokens else None,
         backbone_coords=masked_coords,
         backbone_coords_masks=masked_coords_masks,
         plddts=masked_plddts,

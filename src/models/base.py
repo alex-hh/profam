@@ -192,7 +192,9 @@ class BaseLitModule(LightningModule):
                 global_metrics[
                     "has_coords_aa_accuracy"
                 ] = has_coords_dataset_accuracies.pop("global")
-                global_metrics["aa_has_coords_frac"] = (aa_has_coords_mask & batch["aa_mask"]).float().sum() / batch["aa_mask"].float().sum()
+                global_metrics["aa_has_coords_frac"] = (
+                    aa_has_coords_mask & batch["aa_mask"]
+                ).float().sum() / batch["aa_mask"].float().sum()
             global_metrics["aa_count"] = batch["aa_mask"].float().sum()
 
         if has_3di:

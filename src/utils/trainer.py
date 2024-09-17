@@ -1,5 +1,6 @@
 import datetime
 import math
+from typing import Optional
 
 import torch
 from lightning import Trainer
@@ -40,7 +41,7 @@ class ProFamTrainer(Trainer):
             assert kwargs["strategy"] == "ddp"
             # default is 1800 seconds
             kwargs["strategy"] = DDPStrategy(
-                timeout=datetime.timedelta(timeout=timeout)
+                timeout=datetime.timedelta(seconds=timeout)
             )
         if val_check_interval_divide_by_world_size:
             val_check_interval = kwargs.get("val_check_interval", 1)
