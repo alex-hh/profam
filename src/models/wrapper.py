@@ -20,9 +20,9 @@ def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
 class WrappedHFModelWithPositionEmbeddingsMixin:
     """Wrap a pre-trained model to add sequence-relative position embeddings.
 
-    This wrapper is PARTIALLY agnostic to the underlying model. However the underlying
-    model must be able to handle a DynamicCache object as past_key_values, and must
-    accept a 4d attention (bias) mask.
+    have position_ids argument in .forward() method
+    use modeling_attn_mask_utils.py::_prepare_4d_attention_mask() function for 4d mask generation
+
 
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 

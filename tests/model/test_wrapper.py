@@ -3,6 +3,25 @@ import torch
 from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
 
+# def test_generate():
+#     from transformers import LlamaForCausalLM, LlamaConfig
+#     config = LlamaConfig(hidden_dim=64, num_attention_heads=4, num_hidden_layers=1, vocab_size=20, intermediate_size=128)
+#     model = LlamaForCausalLM(config)
+
+#     model.eval()
+#     input_ids = torch.ones(1, 10).long()
+#     attention_mask = torch.zeros((
+#         1, 1, 10, 10
+#     ))
+#     # attention_mask = torch.ones(1, 10)
+#     model.generate(
+#         input_ids=input_ids,
+#         max_new_tokens=2,
+#         do_sample=True,
+#         num_return_sequences=2,
+#         attention_mask=attention_mask,
+#     )
+
 
 def test_compute_sequence_index(default_model, profam_tokenizer):
     sequences = ["ARC", "MKLLL", "MKPP"]
