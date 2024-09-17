@@ -66,6 +66,7 @@ class CustomDataCollator:
             ] = -100
         # dont predict mask tokens.
         batch["labels"][batch["labels"] == self.tokenizer.mask_token_id] = -100
+        # n.b. padding tokens should already be -100 due to base collator.
         for str_key in string_data_keys:
             str_vals = [obs.get(str_key, "") for obs in string_data]
             str_obj = StringObject()

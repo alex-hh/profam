@@ -1,5 +1,4 @@
 """This file prepares config fixtures for other tests."""
-
 import os
 from pathlib import Path
 

@@ -35,6 +35,7 @@ def convert_sequences_adding_positions(
     return proteins.clone(
         sequences=sequences,
         positions=positions,
+        modality_masks=None,  # reset
     )
 
 
@@ -145,12 +146,14 @@ def apply_plddt_mask(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
     threshold: float = 80.0,
+    mask_plddts: bool = False,
 ):
     # only mask structure tokens
     # must be before replace nans and before interleaving
     masked_coords = []
     masked_coords_masks = []
     masked_sequences = []
+    masked_plddts = []
     assert (
         proteins.interleaved_coords_masks is None
     ), "plddt masking should be applied before interleaving"
@@ -173,11 +176,16 @@ def apply_plddt_mask(
                 ]
             )
         )
+        if mask_plddts:
+            masked_plddts.append(np.where(plddt_mask, 0.0, plddts))
+        else:
+            masked_plddts.append(plddts)
 
     return proteins.clone(
         sequences=masked_sequences,
         backbone_coords=masked_coords,
         backbone_coords_masks=masked_coords_masks,
+        plddts=masked_plddts,
     )
 
 

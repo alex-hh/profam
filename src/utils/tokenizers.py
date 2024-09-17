@@ -287,9 +287,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert (
                 tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
-            tokenized.data["plddts"] = tokenized.data["plddts"].masked_fill(
-                torch.isnan(tokenized.data["plddts"]), 0.0
-            )
 
         if proteins.original_size is not None:
             tokenized.data["original_size"] = torch.tensor(proteins.original_size)

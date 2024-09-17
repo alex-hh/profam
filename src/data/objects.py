@@ -123,19 +123,6 @@ class ProteinDocument:
             if attr is not None and isinstance(attr[0], list):
                 setattr(self, field, [np.array(arr) for arr in getattr(self, field)])
 
-        check_array_lengths(
-            self.sequences,
-            self.plddts,
-            self.backbone_coords,
-            self.backbone_coords_masks,
-            self.structure_tokens,
-            self.interleaved_coords_masks,
-            self.modality_masks,
-        )
-        if self.backbone_coords_masks is None and self.backbone_coords is not None:
-            self.backbone_coords_masks = [
-                np.ones_like(xyz) for xyz in self.backbone_coords
-            ]
         if self.modality_masks is None:
             assert (
                 self.interleaved_coords_masks is None
@@ -151,6 +138,20 @@ class ProteinDocument:
             self.modality_masks = [
                 np.stack([seq_mask, struct_mask], axis=1).astype(bool)
                 for seq_mask, struct_mask in zip(sequences_masks, structure_masks)
+            ]
+
+        check_array_lengths(
+            self.sequences,
+            self.plddts,
+            self.backbone_coords,
+            self.backbone_coords_masks,
+            self.structure_tokens,
+            self.interleaved_coords_masks,
+            self.modality_masks,
+        )
+        if self.backbone_coords_masks is None and self.backbone_coords is not None:
+            self.backbone_coords_masks = [
+                np.ones_like(xyz) for xyz in self.backbone_coords
             ]
 
     def __len__(self):
