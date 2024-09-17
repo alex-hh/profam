@@ -16,12 +16,7 @@ from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
-from src.models.utils import (
-    accuracy_from_outputs,
-    log_likelihood_from_outputs,
-)
-from src.models.utils import log_likelihood_from_outputs
-
+from src.models.utils import accuracy_from_outputs, log_likelihood_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
 

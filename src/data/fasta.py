@@ -127,7 +127,7 @@ def convert_sequence_with_positions(
     ), f"positions length {len(positions)} != sequence length {len(sequence)}"
     assert len(sequence) == len(
         is_match
-    ), f"sequenc length {len(sequence)} != is_match length {len(is_match)}"
+    ), f"sequence length {len(sequence)} != is_match length {len(is_match)}"
     return sequence, positions, is_match
 
 
