@@ -35,7 +35,7 @@ trainer:
   val_check_interval: 20000  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
-  timeout: 3600
+  timeout: 1800
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
