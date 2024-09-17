@@ -17,8 +17,16 @@ from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
+<<<<<<< HEAD
 from src.models import metrics
 from src.models.utils import log_likelihood_from_outputs
+=======
+from src.models.utils import (
+    InputAwareDynamicCache,
+    accuracy_from_outputs,
+    log_likelihood_from_outputs,
+)
+>>>>>>> 6153ca9 (cache updates and partial wrapper refactor)
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -516,7 +524,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 forward_kwargs["start_sequence_index"] = start_sequence_index
 
             actual_batch_size = this_input_ids.shape[0]
-            cache = DynamicCache.from_legacy_cache(past_key_values)
+            cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
             cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
 
             outputs = self.model(
