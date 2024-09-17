@@ -145,6 +145,19 @@ class TokenThroughputMonitor(ThroughputMonitor):
         self._non_padding_lengths[stage] = 0
         self._proteins[stage] = 0
 
+    def _compute(self, trainer: "Trainer", iter_num: Optional[int] = None) -> None:
+        # modified to add 'throughput' as a prefix
+        if not trainer._logger_connector.should_update_logs:
+            return
+        stage = trainer.state.stage
+        assert stage is not None
+        throughput = self._throughputs[stage]
+        metrics = throughput.compute()
+        # prefix with the stage to avoid collisions
+        metrics = {f"throughput/{stage.value}{throughput.separator}{k}": v for k, v in metrics.items()}
+        trainer._logger_connector.log_metrics(metrics, step=iter_num)  # type: ignore[arg-type]
+
+
     @torch.inference_mode()  # in case `length_fn` or `batch_size_fn` computes grads
     def _update(
         self,

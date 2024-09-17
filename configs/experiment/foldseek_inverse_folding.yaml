@@ -24,7 +24,7 @@ extra_callbacks:
       representative_only: True
     pipeline:
       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
-      max_instances: 50
+      max_instances: 15
       max_sequence_length: 512
     match_representative_length: true
 
