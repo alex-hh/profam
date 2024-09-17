@@ -52,6 +52,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     model must be able to handle a DynamicCache object as past_key_values, and must
     accept a 4d attention (bias) mask.
 
+    c.f. 4d attention mask pr: https://github.com/huggingface/transformers/pull/27539#issuecomment-1864421993
+    IMPORTANT: this PR makes changes that can only used by few classes of models
+    requirements to use:
+
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 
     args:
@@ -185,6 +189,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     def prepare_inputs_for_generation(
         self,
         input_ids,
+        attention_mask=None,
         past_key_values=None,
         seq_pos=None,
         cache_position=None,
@@ -200,9 +205,24 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         This is a model-specific method in HF.
 
+        Q. at what point do input ids get tiled out to batch size?
+        Q. can we use generation_config.cache_implementation?
+
         n.b. we need to be aware of main steps of generation pipeline (self.generate)
+        0. kwargs passed to generate get separated into generation config and model_kwargs
+        generation_config, model_kwargs = self._prepare_generation_config(generation_config, **kwargs)
         1. null cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
         https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L1854
+        type of cache is determined by generation_config.cache_implementation;
+        defaults to DynamicCache if supported by model.
+
+        attention mask also gets created:
+        kwargs_has_attention_mask = model_kwargs.get("attention_mask", None) is not None
+        requires_attention_mask = "encoder_outputs" not in model_kwargs
+        if not kwargs_has_attention_mask and requires_attention_mask and accepts_attention_mask:
+            model_kwargs["attention_mask"] = self._prepare_attention_mask_for_generation(
+                inputs_tensor, generation_config._pad_token_tensor, generation_config._eos_token_tensor
+            )
         2. get_initial_cache_position:
         https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L2969
         n.b. cache_position is a very misleading name for cache-aware position index
@@ -213,6 +233,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             in subsequent iterations, cache_position is index of newly generated token(s)
             relative to updated input_ids (i.e. prompt + generated tokens). so input_ids[cache_position]
             selects just the newly generated token(s) from the last sampling iteration to feed to the model
+
+            passed kwargs are passed through from generate
         4. compute logits for next position in sequence, predict a new token and update input ids
         5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
         """
@@ -222,11 +244,16 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         assert input_ids.ndim == 2
 
+        # if None is passed to forward, default will be created.
+        # we shouldn't pass a 4d mask - this is handled by forward method (_update_causal_mask)
+        assert attention_mask.ndim == 2
+
         inputs = super().prepare_inputs_for_generation(
             input_ids,
             past_key_values=past_key_values,
             cache_position=cache_position,
             use_cache=use_cache,
+            attention_mask=attention_mask,
             **kwargs,
         )  # slices out prompt and uses cache typically.
 
