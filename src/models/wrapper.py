@@ -107,7 +107,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 assert input_ids[0, prompt_length - 1].item() in [
                     self.tokenizer.sep_token_id,
                     self.tokenizer.seq_struct_sep_token_id,
-                ], f"{input_ids[0, input_length-1]} {increment}"
+                ], f"{input_ids[0, prompt_length-1]} {increment}"
                 assert (input_final_seq_pos[:, -1] == 0).all()
                 # we are starting new sequences
                 seq_pos = torch.full_like(
@@ -167,20 +167,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             )
 
         if self.embed_sequence_index:
-            # model will automatically do compute_sequence_index
-            raise NotImplementedError()
-        #     assert not "start_sequence_index" in kwargs
-        #     # n.b. input_ids is prompt + completion
-        #     prompt_sequence_index = self.compute_sequence_index(
-        #         input_ids[:, ], start_sequence_index=0
-        #     )
-        #     # increment sequence index if prev token was sep
-        #     start_sequence_index = torch.where(
-        #         input_ids[:, -1] == self.sep_token_id,
-        #         prompt_sequence_index[:, -1] + 1,
-        #         prompt_sequence_index[:, -1],
-        #     )
-        # inputs["start_sequence_index"] = start_sequence_index
+            # model will automatically do compute_sequence_index on new tokens
+            # so we just need to tell it the sequence index of the new tokens
+            # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
+            # to previous sequence, and in forward will just pass through start_sequence_index
+            full_sequence_index = self.compute_sequence_index(input_ids)
+            assert not "start_sequence_index" in kwargs
+            inputs["start_sequence_index"] = full_sequence_index[:, -1]
 
         assert input_ids.shape[-1] == kwargs["coords"].shape[1]
         if self.embed_coords:
@@ -245,7 +238,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return model_kwargs
 
     def compute_sequence_index(self, input_ids, start_sequence_index=0):
-        assert (input_ids[:, 0] != self.sep_token_id).all()
+        # TODO: test - if input_ids is just sep token we return start_sequence_index
         # cat means sep token gets index of PREVIOUS sequence
         return start_sequence_index + torch.cat(
             (
