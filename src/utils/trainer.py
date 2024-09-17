@@ -1,7 +1,9 @@
+import datetime
 import math
 
 import torch
 from lightning import Trainer
+from lightning.pytorch.strategies import DDPStrategy
 
 
 class ProFamTrainer(Trainer):
@@ -11,10 +13,15 @@ class ProFamTrainer(Trainer):
         target_tokens_per_batch=None,
         batch_size=None,
         tokens_per_document=None,
+        timeout: Optional[int] = None,
         # n.b. val_check_interval uses BatchProgresss. This is a local counter.
         val_check_interval_divide_by_world_size: bool = True,
         **kwargs
     ):
+        """
+        timeout: timeout in seconds if using ddp strategy.
+        target_tokens_per_batch: target number of tokens per batch.
+        """
         devices = kwargs.get("devices", "auto")
         if devices == "auto":
             assert torch.cuda.is_available()
@@ -28,6 +35,12 @@ class ProFamTrainer(Trainer):
             )
             print(
                 "Setting accumulate_grad_batches to", kwargs["accumulate_grad_batches"]
+            )
+        if timeout is not None:
+            assert kwargs["strategy"] == "ddp"
+            # default is 1800 seconds
+            kwargs["strategy"] = DDPStrategy(
+                timeout=datetime.timedelta(timeout=timeout)
             )
         if val_check_interval_divide_by_world_size:
             val_check_interval = kwargs.get("val_check_interval", 1)

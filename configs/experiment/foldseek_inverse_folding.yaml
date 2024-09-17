@@ -5,7 +5,6 @@
 # python train.py experiment=foldseek_small
 
 defaults:
-  # TODO: write an inverse folding evaluator
   - /extra_callbacks@extra_callbacks.esmfold: esmfold
   - override /callbacks: default_with_shuffle
   - override /data: foldseek_representatives_interleaved
@@ -36,6 +35,7 @@ trainer:
   val_check_interval: 20000  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
+  timeout: 3600
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...

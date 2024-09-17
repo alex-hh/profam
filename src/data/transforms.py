@@ -251,7 +251,14 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), 0.0), xyz if repeat_coords else np.zeros_like(xyz)], axis=0)
+                np.concatenate(
+                    [
+                        xyz,
+                        np.full((1, 4, 3), 0.0),
+                        xyz if repeat_coords else np.zeros_like(xyz),
+                    ],
+                    axis=0,
+                )
             )
             interleaved_structure_coords_masks.append(
                 np.concatenate(
@@ -281,7 +288,9 @@ def interleave_structure_sequence(
                 )
             )
             interleaved_coords.append(
-                np.concatenate([np.zeros_like(xyz), np.full((1, 4, 3), 0.0), xyz], axis=0)
+                np.concatenate(
+                    [np.zeros_like(xyz), np.full((1, 4, 3), 0.0), xyz], axis=0
+                )
             )
             interleaved_structure_coords_masks.append(
                 np.concatenate(
