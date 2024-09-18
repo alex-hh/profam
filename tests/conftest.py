@@ -59,22 +59,24 @@ def profam_tokenizer_noseqpos():
 
 
 @pytest.fixture(scope="package")
-def default_model_noseqpos(profam_tokenizer_noseqpos):
+def test_model_noseqpos(profam_tokenizer_noseqpos):
     # otherwise could do this via overrides...
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
+            overrides=["model=llama_test"],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
 
 
 @pytest.fixture(scope="package")
-def default_model(profam_tokenizer):
+def test_model(profam_tokenizer):
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
+            overrides=["model=llama_test"],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 

@@ -4,8 +4,8 @@ import torch
 from src.models.utils import log_likelihood_from_outputs
 
 
-def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
-    model = default_model_noseqpos.eval()
+def test_kv_cache_no_seqpos(test_model_noseqpos, proteingym_batch):
+    model = test_model_noseqpos.eval()
     full_input_ids = torch.cat(
         [proteingym_batch["input_ids"], proteingym_batch["completion_ids"][:, 0]], dim=1
     )
@@ -57,7 +57,7 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
 
     # with torch.no_grad():
-    #     scores = default_model.score_seqs(
+    #     scores = test_model.score_seqs(
     #         input_ids=proteingym_batch["input_ids"],
     #         completion_ids=proteingym_batch["completion_ids"],
     #         use_cache=True,
@@ -67,8 +67,8 @@ def test_kv_cache_no_seqpos(default_model_noseqpos, proteingym_batch):
     #     )
 
 
-def test_kv_cache_with_seqpos(default_model, proteingym_batch):
-    model = default_model.eval()
+def test_kv_cache_with_seqpos(test_model, proteingym_batch):
+    model = test_model.eval()
     print(proteingym_batch.keys())
     full_input_ids = torch.cat(
         [proteingym_batch["input_ids"], proteingym_batch["completion_ids"][:, 0]], dim=1
@@ -118,8 +118,8 @@ def test_kv_cache_with_seqpos(default_model, proteingym_batch):
     assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
 
 
-def test_seq_scoring(default_model, proteingym_batch):
-    model = default_model.eval()
+def test_seq_scoring(test_model, proteingym_batch):
+    model = test_model.eval()
     with torch.no_grad():
         kv_scores = model.score_seqs(
             input_ids=proteingym_batch["input_ids"],
@@ -164,8 +164,8 @@ def test_seq_scoring_embed_seq_index(model_seq_index, proteingym_batch):
         assert np.isclose(kv_scores, scores).all(), f"{kv_scores} {scores}"
 
 
-def test_seq_scoring_batched(default_model, proteingym_batch):
-    model = default_model.eval()
+def test_seq_scoring_batched(test_model, proteingym_batch):
+    model = test_model.eval()
     with torch.no_grad():
         kv_scores = model.score_seqs(
             input_ids=proteingym_batch["input_ids"],
@@ -187,8 +187,8 @@ def test_seq_scoring_batched(default_model, proteingym_batch):
         assert np.isclose(kv_scores, scores).all(), f"{kv_scores} {scores}"
 
 
-def test_seq_scoring_noseqpos(default_model_noseqpos, proteingym_batch):
-    model = default_model_noseqpos.eval()
+def test_seq_scoring_noseqpos(test_model_noseqpos, proteingym_batch):
+    model = test_model_noseqpos.eval()
     with torch.no_grad():
         kv_scores = model.score_seqs(
             input_ids=proteingym_batch["input_ids"],
