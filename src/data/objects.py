@@ -92,9 +92,8 @@ def convert_list_of_arrays_to_list_of_lists(list_of_arrays):
         return list_of_arrays
 
 
-@dataclass
 class BaseProteinDocument:
-    protein_field_mapping: ClassVar[Dict] = {
+    protein_field_mapping = {
         "sequence": "sequences",
         "accession": "accessions",
         "plddts": "plddts",
@@ -102,20 +101,21 @@ class BaseProteinDocument:
         "backbone_coords_mask": "backbone_coords_masks",
         "structure_tokens": "structure_tokens",
     }
-    metadata_fields: ClassVar[List[str]] = [
+    metadata_fields = [
         "identifier",
         "representative_accession",
         "original_size",
     ]
 
-    proteins: List[Protein]
-    identifier: Optional[str] = None
-    # L x 2, boolean mask for modality (0: sequence, 1: structure)
-    # really tells us about what we are predicting: we could condition on e.g. sequence within interleaved structure.
-    representative_accession: Optional[
-        str
-    ] = None  # e.g. seed or cluster representative
-    original_size: Optional[int] = None  # total number of proteins in original set
+    def __init__(
+        self,
+        identifier: Optional[str] = None,
+        representative_accession: Optional[str] = None,
+        original_size: Optional[int] = None,
+    ):
+        self.identifier = identifier
+        self.representative_accession = representative_accession
+        self.original_size = original_size
 
     @property
     def metadata(self):
@@ -143,12 +143,18 @@ class BaseProteinDocument:
 # want to be consistent with fields in parquet files so we can load from there
 # TODO: look into how openai evals uses data classes or similar
 # TODO: consider how to represent masks
-@dataclass
 class ProteinDocument(BaseProteinDocument):
-    suffix_masks: Optional[np.ndarray] = None
-    metadata_fields: ClassVar[List[str]] = BaseProteinDocument.metadata_fields + [
-        "suffix_masks"
-    ]
+    metadata_fields = BaseProteinDocument.metadata_fields + ["suffix_masks"]
+
+    def __init__(
+        self,
+        proteins: List[Protein],
+        suffix_masks: Optional[np.ndarray] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.proteins = proteins
+        self.suffix_masks = suffix_masks
 
     def __post_init__(self):
         assert all(
@@ -348,7 +354,6 @@ class ProteinDocument(BaseProteinDocument):
         )
 
 
-@dataclass
 class InterleavedProteinDocument(BaseProteinDocument):
     """ProteinDocument where each protein is duplicated to form a prefix and suffix.
 
@@ -361,17 +366,24 @@ class InterleavedProteinDocument(BaseProteinDocument):
     self.suffix_mask can be used to control which regions are predicted.
     """
 
-    prefix_proteins: List[Protein]
-    suffix_proteins: List[Protein]
-    sequence_separator: str = "|"
-    default_fill_values: ClassVar[dict] = {
+    default_fill_values = {
         "backbone_coords": np.nan,
         "backbone_coords_masks": 0.0,
         "plddts": 100.0,
     }
-    metadata_fields: ClassVar[List[str]] = ProteinDocument.metadata_fields + [
-        "sequence_separator"
-    ]
+    metadata_fields = ProteinDocument.metadata_fields + ["sequence_separator"]
+
+    def __init__(
+        self,
+        prefix_proteins: List[Protein],
+        suffix_proteins: List[Protein],
+        sequence_separator: str = "|",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.sequence_separator = sequence_separator
+        self.prefix_proteins = prefix_proteins
+        self.suffix_proteins = suffix_proteins
 
     def __iter__(self):
         for i in range(len(self)):
