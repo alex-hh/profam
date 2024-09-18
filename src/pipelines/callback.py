@@ -33,7 +33,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         # run on val epoch end rather than train to stay in sync with other validation metrics
         if trainer.sanity_checking:
             return
-        device = model.device
+
         sampler = ProFamSampler(
             "profam_sampler",
             model,
@@ -52,8 +52,9 @@ class SamplingEvaluationPipelineCallback(Callback):
             verbose=False,
             rerun_evaluator=True,
             rerun_sampler=True,
+            device=model.device,
         )
-        sampler.to(device)
+
         mean_results = results_df.mean().to_dict()
         t1 = time.time()
         all_metrics = {f"{self.evaluator.name}/{k}": v for k, v in mean_results.items()}

@@ -66,7 +66,6 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
     def __init__(
         self,
         name,
-        device,
         num_samples: Optional[int] = None,
         seed: int = 52,
         prompt_plddt: bool = True,
@@ -80,7 +79,6 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         super().__init__(name, seed=seed, num_samples=num_samples, **kwargs)
         # TODO: defer loading model until first call to evaluate_samples
         self.esmfold = None
-        self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
         self.prompt_plddt = prompt_plddt
         self.half_precision = half_precision
@@ -89,11 +87,11 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.max_length = max_length  # TODO: we can actually enforce this on sampling.
         self.verbose = verbose
 
-    def _load_model(self):
+    def _load_model(self, device):
         self.esmfold = EsmForProteinFolding.from_pretrained(
             "facebook/esmfold_v1"
         ).eval()
-        self.esmfold = self.esmfold.to(self.device)
+        self.esmfold = self.esmfold.to(device)
         if self.half_precision:
             print("Using half precision")
             self.esmfold = self.esmfold.half()
@@ -104,14 +102,16 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         protein_document: ProteinDocument,
         samples: List[str],
         output_dir: Optional[str] = None,
+        device: Optional[str] = None,
     ):
+        assert device is not None
         if self.esmfold is None:
-            self._load_model()
+            self._load_model(device)
+        self.esmfold.to(device)
 
         # TODO: really we should compare to ProteinDocument and not to prompt, which may differ...
         # TODO: add average best TM score or similar to structures in document.
         # https://github.com/blt2114/twisted_diffusion_sampler/blob/968f77111b44e9c711b64e650c41745498ba470d/protein_exp/experiments/inference_se3_diffusion.py#L392
-        self.esmfold = self.esmfold.to(self.device)
         ca_index = atom_order["CA"]
         if self.save_structures:
             os.makedirs(output_dir, exist_ok=True)

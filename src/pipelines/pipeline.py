@@ -1,7 +1,7 @@
 import os
 import shutil
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -105,6 +105,7 @@ class BaseEvaluatorPipeline:
         model,
         rerun_model: bool = False,
         rerun_evaluator: bool = False,
+        device: Optional[str] = None,
     ):
         raise NotImplementedError()
 
@@ -177,6 +178,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         prompt: ProteinDocument,
         protein_document: ProteinDocument,
         rerun_evaluator: bool = False,
+        device: Optional[str] = None,
     ) -> None:
         generated_sequences = self.load_generations(instance_id, sampler_name)
         if rerun_evaluator or not self.has_result(
@@ -194,6 +196,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 protein_document=protein_document,
                 samples=generated_sequences,
                 output_dir=output_dir,
+                device=device,
             )
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
             print(f"Instance {instance_id} metrics: {metrics_str}")
@@ -254,6 +257,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         rerun_sampler: bool = False,
         rerun_evaluator: bool = True,
         sampling_only: bool = False,
+        device: Optional[str] = None,
     ):
         instance_ids = self.instance_ids()
         for instance_id in instance_ids:
@@ -267,6 +271,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     verbose=verbose,
                     flush=True,
                 )
+                if device is not None:
+                    sampler.to(device)
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
                 generated_sequences, prompt = evaluator.run_sampling(
@@ -290,6 +296,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                         prompt=prompt,
                         protein_document=protein_document,
                         rerun_evaluator=rerun_evaluator,
+                        device=device,
                     )
                 except Exception as e:
                     print("Failed to run validation on instance", instance_id)

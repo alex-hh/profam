@@ -1,5 +1,4 @@
 _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-device: "cuda:0"  # TODO: check this works in distributed.
 seed: 52
 name: esmfold
 half_precision: False
