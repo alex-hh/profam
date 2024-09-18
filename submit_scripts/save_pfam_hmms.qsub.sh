@@ -5,7 +5,7 @@
 #$ -S /bin/bash
 #$ -N save_pfam_hmms
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
-#$ -wd ~/profam
+#$ -wd ~/ProFam/ahh/profam
 #$ -j y
 date
 # conda activate venvPF

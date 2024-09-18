@@ -6,7 +6,7 @@
 #$ -S /bin/bash
 #$ -N aug_foldseek
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
-#$ -wd ~/profam
+#$ -wd ~/ProFam/ahh/profam
 #$ -t 1-1
 #$ -tc 1000
 #$ -j y

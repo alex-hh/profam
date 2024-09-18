@@ -6,7 +6,7 @@
 #$ -t 1-10000  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100
 #$ -N foldseekF
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
-#$ -wd ~/profam
+#$ -wd ~/ProFam/ahh/profam
 #$ -tc 1000
 #$ -j y
 #$ -l avx2=yes  # for foldmason
