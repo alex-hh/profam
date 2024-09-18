@@ -1,3 +1,4 @@
+import functools
 import os
 
 import numpy as np
@@ -52,160 +53,6 @@ def stitch_tokens(tokenizer, struct_tokens, seq_tokens):
     return torch.cat(tensors, dim=0)
 
 
-@pytest.fixture()
-def foldseek_interleaved_structure_sequence_batch(
-    profam_tokenizer,
-):
-    max_tokens = 2048
-    preprocessing_cfg = preprocessing.PreprocessingConfig(
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
-    )
-    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
-        config=preprocessing_cfg,
-        structure_tokens_col="msta_3di",
-        interleave_structure_sequence=True,
-        transform_fns=[transforms.concatenate_interleaved_proteins],
-    )
-    cfg = ProteinDatasetConfig(
-        name="foldseek",
-        preprocessor=parquet_3di_processor,
-        data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
-    )
-    data = load_protein_dataset(
-        cfg,
-        tokenizer=profam_tokenizer,
-        max_tokens=max_tokens,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
-    )
-    datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
-    return collator([datapoint])
-
-
-@pytest.fixture()
-def foldseek_datapoint(profam_tokenizer):
-    cfg = ProteinDatasetConfig(
-        name="foldseek",
-        data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
-    )
-    data = load_protein_dataset(
-        cfg,
-        tokenizer=profam_tokenizer,
-        max_tokens=2048,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
-    )
-    return next(iter(data))
-
-
-# TODO: write full manual test for coords concatenation and padding etc.
-def test_foldseek_interleaved_tokenization(
-    foldseek_interleaved_structure_sequence_batch,
-    foldseek_datapoint,
-    profam_tokenizer,
-):
-    num_sequences_in_batch = (
-        foldseek_interleaved_structure_sequence_batch["input_ids"]
-        == profam_tokenizer.sep_token_id
-    ).sum()
-
-    batch_seqs = foldseek_datapoint["sequences"][:num_sequences_in_batch]
-    batch_coords = preprocessing.backbone_coords_from_example(foldseek_datapoint)[
-        :num_sequences_in_batch
-    ]
-    batch_plddts = foldseek_datapoint["plddts"][:num_sequences_in_batch]
-    batch_3dis = [
-        s.replace("-", "").lower()
-        for s in foldseek_datapoint["msta_3di"][:num_sequences_in_batch]
-    ]
-    # TODO: make a proper test by stitching together manually encoded sequences and 3dis
-    individual_seq_tokens = [
-        profam_tokenizer.encode_completions([s], bos_token="", eos_token="").input_ids[
-            0
-        ]
-        for s in batch_seqs
-    ]
-    individual_3d_tokens = [
-        profam_tokenizer.encode_completions(
-            [s_3d], bos_token="", eos_token=""
-        ).input_ids[0]
-        for s_3d in batch_3dis
-    ]
-    stitched_tokens = torch.tensor(
-        profam_tokenizer.convert_tokens_to_ids(["[RAW]", profam_tokenizer.bos_token])
-    )
-    stitched_tokens = torch.cat(
-        [
-            stitched_tokens,
-            stitch_tokens(
-                profam_tokenizer, individual_3d_tokens, individual_seq_tokens
-            ),
-        ],
-        dim=0,
-    )
-
-    assert (
-        foldseek_interleaved_structure_sequence_batch["input_ids"][
-            0, : stitched_tokens.shape[0]
-        ]
-        == stitched_tokens
-    ).all()
-
-    sep_locations = torch.argwhere(
-        foldseek_interleaved_structure_sequence_batch["input_ids"][0]
-        == profam_tokenizer.sep_token_id
-    ).flatten()
-    struct_sep_locations = torch.argwhere(
-        foldseek_interleaved_structure_sequence_batch["input_ids"][0]
-        == profam_tokenizer.seq_struct_sep_token_id
-    ).flatten()
-    assert (
-        sep_locations.shape[0]
-        == struct_sep_locations.shape[0]
-        == num_sequences_in_batch
-    )
-    # TODO: assertion on seq pos at seps
-    struct_start_index = profam_tokenizer.num_start_tokens
-
-    for i in range(num_sequences_in_batch):
-        struct_end_index = struct_sep_locations[i]
-        seq_start_index = struct_end_index + 1
-        seq_end_index = sep_locations[i]
-        assert (
-            foldseek_interleaved_structure_sequence_batch["backbone_coords"][
-                0, struct_start_index:struct_end_index
-            ]
-            == torch.from_numpy(batch_coords[i])
-        ).all()
-        assert (
-            foldseek_interleaved_structure_sequence_batch["plddts"][
-                0, seq_start_index:seq_end_index
-            ]
-            == torch.tensor(batch_plddts[i])
-        ).all()
-        assert (
-            foldseek_interleaved_structure_sequence_batch["backbone_coords"][
-                0, seq_start_index:seq_end_index
-            ]
-            == torch.from_numpy(batch_coords[i])
-        ).all()
-        assert (
-            foldseek_interleaved_structure_sequence_batch["plddts"][
-                0, seq_start_index:seq_end_index
-            ]
-            == torch.tensor(batch_plddts[i])
-        ).all()
-        struct_start_index = sep_locations[i] + 1
-
-
 # def test_foldseek_plddt_masking(profam_tokenizer, parquet_3di_processor):
 #     profam_tokenizer.mask_below_plddt = 90
 #     cfg = ProteinDatasetConfig(
@@ -247,6 +94,7 @@ def test_foldseek_interleaved_tokenization(
 
 def test_foldseek_representative_concatenation(profam_tokenizer):
     # verify that building representatives into a single document is successful
+    max_tokens = 2048
     preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
@@ -258,7 +106,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
     parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
         config=preprocessing_cfg,
         structure_tokens_col=None,
-        interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
+        interleave_proteins=False,  # n.b. interleaving transform automatically computes max_tokens
     )
     cfg = ProteinDatasetConfig(
         name="foldseek",
@@ -271,7 +119,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         cfg,
         profam_tokenizer,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        max_tokens=profam_tokenizer.max_tokens,
+        max_tokens=max_tokens,
         shuffle=False,
     )
     example = next(iter(dataset))

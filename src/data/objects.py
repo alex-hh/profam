@@ -7,11 +7,19 @@ import numpy as np
 
 from src.data.fasta import read_fasta_lines
 
+DEFAULT_PAD_VALUES = {
+    "backbone_coords": 0.0,
+    "backbone_coords_masks": 0.0,
+    "plddts": 100.0,
+    "suffix_masks": False,
+}
+
+
 DEFAULT_FILL_VALUES = {
     "backbone_coords": np.nan,
     "backbone_coords_masks": 0.0,
     "plddts": 100.0,
-    "suffix_mask": False,
+    "suffix_masks": False,
 }
 
 
@@ -151,11 +159,11 @@ class Protein:
         constructor_kwargs = {}
         if self.backbone_coords is not None:
             constructor_kwargs["backbone_coords"] = np.where(
-                mask, np.nan, self.backbone_coords
+                mask[:, None, None], np.nan, self.backbone_coords
             )
         if self.backbone_coords_mask is not None and backbone_coords_mask:
             constructor_kwargs["backbone_coords_mask"] = np.where(
-                mask, 0.0, self.backbone_coords_mask
+                mask[:, None, None], 0.0, self.backbone_coords_mask
             )
         if self.plddt is not None and plddt:
             constructor_kwargs["plddt"] = np.where(mask, np.nan, self.plddt)
@@ -232,7 +240,6 @@ class ProteinDocument(BaseProteinDocument):
         self.proteins = proteins
         self.suffix_masks = suffix_masks
 
-    def __post_init__(self):
         assert all(
             prot.null_fields == self.proteins[0].null_fields for prot in self.proteins
         )
@@ -249,7 +256,9 @@ class ProteinDocument(BaseProteinDocument):
     def __getitem__(self, key):
         if isinstance(key, int):
             return self.proteins[key]
-        return ProteinDocument(self.proteins[key], **self.metadata)
+        metadata = self.metadata
+        metadata["suffix_masks"] = self.suffix_masks[key]
+        return ProteinDocument(self.proteins[key], **metadata)
 
     def __len__(self):
         return len(self.proteins)
@@ -389,8 +398,14 @@ class ProteinDocument(BaseProteinDocument):
 
         Filter_fn should take a protein and return True if it should be kept.
         """
-        proteins = [protein for protein in self if filter_fn(protein)]
-        return ProteinDocument(proteins=proteins, **self.metadata)
+        suffix_masks = []
+        proteins = []
+        for ix, protein in enumerate(self.proteins):
+            if filter_fn(protein):
+                proteins.append(protein)
+                suffix_masks.append(self.suffix_masks[ix])
+        metadata = {k: v for k, v in self.metadata.items() if k != "suffix_masks"}
+        return ProteinDocument(proteins=proteins, suffix_masks=suffix_masks, **metadata)
 
     def pop(self, index):
         return self.proteins.pop(index)
@@ -472,10 +487,12 @@ class ProteinDocument(BaseProteinDocument):
 
         In practice, use transforms to mask different modalities from prefix and suffix.
         """
+        metadata = {k: v for k, v in self.metadata.items() if k != "suffix_masks"}
         return InterleavedProteinDocument(
             prefix_proteins=copy.deepcopy(self.proteins),
             suffix_proteins=copy.deepcopy(self.proteins),
             sequence_separator=sequence_separator,
+            **metadata,
         )
 
 
@@ -504,13 +521,23 @@ class InterleavedProteinDocument(BaseProteinDocument):
         self.sequence_separator = sequence_separator
         self.prefix_proteins = prefix_proteins
         self.suffix_proteins = suffix_proteins
+        assert len(self.prefix_proteins) == len(self.suffix_proteins)
+
+    def __len__(self):
+        return len(self.prefix_proteins)
 
     def __iter__(self):
         for i in range(len(self)):
             yield self.prefix_proteins[i], self.suffix_proteins[i]
 
     def __getitem__(self, key):
-        return self.prefix_proteins[key], self.suffix_proteins[key]
+        if isinstance(key, int):
+            return self.prefix_proteins[key], self.suffix_proteins[key]
+        else:
+            return self.clone(
+                prefix_proteins=self.prefix_proteins[key],
+                suffix_proteins=self.suffix_proteins[key],
+            )
 
     @property
     def suffix_masks(self):
@@ -530,6 +557,7 @@ class InterleavedProteinDocument(BaseProteinDocument):
         return suffix_masks
 
     def interleave_proteins(self, prefix, suffix):
+        assert prefix.null_fields == suffix.null_fields
         return Protein(
             sequence=prefix.sequence + self.sequence_separator + suffix.sequence,
             accession=prefix.accession,
@@ -537,27 +565,37 @@ class InterleavedProteinDocument(BaseProteinDocument):
             plddt=np.concatenate(
                 [
                     prefix.plddt,
-                    np.full((1,), DEFAULT_FILL_VALUES["plddt"]),
+                    np.full((1,), DEFAULT_PAD_VALUES["plddts"]),
                     suffix.plddt,
                 ]
-            ),
+            )
+            if prefix.plddt is not None
+            else None,
             backbone_coords=np.concatenate(
                 [
                     prefix.backbone_coords,
-                    np.full((1, 4, 3), DEFAULT_FILL_VALUES["backbone_coords"]),
+                    np.full(
+                        (1, 4, 3), DEFAULT_PAD_VALUES["backbone_coords"]
+                    ),  # use 0 rather than nan as we typically already replaced nans
                     suffix.backbone_coords,
                 ]
-            ),
+            )
+            if prefix.backbone_coords is not None
+            else None,
             backbone_coords_mask=np.concatenate(
                 [
                     prefix.backbone_coords_mask,
-                    np.full((1, 4, 3), DEFAULT_FILL_VALUES["backbone_coords_mask"]),
+                    np.full((1, 4, 3), DEFAULT_PAD_VALUES["backbone_coords_masks"]),
                     suffix.backbone_coords_mask,
                 ]
-            ),
+            )
+            if prefix.backbone_coords_mask is not None
+            else None,
             structure_tokens=prefix.structure_tokens
             + self.sequence_separator
-            + suffix.structure_tokens,
+            + suffix.structure_tokens
+            if prefix.structure_tokens is not None
+            else None,
         )
 
     def to_protein_document(self):
@@ -594,6 +632,5 @@ class InterleavedProteinDocument(BaseProteinDocument):
         return InterleavedProteinDocument(
             prefix_proteins=prefix_proteins or self.prefix_proteins,
             suffix_proteins=suffix_proteins or self.suffix_proteins,
-            sequence_separator=self.sequence_separator,
             **metadata,
         )

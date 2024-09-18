@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 
 from src.constants import BASEDIR
+from src.data import transforms
 from src.data.preprocessing import ParquetStructurePreprocessor, PreprocessingConfig
 from src.models.inference import InterleavedInverseFoldingPromptBuilder
 
@@ -18,8 +19,9 @@ def test_representative_inverse_folding(profam_tokenizer):
     preprocessor = ParquetStructurePreprocessor(
         config=cfg,
         structure_tokens_col=None,
-        interleave_structure_sequence=True,
+        interleave_proteins=True,
         infer_representative_from_identifier=True,
+        interleaved_transform_fns=[transforms.mask_interleave_structure_sequence],
     )
     proteins = preprocessor.build_document(example, max_tokens=1536, shuffle=False)
     rep_seq = proteins[0].sequence

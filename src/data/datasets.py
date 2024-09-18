@@ -39,7 +39,7 @@ def filter_on_length(example, cfg, max_tokens, tokenizer):
     elif cfg.length_filter == "max_tokens":
         if max_tokens is None:
             return True
-        elif cfg.preprocessor.interleave_structure_sequence:
+        elif cfg.preprocessor.interleave_proteins:
             return (
                 max([len(s) for s in example["sequences"]])
                 <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
@@ -218,10 +218,7 @@ def load_protein_dataset(
                 example["backbone_coords_mask"] = [
                     m.tolist() for m in example["backbone_coords_mask"]
                 ]
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = [
-                        m.tolist() for m in example["interleaved_coords_mask"]
-                    ]
+
         else:
             example["ds_name"] = cfg.name
             # TODO: get identifier for fasta files...
@@ -233,10 +230,6 @@ def load_protein_dataset(
                 example["backbone_coords_mask"] = example[
                     "backbone_coords_mask"
                 ].tolist()
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = example[
-                        "interleaved_coords_mask"
-                    ].tolist()
 
         return example
 

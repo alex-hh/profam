@@ -131,7 +131,10 @@ def replace_nans_in_coords(
     return proteins.clone(backbone_coords=new_coords)
 
 
-def fill_missing_fields(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+def fill_missing_fields(
+    proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwargs
+):
+    # TODO: use DEFAULT FILL VALUES
     proteins = proteins.fill_missing_structure_arrays(
         coords_fill=np.nan,
         plddts_fill=100.0,
@@ -144,6 +147,7 @@ def apply_plddt_mask(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
     threshold: float = 80.0,
+    **kwargs,
 ):
     # only mask structure tokens
     # must be before replace nans and before interleaving
@@ -199,23 +203,37 @@ def filter_by_length(
         return proteins.filter(length_filter)
 
 
-def concatenate_interleaved_proteins(interleaved_proteins: InterleavedProteinDocument, **kwargs):
+def concatenate_interleaved_proteins(
+    interleaved_proteins: InterleavedProteinDocument, **kwargs
+):
     return interleaved_proteins.to_protein_document()
 
 
 def interleave_proteins(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
+    max_tokens: int,
     **kwargs,
 ):
+    """Interleave proteins, and slice to tokenizer.max tokens."""
     # TODO: rename seq_struct_sep_token -> interleaved_sep_token
-    return proteins.interleave(sequence_separator=tokenizer.seq_struct_sep_token)
+    interleaved_proteins = proteins.interleave(
+        sequence_separator=tokenizer.seq_struct_sep_token
+    )
+    total_length = 0
+    for i, (prefix, suffix) in enumerate(interleaved_proteins):
+        total_length += len(prefix) + len(suffix)
+        if total_length > (max_tokens or 1e8):
+            break
+    return interleaved_proteins[:i]
 
 
 def mask_interleave_structure_sequence(
     interleaved_proteins: InterleavedProteinDocument,
     tokenizer: ProFamTokenizer,
     structure_first_prob: float = 1.0,
+    use_structure_tokens: bool = False,
+    **kwargs,
 ):
     """Fully mask one modality in prefix and other modality in suffix.
 
@@ -230,16 +248,30 @@ def mask_interleave_structure_sequence(
     prefix_proteins = ProteinDocument(interleaved_proteins.prefix_proteins)
     suffix_proteins = ProteinDocument(interleaved_proteins.suffix_proteins)
     if coin_flip < structure_first_prob:
-        prefix_proteins = prefix_proteins.mask_sequences(tokenizer.mask_token)
-        suffix_proteins = suffix_proteins.mask_structure(
-            plddts=False, backbone_coords_mask=False
+        if use_structure_tokens:
+            assert prefix_proteins.structure_tokens is not None
+            prefix_proteins = prefix_proteins.clone(
+                sequences=prefix_proteins.structure_tokens
+            )
+        else:
+            prefix_proteins = prefix_proteins.mask_sequences(tokenizer.mask_token)
+        # masks and plddts retained to identify structure information that is available in prefix
+        suffix_proteins = suffix_proteins.mask_structures(
+            mask_token=tokenizer.mask_token, plddts=False, backbone_coords_masks=False
         )
     else:
-        prefix_proteins = prefix_proteins.mask_structure(
-            plddts=False, backbone_coords_mask=False
+        # suffix has no information at all about structure so mask masks and plddts to
+        prefix_proteins = prefix_proteins.mask_structures(
+            mask_token=tokenizer.mask_token, plddts=True, backbone_coords_masks=True
         )
-        suffix_proteins = suffix_proteins.mask_sequences(tokenizer.mask_token)
-    return InterleavedProteinDocument.clone(prefix_proteins, suffix_proteins)
+        if use_structure_tokens:
+            assert suffix_proteins.structure_tokens is not None
+            suffix_proteins = suffix_proteins.clone(
+                sequences=suffix_proteins.structure_tokens
+            )
+        else:
+            suffix_proteins = suffix_proteins.mask_sequences(tokenizer.mask_token)
+    return interleaved_proteins.clone(prefix_proteins, suffix_proteins)
 
 
 def partially_mask_prefixes_for_protein_design(
@@ -248,6 +280,7 @@ def partially_mask_prefixes_for_protein_design(
     structure_mask_prob_bounds: Tuple = (0.0, 1.0),
     sequence_sub_mask_prob_bounds: Tuple = (0.0, 1.0),
     remove_unmasked_sequence_positions_from_suffix: bool = False,
+    **kwargs,
 ):
     """Randomly mask a subset of positions in prefix.
 
@@ -308,7 +341,7 @@ def partially_mask_prefixes_for_protein_design(
             [~m for m in prefix_sequence_masks]
         )
 
-    return InterleavedProteinDocument.clone(prefix_proteins, suffix_proteins)
+    return interleaved_proteins.clone(prefix_proteins, suffix_proteins)
 
 
 def partially_mask_prefixes_for_structure_prediction(
@@ -317,6 +350,7 @@ def partially_mask_prefixes_for_structure_prediction(
     sequence_mask_prob_bounds: Tuple = (0.5, 1.0),
     structure_sub_mask_prob_bounds: Tuple = (0.0, 0.0),
     remove_unmasked_sequence_positions_from_suffix: bool = True,
+    **kwargs,
 ):
     """Converse of `partially_mask_prefixes_for_sequence_design`.
 
@@ -366,7 +400,7 @@ def partially_mask_prefixes_for_structure_prediction(
             [~m for m in prefix_sequence_masks]
         )
 
-    return InterleavedProteinDocument.clone(prefix_proteins, suffix_proteins)
+    return interleaved_proteins.clone(prefix_proteins, suffix_proteins)
 
 
 def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
@@ -376,7 +410,9 @@ def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
     return proteins.clone(sequences=new_sequences)
 
 
-def apply_transforms(transforms, proteins, tokenizer):
+def apply_transforms(transforms, proteins, tokenizer, **kwargs):
+    # TODO: consider passing max tokens as kwarg, instead of inferring from tokenizer,
+    # where it doesn't really belong
     for transform in transforms or []:
-        proteins = transform(proteins, tokenizer=tokenizer)
+        proteins = transform(proteins, tokenizer=tokenizer, **kwargs)
     return proteins

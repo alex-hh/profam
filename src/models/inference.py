@@ -61,7 +61,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
     ):
         super().__init__(preprocessor, max_tokens, seed)
         self.representative_only = representative_only
-        assert self.preprocessor.interleave_structure_sequence
+        assert self.preprocessor.interleave_proteins
 
     # we need to exclude token space for length seed*2 from preprocessing
     # TODO: write tests for this
@@ -85,7 +85,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             )
 
         # TODO: tokenize representative
-        representative_doc = ProteinDocument.from_proteins([representative])
+        representative_doc = ProteinDocument([representative])
         transform_fns = default_transforms(max_tokens=None, shuffle=False) + (
             self.preprocessor.transform_fns or []
         )

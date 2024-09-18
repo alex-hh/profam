@@ -5,7 +5,7 @@ import torch
 from torch import stack
 from transformers import PreTrainedTokenizerFast
 
-from src.data.objects import DEFAULT_FILL_VALUES, ProteinDocument
+from src.data.objects import DEFAULT_PAD_VALUES, ProteinDocument
 from src.data.utils import examples_list_to_dict
 from src.utils import RankedLogger
 
@@ -13,7 +13,7 @@ TORCH_DATA_TYPES = {
     "backbone_coords": torch.float32,
     "backbone_coords_masks": torch.float32,
     "plddts": torch.float32,
-    "suffix_mask": torch.bool,
+    "suffix_masks": torch.bool,
 }
 
 
@@ -133,7 +133,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_document_token: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
-        max_tokens: Optional[int] = 5000,
         seq_struct_sep_token="|",
         **kwargs,
     ):
@@ -142,7 +141,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.add_document_token = add_document_token
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
-        self.max_tokens = max_tokens
         self.seq_struct_sep_token = seq_struct_sep_token
 
         if not self.additional_special_tokens:
@@ -199,11 +197,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             add_special_tokens=False,
             max_length=max_length,
         )
-        if self.max_tokens is not None:
-            assert tokenized.input_ids.shape[1] <= self.max_tokens, (
-                tokenized.input_ids.shape[1],
-                self.max_tokens,
-            )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
 
@@ -234,7 +227,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 tokenized.data[array_name] = torch.from_numpy(
                     concatenate_pad_array(
                         proteins[array_name],
-                        fill_value=DEFAULT_FILL_VALUES[array_name],
+                        fill_value=DEFAULT_PAD_VALUES[array_name],
                         num_start_tokens=self.num_start_tokens,
                         num_end_tokens=num_end_tokens,
                         pad_to_length=tokenized.input_ids.shape[-1],
