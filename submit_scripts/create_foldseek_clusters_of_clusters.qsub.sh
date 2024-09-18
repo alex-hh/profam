@@ -10,7 +10,7 @@
 #$ -j y
 date
 # conda activate venvPF
-source ~/source_files/afenv.source
+source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
 
 # copy the datasets to the scratch space
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID

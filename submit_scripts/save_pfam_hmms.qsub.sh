@@ -10,7 +10,7 @@
 date
 # conda activate venvPF
 export USE_TORCH=1
-source ~/source_files/afenv.source
+source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
 python3 data_creation_scripts/save_pfam_hmms.py "$@"
 # TODO: zip the scratch dir?
 date
