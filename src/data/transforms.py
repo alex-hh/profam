@@ -271,8 +271,11 @@ def partially_mask_prefixes_for_protein_design(
         structure_mask = np.random.rand(len(protein)) < structure_mask_prob
         prefix_structure_masks.append(structure_mask)
 
-    prefix_proteins = prefix_proteins.mask_structure(
-        plddts=True, backbone_structure_masks=True, masks=prefix_structure_masks
+    prefix_proteins = prefix_proteins.mask_structures(
+        mask_token=tokenizer.mask_token,
+        plddts=True,
+        backbone_structure_masks=True,
+        masks=prefix_structure_masks,
     )
     # now build sequence masks. we mask all positions that are already masked, and a subset of remaining positions
     prefix_sequence_masks = []
@@ -286,12 +289,15 @@ def partially_mask_prefixes_for_protein_design(
 
     # apply the same mask to the suffix coords masks so that they are aware of the prefix mask
     # i.e. suffix coords mask should be True if the corresponding position in the prefix is masked
-    suffix_proteins = suffix_proteins.mask_structure(
-        plddts=True, backbone_structure_masks=True, masks=prefix_structure_masks
+    suffix_proteins = suffix_proteins.mask_structures(
+        mask_token=tokenizer.mask_token,
+        plddts=True,
+        backbone_structure_masks=True,
+        masks=prefix_structure_masks,
     )
 
     prefix_proteins = prefix_proteins.mask_sequences(
-        tokenizer.mask_token, masks=prefix_sequence_masks
+        mask_token=tokenizer.mask_token, masks=prefix_sequence_masks
     )
     if remove_unmasked_sequence_positions_from_suffix:
         suffix_proteins = suffix_proteins.masked_slice_proteins(
@@ -326,7 +332,9 @@ def partially_mask_prefixes_for_structure_prediction(
         sequence_mask = np.random.rand(len(protein)) < sequence_mask_prob
         prefix_sequence_masks.append(sequence_mask)
 
-    prefix_proteins = prefix_proteins.mask_sequence(masks=prefix_sequence_masks)
+    prefix_proteins = prefix_proteins.mask_sequences(
+        tokenizer.mask_token, masks=prefix_sequence_masks
+    )
     # now build sequence masks. we mask all positions that are already masked, and a subset of remaining positions
     prefix_structure_masks = []
     for sequence_mask in prefix_sequence_masks:
@@ -337,11 +345,17 @@ def partially_mask_prefixes_for_structure_prediction(
         )
         prefix_structure_masks.append(structure_mask)
 
-    prefix_proteins = prefix_proteins.mask_structure(
-        plddts=True, backbone_coords_masks=True, masks=prefix_structure_masks
+    prefix_proteins = prefix_proteins.mask_structures(
+        mask_token=tokenizer.mask_token,
+        plddts=True,
+        backbone_coords_masks=True,
+        masks=prefix_structure_masks,
     )
-    suffix_proteins = suffix_proteins.mask_structure(
-        plddts=True, backbone_coords_masks=True, masks=prefix_structure_masks
+    suffix_proteins = suffix_proteins.mask_structures(
+        mask_token=tokenizer.mask_token,
+        plddts=True,
+        backbone_coords_masks=True,
+        masks=prefix_structure_masks,
     )
     if remove_unmasked_sequence_positions_from_suffix:
         suffix_proteins = suffix_proteins.masked_slice_proteins(

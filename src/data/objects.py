@@ -100,6 +100,72 @@ class Protein:
                 fields.append(k)
         return set(fields)
 
+    def clone(self, **kwargs):
+        return Protein(
+            sequence=kwargs.get("sequence", self.sequence),
+            accession=kwargs.get("accession", self.accession),
+            positions=kwargs.get("positions", self.positions),
+            plddt=kwargs.get("plddt", self.plddt),
+            backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
+            backbone_coords_mask=kwargs.get(
+                "backbone_coords_mask", self.backbone_coords_mask
+            ),
+            structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
+        )
+
+    def masked_slice(self, mask):
+        return Protein(
+            sequence=self.sequence,
+            accession=self.accession,
+            positions=[pos for pos, m in zip(self.positions, mask) if m],
+            plddt=self.plddt[mask] if self.plddt is not None else None,
+            backbone_coords=self.backbone_coords[mask]
+            if self.backbone_coords is not None
+            else None,
+            backbone_coords_mask=self.backbone_coords_mask[mask]
+            if self.backbone_coords_mask is not None
+            else None,
+            structure_tokens=self.structure_tokens[mask]
+            if self.structure_tokens is not None
+            else None,
+        )
+
+    def mask_sequence(self, mask_token, mask: Optional[np.ndarray] = None):
+        if mask is None:
+            mask = np.ones(len(self.sequence), dtype=bool)
+        return self.clone(
+            sequence="".join(
+                mask_token if m else aa for aa, m in zip(self.sequence, mask)
+            ),
+        )
+
+    def mask_structure(
+        self,
+        mask_token: Optional[str] = None,
+        plddt=False,
+        backbone_coords_mask=False,
+        mask: Optional[np.ndarray] = None,
+    ):
+        if mask is None:
+            mask = np.ones(len(self.sequence), dtype=bool)
+        constructor_kwargs = {}
+        if self.backbone_coords is not None:
+            constructor_kwargs["backbone_coords"] = np.where(
+                mask, np.nan, self.backbone_coords
+            )
+        if self.backbone_coords_mask is not None and backbone_coords_mask:
+            constructor_kwargs["backbone_coords_mask"] = np.where(
+                mask, 0.0, self.backbone_coords_mask
+            )
+        if self.plddt is not None and plddt:
+            constructor_kwargs["plddt"] = np.where(mask, np.nan, self.plddt)
+        if self.structure_tokens is not None:
+            assert mask_token is not None
+            constructor_kwargs["structure_tokens"] = "".join(
+                mask_token if m else aa for aa, m in zip(self.structure_tokens, mask)
+            )
+        return self.clone(**constructor_kwargs)
+
 
 class BaseProteinDocument:
     protein_field_mapping = {
@@ -329,12 +395,43 @@ class ProteinDocument(BaseProteinDocument):
     def pop(self, index):
         return self.proteins.pop(index)
 
-    @property
-    def has_all_structure_arrays(self):
-        return not any(
-            f in self.null_fields
-            for f in ["backbone_coords", "structure_tokens", "plddts"]
-        )
+    def mask_sequences(self, mask_token, masks: Optional[List[np.ndarray]] = None):
+        if masks is None:
+            masks = [np.ones(len(seq), dtype=bool) for seq in self.sequences]
+        masked_proteins = []
+        for protein, mask in zip(self.proteins, masks):
+            masked_proteins.append(
+                protein.mask_sequence(mask_token=mask_token, mask=mask)
+            )
+        return ProteinDocument(masked_proteins, **self.metadata)
+
+    def mask_structures(
+        self,
+        mask_token: Optional[str] = None,
+        plddts: bool = False,
+        backbone_coords_masks: bool = False,
+        masks: Optional[List[np.ndarray]] = None,
+    ):
+        if masks is None:
+            masks = [np.ones(len(seq), dtype=bool) for seq in self.sequences]
+        masked_proteins = []
+        for protein, mask in zip(self.proteins, masks):
+            masked_proteins.append(
+                protein.mask_structure(
+                    mask_token=mask_token,
+                    plddt=plddts,
+                    backbone_coords_mask=backbone_coords_masks,
+                    mask=mask,
+                )
+            )
+        return ProteinDocument(masked_proteins, **self.metadata)
+
+    def masked_slice_proteins(self, protein_masks):
+        assert len(protein_masks) == len(self)
+        sliced_proteins = []
+        for protein, mask in zip(self.proteins, protein_masks):
+            sliced_proteins.append(protein.masked_slice(mask))
+        return ProteinDocument(sliced_proteins, **self.metadata)
 
     def fill_missing_structure_arrays(
         self, coords_fill=np.nan, plddts_fill=np.nan, tokens_fill="?"
