@@ -56,8 +56,6 @@ class SamplingEvaluationPipelineCallback(Callback):
         sampler.to(device)
         mean_results = results_df.mean().to_dict()
         t1 = time.time()
-        all_metrics = {
-            f"{self.evaluator.name}/{k}": v for k, v in mean_results.items()
-        }
+        all_metrics = {f"{self.evaluator.name}/{k}": v for k, v in mean_results.items()}
         all_metrics[f"{self.evaluator.name}/time"] = t1 - t0
         model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)
