@@ -76,7 +76,7 @@ protobuf==4.25.3
 psutil==5.9.8
 ptyprocess==0.7.0
 pure-eval==0.2.2
-pyarrow==16.1.0
+pyarrow==17.0.0
 pyarrow-hotfix==0.6
 Pygments==2.18.0
 pyhmmer

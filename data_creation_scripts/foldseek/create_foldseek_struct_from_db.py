@@ -15,6 +15,7 @@ from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
 import time
 import os
+import numpy as np
 import pandas as pd
 from modin import pandas as mpd
 import pyarrow as pa
@@ -62,14 +63,15 @@ def save_pdbs_to_parquet(
             cluster_filelist.append(pdb)
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
             residue_identities = get_residues(structure)[1]
-            b_factors = structure.b_factor[get_residue_starts(structure)]
+            b_factors = np.array(structure.b_factor[get_residue_starts(structure)]).astype("float16")
             seq = "".join(
                 [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
             )
             all_b_factors.append(b_factors)
             sequences.append(seq)
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
-                all_coords[atom_name].append(coords[:, ix, :].flatten())
+                # N.B. need to use recent versions of pyarrow for half float support
+                all_coords[atom_name].append(coords[:, ix, :].flatten().astype("float16"))
             
         # Run FoldMason on the cluster
         if run_foldmason:
@@ -117,9 +119,10 @@ def save_pdbs_to_parquet(
         results.append(res)
 
     df = pd.DataFrame(results)
-    df[["N", "CA", "C", "O", "plddts"]] = df[["N", "CA", "C", "O", "plddts"]].astype("float16")
     # Q. why not just df.to_parquet?
     table = pa.Table.from_pandas(df)
+    # https://github.com/apache/arrow/pull/42103 suggests that float16 is supported??
+    print(table.schema)
     output_file = os.path.join(f'{save_dir}', f'{parquet_id}.parquet')
     pq.write_table(table, output_file)
     print(f"Saved {clusters_to_save} clusters to {output_file}")
