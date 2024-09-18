@@ -1,12 +1,12 @@
 import bisect
 import itertools
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from src.data.fasta import convert_sequence_with_positions
-from src.data.objects import Protein, ProteinDocument
+from src.data.objects import InterleavedProteinDocument, Protein, ProteinDocument
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
@@ -132,12 +132,11 @@ def replace_nans_in_coords(
 
 
 def fill_missing_fields(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-    if not proteins.has_all_structure_arrays:
-        proteins = proteins.fill_missing_structure_arrays(
-            coords_fill=np.nan,
-            plddts_fill=100.0,
-            tokens_fill=tokenizer.mask_token,
-        )
+    proteins = proteins.fill_missing_structure_arrays(
+        coords_fill=np.nan,
+        plddts_fill=100.0,
+        tokens_fill=tokenizer.mask_token,
+    )
     return proteins
 
 
@@ -200,248 +199,102 @@ def filter_by_length(
         return proteins.filter(length_filter)
 
 
-def interleave_structure_sequence(
+def interleave_proteins(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
-    structure_first_prob: float = 1.0,
-    # TODO: allow arbitrary mask probability generating functions
-    conditioning_sequence_mask_prob: tuple = (
-        1.0,
-        1.0,
-    ),  # range for uniform sampling of probability
-    conditioning_structure_mask_prob: tuple = (1.0, 1.0),
-    remove_conditioning_sequence_from_targets: bool = False,
-    remove_conditioning_structure_from_targets: bool = False,
-    use_structure_tokens: bool = True,
-    # TODO: repeat_coords, repeat_sequence kwargs
+    **kwargs,
 ):
-    """Interleave structure and sequence tokens.
+    # TODO: rename seq_struct_sep_token -> interleaved_sep_token
+    return proteins.interleave(sequence_separator=tokenizer.seq_struct_sep_token)
 
-    This transform allows structure-conditioned sequence generation and sequence-conditioned structure generation.
 
-    To increase flexibility, we allow conditioning on known amino acids during structure-conditioned
-    sequence generation and known structure during sequence-conditioned structure generation.
-    This is done by masking the target modality at positions belonging to the conditioning modality
-    according to the probabilities.
+def mask_interleave_structure_sequence(
+    interleaved_proteins: InterleavedProteinDocument,
+    tokenizer: ProFamTokenizer,
+    structure_first_prob: float = 1.0,
+):
+    """Fully mask one modality in prefix and other modality in suffix.
 
-    This basically allows an MAR-style model (Kaiming He).
+    Sequence  | Structure | Task
+    ---------------------------
+    Masked    | Known     | Inverse folding
+    Known     | Masked    | Structure prediction
 
-    N.B. we could randomise the order of the generated tokens -
-    but we already support a discrete-diffusion style parallel proposal generation
-    even without doing this.
-
-    The function automatically reduces the number of proteins to fit within max_tokens.
-
-    TODO: make more readable somehow
-
-    N.B. we hard-code coords padding as 0.
+    This solves inverse folding and structure prediction.
     """
     coin_flip = np.random.rand()
-    interleaved_sequences = []
-    interleaved_positions = []
-    interleaved_plddts = []
-    interleaved_coords = []
-    interleaved_structure_coords_masks = []
-    interleaved_sequence_coords_masks = []
-    interleaved_modality_masks = []
-    total_tokens = tokenizer.num_start_tokens
+    prefix_proteins = ProteinDocument(interleaved_proteins.prefix_proteins)
+    suffix_proteins = ProteinDocument(interleaved_proteins.suffix_proteins)
+    if coin_flip < structure_first_prob:
+        prefix_proteins = prefix_proteins.mask_sequences(tokenizer.mask_token)
+        suffix_proteins = suffix_proteins.mask_structure(
+            plddts=False, backbone_coords_mask=False
+        )
+    else:
+        prefix_proteins = prefix_proteins.mask_structure(
+            plddts=False, backbone_coords_mask=False
+        )
+        suffix_proteins = suffix_proteins.mask_sequences(tokenizer.mask_token)
+    return InterleavedProteinDocument.clone(prefix_proteins, suffix_proteins)
 
-    # verify_mask_probs(conditioning_sequence_mask_prob, conditioning_structure_mask_prob)
-    for ix, seq in enumerate(proteins.sequences):
 
-        if proteins.structure_tokens is not None:
-            seq_3d = proteins.structure_tokens[ix]
-        else:
-            seq_3d = tokenizer.mask_token_id * len(seq)
-        if proteins.backbone_coords is not None:
-            xyz = proteins.backbone_coords[ix]
-            coords_mask = proteins.backbone_coords_masks[ix]
-        else:
-            xyz = np.zeros((len(seq), 4, 3))
-            coords_mask = np.zeros((len(seq), 4, 3))
-        if proteins.plddts is not None:
-            plddts = proteins.plddts[ix]
-        else:
-            plddts = np.full((len(seq),), 100.0)
-        positions = proteins.positions[ix]
-        # TODO: monitor max_tokens
-        assert (
-            len(seq) == len(xyz) == len(plddts)
-        ), f"seq {seq} length != xyz shape {xyz.shape[0]} or plddts {plddts.shape[0]}"  # n.b. special tokens can screw this up
-        assert isinstance(positions, list)
+def partially_mask_prefixes_for_sequence_design(
+    interleaved_proteins: InterleavedProteinDocument,
+    tokenizer: ProFamTokenizer,
+    coords_mask_prob_bounds: Tuple = (0.0, 1.0),
+    sequence_sub_mask_prob_bounds: Tuple = (0.0, 1.0),
+    remove_unmasked_sequence_positions_from_suffix: bool = False,
+):
+    """Randomly mask a subset of positions in prefix.
 
-        if coin_flip < structure_first_prob:
+    Design-general masking: mask a given fraction of coordinates,
+    mask the sequence at a subset of those positions.
 
-            targets_plddts = np.array(plddts)
-            targets_coords = np.zeros_like(xyz)
-            targets_coords_mask = np.zeros_like(coords_mask)
-            targets_interleaved_sequence_coords_mask = coords_mask
-            targets_sequence_mask = np.ones((xyz.shape[0],))
-            targets_structure_mask = np.zeros((xyz.shape[0],))
-            targets_positions = positions
+    Entirely mask the structure in the suffix.
 
-            if use_structure_tokens:
-                assert conditioning_sequence_mask_prob[0] == 1.0
-                assert not remove_conditioning_sequence_from_targets
-                interleaved_seq = seq_3d + tokenizer.seq_struct_sep_token + seq
-            else:
-                mask_frac = np.random.uniform(*conditioning_sequence_mask_prob)
-                mask = np.random.rand(len(seq)) < mask_frac  # positions to be predicted
-                masked_seq = "".join(
-                    [aa if not m else tokenizer.mask_token for aa, m in zip(seq, mask)]
-                )
-                if remove_conditioning_sequence_from_targets:
-                    targets_seq = [aa for aa, m in zip(seq, mask) if m]
-                    targets_positions = [p for p, m in zip(positions, mask) if m]
-                    targets_plddts = targets_plddts[mask]
-                    targets_coords = targets_coords[mask]
-                    targets_coords_mask = targets_coords_mask[mask]
-                    targets_interleaved_sequence_coords_mask = (
-                        targets_interleaved_sequence_coords_mask[mask]
-                    )
-                    targets_sequence_mask = targets_sequence_mask[mask]
-                    targets_structure_mask = targets_structure_mask[mask]
-                else:
-                    targets_seq = seq
-                interleaved_seq = (
-                    masked_seq + tokenizer.seq_struct_sep_token + targets_seq
-                )
+    | Sequence| Structure | Task
+    ---------------------------
+    Masked    | Known     | Inverse folding
+    Mask A    | Mask A    | Design (Motif scaffolding / De novo design)
+    Mask subA | Mask A    | Partially constrained redesign (inverse folding + de novo)
 
-            interleaved_sequences.append(interleaved_seq)
-            interleaved_positions.append(
-                positions + [-1] + targets_positions
-            )  # 1 will be added to positions in tokenizer so we use -1
-            interleaved_plddts.append(
-                np.concatenate([np.array(plddts), np.full((1,), 100.0), targets_plddts])
-            )
-            interleaved_coords.append(
-                np.concatenate([xyz, np.full((1, 4, 3), 0.0), targets_coords], axis=0)
-            )
-            interleaved_structure_coords_masks.append(
-                np.concatenate(
-                    [coords_mask, np.zeros((1, 4, 3)), targets_coords_mask], axis=0
-                )
-            )
-            interleaved_sequence_coords_masks.append(
-                np.concatenate(
-                    [
-                        np.zeros_like(xyz),
-                        np.zeros((1, 4, 3)),
-                        targets_interleaved_sequence_coords_mask,
-                    ],
-                    axis=0,
-                )
-            )
-            sequence_mask = np.concatenate(
-                [np.zeros((xyz.shape[0] + 1,)), targets_sequence_mask]
-            )
-            structure_mask = np.concatenate(
-                [np.ones((xyz.shape[0],)), np.zeros((1,)), targets_structure_mask]
-            )
-            interleaved_modality_masks.append(
-                np.stack([sequence_mask, structure_mask], axis=-1).astype(bool)
-            )
+    N.B. we need to be careful when thinking about suffix coords -
+    e.g. how do we know which positions in the suffix have coordinates/sequences
+    in the prefix? We need a way to apply the same mask to the suffix.ß
+    """
+    prefix_proteins = ProteinDocument(interleaved_proteins.prefix_proteins)
+    # mask out structure in suffix
+    suffix_proteins = ProteinDocument(
+        interleaved_proteins.suffix_proteins
+    ).mask_structure(plddts=False, backbone_coords_masks=False)
+    prefix_coords_masks = []
+    for protein in prefix_proteins:
+        coords_mask_prob = np.random.uniform(*coords_mask_prob_bounds)
+        coords_mask = np.random.rand(len(protein)) < coords_mask_prob
+        prefix_coords_masks.append(coords_mask)
 
-        else:
-
-            targets_plddts = np.array(plddts)
-            targets_coords = xyz
-            targets_coords_mask = coords_mask
-            targets_interleaved_sequence_coords_mask = np.zeros_like(coords_mask)
-            targets_sequence_mask = np.zeros((xyz.shape[0],))
-            targets_structure_mask = np.ones((xyz.shape[0],))
-            targets_positions = positions
-
-            if use_structure_tokens:
-                assert (
-                    conditioning_structure_mask_prob[0] == 1.0
-                ), "We can't partially mask structure tokens"
-                interleaved_seq = seq + tokenizer.seq_struct_sep_token + seq_3d
-                masked_coords = np.zeros_like(xyz)
-                masked_coords_mask = np.zeros_like(coords_mask)
-            else:
-                mask_frac = np.random.uniform(*conditioning_structure_mask_prob)
-                mask = np.random.rand(len(seq)) < mask_frac  # positions to be predicted
-                masked_coords = np.where(mask[:, None, None], xyz, 0.0)
-                masked_coords_mask = np.where(mask[:, None, None], coords_mask, 0.0)
-
-                if remove_conditioning_structure_from_targets:
-                    targets_seq = tokenizer.mask_token * mask.sum()
-                    targets_positions = [p for p, m in zip(positions, mask) if m]
-                    targets_plddts = targets_plddts[mask]
-                    targets_coords = targets_coords[mask]
-                    targets_coords_mask = targets_coords_mask[mask]
-                    targets_interleaved_sequence_coords_mask = (
-                        targets_interleaved_sequence_coords_mask[mask]
-                    )
-                    targets_sequence_mask = targets_sequence_mask[mask]
-                    targets_structure_mask = targets_structure_mask[mask]
-                else:
-                    targets_seq = tokenizer.mask_token * len(seq)
-                interleaved_seq = seq + tokenizer.seq_struct_sep_token + targets_seq
-
-            interleaved_sequences.append(interleaved_seq)
-            interleaved_positions.append(positions + [-1] + targets_positions)
-            interleaved_plddts.append(
-                np.concatenate([np.array(plddts), np.full((1,), 100.0), targets_plddts])
-            )
-            interleaved_coords.append(
-                np.concatenate(
-                    [masked_coords, np.full((1, 4, 3), 0.0), targets_coords], axis=0
-                )
-            )
-            interleaved_structure_coords_masks.append(
-                np.concatenate(
-                    [masked_coords_mask, np.zeros((1, 4, 3)), targets_coords_mask],
-                    axis=0,
-                )
-            )
-            interleaved_sequence_coords_masks.append(
-                np.concatenate(
-                    [
-                        coords_mask,
-                        np.zeros((1, 4, 3)),
-                        targets_interleaved_sequence_coords_mask,
-                    ],
-                    axis=0,
-                )
-            )
-            sequence_mask = np.concatenate(
-                [np.ones((xyz.shape[0],)), np.zeros((1,)), targets_sequence_mask]
-            )
-            structure_mask = np.concatenate(
-                [np.zeros((xyz.shape[0] + 1,)), targets_structure_mask]
-            )
-            interleaved_modality_masks.append(
-                np.stack([sequence_mask, structure_mask], axis=-1).astype(bool)
-            )
-
-        assert not "[" in seq
-        total_tokens += len(seq) * 2 + 2  # +1 for each separator
-
-        if total_tokens > tokenizer.max_tokens:
-            interleaved_sequences = interleaved_sequences[:-1]
-            interleaved_positions = interleaved_positions[:-1]
-            interleaved_plddts = interleaved_plddts[:-1]
-            interleaved_coords = interleaved_coords[:-1]
-            interleaved_structure_coords_masks = interleaved_structure_coords_masks[:-1]
-            interleaved_sequence_coords_masks = interleaved_sequence_coords_masks[:-1]
-            interleaved_modality_masks = interleaved_modality_masks[:-1]
-            assert (
-                len(interleaved_sequences) > 0
-            ), f"Cannot fit any sequences in max_tokens tried {total_tokens} max {tokenizer.max_tokens}"
-            break
-
-    return proteins.clone(
-        sequences=interleaved_sequences,
-        positions=interleaved_positions,
-        plddts=interleaved_plddts,
-        backbone_coords=interleaved_coords,
-        backbone_coords_masks=interleaved_structure_coords_masks,
-        interleaved_coords_masks=interleaved_sequence_coords_masks,
-        modality_masks=interleaved_modality_masks,
-        structure_tokens=None,
+    prefix_proteins = prefix_proteins.mask_structure(
+        plddts=True, backbone_coords_masks=True, masks=prefix_coords_masks
     )
+    # now build sequence masks. we mask all positions that are already masked, and a subset of remaining positions
+    prefix_sequence_masks = []
+    for coords_mask in prefix_coords_masks:
+        sequence_sub_mask_prob = np.random.uniform(*sequence_sub_mask_prob_bounds)
+        sequence_mask = (
+            np.where(coords_mask, 0.0, np.random.rand(len(coords_mask)))
+            < sequence_sub_mask_prob
+        )
+        prefix_sequence_masks.append(sequence_mask)
+
+    prefix_proteins = prefix_proteins.mask_sequences(
+        tokenizer.mask_token, masks=prefix_sequence_masks
+    )
+    if remove_unmasked_sequence_positions_from_suffix:
+        suffix_proteins = suffix_proteins.masked_slice_proteins(
+            [~m for m in prefix_sequence_masks]
+        )
+
+    return InterleavedProteinDocument.clone(prefix_proteins, suffix_proteins)
 
 
 def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):

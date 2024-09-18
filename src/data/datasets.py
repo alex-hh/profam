@@ -61,6 +61,7 @@ def load_protein_dataset(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
     feature_names: Optional[List[str]] = None,
+    verbose: bool = False,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -126,22 +127,23 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    print("Verifying dataset content:")
-    for i, item in enumerate(dataset.take(3)):
-        print(f"  Item {i + 1}:")
-        for key, value in item.items():
-            if isinstance(value, str):
-                value_to_print = value[:100]
-            elif isinstance(value, list):
-                # TODO: if its a list of lists we want to print only first few elements
-                if isinstance(value[0], list):
-                    value_to_print = f"[{value[0][:10]},...]"
+    if verbose:
+        print("Verifying dataset content:")
+        for i, item in enumerate(dataset.take(3)):
+            print(f"  Item {i + 1}:")
+            for key, value in item.items():
+                if isinstance(value, str):
+                    value_to_print = value[:100]
+                elif isinstance(value, list):
+                    # TODO: if its a list of lists we want to print only first few elements
+                    if isinstance(value[0], list):
+                        value_to_print = f"[{value[0][:10]},...]"
+                    else:
+                        value_to_print = f"{value[:3]}..." if len(value) > 3 else value
                 else:
-                    value_to_print = f"{value[:3]}..." if len(value) > 3 else value
-            else:
-                value_to_print = value
-            print(f"    {key}: {value_to_print}")
-        print()
+                    value_to_print = value
+                print(f"    {key}: {value_to_print}")
+            print()
 
     if cfg.holdout_identifiers:
         assert (
@@ -210,8 +212,12 @@ def load_protein_dataset(
             example["ds_name"] = [cfg.name] * batch_size
             if "coords" in example:
                 # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = [c.tolist() for c in example["coords"]]
-                example["coords_mask"] = [m.tolist() for m in example["coords_mask"]]
+                example["backbone_coords"] = [
+                    c.tolist() for c in example["backbone_coords"]
+                ]
+                example["backbone_coords_mask"] = [
+                    m.tolist() for m in example["backbone_coords_mask"]
+                ]
                 if "interleaved_coords_mask" in example:
                     example["interleaved_coords_mask"] = [
                         m.tolist() for m in example["interleaved_coords_mask"]
@@ -223,8 +229,10 @@ def load_protein_dataset(
                 example["identifier"] = cfg.name + "/" + identifier
             if "coords" in example:
                 # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = example["coords"].tolist()
-                example["coords_mask"] = example["coords_mask"].tolist()
+                example["backbone_coords"] = example["backbone_coords"].tolist()
+                example["backbone_coords_mask"] = example[
+                    "backbone_coords_mask"
+                ].tolist()
                 if "interleaved_coords_mask" in example:
                     example["interleaved_coords_mask"] = example[
                         "interleaved_coords_mask"

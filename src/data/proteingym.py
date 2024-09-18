@@ -28,7 +28,7 @@ def tokenize_msa(
     document_token: Optional[str] = "[RAW]",
 ):
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
-    proteins = ProteinDocument(
+    proteins = ProteinDocument.from_fields(
         sequences=sample["MSA"],
         positions=sample["seq_pos"],
     )
@@ -109,7 +109,7 @@ def load_msa_for_row(
     # need to allow room for the completion
     # todo should be max completion length (once we handle indels)
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
-    proteins = ProteinDocument(
+    proteins = ProteinDocument.from_fields(
         sequences=seqs,
         accessions=None,
         identifier=None,
@@ -159,7 +159,7 @@ def load_comp_seq_dms_for_row(
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
     completion_seqs = dms_df["mutated_sequence"].tolist()
     assert has_no_indels(completion_seqs), "Comp seq indel handling not implemented"
-    proteins = ProteinDocument(
+    proteins = ProteinDocument.from_fields(
         sequences=completion_seqs,
         accessions=None,
         identifier=None,

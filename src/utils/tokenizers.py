@@ -5,9 +5,17 @@ import torch
 from torch import stack
 from transformers import PreTrainedTokenizerFast
 
-from src.data.objects import ProteinDocument
+from src.data.objects import DEFAULT_FILL_VALUES, ProteinDocument
 from src.data.utils import examples_list_to_dict
 from src.utils import RankedLogger
+
+TORCH_DATA_TYPES = {
+    "backbone_coords": torch.float32,
+    "backbone_coords_masks": torch.float32,
+    "plddts": torch.float32,
+    "suffix_mask": torch.bool,
+}
+
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -96,13 +104,13 @@ def concatenate_pad_array(
 
 
 def get_sequence_of_sequences(
-    proteins: ProteinDocument,
+    sequences: List[str],
     sep_token: str = "[SEP]",
     bos_token: Optional[str] = None,
     add_final_sep: bool = True,
     document_token: Optional[str] = "[RAW]",
 ):
-    concatenated_seqs = sep_token.join(proteins.sequences)
+    concatenated_seqs = sep_token.join(sequences)
     if add_final_sep:
         concatenated_seqs += sep_token
     if bos_token is not None:
@@ -170,11 +178,12 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         allow_unk: bool = False,
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
+        proteins = proteins.to_dict()  # builld arrays
         # TODO: add MSA / RAW document type token...
         if self.add_document_token:
             assert document_token is not None, "Document type token expected"
         concatenated_seqs = get_sequence_of_sequences(
-            proteins,
+            proteins["sequences"],
             sep_token=self.sep_token,
             bos_token=self.bos_token if self.add_bos_token else None,
             add_final_sep=add_final_sep,
@@ -203,15 +212,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
         if self.use_seq_pos:
-            if proteins.positions is None:
-                log.warning(
-                    "Using seq_pos but positions not provided. Using default positions."
-                )
-                # +1 to match convert_sequence_with_positions
-                # get_seq_pos_from_positions adds another offset
-                positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
-            else:
-                positions = proteins.positions
+            positions = proteins["positions"]
             seq_pos = get_seq_pos_from_positions(
                 tokenized.input_ids,
                 positions,
@@ -223,76 +224,25 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["seq_pos"] = seq_pos
             assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
 
-        if proteins.backbone_coords is not None:
-            tokenized.data["coords"] = torch.from_numpy(
-                concatenate_pad_array(
-                    proteins.backbone_coords,
-                    fill_value=0.0,
-                    num_start_tokens=self.num_start_tokens,
-                    num_end_tokens=num_end_tokens,
-                    pad_to_length=tokenized.input_ids.shape[-1],
-                )
-            ).float()
-            tokenized.data["coords_mask"] = torch.from_numpy(
-                concatenate_pad_array(
-                    proteins.backbone_coords_masks,
-                    fill_value=0,
-                    num_start_tokens=self.num_start_tokens,
-                    num_end_tokens=num_end_tokens,
-                    pad_to_length=max_length if padding == "max_length" else None,
-                )
-            )
+        for array_name in [
+            "plddts",
+            "backbone_coords",
+            "backbone_coords_masks",
+            "suffix_masks",
+        ]:
+            if proteins[array_name] is not None:
+                tokenized.data[array_name] = torch.from_numpy(
+                    concatenate_pad_array(
+                        proteins[array_name],
+                        fill_value=DEFAULT_FILL_VALUES[array_name],
+                        num_start_tokens=self.num_start_tokens,
+                        num_end_tokens=num_end_tokens,
+                        pad_to_length=tokenized.input_ids.shape[-1],
+                    )
+                ).to(TORCH_DATA_TYPES[array_name])
 
-            assert (
-                tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
-            ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
-            assert tokenized.data["coords_mask"].shape == tokenized.data["coords"].shape
-
-        is_interleaved = (
-            tokenized.data["input_ids"] == self.seq_struct_sep_token_id
-        ).any()
-        if is_interleaved and proteins.backbone_coords is not None:
-            tokenized.data["interleaved_coords_mask"] = torch.from_numpy(
-                concatenate_pad_array(
-                    proteins.interleaved_coords_masks,
-                    fill_value=0,
-                    num_start_tokens=self.num_start_tokens,
-                    num_end_tokens=num_end_tokens,
-                    pad_to_length=max_length if padding == "max_length" else None,
-                )
-            )
-
-        modality_mask = torch.from_numpy(
-            concatenate_pad_array(
-                proteins.modality_masks,
-                fill_value=False,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
-                pad_to_length=max_length if padding == "max_length" else None,
-            )
-        )
-        # these really denote where you're PREDICTING the modality. because you could have fixed residue identities in structure regions.
-        tokenized.data["aa_mask"] = modality_mask[:, 0]
-        tokenized.data["structure_mask"] = modality_mask[:, 1]
-        if proteins.plddts is not None:
-            tokenized.data["plddts"] = torch.from_numpy(
-                concatenate_pad_array(
-                    proteins.plddts,
-                    fill_value=100.0,
-                    num_start_tokens=self.num_start_tokens,
-                    num_end_tokens=num_end_tokens,
-                    pad_to_length=tokenized.input_ids.shape[-1],
-                )
-            ).float()
-            assert (
-                tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
-            ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
-            tokenized.data["plddts"] = tokenized.data["plddts"].masked_fill(
-                torch.isnan(tokenized.data["plddts"]), 0.0
-            )
-
-        if proteins.original_size is not None:
-            tokenized.data["original_size"] = torch.tensor(proteins.original_size)
+        if proteins["original_size"] is not None:
+            tokenized.data["original_size"] = torch.tensor(proteins["original_size"])
 
         # TODO: handle nans
         # TODO: return sequence start and end positions?

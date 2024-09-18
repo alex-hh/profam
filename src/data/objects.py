@@ -7,6 +7,13 @@ import numpy as np
 
 from src.data.fasta import read_fasta_lines
 
+DEFAULT_FILL_VALUES = {
+    "backbone_coords": np.nan,
+    "backbone_coords_masks": 0.0,
+    "plddts": 100.0,
+    "suffix_mask": False,
+}
+
 
 class StringObject:
     """
@@ -20,56 +27,7 @@ class StringObject:
         return self
 
 
-# TODO: how would we extend to include ligands or complexes?
-# maybe the protein would have a ligands attribute
-# or we could make a MolecularAssembly class, which could have a list of proteins and ligands
-@dataclass
-class Protein:
-    array_shapes: ClassVar[Dict] = {
-        "plddt": (None,),
-        "backbone_coords": (None, 4, 3),
-        "backbone_coords_mask": (None, 4, 3),
-    }
-    sequence: str
-    accession: Optional[str] = None
-    positions: Optional[List[int]] = None
-    plddt: Optional[np.ndarray] = None
-    backbone_coords: Optional[np.ndarray] = None
-    backbone_coords_mask: Optional[np.ndarray] = None
-    structure_tokens: Optional[str] = None
-
-    def __len__(self):
-        assert len(self.sequence) == len(self.plddt)
-        return len(self.sequence)
-
-    def __post_init__(self):
-        # TODO: check types
-        check_array_lengths(
-            [self.sequence],
-            [self.plddt] if self.plddt is not None else None,
-            [self.backbone_coords] if self.backbone_coords is not None else None,
-            [self.backbone_coords_mask]
-            if self.backbone_coords_mask is not None
-            else None,
-            [self.structure_tokens] if self.structure_tokens is not None else None,
-        )
-        if self.backbone_coords_mask is None and self.backbone_coords is not None:
-            self.backbone_coords_mask = np.where(
-                np.isnan(self.backbone_coords),
-                np.zeros_like(self.backbone_coords),
-                np.ones_like(self.backbone_coords),
-            )
-
-    @property
-    def null_fields(self):
-        fields = []
-        for k, v in asdict(self).items():
-            if v is None:
-                fields.append(k)
-        return set(fields)
-
-
-def check_array_lengths(*arrays):  # TODO: name better!
+def check_array_lengths_all_equal(*arrays):  # TODO: name better!
     sequence_lengths = []
     for arr in arrays:
         if arr is None:
@@ -92,11 +50,63 @@ def convert_list_of_arrays_to_list_of_lists(list_of_arrays):
         return list_of_arrays
 
 
+# TODO: how would we extend to include ligands or complexes?
+# maybe the protein would have a ligands attribute
+# or we could make a MolecularAssembly class, which could have a list of proteins and ligands
+@dataclass
+class Protein:
+    array_shapes: ClassVar[Dict] = {
+        "plddt": (None,),
+        "backbone_coords": (None, 4, 3),
+        "backbone_coords_mask": (None, 4, 3),
+    }
+    sequence: str
+    accession: Optional[str] = None
+    positions: Optional[List[int]] = None
+    plddt: Optional[np.ndarray] = None
+    backbone_coords: Optional[np.ndarray] = None
+    backbone_coords_mask: Optional[np.ndarray] = None
+    structure_tokens: Optional[str] = None
+
+    def __len__(self):
+        return len(self.sequence)
+
+    def __post_init__(self):
+        # TODO: check types
+        check_array_lengths_all_equal(
+            [self.sequence],
+            [self.plddt] if self.plddt is not None else None,
+            [self.backbone_coords] if self.backbone_coords is not None else None,
+            [self.backbone_coords_mask]
+            if self.backbone_coords_mask is not None
+            else None,
+            [self.structure_tokens] if self.structure_tokens is not None else None,
+        )
+        if self.backbone_coords_mask is None and self.backbone_coords is not None:
+            self.backbone_coords_mask = np.where(
+                np.isnan(self.backbone_coords),
+                np.zeros_like(self.backbone_coords),
+                np.ones_like(self.backbone_coords),
+            )
+        if self.positions is None:
+            # +1 for consistency with convert sequence adding positions
+            self.positions = list(range(1, len(self) + 1))
+
+    @property
+    def null_fields(self):
+        fields = []
+        for k, v in asdict(self).items():
+            if v is None:
+                fields.append(k)
+        return set(fields)
+
+
 class BaseProteinDocument:
     protein_field_mapping = {
         "sequence": "sequences",
         "accession": "accessions",
-        "plddts": "plddts",
+        "positions": "positions",
+        "plddt": "plddts",
         "backbone_coords": "backbone_coords",
         "backbone_coords_mask": "backbone_coords_masks",
         "structure_tokens": "structure_tokens",
@@ -161,13 +171,19 @@ class ProteinDocument(BaseProteinDocument):
             prot.null_fields == self.proteins[0].null_fields for prot in self.proteins
         )
         if self.suffix_masks is not None:
-            check_array_lengths(self.sequences, self.suffix_masks)
+            check_array_lengths_all_equal(self.sequences, self.suffix_masks)
+        else:
+            self.suffix_masks = [
+                np.ones(len(seq), dtype=bool) for seq in self.sequences
+            ]
 
     def __len__(self):
         return len(self.proteins)
 
     def __getitem__(self, key):
-        return self.proteins[key]
+        if isinstance(key, int):
+            return self.proteins[key]
+        return ProteinDocument(self.proteins[key], **self.metadata)
 
     def __len__(self):
         return len(self.proteins)
@@ -176,23 +192,28 @@ class ProteinDocument(BaseProteinDocument):
         for i in range(len(self)):
             yield self.proteins[i]
 
+    def __str__(self):
+        return f"ProteinDocument: {len(self)} proteins sequences: {self.sequences}"
+
     @classmethod
     def from_dict(cls, proteins_dict):
         proteins = []
         keys = list(proteins_dict.keys())
         inverse_field_mapping = {v: k for k, v in cls.protein_field_mapping.items()}
-        protein_keys = (
+        protein_keys = [
             key
             for key in keys
-            if inverse_field_mapping[key] in Protein.__dataclass_fields__.keys()
-        )
+            if key in inverse_field_mapping.keys() and proteins_dict[key] is not None
+        ]
         metadata_keys = (key for key in keys if key not in protein_keys)
         metadata = {key: proteins_dict.pop(key) for key in metadata_keys}
+        metadata = {k: v for k, v in metadata.items() if v is not None}
 
         num_proteins = len(proteins_dict[keys[0]])
         for i in range(num_proteins):
             single_protein_dict = {
-                inverse_field_mapping[key]: proteins_dict[key][i] for key in keys
+                inverse_field_mapping[key]: proteins_dict[key][i]
+                for key in protein_keys
             }
             proteins.append(Protein(**single_protein_dict))
         return cls(proteins, **metadata)
@@ -263,35 +284,39 @@ class ProteinDocument(BaseProteinDocument):
         return self._attr_list("structure_tokens")
 
     @property
+    def null_fields(self):
+        return {self.protein_field_mapping[f] for f in self.proteins[0].null_fields}
+
+    @property
     def sequence_lengths(self):
         return [len(protein) for protein in self.proteins]
 
     def to_dict(
         self, include_metadata: bool = True, convert_arrays_to_lists: bool = False
     ):
-        protein_dict = {
+        inverse_field_mapping = {v: k for k, v in self.protein_field_mapping.items()}
+        proteins_dict = {
             proteins_key: [] for proteins_key in self.protein_field_mapping.values()
         }
         for protein in self.proteins:
-            for key in protein_dict.keys():
-                protein_dict[self.protein_field_mapping[key]].append(
-                    convert_list_of_arrays_to_list_of_lists(getattr(protein, key))
+            for key in proteins_dict.keys():
+                proteins_dict[key].append(
+                    convert_list_of_arrays_to_list_of_lists(
+                        getattr(protein, inverse_field_mapping[key])
+                    )
                     if convert_arrays_to_lists
-                    else getattr(protein, key)
+                    else getattr(protein, inverse_field_mapping[key])
                 )
         if include_metadata:
-            protein_dict.update(self.metadata)
+            proteins_dict.update(self.metadata)
             if convert_arrays_to_lists:
-                protein_dict["suffix_masks"] = self.suffix_masks.tolist()
-        return protein_dict
+                proteins_dict["suffix_masks"] = self.suffix_masks.tolist()
+        return proteins_dict
 
     def clone(self, **kwargs):
         protein_document_dict = self.to_dict(include_metadata=True)
         protein_document_dict.update(kwargs)
         return ProteinDocument.from_dict(protein_document_dict)
-
-    def null_fields(self):
-        return {self.protein_field_mapping[f] for f in self.proteins[0].null_fields}
 
     def filter(self, filter_fn: Callable):
         """Filter by filter_fn.
@@ -306,8 +331,7 @@ class ProteinDocument(BaseProteinDocument):
 
     @property
     def has_all_structure_arrays(self):
-        # TODO: apply mapping
-        assert not any(
+        return not any(
             f in self.null_fields
             for f in ["backbone_coords", "structure_tokens", "plddts"]
         )
@@ -344,7 +368,7 @@ class ProteinDocument(BaseProteinDocument):
             constructor_kwargs["original_size"] = (
                 self.original_size + proteins.original_size
             )
-        return ProteinDocument(**constructor_kwargs)
+        return ProteinDocument.from_dict(constructor_kwargs)
 
     def interleave(self, sequence_separator: str = "|"):
         """Just copy each protein to form a new document containing prefix and suffix proteins.
@@ -370,12 +394,7 @@ class InterleavedProteinDocument(BaseProteinDocument):
     self.suffix_mask can be used to control which regions are predicted.
     """
 
-    default_fill_values = {
-        "backbone_coords": np.nan,
-        "backbone_coords_masks": 0.0,
-        "plddts": 100.0,
-    }
-    metadata_fields = ProteinDocument.metadata_fields + ["sequence_separator"]
+    metadata_fields = BaseProteinDocument.metadata_fields + ["sequence_separator"]
 
     def __init__(
         self,
@@ -421,23 +440,21 @@ class InterleavedProteinDocument(BaseProteinDocument):
             plddt=np.concatenate(
                 [
                     prefix.plddt,
-                    np.full((1,), self.default_fill_values["plddt"]),
+                    np.full((1,), DEFAULT_FILL_VALUES["plddt"]),
                     suffix.plddt,
                 ]
             ),
             backbone_coords=np.concatenate(
                 [
                     prefix.backbone_coords,
-                    np.full((1, 4, 3), self.default_fill_values["backbone_coords"]),
+                    np.full((1, 4, 3), DEFAULT_FILL_VALUES["backbone_coords"]),
                     suffix.backbone_coords,
                 ]
             ),
             backbone_coords_mask=np.concatenate(
                 [
                     prefix.backbone_coords_mask,
-                    np.full(
-                        (1, 4, 3), self.default_fill_values["backbone_coords_mask"]
-                    ),
+                    np.full((1, 4, 3), DEFAULT_FILL_VALUES["backbone_coords_mask"]),
                     suffix.backbone_coords_mask,
                 ]
             ),
@@ -475,9 +492,11 @@ class InterleavedProteinDocument(BaseProteinDocument):
         suffix_proteins: List[Protein] = None,
         **kwargs,
     ):
+        metadata = self.metadata
+        metadata.update(kwargs)
         return InterleavedProteinDocument(
             prefix_proteins=prefix_proteins or self.prefix_proteins,
             suffix_proteins=suffix_proteins or self.suffix_proteins,
             sequence_separator=self.sequence_separator,
-            **kwargs,
+            **metadata,
         )

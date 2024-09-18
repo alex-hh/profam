@@ -165,7 +165,7 @@ class ProFamSampler:
                 encoded["input_ids"].unsqueeze(0).to(self.model.device),
                 num_samples=num_samples,
                 input_seq_pos=encoded["seq_pos"].unsqueeze(0).to(self.model.device),
-                input_coords=encoded["coords"]
+                input_coords=encoded["backbone_coords"]
                 .unsqueeze(0)
                 .to(self.model.device)
                 .float()

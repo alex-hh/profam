@@ -46,7 +46,7 @@ def test_representative_inverse_folding(profam_tokenizer):
     )
     assert (example["input_ids"] == expected_tokens).all(), expected_tokens
     assert (
-        example["coords"].double().numpy() == expected_coords
+        example["backbone_coords"].double().numpy() == expected_coords
     ).all(), expected_coords
     # TODO: test the coords etc.
     # TODO: actually write a test of the sliced prompt input ids (e.g. all mask token ids here.)

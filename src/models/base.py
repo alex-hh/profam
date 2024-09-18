@@ -418,8 +418,8 @@ class BaseFamilyLitModule(BaseLitModule):
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
         if self.embed_coords:
-            assert batch["coords"] is not None
-            forward_kwargs["coords"] = batch["coords"]
+            assert batch["backbone_coords"] is not None
+            forward_kwargs["backbone_coords"] = batch["backbone_coords"]
         if self.use_seq_pos:
             assert batch["seq_pos"] is not None
             forward_kwargs["seq_pos"] = batch["seq_pos"]

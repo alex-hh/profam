@@ -274,7 +274,7 @@ class FastaPreprocessor(BasePreprocessor):
                 to_upper=False,
             )
         ]
-        return ProteinDocument(
+        return ProteinDocument.from_fields(
             sequences=sequences, original_size=len(lines) // 2
         )  # upper bound estimate of number of sequences
 
@@ -317,7 +317,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         else:
             sequences = sequence_iterator[:max_sequences_to_preprocess]
 
-        return ProteinDocument(
+        return ProteinDocument.from_fields(
             sequences=sequences,
             representative_accession=example[self.identifier_col]
             if self.infer_representative_from_identifier
@@ -412,7 +412,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             coords = None
             plddts = None
 
-        return ProteinDocument(
+        return ProteinDocument.from_fields(
             sequences=sequences,
             accessions=accessions,
             plddts=plddts,

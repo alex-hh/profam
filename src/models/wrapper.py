@@ -145,15 +145,15 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs["seq_pos"] = seq_pos
             bsz = input_final_seq_pos.shape[0]
             if self.embed_coords:
-                assert kwargs["coords"].ndim == 4  # b, l, n, 3
-                inputs["coords"] = torch.full(
+                assert kwargs["backbone_coords"].ndim == 4  # b, l, n, 3
+                inputs["backbone_coords"] = torch.full(
                     (
                         bsz,
                         1,
                     )
-                    + kwargs["coords"].shape[-2:],
+                    + kwargs["backbone_coords"].shape[-2:],
                     0.0,
-                ).to(kwargs["coords"])
+                ).to(kwargs["backbone_coords"])
             if self.embed_sequence_index:
                 assert not "start_sequence_index" in kwargs
                 # n.b. input_ids is prompt + completion
@@ -170,7 +170,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         else:
             inputs["seq_pos"] = kwargs["seq_pos"]
             if self.embed_coords:
-                inputs["coords"] = kwargs["coords"]
+                inputs["backbone_coords"] = kwargs["backbone_coords"]
         return inputs
 
     def compute_sequence_index(self, input_ids, start_sequence_index=0):
