@@ -238,14 +238,16 @@ def mask_interleave_structure_sequence(
     return InterleavedProteinDocument.clone(prefix_proteins, suffix_proteins)
 
 
-def partially_mask_prefixes_for_sequence_design(
+def partially_mask_prefixes_for_protein_design(
     interleaved_proteins: InterleavedProteinDocument,
     tokenizer: ProFamTokenizer,
-    coords_mask_prob_bounds: Tuple = (0.0, 1.0),
+    structure_mask_prob_bounds: Tuple = (0.0, 1.0),
     sequence_sub_mask_prob_bounds: Tuple = (0.0, 1.0),
     remove_unmasked_sequence_positions_from_suffix: bool = False,
 ):
     """Randomly mask a subset of positions in prefix.
+
+    TODO: in model, we need to use suffix mask to prevent computing loss on prefix aas.
 
     Design-general masking: mask a given fraction of coordinates,
     mask the sequence at a subset of those positions.
@@ -257,37 +259,89 @@ def partially_mask_prefixes_for_sequence_design(
     Masked    | Known     | Inverse folding
     Mask A    | Mask A    | Design (Motif scaffolding / De novo design)
     Mask subA | Mask A    | Partially constrained redesign (inverse folding + de novo)
-
-    N.B. we need to be careful when thinking about suffix coords -
-    e.g. how do we know which positions in the suffix have coordinates/sequences
-    in the prefix? We need a way to apply the same mask to the suffix.ß
     """
     prefix_proteins = ProteinDocument(interleaved_proteins.prefix_proteins)
     # mask out structure in suffix
     suffix_proteins = ProteinDocument(
         interleaved_proteins.suffix_proteins
     ).mask_structure(plddts=False, backbone_coords_masks=False)
-    prefix_coords_masks = []
+    prefix_structure_masks = []
     for protein in prefix_proteins:
-        coords_mask_prob = np.random.uniform(*coords_mask_prob_bounds)
-        coords_mask = np.random.rand(len(protein)) < coords_mask_prob
-        prefix_coords_masks.append(coords_mask)
+        structure_mask_prob = np.random.uniform(*structure_mask_prob_bounds)
+        structure_mask = np.random.rand(len(protein)) < structure_mask_prob
+        prefix_structure_masks.append(structure_mask)
 
     prefix_proteins = prefix_proteins.mask_structure(
-        plddts=True, backbone_coords_masks=True, masks=prefix_coords_masks
+        plddts=True, backbone_structure_masks=True, masks=prefix_structure_masks
     )
     # now build sequence masks. we mask all positions that are already masked, and a subset of remaining positions
     prefix_sequence_masks = []
-    for coords_mask in prefix_coords_masks:
+    for structure_mask in prefix_structure_masks:
         sequence_sub_mask_prob = np.random.uniform(*sequence_sub_mask_prob_bounds)
         sequence_mask = (
-            np.where(coords_mask, 0.0, np.random.rand(len(coords_mask)))
+            np.where(structure_mask, 0.0, np.random.rand(len(structure_mask)))
             < sequence_sub_mask_prob
         )
         prefix_sequence_masks.append(sequence_mask)
 
+    # apply the same mask to the suffix coords masks so that they are aware of the prefix mask
+    # i.e. suffix coords mask should be True if the corresponding position in the prefix is masked
+    suffix_proteins = suffix_proteins.mask_structure(
+        plddts=True, backbone_structure_masks=True, masks=prefix_structure_masks
+    )
+
     prefix_proteins = prefix_proteins.mask_sequences(
         tokenizer.mask_token, masks=prefix_sequence_masks
+    )
+    if remove_unmasked_sequence_positions_from_suffix:
+        suffix_proteins = suffix_proteins.masked_slice_proteins(
+            [~m for m in prefix_sequence_masks]
+        )
+
+    return InterleavedProteinDocument.clone(prefix_proteins, suffix_proteins)
+
+
+def partially_mask_prefixes_for_structure_prediction(
+    interleaved_proteins: InterleavedProteinDocument,
+    tokenizer: ProFamTokenizer,
+    sequence_mask_prob_bounds: Tuple = (0.5, 1.0),
+    structure_sub_mask_prob_bounds: Tuple = (0.0, 0.0),
+    remove_unmasked_sequence_positions_from_suffix: bool = True,
+):
+    """Converse of `partially_mask_prefixes_for_sequence_design`.
+
+    N.B. we still have a sequence only-suffix, since we assume for now
+    that structure prediction loss is applied to the prefix.
+
+    Since we usually want to predict entire structure, we mask entire structure by default.
+    """
+    prefix_proteins = ProteinDocument(interleaved_proteins.prefix_proteins)
+    # mask out structure in suffix
+    suffix_proteins = ProteinDocument(
+        interleaved_proteins.suffix_proteins
+    ).mask_structure(plddts=False, backbone_coords_masks=False)
+    prefix_sequence_masks = []
+    for protein in prefix_proteins:
+        sequence_mask_prob = np.random.uniform(*sequence_mask_prob_bounds)
+        sequence_mask = np.random.rand(len(protein)) < sequence_mask_prob
+        prefix_sequence_masks.append(sequence_mask)
+
+    prefix_proteins = prefix_proteins.mask_sequence(masks=prefix_sequence_masks)
+    # now build sequence masks. we mask all positions that are already masked, and a subset of remaining positions
+    prefix_structure_masks = []
+    for sequence_mask in prefix_sequence_masks:
+        structure_sub_mask_prob = np.random.uniform(*structure_sub_mask_prob_bounds)
+        structure_mask = (
+            np.where(sequence_mask, 0.0, np.random.rand(len(sequence_mask)))
+            < structure_sub_mask_prob
+        )
+        prefix_structure_masks.append(structure_mask)
+
+    prefix_proteins = prefix_proteins.mask_structure(
+        plddts=True, backbone_coords_masks=True, masks=prefix_structure_masks
+    )
+    suffix_proteins = suffix_proteins.mask_structure(
+        plddts=True, backbone_coords_masks=True, masks=prefix_structure_masks
     )
     if remove_unmasked_sequence_positions_from_suffix:
         suffix_proteins = suffix_proteins.masked_slice_proteins(
