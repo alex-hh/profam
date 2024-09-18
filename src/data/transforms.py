@@ -226,6 +226,10 @@ def interleave_structure_sequence(
 
     This basically allows an MAR-style model (Kaiming He).
 
+    N.B. we could randomise the order of the generated tokens -
+    but we already support a discrete-diffusion style parallel proposal generation
+    even without doing this.
+
     The function automatically reduces the number of proteins to fit within max_tokens.
 
     TODO: make more readable somehow
