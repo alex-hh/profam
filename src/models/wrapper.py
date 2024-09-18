@@ -8,10 +8,11 @@ Created:
     - in generate _prepare_cache_for_generation
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from torch import nn
+from transformers import GenerationConfig, PreTrainedModel
 from transformers.cache_utils import Cache
 from transformers.utils import ModelOutput
 
@@ -283,9 +284,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 seq_pos[:, cache_position] if past_key_values is not None else seq_pos
             )
 
-        if self.embed_sequence_index:
-            inputs["start_sequence_index"] = kwargs["start_sequence_index"]
-
         if self.embed_coords:
             # updated in _update_model_kwargs_for_generation
             assert input_ids.shape[-1] == kwargs["coords"].shape[1]
@@ -329,17 +327,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         assert (
             "past_key_values" in outputs
         ), "We assume we're using cache and past_key_values is cache_name, otherwise sequence index is hard to compute"
-        past_key_values = outputs.past_key_values
-
-        if self.embed_sequence_index:
-            # model will automatically do compute_sequence_index on new tokens
-            # so we just need to tell it the sequence index of the new tokens
-            # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
-            # to previous sequence, and in forward will just pass through start_sequence_index
-            full_sequence_index = self.compute_sequence_index(
-                past_key_values.input_ids_cache
-            )
-            model_kwargs["start_sequence_index"] = full_sequence_index[:, -1]
+        past_key_values = (
+            outputs.past_key_values
+        )  # TODO: check this is right way to access - not exactly how generate does it in super
 
         if self.tokenizer.use_seq_pos:
             assert num_new_tokens == 1
@@ -383,12 +373,28 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             dim=-1,
         )
 
+    def compute_start_sequence_index(self, past_key_values):
+        if past_key_values is None:
+            return 0
+        # model will automatically do compute_sequence_index on new tokens
+        # so we just need to tell it the sequence index of the new tokens
+        # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
+        # to previous sequence, and in forward will just pass through start_sequence_index
+        full_sequence_index = self.compute_sequence_index(
+            past_key_values.input_ids_cache
+        )
+        return torch.where(
+            past_key_values.input_ids_cache[:, -1] == self.tokenizer.sep_token_id,
+            full_sequence_index[:, -1] + 1,
+            full_sequence_index[:, -1],
+        )
+
     def embed_inputs(
         self,
         input_ids: Optional[torch.LongTensor],
         seq_pos: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
-        start_sequence_index: int = 0,
+        start_sequence_index: Optional[Union[int, torch.Tensor]] = None,
     ):
         # we assume (which is case for e.g. gpt2 and mistral)
         # that the model will itself add its own position embeddings to inputs_embeds
@@ -410,6 +416,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds += coords_embeds
 
         if self.embed_sequence_index:
+            assert start_sequence_index is not None
             sequence_index = self.compute_sequence_index(
                 input_ids, start_sequence_index=start_sequence_index
             )
@@ -427,12 +434,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             assert seq_pos is not None
             position_ids = seq_pos
         return position_ids
-
-    def compute_start_sequence_index(self, past_key_values):
-        if past_key_values is None:
-            return 0
-        else:
-            raise NotImplementedError("Compute from cached input ids")
 
     def forward(
         self,
