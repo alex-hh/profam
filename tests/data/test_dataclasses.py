@@ -5,7 +5,7 @@ from src.data.transforms import filter_by_length
 # TODO: test filtering
 def test_length_filter():
     sequences = ["ARG", "PMMPMM", "RP"]
-    proteins = ProteinDocument(sequences=sequences)
+    proteins = ProteinDocument.from_fields(sequences=sequences)
     filtered_proteins = filter_by_length(proteins, min_length=3, max_length=5)
     assert len(filtered_proteins) == 1
     assert filtered_proteins[0].sequence == "ARG"

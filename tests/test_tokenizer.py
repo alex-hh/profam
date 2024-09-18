@@ -13,7 +13,7 @@ def test_encode_decode(profam_tokenizer, pfam_fasta_text):
         to_upper=True,
     )
     proteins = sample_to_max_tokens(
-        ProteinDocument(sequences=list(sequence_iterator)),
+        ProteinDocument.from_fields(sequences=list(sequence_iterator)),
         max_tokens=profam_tokenizer.max_tokens,
         extra_tokens_per_document=2,
     )

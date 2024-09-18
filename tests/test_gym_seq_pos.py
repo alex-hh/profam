@@ -81,7 +81,7 @@ test_cases_indels = [
 def test_prot_gym_pos_encoding(profam_tokenizer):
     for case in test_cases_subs:
         # Process MSA sequences
-        msa_proteins = ProteinDocument(sequences=case["msa_seqs"])
+        msa_proteins = ProteinDocument.from_fields(sequences=case["msa_seqs"])
         msa_proteins = convert_sequences_adding_positions(
             msa_proteins,
             keep_gaps=case["keep_gaps"],
@@ -91,7 +91,9 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
         )
 
         # Process completion sequences
-        completion_proteins = ProteinDocument(sequences=case["completion_seqs"])
+        completion_proteins = ProteinDocument.from_fields(
+            sequences=case["completion_seqs"]
+        )
         completion_proteins = convert_sequences_adding_positions(
             completion_proteins,
             keep_gaps=case["keep_gaps"],

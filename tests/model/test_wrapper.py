@@ -6,7 +6,7 @@ from src.data.objects import ProteinDocument
 
 def test_compute_sequence_index(default_model, profam_tokenizer):
     sequences = ["ARC", "MKLLL", "MKPP"]
-    document = ProteinDocument(sequences=sequences)
+    document = ProteinDocument.from_fields(sequences=sequences)
     tokenized = profam_tokenizer.encode(document)
     sequence_indices = default_model.model.compute_sequence_index(
         tokenized.input_ids[None]
@@ -38,7 +38,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     sequences = ["ARC", "MKLL", "MK"]
     # imagine we are generating a new sequence after the second prompt sequence
     tokenized = profam_tokenizer.encode(
-        ProteinDocument(sequences=sequences), add_final_sep=False
+        ProteinDocument.from_fields(sequences=sequences), add_final_sep=False
     )
     input_seq_pos = tokenized.seq_pos[None, :-2]
     input_ids = tokenized.input_ids[None, :-2]

@@ -177,25 +177,29 @@ class ProteinDocument(BaseProteinDocument):
             yield self.proteins[i]
 
     @classmethod
-    def from_dict(cls, proteins_dict, **kwargs):
+    def from_dict(cls, proteins_dict):
         proteins = []
         keys = list(proteins_dict.keys())
+        inverse_field_mapping = {v: k for k, v in cls.protein_field_mapping.items()}
         protein_keys = (
-            key for key in keys if key in Protein.__dataclass_fields__.keys()
+            key
+            for key in keys
+            if inverse_field_mapping[key] in Protein.__dataclass_fields__.keys()
         )
         metadata_keys = (key for key in keys if key not in protein_keys)
         metadata = {key: proteins_dict.pop(key) for key in metadata_keys}
-        assert all(
-            key in protein_keys for key in proteins_dict.keys()
-        ), f"Unexpected keys in dict: {keys}"
-        for k, v in kwargs.items():
-            assert k not in metadata, f"Key {k} already in metadata"
-            metadata[k] = v
+
         num_proteins = len(proteins_dict[keys[0]])
         for i in range(num_proteins):
-            single_protein_dict = {key: proteins_dict[key][i] for key in keys}
+            single_protein_dict = {
+                inverse_field_mapping[key]: proteins_dict[key][i] for key in keys
+            }
             proteins.append(Protein(**single_protein_dict))
         return cls(proteins, **metadata)
+
+    @classmethod
+    def from_fields(cls, **kwargs):
+        return cls.from_dict(kwargs)
 
     @classmethod
     def from_json(cls, json_file, strict: bool = False):
@@ -294,8 +298,8 @@ class ProteinDocument(BaseProteinDocument):
 
         Filter_fn should take a protein and return True if it should be kept.
         """
-        indices = [i for i in range(len(self)) if filter_fn(self[i])]
-        return self[indices]
+        proteins = [protein for protein in self if filter_fn(protein)]
+        return ProteinDocument(proteins=proteins, **self.metadata)
 
     def pop(self, index):
         return self.proteins.pop(index)
