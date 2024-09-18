@@ -199,6 +199,10 @@ def filter_by_length(
         return proteins.filter(length_filter)
 
 
+def concatenate_interleaved_proteins(interleaved_proteins: InterleavedProteinDocument, **kwargs):
+    return interleaved_proteins.to_protein_document()
+
+
 def interleave_proteins(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,

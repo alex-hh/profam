@@ -6,7 +6,7 @@ import pytest
 import torch
 
 from src.constants import BASEDIR
-from src.data import preprocessing
+from src.data import preprocessing, transforms
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.pdb import get_atom_coords_residuewise, load_structure
 from src.data.utils import CustomDataCollator
@@ -67,6 +67,7 @@ def foldseek_interleaved_structure_sequence_batch(
         config=preprocessing_cfg,
         structure_tokens_col="msta_3di",
         interleave_structure_sequence=True,
+        transform_fns=[transforms.concatenate_interleaved_proteins],
     )
     cfg = ProteinDatasetConfig(
         name="foldseek",

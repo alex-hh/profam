@@ -117,11 +117,11 @@ class BasePreprocessor:
         self,
         config: PreprocessingConfig,
         transform_fns: Optional[List[Callable]] = None,
-        interleave_structure_sequence: bool = False,
+        interleave_proteins: bool = False,
     ):
         self.cfg = config
         self.transform_fns = transform_fns
-        self.interleave_structure_sequence = interleave_structure_sequence
+        self.interleave_proteins = interleave_proteins
 
     def build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -333,25 +333,25 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         config: PreprocessingConfig,
         sequence_col: str = "sequences",
         structure_tokens_col: Optional[str] = None,
-        interleave_structure_sequence: bool = False,
-        structure_first_prob: float = 1.0,
+        interleave_proteins: bool = False,
         identifier_col: str = "fam_id",
         infer_representative_from_identifier: bool = False,
         transform_fns: Optional[List[Callable]] = None,
+        interleaved_transform_fns: Optional[List[Callable]] = None,
     ):
-        if interleave_structure_sequence:
-            # handle like this because useful to have an interleave_structure_sequence attribute for lenght filtering
-            transform_fns = transform_fns or []
-            transform_fns.append(
-                functools.partial(
-                    transforms.interleave_structure_sequence,
-                    structure_first_prob=structure_first_prob,
-                )
-            )
+        transform_fns = transform_fns or []
+        if interleave_proteins:
+            interleaved_transform_fns = interleaved_transform_fns or []
+            interleaved_transform_fns.insert(0, transforms.interleave_proteins)
+            interleaved_transform_fns.append(transforms.concatenate_interleaved_proteins)
+            transform_fns += interleaved_transform_fns
+        else:
+            assert interleaved_transform_fns is None
+
         super().__init__(
             config,
             transform_fns,
-            interleave_structure_sequence=interleave_structure_sequence,
+            interleave_proteins=interleave_proteins,
         )
         self.sequence_col = sequence_col
         self.structure_tokens_col = structure_tokens_col
