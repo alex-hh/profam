@@ -4,11 +4,11 @@ from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
 
 
-def test_compute_sequence_index(default_model, profam_tokenizer):
+def test_compute_sequence_index(test_model, profam_tokenizer):
     sequences = ["ARC", "MKLLL", "MKPP"]
     document = ProteinDocument.from_fields(sequences=sequences)
     tokenized = profam_tokenizer.encode(document)
-    sequence_indices = default_model.model.compute_sequence_index(
+    sequence_indices = test_model.model.compute_sequence_index(
         tokenized.input_ids[None]
     )
     expected_sequence_indices = torch.tensor(
