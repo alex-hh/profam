@@ -44,14 +44,13 @@ class BaseEvaluatorPipeline:
             self.pipeline_id,
         )
         self.save_results_to_file = save_results_to_file
-        self.load_results()
+        self.reset()
 
     def instance_ids(self):
         raise NotImplementedError()
 
     def reset(self):
         self.results_dfs = {}
-        # pd.DataFrame(columns=["evaluator", "sampler", "instance"])
 
     def load_results(self, evaluator_name) -> pd.DataFrame:
         """Load results dataframe from local disk location.
@@ -120,15 +119,6 @@ class BaseEvaluatorPipeline:
         return pd.DataFrame.from_records(summaries)
 
     def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
-        raise NotImplementedError()
-
-    def run(
-        self,
-        model,
-        rerun_model: bool = False,
-        rerun_evaluator: bool = False,
-        device: Optional[str] = None,
-    ):
         raise NotImplementedError()
 
 
@@ -286,6 +276,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         if not isinstance(evaluators, List):
             assert isinstance(evaluators, SamplingEvaluator)
             evaluators = [evaluators]
+        for evaluator in evaluators:
+            self.load_results(evaluator.name)
 
         instance_ids = self.instance_ids()
         if rerun_sampler:

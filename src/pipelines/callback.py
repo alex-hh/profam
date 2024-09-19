@@ -67,7 +67,12 @@ class SamplingEvaluationPipelineCallback(Callback):
             mean_results = evaluator_results.mean().to_dict()
             t1 = time.time()
             all_metrics.update(
-                {f"{self.pipeline.pipeline_id}/{evaluator_name}/{k}": v for k, v in mean_results.items()}
+                {
+                    f"{self.pipeline.pipeline_id}/{evaluator_name}/{k}": v
+                    for k, v in mean_results.items()
+                }
             )
-            all_metrics[f"{self.pipeline.pipeline_id}/{self.evaluator.name}/time"] = t1 - t0
+            all_metrics[f"{self.pipeline.pipeline_id}/{self.evaluator.name}/time"] = (
+                t1 - t0
+            )
         model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)

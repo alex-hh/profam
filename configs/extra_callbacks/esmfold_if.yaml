@@ -8,8 +8,6 @@ defaults:
 prompt_builder:
   max_tokens: ${data.max_tokens}
   seed: 42
-evaluator:
-  num_samples: null
 sampling_kwargs:
   batch_size: 3
   temperature: 0.3

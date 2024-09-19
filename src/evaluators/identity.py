@@ -34,7 +34,7 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
             representative = representative.slice_arrays(
                 slice(0, len(representative) - 1)
             )
-        backbone_coords_mask = representative.backbone_coords_mask.any(dim=(-1, -2))
+        backbone_coords_mask = representative.backbone_coords_mask.any(axis=(-1, -2))
         target_sequence = protein_document.representative.sequence
         unmasked_target_sequence = [
             aa for aa, m in zip(target_sequence, backbone_coords_mask) if m
