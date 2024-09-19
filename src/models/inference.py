@@ -66,7 +66,6 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
 
         # We want to interleave the structure with an empty sequence
         # for now a hack to do this is to replace the sequence with an empty sequence
-        print(representative.accession)
         representative_doc = ProteinDocument.from_proteins(
             [representative], representative_accession=representative.accession
         )

@@ -4,28 +4,17 @@ from typing import List, Optional
 
 import numpy as np
 from Bio.PDB import PDBParser
-from Bio.SVDSuperimposer import SVDSuperimposer
-from tmtools import tm_align
 from transformers import AutoTokenizer, EsmForProteinFolding
 from transformers.models.esm.openfold_utils import atom14_to_atom37
-from transformers.models.esm.openfold_utils.residue_constants import atom_order
+from transformers.models.esm.openfold_utils.residue_constants import (
+    atom_order,
+    restypes_with_x,
+)
 
-from src.data.objects import ProteinDocument
+from src.data.objects import Protein, ProteinDocument
+from src.data.sequence import decode_tokens
 from src.evaluators.base import SamplingEvaluator
-
-
-def calc_tm_score(pos_1, pos_2, seq_1, seq_2):
-    # TOOD: check whether it requires only ca or this is a choice
-    tm_results = tm_align(pos_1, pos_2, seq_1, seq_2)
-    return tm_results.tm_norm_chain1, tm_results.tm_norm_chain2
-
-
-def _superimpose_np(reference, coords):
-    """Superimpose coords onto reference using SVD."""
-    sup = SVDSuperimposer()
-    sup.set(reference, coords)
-    sup.run()
-    return sup.get_transformed(), sup.get_rms()
+from src.structure.superimposition import calc_tm_score
 
 
 def structure_from_pdb_str(pdb_str: str):
@@ -51,6 +40,30 @@ def load_residues(pdb_file):
     structure = parser.get_structure(id=None, file=pdb_file)
     residues = [res for res in structure[0]["A"]]
     return residues
+
+
+def esmfold_output_to_proteins(output):
+    # c.f. ESMForProteinFolding.output_to_pdb
+    output = {k: v.to("cpu").numpy() for k, v in output.items()}
+    proteins = []
+    final_atom_positions = atom14_to_atom37(output["positions"][-1], output)
+    final_atom_mask = output["atom37_atom_exists"]
+    for i in range(output["aatype"].shape[0]):
+        aa = output["aatype"][i]
+        sequence = decode_tokens(aa, restypes_with_x)
+        pred_pos = final_atom_positions[i]
+        mask = final_atom_mask[i]
+        resid = output["residue_index"][i] + 1
+        backbone_atom_ids = [atom_order[atom] for atom in ["N", "CA", "C", "O"]]
+        pred = Protein(
+            sequence=sequence,
+            positions=list(resid),
+            backbone_coords=pred_pos[:, backbone_atom_ids],
+            backbone_coords_mask=mask[:, backbone_atom_ids],
+            plddt=output["plddt"][i].mean(-1),  # average over atoms per residue
+        )
+        proteins.append(pred)
+    return proteins
 
 
 class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):

@@ -9,9 +9,9 @@ import torch
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
-from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.data.preprocessing import backbone_coords_from_example
 from src.data.utils import CustomDataCollator
+from src.structure.pdb import get_atom_coords_residuewise, load_structure
 
 
 @pytest.fixture

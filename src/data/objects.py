@@ -1,3 +1,4 @@
+import io
 import json
 import os
 from dataclasses import asdict, dataclass
@@ -5,8 +6,8 @@ from typing import Callable, ClassVar, List, Optional
 
 import numpy as np
 from biotite import structure as struc
-from biotite.structure import io as strucio
 from biotite.sequence import ProteinSequence
+from biotite.structure import io as strucio
 from biotite.structure.residues import get_residue_starts, get_residues
 
 from src.constants import BACKBONE_ATOMS
@@ -14,7 +15,6 @@ from src.data.fasta import read_fasta_lines
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.structure.superimposition import _superimpose_np
 from src.tools.foldseek import convert_pdbs_to_3di
-
 
 
 def plddt_to_color(plddt):
@@ -43,7 +43,7 @@ class StringObject:
 @dataclass
 class Protein:
     sequence: str
-    accession: str
+    accession: Optional[str] = None
     positions: Optional[List[int]] = None
     plddt: Optional[np.ndarray] = None
     backbone_coords: Optional[np.ndarray] = None
@@ -75,6 +75,7 @@ class Protein:
             )
 
     def view_with_py3dmol(self, view):
+        """view=py3Dmol.view(width=800, height=600)"""
         view.addModel(self.to_pdb_str(), "pdb")
         if self.plddt is not None:
             for i, plddt_val in enumerate(list(self.plddt) * 4):
@@ -165,6 +166,19 @@ class Protein:
             backbone_coords=coords,
             backbone_coords_mask=None,  # TODO: for cif files we can get mask - c.f. evogvp
             structure_tokens=structure_tokens,
+        )
+
+    def clone(self, **kwargs):
+        return Protein(
+            sequence=kwargs.get("sequence", self.sequence),
+            accession=kwargs.get("accession", self.accession),
+            positions=kwargs.get("positions", self.positions),
+            plddt=kwargs.get("plddt", self.plddt),
+            backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
+            backbone_coords_mask=kwargs.get(
+                "backbone_coords_mask", self.backbone_coords_mask
+            ),
+            structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
         )
 
 
