@@ -14,7 +14,9 @@ class SamplingEvaluationPipelineCallback(Callback):
     def __init__(
         self,
         pipeline: GenerationsEvaluatorPipeline,
-        evaluators: Union[List[SamplingEvaluator], SamplingEvaluator],
+        evaluators: Union[
+            List[SamplingEvaluator], Dict[str, SamplingEvaluator], SamplingEvaluator
+        ],
         prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
         match_representative_length: bool = False,
@@ -27,6 +29,8 @@ class SamplingEvaluationPipelineCallback(Callback):
         self.sampling_kwargs = sampling_kwargs or {}
         self.prompt_builder = prompt_builder
         self.match_representative_length = match_representative_length
+        if isinstance(self.evaluators, Dict):
+            self.evaluators = list(self.evaluators.values())
         if not isinstance(self.evaluators, List):
             assert isinstance(self.evaluators, SamplingEvaluator)
             self.evaluators: List[SamplingEvaluator] = [self.evaluators]
@@ -63,7 +67,7 @@ class SamplingEvaluationPipelineCallback(Callback):
             mean_results = evaluator_results.mean().to_dict()
             t1 = time.time()
             all_metrics.update(
-                {f"{evaluator_name}/{k}": v for k, v in mean_results.items()}
+                {f"{self.pipeline.pipeline_id}/{evaluator_name}/{k}": v for k, v in mean_results.items()}
             )
-            all_metrics[f"{self.evaluator.name}/time"] = t1 - t0
+            all_metrics[f"{self.pipeline.pipeline_id}/{self.evaluator.name}/time"] = t1 - t0
         model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)
