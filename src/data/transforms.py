@@ -64,7 +64,7 @@ def sample_to_max_tokens(
         perm = rnd.permutation(len(proteins))
         if keep_first:
             perm[0] = 0
-        proteins = proteins[perm]
+        proteins = proteins.select(perm)
 
     if max_tokens is not None:
         cumulative_lengths = list(

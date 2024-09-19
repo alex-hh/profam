@@ -407,6 +407,15 @@ class ProteinDocument(BaseProteinDocument):
         metadata = {k: v for k, v in self.metadata.items() if k != "suffix_masks"}
         return ProteinDocument(proteins=proteins, suffix_masks=suffix_masks, **metadata)
 
+    def select(self, indices: List[int]):
+        proteins = []
+        suffix_masks = []
+        for ix in indices:
+            proteins.append(self.proteins[ix])
+            suffix_masks.append(self.suffix_masks[ix])
+        metadata = {k: v for k, v in self.metadata.items() if k != "suffix_masks"}
+        return ProteinDocument(proteins=proteins, suffix_masks=suffix_masks, **metadata)
+
     def pop(self, index):
         return self.proteins.pop(index)
 
