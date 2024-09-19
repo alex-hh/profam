@@ -118,15 +118,17 @@ def parquet_3di_processor():
     )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def proteingym_batch(profam_tokenizer):
+    # TODO: use filtered msa - processing the full msa very slow (why?)
     data = load_gym_dataset(
         dms_ids=["BLAT_ECOLX_Jacquier_2013"],
         tokenizer=profam_tokenizer,
         gym_data_dir="data/example_data/ProteinGym",
-        max_tokens=profam_tokenizer.max_tokens,
+        max_tokens=2048,
         keep_gaps=False,
         num_proc=None,
+        use_filtered_msa=True,
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
