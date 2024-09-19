@@ -1,4 +1,23 @@
+import os
+
 import torch
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
+
+from src.constants import BASEDIR, VOCAB_SIZE
+
+
+def load_named_model(model_name, overrides=None):
+    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
+        model_overrides = [f"+constants.vocab_size={VOCAB_SIZE}"] + (overrides or [])
+        model_cfg = compose(
+            config_name=f"model/{model_name}", overrides=model_overrides
+        )
+        tokenizer_cfg = compose(config_name=f"tokenizer/profam")
+
+    tokenizer = instantiate(tokenizer_cfg.tokenizer)
+    model = instantiate(model_cfg.model, tokenizer=tokenizer)
+    return model
 
 
 def calc_grad_norm(params):

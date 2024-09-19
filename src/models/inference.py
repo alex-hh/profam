@@ -54,7 +54,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
 
     def __init__(
         self,
-        preprocessor: BasePreprocessor,
+        preprocessor: BasePreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
         max_tokens: int,
         seed: Optional[int] = None,
         representative_only: bool = False,

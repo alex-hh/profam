@@ -1,15 +1,27 @@
 import functools
+import os
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
 
+from src.constants import BASEDIR
 from src.data import transforms
 from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
 from src.data.objects import ProteinDocument
 from src.data.utils import examples_to_list_of_dicts
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
+
+
+def load_named_preprocessor(preprocessor_name, overrides: Optional[List[str]] = None):
+    with initialize_config_dir(
+        os.path.join(BASEDIR, "configs/data/dataset/preprocessor"), "1.3"
+    ):
+        preprocessor_cfg = compose(config_name=preprocessor_name, overrides=overrides)
+    return instantiate(preprocessor_cfg, _convert_="partial")
 
 
 @dataclass
