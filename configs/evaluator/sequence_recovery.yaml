@@ -1,0 +1,2 @@
+_target_: src.evaluators.identity.SequenceRecoveryEvaluator
+name: sequence_recovery
