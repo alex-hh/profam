@@ -113,6 +113,10 @@ class ProFamSampler:
             self.model.load_state_dict(checkpoint)
         self.model.eval()
 
+    @property
+    def device(self):
+        return self.model.device
+
     def to(self, device):
         self.model.to(device)
 

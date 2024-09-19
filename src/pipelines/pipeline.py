@@ -277,8 +277,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     verbose=verbose,
                     flush=True,
                 )
-                if device is not None:
-                    sampler.to(device)
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
                 generated_sequences, prompt = evaluator.run_sampling(
@@ -286,14 +284,15 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     protein_document,
                     self.num_generations,
                 )
-                sampler.to("cpu")
                 self.save_generations(instance_id, sampler.name, generated_sequences)
                 self.save_prompt(instance_id, sampler.name, prompt)
             else:
                 generated_sequences = self.load_generations(instance_id, sampler.name)
                 prompt = self.load_prompt(instance_id, sampler.name)
 
+            model_device = sampler.device
             if not sampling_only:
+                sampler.to("cpu")  # offload memory to CPU
                 try:
                     self.run_evaluator_on_instance(
                         sampler.name,
@@ -307,6 +306,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 except Exception as e:
                     print("Failed to run validation on instance", instance_id)
                     raise e
+                sampler.to(model_device)  # move back to original device
 
         if sampling_only:
             return
