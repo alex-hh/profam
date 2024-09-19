@@ -8,9 +8,9 @@ import numpy as np
 import pyhmmer
 from scipy.stats import pearsonr
 
-from src.data.fasta import convert_sequence_with_positions
+from src.sequence.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
-from src.evaluators.alignment import MSANumeric, aa_letters_wgap
+from src.sequence.alignment import MSANumeric, aa_letters_wgap
 from src.evaluators.base import SamplingEvaluator
 
 

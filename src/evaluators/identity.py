@@ -1,7 +1,7 @@
 """We can implement both sequence recovery, requiring fixed length, and pairwise sequence identity."""
 from typing import Optional
 
-from src.data.sequence import sequence_identity
+from src.sequence.utils import sequence_identity
 from src.evaluators.base import SamplingEvaluator
 
 

@@ -12,7 +12,7 @@ from transformers.models.esm.openfold_utils.residue_constants import (
 )
 
 from src.data.objects import Protein, ProteinDocument
-from src.data.sequence import decode_tokens
+from src.sequence.utils import decode_tokens
 from src.evaluators.base import SamplingEvaluator
 from src.structure.superimposition import rmsd, tm_score
 

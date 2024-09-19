@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from src import constants
-from src.data import fasta
+from src.sequence import fasta
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import BasePreprocessor
 from src.evaluators.base import SamplingEvaluator

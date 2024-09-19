@@ -1,4 +1,4 @@
-from src.data.fasta import read_fasta_sequences
+from src.sequence.fasta import read_fasta_sequences
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
 

@@ -12,7 +12,7 @@ from biotite.structure import io as strucio
 from biotite.structure.residues import get_residue_starts, get_residues
 
 from src.constants import BACKBONE_ATOMS
-from src.data.fasta import read_fasta_lines
+from src.sequence.fasta import read_fasta_lines
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.tools.foldseek import convert_pdbs_to_3di
 

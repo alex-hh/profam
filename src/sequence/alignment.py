@@ -11,7 +11,7 @@ import string
 import numpy as np
 import torch
 
-from src.data import fasta
+from src.sequence import fasta
 
 aa_letters = [
     "A",

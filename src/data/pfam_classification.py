@@ -28,7 +28,7 @@ from datasets import Dataset
 from torch import arange
 
 import src.data.utils as data_utils
-from src.data import fasta
+from src.sequence import fasta
 from src.data.family_classification import family_columns
 from src.data.utils import tokenize, tokenize_completions
 

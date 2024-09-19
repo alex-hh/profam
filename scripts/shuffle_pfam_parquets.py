@@ -13,7 +13,7 @@ import sys
 
 import pandas as pd
 
-from src.data.fasta import read_fasta_sequences
+from src.sequence.fasta import read_fasta_sequences
 
 
 def create_parquet_map(pfam_parquet_dir, mapping_path, limit_mb=250):
