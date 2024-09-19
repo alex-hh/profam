@@ -1,5 +1,5 @@
-_target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-name: esmfold
+_target_: src.evaluators.esmfold.ESMFoldInverseFoldingEvaluator
+name: esmfold_if
 half_precision: False
 num_samples: 100
 save_structures: False

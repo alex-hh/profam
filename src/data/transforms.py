@@ -5,8 +5,8 @@ from typing import Optional
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-from src.sequence.fasta import convert_sequence_with_positions
 from src.data.objects import Protein, ProteinDocument
+from src.sequence.fasta import convert_sequence_with_positions
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 

@@ -12,8 +12,8 @@ from transformers.models.esm.openfold_utils.residue_constants import (
 )
 
 from src.data.objects import Protein, ProteinDocument
-from src.sequence.utils import decode_tokens
 from src.evaluators.base import SamplingEvaluator
+from src.sequence.utils import decode_tokens
 from src.structure.superimposition import rmsd, tm_score
 
 
@@ -91,6 +91,7 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         self.save_structures = save_structures
         self.max_length = max_length  # TODO: we can actually enforce this on sampling.
         self.verbose = verbose
+        print("ESMFold", self.verbose)
 
     def _load_model(self, device):
         self.esmfold = EsmForProteinFolding.from_pretrained(
@@ -161,10 +162,10 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         self.esmfold = self.esmfold.to("cpu")
         if self.verbose:
             print(
-                f"Sample PLDDT: {np.mean([np.mean(prot.plddt) for prot in sample_prots])} TM Score: {np.mean(tm_scores)} RMSD: {np.mean(rmsds)}",
+                f"Sample PLDDT: {np.mean([np.mean(prot.plddt) for prot in sample_prots])} "
+                f"TM Score: {np.mean(tm_scores)} RMSD: {np.mean(rmsds)}",
                 flush=True,
             )
-            print(tm_scores, rmsds, flush=True)
         metrics = {
             "sample_plddt": np.mean([np.mean(prot.plddt) for prot in sample_prots]),
             "sample_lens": np.mean([len(prot) for prot in sample_prots]),
@@ -175,6 +176,7 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
             metrics["prompt_lens"] = len(ref_prot)
             metrics["mean_tm_score"] = np.mean(tm_scores)
             metrics["mean_rmsd"] = np.mean(rmsds)
+        return metrics
 
 
 class ESMFoldSamplingEvaluator(SamplingEvaluator):
@@ -184,7 +186,6 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self,
         name,
         num_samples: Optional[int] = None,
-        seed: int = 52,
         prompt_plddt: bool = True,
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
@@ -193,7 +194,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         max_length: int = 512,  # TODO look into cpu offloading...
         **kwargs,
     ):
-        super().__init__(name, seed=seed, num_samples=num_samples, **kwargs)
+        super().__init__(name, num_samples=num_samples, **kwargs)
         # TODO: defer loading model until first call to evaluate_samples
         self.esmfold = None
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")

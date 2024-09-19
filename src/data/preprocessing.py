@@ -9,9 +9,9 @@ from hydra.utils import instantiate
 
 from src.constants import BASEDIR
 from src.data import transforms
-from src.sequence.fasta import convert_sequence_with_positions, read_fasta_sequences
 from src.data.objects import ProteinDocument
 from src.data.utils import examples_to_list_of_dicts
+from src.sequence.fasta import convert_sequence_with_positions, read_fasta_sequences
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 

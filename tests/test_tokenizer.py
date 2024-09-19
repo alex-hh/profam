@@ -1,6 +1,6 @@
-from src.sequence.fasta import read_fasta_sequences
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
+from src.sequence.fasta import read_fasta_sequences
 
 
 def test_encode_decode(profam_tokenizer, pfam_fasta_text):

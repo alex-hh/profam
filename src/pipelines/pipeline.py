@@ -6,10 +6,10 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from src import constants
-from src.sequence import fasta
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import BasePreprocessor
 from src.evaluators.base import SamplingEvaluator
+from src.sequence import fasta
 from src.utils.utils import maybe_print
 
 
@@ -260,6 +260,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         device: Optional[str] = None,
     ):
         instance_ids = self.instance_ids()
+        if rerun_sampler:
+            rerun_evaluator = True
         for instance_id in instance_ids:
             maybe_print(
                 "Running evaluation pipeline for instance", instance_id, verbose=verbose

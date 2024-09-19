@@ -12,9 +12,9 @@ from typing import List
 import pandas as pd
 from datasets import Dataset
 
-from src.sequence import fasta
 from src.data import utils as data_utils
 from src.data.proteingym import tokenize
+from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
 
