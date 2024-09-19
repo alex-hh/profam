@@ -130,9 +130,10 @@ class Throughput:
             time: Total elapsed time in seconds. It should monotonically increase by the iteration time with each
                 call.
             batches: Total batches seen per device. It should monotonically increase with each call.
-            samples: Total samples seen per device. It should monotonically increase by the batch size with each call.
-            lengths: Total length of the samples seen. It should monotonically increase by the lengths of a batch with
+            samples: Total samples (documents) seen per device. It should monotonically increase by the batch size with each call.
+            lengths: Total length (in tokens) of the samples seen. It should monotonically increase by the lengths of a batch with
                 each call.
+            proteins: Total distinct proteins seen (i.e. number of sep tokens).
             flops: Flops elapased per device since last ``update()`` call. You can easily compute this by using
                 :func:`measure_flops` and multiplying it by the number of batches that have been processed.
                 The value might be different in each device if the batch size is not the same.
@@ -188,14 +189,14 @@ class Throughput:
         metrics = {
             "time": self._time[-1],
             "batches": self._batches[-1],
-            "samples": self._samples[-1],
+            "documents": self._samples[-1],
         }
         if self._proteins:
             metrics["proteins"] = self._proteins[-1]
         if self._lengths:
-            metrics["lengths"] = self._lengths[-1]
+            metrics["tokens"] = self._lengths[-1]
         if self._non_padding_lengths:
-            metrics["_non_padding_lengths"] = self._non_padding_lengths[-1]
+            metrics["non_padding_tokens"] = self._non_padding_lengths[-1]
 
         # add_global_metrics = self.world_size > 1
         add_global_metrics = True
@@ -212,7 +213,7 @@ class Throughput:
                 {
                     f"device{self.separator}batches_per_sec": elapsed_batches
                     / elapsed_time,
-                    f"device{self.separator}samples_per_sec": dev_samples_per_sec,
+                    f"device{self.separator}documents_per_sec": dev_samples_per_sec,
                 }
             )
             if add_global_metrics:
@@ -220,7 +221,7 @@ class Throughput:
                 metrics.update(
                     {
                         "batches_per_sec": samples_per_sec,
-                        "samples_per_sec": dev_samples_per_sec * self.world_size,
+                        "documents_per_sec": dev_samples_per_sec * self.world_size,
                     }
                 )
 
