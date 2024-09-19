@@ -4,12 +4,28 @@ from dataclasses import asdict, dataclass
 from typing import Callable, ClassVar, List, Optional
 
 import numpy as np
+from biotite import structure as struc
+from biotite.structure import io as strucio
 from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residue_starts, get_residues
 
+from src.constants import BACKBONE_ATOMS
 from src.data.fasta import read_fasta_lines
-from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.structure.pdb import get_atom_coords_residuewise, load_structure
+from src.structure.superimposition import _superimpose_np
 from src.tools.foldseek import convert_pdbs_to_3di
+
+
+
+def plddt_to_color(plddt):
+    if plddt > 90:
+        return "#0053D6"
+    elif plddt > 70:
+        return "#65CBF3"
+    elif plddt > 50:
+        return "#FFDB13"
+    else:
+        return "#FF7D45"
 
 
 class StringObject:

@@ -29,6 +29,7 @@ aa_letters = [
     "Y",
 ]
 
+BACKBONE_ATOMS = ["N", "CA", "C", "O"]
 
 PROFAM_DATA_DIR = os.environ.get(
     "PROFAM_DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data"

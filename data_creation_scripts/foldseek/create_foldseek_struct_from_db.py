@@ -22,7 +22,7 @@ import pyarrow.parquet as pq
 import os
 from src.constants import PROFAM_DATA_DIR
 from src.data.fasta import read_fasta
-from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.tools.foldmason import run_foldmason_on_pdbs
 from src.tools.foldseek import convert_pdbs_to_3di
 from .utils import extract_pdbs_from_zips
