@@ -51,7 +51,6 @@ class Protein:
     structure_tokens: Optional[str] = None
 
     def __len__(self):
-        assert len(self.sequence) == len(self.plddt)
         return len(self.sequence)
 
     def __post_init__(self):
