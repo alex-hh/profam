@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: "fasta_msa"
+  - preprocessor: "fasta_msa"
 _target_: src.data.datasets.ProteinDatasetConfig
 name: openfold_aligned
 data_path_pattern: example_data/openfold/uniclust30_filtered/*/a3m/uniclust30.a3m

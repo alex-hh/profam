@@ -54,6 +54,7 @@ def run(cfg: DictConfig) -> None:
         evaluator=evaluator,
         rerun_sampler=cfg.rerun_sampler,
         rerun_evaluator=cfg.rerun_evaluator,
+        device=cfg.device,
     )
     # for hydra multirun memory management issues:
     gc.collect()

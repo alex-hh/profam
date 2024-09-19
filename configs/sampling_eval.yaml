@@ -12,3 +12,4 @@ defaults:
 
 rerun_sampler: false
 rerun_evaluator: false
+device: cuda:0

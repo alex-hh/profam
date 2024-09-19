@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: parquet_3di_with_interleaved_coords
+  - preprocessor: parquet_3di_with_interleaved_coords
 _target_: src.data.datasets.ProteinDatasetConfig
 name: foldseek_with_3di
 data_path_pattern: example_data/foldseek_representatives/*.parquet

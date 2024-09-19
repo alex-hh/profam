@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: "parquet_msa_pos"
+  - preprocessor: "parquet_msa_pos"
 
 _target_: src.data.datasets.ProteinDatasetConfig
 name: pfam

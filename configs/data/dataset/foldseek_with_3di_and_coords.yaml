@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: parquet_3di_with_coords
+  - preprocessor: parquet_3di_with_coords
 _target_: src.data.datasets.ProteinDatasetConfig
 name: foldseek_with_3di
 data_path_pattern: foldseek_struct/*.parquet

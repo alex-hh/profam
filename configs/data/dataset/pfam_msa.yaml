@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: "parquet_msa"
+  - preprocessor: "parquet_msa"
 _target_: src.data.datasets.ProteinDatasetConfig
 name: pfam_msa
 data_path_pattern: pfam/train_test_split_parquets/train/*.parquet

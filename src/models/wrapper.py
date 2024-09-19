@@ -233,7 +233,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if "coords" in model_kwargs:
             bsz, _, n_atoms, _ = model_kwargs["coords"].shape
             model_kwargs["coords"] = torch.cat(
-                [model_kwargs["coords"], torch.zeros(bsz, num_new_tokens, n_atoms, 3)],
+                [
+                    model_kwargs["coords"],
+                    torch.zeros(bsz, num_new_tokens, n_atoms, 3).to(
+                        model_kwargs["coords"]
+                    ),
+                ],
                 dim=1,
             )
 

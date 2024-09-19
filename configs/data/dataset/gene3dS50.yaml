@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: "fasta_raw"
+  - preprocessor: "fasta_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
 name: gene3dS50
 data_path_pattern: gene3d/all_sfams_4.3/*/*_s50_rep_seq.fasta
