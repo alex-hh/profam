@@ -45,7 +45,7 @@ def tm_score(protein_1: Protein, protein_2: Protein):
     )[0]
 
 
-def rmsd(protein_1: Protein, protein_2: Protein):
+def rmsd(ref_prot: Protein, prot: Protein):
     """
     Compute the RMSD between two proteins.
 
@@ -55,9 +55,9 @@ def rmsd(protein_1: Protein, protein_2: Protein):
         align: bool
             If True, align the proteins before computing RMSD.
     """
-    assert len(protein_1) == len(protein_2)
+    assert len(ref_prot) == len(prot)
     _, rmsd = _superimpose_np(
-        protein_1.backbone_coords.reshape((-1, 3)),
-        protein_2.backbone_coords.reshape((-1, 3)),
+        ref_prot.backbone_coords.reshape((-1, 3)),
+        prot.backbone_coords.reshape((-1, 3)),
     )
     return rmsd

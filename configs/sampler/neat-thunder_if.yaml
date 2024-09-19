@@ -19,7 +19,6 @@ prompt_builder:
       document_token: "[AFDB]"
   max_tokens: 1536
   seed: 42
-  representative_only: true
 model:
   scoring_max_tokens: 10240
   embed_coords: True

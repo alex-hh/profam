@@ -8,6 +8,7 @@ import numpy as np
 import pyhmmer
 from scipy.stats import pearsonr
 
+from src.data.fasta import convert_sequence_with_positions
 from src.data.objects import ProteinDocument
 from src.evaluators.alignment import MSANumeric, aa_letters_wgap
 from src.evaluators.base import SamplingEvaluator
@@ -25,8 +26,42 @@ def hamming_distance(seq_a, seq_b, ignore_gaps=False):
 
 
 class BaseHMMEREvaluator(SamplingEvaluator):
+    def __init__(
+        self,
+        name: str,
+        num_samples: Optional[int] = None,
+        seed: int = 52,
+    ):
+        super().__init__(name, num_samples=num_samples)
+        self.seed = seed
+
     def load_hmm(self, identifier: str):
         raise NotImplementedError("should be implemented on child class")
+
+    def sample_document(
+        self,
+        protein_document: ProteinDocument,
+        num_samples: int,
+        keep_gaps: bool = False,
+        keep_insertions: bool = True,
+        to_upper: bool = True,
+    ):
+        rng = np.random.default_rng(self.seed)
+        reference_sequence_indices = rng.choice(
+            len(protein_document.sequences),
+            min(num_samples, len(protein_document.sequences)),
+            replace=False,
+        )
+        reference_sequences = [
+            convert_sequence_with_positions(
+                protein_document.sequences[i],
+                keep_gaps=keep_gaps,
+                keep_insertions=keep_insertions,
+                to_upper=to_upper,
+            )[0]
+            for i in reference_sequence_indices
+        ]
+        return reference_sequences
 
 
 class PFAMHMMERMixin:

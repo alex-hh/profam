@@ -13,11 +13,10 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
     def __init__(
         self,
         name: str,
-        seed: int = 52,
         verbose: bool = False,
         num_samples: Optional[int] = None,
     ):
-        super().__init__(name, seed, num_samples)
+        super().__init__(name, num_samples)
         self.verbose = verbose
 
     def _evaluate_samples(

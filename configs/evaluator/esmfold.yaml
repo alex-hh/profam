@@ -1,5 +1,4 @@
 _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-seed: 52
 name: esmfold
 half_precision: False
 num_samples: 100

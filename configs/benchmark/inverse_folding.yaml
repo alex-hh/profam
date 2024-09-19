@@ -3,7 +3,7 @@
 defaults:
   - override /sampler: neat-thunder_if
   - override /pipeline: foldseek_with_coords
-  - override /evaluator: esmfold
+  - override /evaluator: esmfold_if
 
 pipeline:
   pipeline_id: foldseek_representatives_n10

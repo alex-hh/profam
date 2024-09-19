@@ -21,7 +21,6 @@ extra_callbacks:
       preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
       max_tokens: ${data.max_tokens}
       seed: 42
-      representative_only: True
     pipeline:
       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
       max_instances: 15

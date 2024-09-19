@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from typing import Callable, ClassVar, List, Optional
 
 import numpy as np
+from Bio.SVDSuperimposer import SVDSuperimposer
 from biotite import structure as struc
 from biotite.sequence import ProteinSequence
 from biotite.structure import io as strucio
@@ -13,8 +14,26 @@ from biotite.structure.residues import get_residue_starts, get_residues
 from src.constants import BACKBONE_ATOMS
 from src.data.fasta import read_fasta_lines
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
-from src.structure.superimposition import _superimpose_np
 from src.tools.foldseek import convert_pdbs_to_3di
+
+
+# copying here to avoid circular imports
+def _superimpose_np(reference, coords):
+    """
+    Superimposes coordinates onto a reference by minimizing RMSD using SVD.
+
+    Args:
+        reference:
+            [N, 3] reference array
+        coords:
+            [N, 3] array
+    Returns:
+        A tuple of [N, 3] superimposed coords and the final RMSD.
+    """
+    sup = SVDSuperimposer()
+    sup.set(reference, coords)
+    sup.run()
+    return sup.get_transformed(), sup.get_rms()
 
 
 def plddt_to_color(plddt):
