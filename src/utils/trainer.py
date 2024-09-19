@@ -38,7 +38,7 @@ class ProFamTrainer(Trainer):
                 "Setting accumulate_grad_batches to", kwargs["accumulate_grad_batches"]
             )
         if timeout is not None:
-            assert kwargs["strategy"] == "ddp"
+            assert kwargs.get("strategy", "auto") == "ddp"
             # default is 1800 seconds
             kwargs["strategy"] = DDPStrategy(
                 timeout=datetime.timedelta(seconds=timeout)

@@ -281,7 +281,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         self.esmfold = self.esmfold.to("cpu")
         if self.verbose:
             print(
-                f"Sample PLDDT: {np.mean([np.mean(prot.plddt) for prot in sample_prots])} TM Score: {np.mean([np.mean(tm_scores) for tm_scores in all_tm_scores])} RMSD: {np.mean([np.mean(rmsds) for rmsds in all_rmsds])}",
+                f"Sample PLDDT: {np.mean([np.mean(prot.plddt) for prot in sample_prots])} "
+                f"TM Score: {np.mean([np.mean(tm_scores) for tm_scores in all_tm_scores])}",
                 flush=True,
             )
         return {

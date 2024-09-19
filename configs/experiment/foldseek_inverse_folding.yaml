@@ -5,7 +5,7 @@
 # python train.py experiment=foldseek_small
 
 defaults:
-  - /extra_callbacks@extra_callbacks.esmfold: esmfold
+  - /extra_callbacks@extra_callbacks.esmfold_if: esmfold_if
   - override /callbacks: default_with_shuffle
   - override /data: foldseek_representatives_interleaved
   - override /model: llama_small
@@ -15,7 +15,7 @@ tags: ["foldseek_if"]
 seed: 12345
 
 extra_callbacks:
-  esmfold:
+  esmfold_if:
     prompt_builder:
       _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
       preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
@@ -24,7 +24,7 @@ extra_callbacks:
     pipeline:
       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
       max_instances: 15
-      max_sequence_length: 512
+      max_sequence_length: 512  # used to filter candidate target proteins
     match_representative_length: true
 
 trainer:
@@ -34,7 +34,6 @@ trainer:
   val_check_interval: 25000  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
-  timeout: 1800
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...

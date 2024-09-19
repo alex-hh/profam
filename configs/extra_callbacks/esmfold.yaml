@@ -12,7 +12,7 @@ evaluator:
 sampling_kwargs:
   batch_size: 3
   max_generated_length: ${extra_callbacks.esmfold.evaluator.max_length}
-  temperature: 0.1
+  temperature: 0.3
 pipeline:
   num_generations: 3
   save_results_to_file: false

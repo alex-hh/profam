@@ -3,4 +3,4 @@ name: esmfold
 half_precision: False
 num_samples: 100
 save_structures: False
-max_length: 512
+max_length: 512  # filter applied when running esmfold on generations to avoid oom

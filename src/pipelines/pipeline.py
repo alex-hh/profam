@@ -51,7 +51,11 @@ class BaseEvaluatorPipeline:
         self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
 
     def load_results(self) -> pd.DataFrame:
-        """Load results dataframe from local disk location."""
+        """Load results dataframe from local disk location.
+
+        TODO: we really want different results files for different evaluators,
+        so this should happen somewhere else.
+        """
         results_path = os.path.join(self.pipeline_directory, "results.csv")
         if self.save_results_to_file and os.path.exists(results_path):
             self.results_df = pd.read_csv(results_path)
