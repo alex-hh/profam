@@ -82,7 +82,7 @@ class Protein:
             structure_tokens = None
         return cls(
             sequence=seq,
-            accession=os.path.splitext(os.path.basename(pdb_file)),
+            accession=os.path.splitext(os.path.basename(pdb_file))[0],
             positions=None,
             plddt=plddt,
             backbone_coords=coords,
@@ -325,6 +325,11 @@ class ProteinDocument:
                 structure_tokens=self.structure_tokens[key]
                 if self.structure_tokens is not None
                 else None,
+                modality_masks=self.modality_masks[key]
+                if self.modality_masks is not None
+                else None,
+                representative_accession=self.representative_accession,
+                original_size=self.original_size,
             )
         elif isinstance(key, np.ndarray) or isinstance(key, list):
             return ProteinDocument(
@@ -348,6 +353,11 @@ class ProteinDocument:
                 structure_tokens=[self.structure_tokens[i] for i in key]
                 if self.structure_tokens is not None
                 else None,
+                representative_accession=self.representative_accession,
+                original_size=self.original_size,
+                modality_masks=[self.modality_masks[i] for i in key]
+                if self.modality_masks is not None
+                else None,
             )
         elif isinstance(key, int):
             return Protein(
@@ -367,6 +377,43 @@ class ProteinDocument:
             )
         else:
             raise ValueError(f"Invalid key type: {type(key)}")
+
+    def slice_arrays(self, slices):
+        assert len(slices) == len(self.sequences)
+        return ProteinDocument(
+            identifier=self.identifier,
+            sequences=[seq[s] for seq, s in zip(self.sequences, slices)],
+            accessions=self.accessions,
+            positions=[pos[s] for pos, s in zip(self.positions, slices)]
+            if self.positions is not None
+            else None,
+            plddts=[plddt[s] for plddt, s in zip(self.plddts, slices)]
+            if self.plddts is not None
+            else None,
+            backbone_coords=[xyz[s] for xyz, s in zip(self.backbone_coords, slices)]
+            if self.backbone_coords is not None
+            else None,
+            backbone_coords_masks=[
+                mask[s] for mask, s in zip(self.backbone_coords_masks, slices)
+            ]
+            if self.backbone_coords_masks is not None
+            else None,
+            structure_tokens=[
+                tokens[s] for tokens, s in zip(self.structure_tokens, slices)
+            ]
+            if self.structure_tokens is not None
+            else None,
+            representative_accession=self.representative_accession,
+            original_size=self.original_size,
+            modality_masks=[mask[s] for mask, s in zip(self.modality_masks, slices)]
+            if self.modality_masks is not None
+            else None,
+            interleaved_coords_masks=[
+                mask[s] for mask, s in zip(self.interleaved_coords_masks, slices)
+            ]
+            if self.interleaved_coords_masks is not None
+            else None,
+        )
 
     def __len__(self):
         return len(self.sequences)

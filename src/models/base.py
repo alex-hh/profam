@@ -602,6 +602,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         input_ids,
         num_samples,
+        max_tokens: int,
         batch_size: int = 1,
         max_generated_length: Optional[int] = None,
         max_total_length: Optional[
@@ -630,11 +631,11 @@ class BaseFamilyLitModule(BaseLitModule):
         if max_total_length is None:
             if self.use_seq_pos:
                 max_total_length = min(
-                    self.tokenizer.max_tokens,
+                    max_tokens,
                     input_ids.shape[1] + self.tokenizer.max_seq_pos,
                 )
             else:
-                max_total_length = self.tokenizer.max_tokens
+                max_total_length = max_tokens
         if max_generated_length is not None:
             assert max_generated_length <= max_total_length
         generation_kwargs = {}

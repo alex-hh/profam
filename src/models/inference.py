@@ -34,14 +34,11 @@ class PromptBuilder:
         proteins = preprocess_protein_sequences(
             proteins, self.preprocessor.cfg, tokenizer, transform_fns=transform_fns
         )
-        # TODO: maybe just return the prompt, tokenize elsewhere.
-        encoded = tokenizer.encode(
-            proteins,
-            document_token=self.preprocessor.cfg.document_token,
-            padding="longest",
-            add_final_sep=True,
-        )
-        return proteins, encoded
+        return proteins
+
+
+class FewShotInterleavedInverseFoldingPromptBuilder(PromptBuilder):
+    pass
 
 
 class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
@@ -57,35 +54,22 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         preprocessor: BasePreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
         max_tokens: int,
         seed: Optional[int] = None,
-        representative_only: bool = False,
     ):
         super().__init__(preprocessor, max_tokens, seed)
-        self.representative_only = representative_only
         assert self.preprocessor.interleave_structure_sequence
 
     # we need to exclude token space for length seed*2 from preprocessing
     # TODO: write tests for this
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
         proteins = proteins.clone()
-        representative = proteins.pop_representative()
-        if not self.representative_only:
-            raise NotImplementedError("Not implemented yet")
-            max_tokens = self.max_tokens - len(representative)
-            transform_fns = default_transforms(
-                max_tokens=max_tokens, shuffle=False, seed=self.seed
-            ) + (self.preprocessor.transform_fns or [])
-            proteins = preprocess_protein_sequences(
-                proteins, self.preprocessor.cfg, tokenizer, transform_fns=transform_fns
-            )
-            example = tokenizer.encode(
-                proteins,
-                document_token=self.preprocessor.cfg.document_token,
-                padding="longest",
-                add_final_sep=False,
-            )
+        representative = proteins.representative
 
-        # TODO: tokenize representative
-        representative_doc = ProteinDocument.from_proteins([representative])
+        # We want to interleave the structure with an empty sequence
+        # for now a hack to do this is to replace the sequence with an empty sequence
+        print(representative.accession)
+        representative_doc = ProteinDocument.from_proteins(
+            [representative], representative_accession=representative.accession
+        )
         transform_fns = default_transforms(max_tokens=None, shuffle=False) + (
             self.preprocessor.transform_fns or []
         )
@@ -95,32 +79,10 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             tokenizer,
             transform_fns=transform_fns,
         )
-        representative_example = tokenizer.encode(
-            representative_doc,
-            document_token=self.preprocessor.cfg.document_token,
-            padding="longest",
-            add_final_sep=False,
+        representative_doc = representative_doc.slice_arrays(
+            [slice(0, len(representative.sequence) + 1)]
         )
-        seq_start = (
-            torch.argwhere(
-                representative_example["input_ids"] == tokenizer.seq_struct_sep_token_id
-            ).min()
-            + 1
-        )
-        assert (
-            representative_example["input_ids"][:seq_start][-1]
-            == tokenizer.seq_struct_sep_token_id
-        ), f"seq_start: {seq_start}, input_ids: {representative_example['input_ids'][:seq_start]}"
-        # TODO: maybe just return the prompt, tokenize elsewhere. Difficult thing is slicing out target sequence.
-        for feat in representative_example.keys():
-            if feat in RESIDUE_LEVEL_FEATURES:
-                representative_example[feat] = representative_example[feat][:seq_start]
-                if not self.representative_only:
-                    raise NotImplementedError("Not implemented yet")
-                    # representative_example["feat"] = torch.cat(
-                    #     (example[feat], representative_example[feat]), dim=1
-                    # )
-        return representative_doc, representative_example
+        return representative_doc
 
 
 class ProFamSampler:
@@ -129,6 +91,7 @@ class ProFamSampler:
         name: str,
         model: BaseFamilyLitModule,
         prompt_builder: PromptBuilder,
+        document_token: str = "[RAW]",
         sampling_kwargs: Optional[Dict] = None,
         checkpoint_path: Optional[str] = None,
         match_representative_length: bool = False,
@@ -139,6 +102,7 @@ class ProFamSampler:
         assert prompt_builder is not None
         self.sampling_kwargs = sampling_kwargs
         self.checkpoint_path = checkpoint_path
+        self.document_token = document_token
         self.match_representative_length = match_representative_length
         if self.checkpoint_path is not None:
             print(
@@ -153,16 +117,32 @@ class ProFamSampler:
     def to(self, device):
         self.model.to(device)
 
-    def sample_seqs(self, protein_document: ProteinDocument, num_samples: int):
-        prompt, encoded = self.prompt_builder(protein_document, self.model.tokenizer)
+    def sample_seqs(
+        self,
+        protein_document: ProteinDocument,
+        num_samples: int,
+        document_is_prompt=False,
+    ):
         sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
         if self.match_representative_length:
             sampling_kwargs["fixed_length"] = len(
                 protein_document.representative.sequence
             )
+        if document_is_prompt:
+            raise NotImplementedError("We need to infer original sequence length...")
+        else:
+            prompt = self.prompt_builder(protein_document, self.model.tokenizer)
+        encoded = self.model.tokenizer.encode(
+            prompt,
+            document_token=self.document_token,
+            padding="longest",
+            add_final_sep=False,
+        )
+
         with torch.no_grad():  # prob unnecessary
             tokens = self.model._sample_seqs(
                 encoded["input_ids"].unsqueeze(0).to(self.model.device),
+                max_tokens=self.prompt_builder.max_tokens,
                 num_samples=num_samples,
                 input_seq_pos=encoded["seq_pos"].unsqueeze(0).to(self.model.device),
                 input_coords=encoded["coords"]

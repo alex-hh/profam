@@ -150,6 +150,7 @@ def apply_plddt_mask(
     threshold: float = 80.0,
     mask_plddts: bool = False,
     mask_sequences: bool = False,
+    **kwargs,
 ):
     # only mask structure tokens
     # must be before replace nans and before interleaving
