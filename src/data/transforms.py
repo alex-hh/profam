@@ -132,7 +132,9 @@ def replace_nans_in_coords(
     return proteins.clone(backbone_coords=new_coords)
 
 
-def fill_missing_fields(proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+def fill_missing_fields(
+    proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwargs
+):
     if not proteins.has_all_structure_arrays:
         proteins = proteins.fill_missing_structure_arrays(
             coords_fill=np.nan,
@@ -230,6 +232,7 @@ def interleave_structure_sequence(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
     structure_first_prob: float = 1.0,
+    max_tokens: Optional[int] = None,
     repeat_coords: bool = False,  # in first runs we used repeat coords - this requires modified sampling code.
 ):
     """Automatically reduces the number of proteinss to fit within max_tokens.
@@ -341,7 +344,7 @@ def interleave_structure_sequence(
         assert not "[" in seq
         total_tokens += len(seq) * 2 + 2  # +1 for each separator
 
-        if total_tokens > tokenizer.max_tokens:
+        if total_tokens > (max_tokens or 1e8):
             interleaved_sequences = interleaved_sequences[:-1]
             interleaved_positions = interleaved_positions[:-1]
             interleaved_plddts = interleaved_plddts[:-1]
@@ -373,7 +376,7 @@ def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
     return proteins.clone(sequences=new_sequences)
 
 
-def apply_transforms(transforms, proteins, tokenizer):
+def apply_transforms(transforms, proteins, tokenizer, max_tokens: Optional[int] = None):
     for transform in transforms or []:
-        proteins = transform(proteins, tokenizer=tokenizer)
+        proteins = transform(proteins, tokenizer=tokenizer, max_tokens=max_tokens)
     return proteins

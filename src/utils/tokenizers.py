@@ -125,7 +125,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_document_token: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
-        max_tokens: Optional[int] = 5000,
         seq_struct_sep_token="|",
         **kwargs,
     ):
@@ -134,7 +133,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self.add_document_token = add_document_token
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
-        self.max_tokens = max_tokens
         self.seq_struct_sep_token = seq_struct_sep_token
 
         if not self.additional_special_tokens:
@@ -190,11 +188,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             add_special_tokens=False,
             max_length=max_length,
         )
-        if self.max_tokens is not None:
-            assert tokenized.input_ids.shape[1] <= self.max_tokens, (
-                tokenized.input_ids.shape[1],
-                self.max_tokens,
-            )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
 

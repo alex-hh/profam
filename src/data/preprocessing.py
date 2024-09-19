@@ -71,6 +71,7 @@ def preprocess_protein_sequences(
     proteins: ProteinDocument,
     cfg: PreprocessingConfig,
     tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
     transform_fns: Optional[List[Callable]] = None,
 ):
     transform_fns = transform_fns or []
@@ -86,7 +87,9 @@ def preprocess_protein_sequences(
         )
     else:
         proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
-    proteins = transforms.apply_transforms(transform_fns, proteins, tokenizer)
+    proteins = transforms.apply_transforms(
+        transform_fns, proteins, tokenizer, max_tokens=max_tokens
+    )
     return proteins
 
 
@@ -148,7 +151,11 @@ class BasePreprocessor:
         transform_fns += self.transform_fns or []
         proteins_list = [
             preprocess_protein_sequences(
-                proteins, self.cfg, tokenizer, transform_fns=transform_fns
+                proteins,
+                self.cfg,
+                tokenizer,
+                max_tokens=max_tokens,
+                transform_fns=transform_fns,
             )
             for proteins in proteins_list
         ]
@@ -174,7 +181,11 @@ class BasePreprocessor:
         transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
         transform_fns += self.transform_fns or []
         proteins = preprocess_protein_sequences(
-            proteins, self.cfg, tokenizer, transform_fns=transform_fns
+            proteins,
+            self.cfg,
+            tokenizer,
+            max_tokens=max_tokens,
+            transform_fns=transform_fns,
         )
         tokenized = tokenizer.encode(
             proteins,
@@ -184,6 +195,11 @@ class BasePreprocessor:
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),
         )
+        if max_tokens is not None:
+            assert tokenized.input_ids.shape[1] <= max_tokens, (
+                tokenized.input_ids.shape[1],
+                max_tokens,
+            )
         return tokenized.data
 
     def preprocess_protein_data(
