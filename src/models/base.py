@@ -877,6 +877,10 @@ class BaseFamilyLitModule(BaseLitModule):
         return loss
 
     def log_ds_sample_counts(self, batch):
+        """Log statistics about dataset usage.
+
+        N.B. in distributed setting, these will be device-specific.
+        """
         ds_name = batch["ds_name"].text
         for ds in ds_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1

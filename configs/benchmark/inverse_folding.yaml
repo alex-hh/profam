@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - override /sampler: northern-plant_if
+  - override /sampler: neat-thunder_if
   - override /pipeline: foldseek_with_coords
   - override /evaluator: esmfold
 

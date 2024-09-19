@@ -5,8 +5,8 @@ defaults:
   - /model: llama_small
   - /tokenizer@model.tokenizer: profam
   - /preprocessor@prompt_builder.preprocessor: parquet_3di_with_interleaved_coords
-name: northern-plant  # suggestion: use wandb run name
-checkpoint_path: outputs/inverse_folding/batched_preprocess/2024-09-15_12-28-15/checkpoints/last.ckpt
+name: neat-thunder  # suggestion: use wandb run name
+checkpoint_path: outputs/inverse_folding/neat-thunder/checkpoints/last.ckpt
 sampling_kwargs:
   batch_size: 3
   max_generated_length: 512
