@@ -3,7 +3,6 @@ from typing import Dict, Optional
 
 import torch
 
-from src.constants import RESIDUE_LEVEL_FEATURES
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     BasePreprocessor,

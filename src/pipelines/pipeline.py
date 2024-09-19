@@ -22,6 +22,8 @@ class BaseEvaluatorPipeline:
 
     If multiple sets of metrics should be run on a single set of generations, the evaluator needs
     to be written appropriately.
+
+    # TODO: separate results df for each evaluator - store in dict maybe?
     """
 
     def __init__(

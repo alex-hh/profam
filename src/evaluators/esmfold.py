@@ -117,7 +117,6 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         # TODO: really we should compare to ProteinDocument and not to prompt, which may differ...
         # TODO: add average best TM score or similar to structures in document.
         # https://github.com/blt2114/twisted_diffusion_sampler/blob/968f77111b44e9c711b64e650c41745498ba470d/protein_exp/experiments/inference_se3_diffusion.py#L392
-        ca_index = atom_order["CA"]
         if self.save_structures:
             os.makedirs(output_dir, exist_ok=True)
 

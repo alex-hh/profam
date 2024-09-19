@@ -92,7 +92,7 @@ class Protein:
                 np.ones_like(self.backbone_coords),
             )
 
-    def view_with_py3dmol(self, view):
+    def view(self, view):
         """view=py3Dmol.view(width=800, height=600)"""
         view.addModel(self.to_pdb_str(), "pdb")
         if self.plddt is not None:
@@ -102,7 +102,7 @@ class Protein:
                     {"model": -1, "serial": i + 1}, {"cartoon": {"color": color}}
                 )
 
-    def view_superimposed_with_py3dmol(self, view, other, align: bool = True):
+    def view_superimposed(self, view, other, align: bool = True):
         coords = self.backbone_coords
         other_coords = other.backbone_coords
         assert coords.shape == other_coords.shape
