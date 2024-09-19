@@ -35,6 +35,7 @@ def convert_sequences_adding_positions(
     return proteins.clone(
         sequences=sequences,
         positions=positions,
+        suffix_masks=None,  # TODO: find a way around this
     )
 
 

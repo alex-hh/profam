@@ -247,7 +247,7 @@ class ProteinDocument(BaseProteinDocument):
             check_array_lengths_all_equal(self.sequences, self.suffix_masks)
         else:
             self.suffix_masks = [
-                np.ones(len(seq), dtype=bool) for seq in self.sequences
+                np.ones((len(seq),), dtype=bool) for seq in self.sequences
             ]
 
     def __len__(self):
@@ -375,13 +375,17 @@ class ProteinDocument(BaseProteinDocument):
         }
         for protein in self.proteins:
             for key in proteins_dict.keys():
-                proteins_dict[key].append(
-                    convert_list_of_arrays_to_list_of_lists(
-                        getattr(protein, inverse_field_mapping[key])
+                attr = getattr(protein, inverse_field_mapping[key])
+                if attr is not None:
+                    proteins_dict[key].append(
+                        convert_list_of_arrays_to_list_of_lists(
+                            getattr(protein, inverse_field_mapping[key])
+                        )
+                        if convert_arrays_to_lists
+                        else getattr(protein, inverse_field_mapping[key])
                     )
-                    if convert_arrays_to_lists
-                    else getattr(protein, inverse_field_mapping[key])
-                )
+                else:
+                    proteins_dict[key] = None
         if include_metadata:
             proteins_dict.update(self.metadata)
             if convert_arrays_to_lists:

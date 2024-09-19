@@ -1,6 +1,8 @@
 import functools
+import math
 import os
 import re
+import time
 from typing import List, Optional
 
 import pandas as pd
@@ -106,9 +108,11 @@ def load_msa_for_row(
         to_upper=True,
         keep_gaps=True if use_msa_pos else keep_gaps,
     )
+    # TODO: pre-sample? time what takes so long...
     # need to allow room for the completion
     # todo should be max completion length (once we handle indels)
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
+    # THIS STEP IS SLOW - WHY?
     proteins = ProteinDocument.from_fields(
         sequences=seqs,
         accessions=None,
@@ -126,7 +130,6 @@ def load_msa_for_row(
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
     )
-
     proteins = transforms.convert_sequences_adding_positions(
         proteins,
         keep_gaps=keep_gaps,
@@ -135,7 +138,6 @@ def load_msa_for_row(
         use_msa_pos=use_msa_pos,
         truncate_after_n_sequences=None,
     )
-
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
     row["MSA"] = proteins.sequences
