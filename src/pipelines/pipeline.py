@@ -50,28 +50,37 @@ class BaseEvaluatorPipeline:
         raise NotImplementedError()
 
     def reset(self):
-        self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
+        self.results_dfs = {}
+        # pd.DataFrame(columns=["evaluator", "sampler", "instance"])
 
-    def load_results(self) -> pd.DataFrame:
+    def load_results(self, evaluator_name) -> pd.DataFrame:
         """Load results dataframe from local disk location.
 
         TODO: we really want different results files for different evaluators,
         so this should happen somewhere else.
         """
-        results_path = os.path.join(self.pipeline_directory, "results.csv")
+        results_path = os.path.join(
+            self.pipeline_directory, evaluator_name, "results.csv"
+        )
         if self.save_results_to_file and os.path.exists(results_path):
-            self.results_df = pd.read_csv(results_path)
+            self.results_dfs[evaluator_name] = pd.read_csv(results_path)
         else:
-            self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
-        self.results_df.set_index(["evaluator", "sampler", "instance"], inplace=True)
+            self.results_dfs[evaluator_name] = pd.DataFrame(
+                columns=["evaluator", "sampler", "instance"]
+            )
+        self.results_dfs[evaluator_name].set_index(
+            ["evaluator", "sampler", "instance"], inplace=True
+        )
 
-    def has_result(self, validation_id: str, instance_id: str, model_id: str) -> bool:
+    def has_result(self, evaluator_name: str, instance_id: str, model_id: str) -> bool:
         """Check if validation, instance, model combo is present in results df index."""
-        return (validation_id, model_id, instance_id) in self.results_df.index
+        return (evaluator_name, model_id, instance_id) in self.results_dfs[
+            evaluator_name
+        ].index
 
     def add_result(
         self,
-        validation_id: str,
+        evaluator_name: str,
         instance_id: str,
         model_id: str,
         result: Dict[str, float],
@@ -79,12 +88,16 @@ class BaseEvaluatorPipeline:
         """Add a result to the results dataframe."""
         # drop any existing result for this instance, validation, model combo
         # then concatenate a new row to the df
-        self.results_df.drop(
-            index=(validation_id, model_id, instance_id), inplace=True, errors="ignore"
+        if evaluator_name not in self.results_dfs:
+            self.results_dfs[evaluator_name] = pd.DataFrame(
+                columns=["evaluator", "sampler", "instance"]
+            ).set_index(["evaluator", "sampler", "instance"], inplace=True)
+        self.results_dfs[evaluator_name].drop(
+            index=(evaluator_name, model_id, instance_id), inplace=True, errors="ignore"
         )
-        self.results_df = pd.concat(
+        self.results_dfs[evaluator_name] = pd.concat(
             [
-                self.results_df,
+                self.results_dfs[evaluator_name],
                 pd.DataFrame([result]).set_index(["evaluator", "sampler", "instance"]),
             ]
         )
@@ -92,8 +105,11 @@ class BaseEvaluatorPipeline:
     def save_results(self) -> None:
         """Save results dataframe to local disk location."""
         if self.save_results_to_file:
-            results_path = os.path.join(self.pipeline_directory, "results.csv")
-            self.results_df.to_csv(results_path, index=True)
+            for evaluator_name, results_df in self.results_dfs.items():
+                results_path = os.path.join(
+                    self.pipeline_directory, evaluator_name, "results.csv"
+                )
+                results_df.to_csv(results_path, index=True)
 
     def make_summary(self):
         summaries = []
@@ -324,15 +340,21 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             return
 
         # TODO format to limit decimal places
-        # print(self.results_df["sampler"].unique())
-        combo_results = self.results_df.loc[(evaluator.name, sampler.name)]
-        avg_metrics = combo_results.mean()
-        avg_metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in avg_metrics.items()])
-        maybe_print(
-            f"Validation `{evaluator.name}` model {sampler.name} average metrics: "
-            f"{avg_metrics_str} ({len(combo_results)} instances)",
-            verbose=verbose,
-        )
+        outputs = {}
+        for evaluator in evaluators:
+            sampler_results = self.results_dfs[evaluator.name].loc[
+                (evaluator.name, sampler.name)
+            ]
+            avg_metrics = sampler_results.mean()
+            avg_metrics_str = ", ".join(
+                [f"{k}: {v:.3f}" for k, v in avg_metrics.items()]
+            )
+            maybe_print(
+                f"Validation `{evaluator.name}` model {sampler.name} average metrics: "
+                f"{avg_metrics_str} ({len(sampler_results)} instances)",
+                verbose=verbose,
+            )
+            outputs[evaluator.name] = sampler_results
 
         self.save_results()
-        return combo_results
+        return outputs

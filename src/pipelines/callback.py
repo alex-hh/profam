@@ -1,6 +1,6 @@
 import time
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
@@ -14,7 +14,7 @@ class SamplingEvaluationPipelineCallback(Callback):
     def __init__(
         self,
         pipeline: GenerationsEvaluatorPipeline,
-        evaluator: SamplingEvaluator,
+        evaluators: Union[List[SamplingEvaluator], SamplingEvaluator],
         prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
         match_representative_length: bool = False,
@@ -23,10 +23,13 @@ class SamplingEvaluationPipelineCallback(Callback):
         assert (
             not self.pipeline.save_results_to_file
         ), "Pipeline should not save to file during callback"
-        self.evaluator = evaluator
+        self.evaluators = evaluators
         self.sampling_kwargs = sampling_kwargs or {}
         self.prompt_builder = prompt_builder
         self.match_representative_length = match_representative_length
+        if not isinstance(self.evaluators, List):
+            assert isinstance(self.evaluators, SamplingEvaluator)
+            self.evaluators: List[SamplingEvaluator] = [self.evaluators]
 
     @rank_zero_only
     def on_validation_epoch_end(self, trainer, model):
@@ -46,17 +49,21 @@ class SamplingEvaluationPipelineCallback(Callback):
         all_metrics = defaultdict(list)
         t0 = time.time()
         # self.pipeline.reset()  # clear stale results (rerun sampler and rerun evaluator should suffice anyway but no harm)
-        results_df = self.pipeline.run(
+        results_dfs = self.pipeline.run(
             sampler,
-            self.evaluator,
+            self.evaluators,
             verbose=False,
             rerun_evaluator=True,
             rerun_sampler=True,
             device=model.device,
         )
 
-        mean_results = results_df.mean().to_dict()
-        t1 = time.time()
-        all_metrics = {f"{self.evaluator.name}/{k}": v for k, v in mean_results.items()}
-        all_metrics[f"{self.evaluator.name}/time"] = t1 - t0
+        all_metrics = {}
+        for evaluator_name, evaluator_results in results_dfs.items():
+            mean_results = evaluator_results.mean().to_dict()
+            t1 = time.time()
+            all_metrics.update(
+                {f"{evaluator_name}/{k}": v for k, v in mean_results.items()}
+            )
+            all_metrics[f"{self.evaluator.name}/time"] = t1 - t0
         model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)
