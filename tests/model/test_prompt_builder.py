@@ -30,9 +30,14 @@ def test_representative_inverse_folding(profam_tokenizer):
     prompt_builder = InterleavedInverseFoldingPromptBuilder(
         preprocessor=preprocessor,
         max_tokens=1536,
-        representative_only=True,
     )
-    _, example = prompt_builder(proteins, profam_tokenizer)
+    prompt = prompt_builder(proteins, profam_tokenizer)
+    example = profam_tokenizer.encode(
+        prompt,
+        document_token="[RAW]",
+        padding="longest",
+        add_final_sep=False,
+    )
 
     expected_tokens = torch.tensor(
         [

@@ -1,8 +1,0 @@
-defaults:
-  - preprocessor: "fasta_raw"
-_target_: src.data.datasets.ProteinDatasetConfig
-name: interpro
-data_path_pattern: example_data/interpro/protein-matching-*.fasta
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: null

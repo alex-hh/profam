@@ -268,6 +268,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
 
 
 def test_foldseek_representative_concatenation(profam_tokenizer):
+    max_tokens = 2048
     # verify that building representatives into a single document is successful
     preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
@@ -293,7 +294,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         cfg,
         profam_tokenizer,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        max_tokens=profam_tokenizer.max_tokens,
+        max_tokens=max_tokens,
         shuffle=False,
     )
     example = next(iter(dataset))

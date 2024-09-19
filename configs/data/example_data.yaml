@@ -1,16 +1,15 @@
 _target_: src.data.hf_protein_datamodule.ProteinDataMixture
 defaults:
-  - dataset/example@dataset_cfgs.openfold_aligned: openfold_aligned
-  - dataset/example@dataset_cfgs.openfold_raw: openfold_raw
-  - dataset/example@dataset_cfgs.ec: ec
-  - dataset/example@dataset_cfgs.interpro: interpro
+  - dataset@dataset_cfgs.openfold_aligned: openfold_aligned
+  - dataset@dataset_cfgs.openfold_raw: openfold_raw
+  - dataset@dataset_cfgs.ec: ec
   - _self_
 data_weights:
   openfold_aligned: 0.5
   openfold_raw: 0.5
 batch_size: 2
 max_tokens: 3000
-data_dir: data # example data is in repo main dir
+data_dir: data/example_data # example data is in repo main dir
 evaluate_gym: false # not implemented yet
 evaluate_ec_class: false # not implemented yet
 evaluate_ec_cluster_class: false # not implemented yet

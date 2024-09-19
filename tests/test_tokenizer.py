@@ -4,6 +4,7 @@ from src.sequence.fasta import read_fasta_sequences
 
 
 def test_encode_decode(profam_tokenizer, pfam_fasta_text):
+    max_tokens = 2048
     lines = pfam_fasta_text.split("\n")
     sequence_iterator = read_fasta_sequences(
         lines,
@@ -14,7 +15,7 @@ def test_encode_decode(profam_tokenizer, pfam_fasta_text):
     )
     proteins = sample_to_max_tokens(
         ProteinDocument(sequences=list(sequence_iterator)),
-        max_tokens=profam_tokenizer.max_tokens,
+        max_tokens=max_tokens,
         extra_tokens_per_document=2,
     )
     # n.b. encode_sequences encodes as a sequence of sequences

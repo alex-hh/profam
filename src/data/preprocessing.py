@@ -208,8 +208,8 @@ class BasePreprocessor:
             allow_unk=getattr(self.cfg, "allow_unk", False),
         )
         if max_tokens is not None:
-            assert tokenized.input_ids.shape[1] <= max_tokens, (
-                tokenized.input_ids.shape[1],
+            assert tokenized.input_ids.shape[-1] <= max_tokens, (
+                tokenized.input_ids.shape[-1],
                 max_tokens,
             )
         return tokenized.data

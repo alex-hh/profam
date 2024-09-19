@@ -1,8 +1,0 @@
-defaults:
-  - preprocessor: "fasta_raw"
-_target_: src.data.datasets.ProteinDatasetConfig
-name: openfold_raw
-data_path_pattern: example_data/openfold/uniclust30_filtered/*/a3m/uniclust30.a3m
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: null
