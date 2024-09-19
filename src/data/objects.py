@@ -58,8 +58,69 @@ class Protein:
                 np.ones_like(self.backbone_coords),
             )
 
+    def view_with_py3dmol(self, view):
+        view.addModel(self.to_pdb_str(), "pdb")
+        if self.plddt is not None:
+            for i, plddt_val in enumerate(list(self.plddt) * 4):
+                color = plddt_to_color(plddt_val)
+                view.setStyle(
+                    {"model": -1, "serial": i + 1}, {"cartoon": {"color": color}}
+                )
+
+    def view_superimposed_with_py3dmol(self, view, other, align: bool = True):
+        coords = self.backbone_coords
+        other_coords = other.backbone_coords
+        assert coords.shape == other_coords.shape
+        if align:
+            superimposed, rmsd = _superimpose_np(
+                coords.reshape((-1, 3)), other_coords.reshape((-1, 3))
+            )
+            superimposed = superimposed.reshape(other_coords.shape)
+            other = other.clone(backbone_coords=superimposed)
+
+        pdb_str = self.to_pdb_str()
+        view.addModel(pdb_str, "pdb")
+        view.setStyle({"model": -1}, {"cartoon": {"color": "blue"}})
+        # view.addModel(other.to_pdb_str(), "pdb")
+        # view.setStyle({'model': -1}, {'cartoon': {'color': 'red'}})
+        view.addModel(other.to_pdb_str(), "pdb")
+        view.setStyle({"model": -1}, {"cartoon": {"color": "red"}})
+
+    def to_pdb_file(self, pdb_file):
+        atoms = []
+        # TODO: consider saving position information
+        for res_ix, (aa, res_coords) in enumerate(
+            zip(self.sequence, self.backbone_coords)
+        ):
+            res_name = ProteinSequence.convert_letter_1to3(aa)
+            for atom_ix, atom_name in enumerate(BACKBONE_ATOMS):
+                annots = (
+                    {"b_factor": self.plddt[res_ix]} if self.plddt is not None else {}
+                )
+                atom = struc.Atom(
+                    coord=res_coords[atom_ix],
+                    chain_id="A",
+                    res_id=res_ix + 1,
+                    res_name=res_name,
+                    hetero=False,
+                    atom_name=atom_name,
+                    element=atom_name[0],
+                    **annots,
+                )
+                atoms.append(atom)
+        arr = struc.array(atoms)
+        pdb = strucio.pdb.PDBFile()
+        pdb.set_structure(arr)
+        pdb.write(pdb_file)
+
+    def to_pdb_str(self):
+        pdb_file_like = io.StringIO()
+        self.to_pdb_file(pdb_file_like)
+        return pdb_file_like.getvalue()
+
     @classmethod
     def from_pdb(cls, pdb_file, chain=None, bfactor_is_plddt=False, load_3di=False):
+        # TODO: check chain handled correctly
         structure = load_structure(
             pdb_file,
             chain=chain,
