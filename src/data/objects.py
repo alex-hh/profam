@@ -1,10 +1,15 @@
 import json
+import os
 from dataclasses import asdict, dataclass
 from typing import Callable, ClassVar, List, Optional
 
 import numpy as np
+from biotite.sequence import ProteinSequence
+from biotite.structure.residues import get_residue_starts, get_residues
 
 from src.data.fasta import read_fasta_lines
+from src.data.pdb import get_atom_coords_residuewise, load_structure
+from src.tools.foldseek import convert_pdbs_to_3di
 
 
 class StringObject:
@@ -52,6 +57,38 @@ class Protein:
                 np.zeros_like(self.backbone_coords),
                 np.ones_like(self.backbone_coords),
             )
+
+    @classmethod
+    def from_pdb(cls, pdb_file, chain=None, bfactor_is_plddt=False, load_3di=False):
+        structure = load_structure(
+            pdb_file,
+            chain=chain,
+            extra_fields=["b_factor"] if bfactor_is_plddt else None,
+        )
+        coords = get_atom_coords_residuewise(
+            ["N", "CA", "C", "O"], structure
+        )  # residues, atoms, xyz
+        residue_identities = get_residues(structure)[1]
+        seq = "".join(
+            [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
+        )
+        if bfactor_is_plddt:
+            plddt = np.array(structure.b_factor[get_residue_starts(structure)])
+        else:
+            plddt = None
+        if load_3di:
+            structure_tokens = convert_pdbs_to_3di([pdb_file])[0]
+        else:
+            structure_tokens = None
+        return cls(
+            sequence=seq,
+            accession=os.path.splitext(os.path.basename(pdb_file)),
+            positions=None,
+            plddt=plddt,
+            backbone_coords=coords,
+            backbone_coords_mask=None,  # TODO: for cif files we can get mask - c.f. evogvp
+            structure_tokens=structure_tokens,
+        )
 
 
 def check_array_lengths(*arrays):  # TODO: name better!

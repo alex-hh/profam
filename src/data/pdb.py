@@ -52,23 +52,7 @@ def get_atom_coords_residuewise(atoms: List[str], struct: biotite.structure.Atom
     return apply_residue_wise(struct, struct, filterfn)
 
 
-def load_structure(fpath, chain=None, extra_fields=None):
-    """
-    Modified from esm inverse folding utils to not remove O
-    Args:
-        fpath: filepath to either pdb or cif file
-        chain: the chain id or list of chain ids to load
-    Returns:
-        biotite.structure.AtomArray
-    """
-    if fpath.endswith("cif"):
-        with open(fpath) as fin:
-            pdbxf = pdbx.PDBxFile.read(fin)
-        structure = pdbx.get_structure(pdbxf, model=1, extra_fields=extra_fields)
-    elif fpath.endswith("pdb"):
-        with open(fpath) as fin:
-            pdbf = pdb.PDBFile.read(fin)
-        structure = pdb.get_structure(pdbf, model=1, extra_fields=extra_fields)
+def _load_backbone_structure(structure, chain=None):
     bbmask = custom_filter_backbone(structure)
     # bbmask = filter_backbone(structure)
     structure = structure[bbmask]
@@ -87,3 +71,27 @@ def load_structure(fpath, chain=None, extra_fields=None):
     chain_filter = [a.chain_id in chain_ids for a in structure]
     structure = structure[chain_filter]
     return structure
+
+
+def load_structure(fpath, chain=None, extra_fields=None):
+    """
+    Modified from esm inverse folding utils to not remove O
+    Args:
+        fpath: filepath to either pdb or cif file
+        chain: the chain id or list of chain ids to load
+    Returns:
+        biotite.structure.AtomArray
+    """
+    if isinstance(fpath, str) and fpath.endswith("cif"):
+        pdbxf = pdbx.PDBxFile.read(fpath)
+        structure = pdbx.get_structure(pdbxf, model=1, extra_fields=extra_fields)
+    elif isinstance(fpath, str) and fpath.endswith("pdb"):
+        pdbf = pdb.PDBFile.read(fpath)
+        structure = pdb.get_structure(pdbf, model=1, extra_fields=extra_fields)
+    return _load_backbone_structure(structure, chain=chain)
+
+
+def load_structure_from_pdb(fin, chain=None, extra_fields=None):
+    pdbf = pdb.PDBFile.read(fin)
+    structure = pdb.get_structure(pdbf, model=1, extra_fields=extra_fields)
+    return _load_backbone_structure(structure, chain=chain)
