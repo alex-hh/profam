@@ -221,6 +221,11 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         output_dir: Optional[str] = None,
         device: Optional[str] = None,
     ):
+        prompt_accessions = prompt.accessions
+        # we can't compare to prompt directly as it has had transforms applied - noise, rotation, rescaling...
+        raw_prompt_document = protein_document.filter(
+            lambda prot: prot.accession in prompt_accessions
+        )
         assert device is not None
         if self.esmfold is None:
             self._load_model(device)
@@ -229,18 +234,17 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         # TODO: really we should compare to ProteinDocument and not to prompt, which may differ...
         # TODO: add average best TM score or similar to structures in document.
         # https://github.com/blt2114/twisted_diffusion_sampler/blob/968f77111b44e9c711b64e650c41745498ba470d/protein_exp/experiments/inference_se3_diffusion.py#L392
-        ca_index = atom_order["CA"]
         if self.save_structures:
             os.makedirs(output_dir, exist_ok=True)
 
         assert len(prompt) > 0
 
         prompt_prots = []
-        for i, seq in enumerate(prompt.sequences):
+        for i, seq in enumerate(raw_prompt_document.sequences):
             # infer prompt structures
             if (
                 not self.use_precomputed_reference_structures
-                or prompt.backbone_coords is None
+                or raw_prompt_document.backbone_coords is None
             ):
                 if len(seq) <= self.max_length:
                     # handle interleaving
@@ -250,7 +254,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                     prot = esmfold_output_to_proteins(out)[0]
                     prompt_prots.append(prot)
             else:
-                prot = prompt[i]
+                prot = raw_prompt_document[i]
                 # handle interleaving
                 if prot.sequence[-1] == "|":
                     prot = prot.slice_arrays(0, len(prot.sequence) - 1)
