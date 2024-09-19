@@ -91,7 +91,6 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         self.save_structures = save_structures
         self.max_length = max_length  # TODO: we can actually enforce this on sampling.
         self.verbose = verbose
-        print("ESMFold", self.verbose)
 
     def _load_model(self, device):
         self.esmfold = EsmForProteinFolding.from_pretrained(
