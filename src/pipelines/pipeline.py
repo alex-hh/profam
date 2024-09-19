@@ -1,7 +1,7 @@
 import os
 import shutil
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -194,7 +194,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             if rerun_evaluator:
                 if os.path.isdir(output_dir):
                     shutil.rmtree(output_dir)
-            # print("Prompt to evaluate", prompt)
+
             metrics = evaluator.evaluate_samples(
                 prompt=prompt,
                 protein_document=protein_document,
@@ -202,6 +202,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 output_dir=output_dir,
                 device=device,
             )
+
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
             print(f"Instance {instance_id} metrics: {metrics_str}")
             metrics.update(self.get_instance_summary(instance_id))
@@ -256,16 +257,22 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     def run(
         self,
         sampler,
-        evaluator,
+        evaluators: Union[List[SamplingEvaluator], SamplingEvaluator],
         verbose: bool = True,
         rerun_sampler: bool = False,
         rerun_evaluator: bool = True,
         sampling_only: bool = False,
+        offload_sampler: bool = False,
         device: Optional[str] = None,
     ):
+        if not isinstance(evaluators, List):
+            assert isinstance(evaluators, SamplingEvaluator)
+            evaluators = [evaluators]
+
         instance_ids = self.instance_ids()
         if rerun_sampler:
             rerun_evaluator = True
+
         for instance_id in instance_ids:
             maybe_print(
                 "Running evaluation pipeline for instance", instance_id, verbose=verbose
@@ -279,34 +286,37 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
-                generated_sequences, prompt = evaluator.run_sampling(
-                    sampler,
-                    protein_document,
-                    self.num_generations,
+                generations, prompt = sampler.sample_seqs(
+                    protein_document, self.num_generations
                 )
-                self.save_generations(instance_id, sampler.name, generated_sequences)
+                self.save_generations(instance_id, sampler.name, generations)
                 self.save_prompt(instance_id, sampler.name, prompt)
             else:
-                generated_sequences = self.load_generations(instance_id, sampler.name)
+                generations = self.load_generations(instance_id, sampler.name)
                 prompt = self.load_prompt(instance_id, sampler.name)
 
             model_device = sampler.device
             if not sampling_only:
-                sampler.to("cpu")  # offload memory to CPU
-                try:
-                    self.run_evaluator_on_instance(
-                        sampler.name,
-                        instance_id=instance_id,
-                        evaluator=evaluator,
-                        prompt=prompt,
-                        protein_document=protein_document,
-                        rerun_evaluator=rerun_evaluator,
-                        device=device,
-                    )
-                except Exception as e:
-                    print("Failed to run validation on instance", instance_id)
-                    raise e
-                sampler.to(model_device)  # move back to original device
+                if offload_sampler:
+                    sampler.to(
+                        "cpu"
+                    )  # offload memory to CPU. TODO: consider avoiding all this device switching
+                for evaluator in evaluators:
+                    try:
+                        self.run_evaluator_on_instance(
+                            sampler.name,
+                            instance_id=instance_id,
+                            evaluator=evaluator,
+                            prompt=prompt,
+                            protein_document=protein_document,
+                            rerun_evaluator=rerun_evaluator,
+                            device=device,
+                        )
+                    except Exception as e:
+                        print("Failed to run validation on instance", instance_id)
+                        raise e
+                if offload_sampler:
+                    sampler.to(model_device)  # move back to original device
 
         if sampling_only:
             return

@@ -39,29 +39,6 @@ class SamplingEvaluator:
     ) -> Dict[str, float]:
         raise NotImplementedError("should be implemented on child class")
 
-    def run_sampling(
-        self,
-        sampler,
-        protein_document: ProteinDocument,
-        num_samples: Optional[int] = None,
-    ):
-        num_samples = num_samples or self.num_samples
-        assert num_samples is not None, "num_samples should be provided"
-        if (
-            self.num_samples is not None
-            and num_samples is not None
-            and num_samples != self.num_samples
-        ):
-            print(
-                f"Warning: self.num_samples ({self.num_samples}) overriden by num_samples ({num_samples})"
-            )
-            assert (
-                num_samples >= self.num_samples
-            ), f"Expecting at least {self.num_samples} samples"
-
-        samples, prompt = sampler.sample_seqs(protein_document, num_samples)
-        return samples, prompt
-
     def __call__(
         self,
         sampler,
