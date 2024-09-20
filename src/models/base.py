@@ -152,7 +152,8 @@ class BaseLitModule(LightningModule):
                 + [aa.lower() for aa in aa_letters]
                 + self.tokenizer.all_special_tokens
             ),
-            mask=None,
+            sep_token_id=self.tokenizer.sep_token_id,
+            calc_full_no_context_accuracies=True,
         )
         has_3di = torch.isin(
             batch["input_ids"],
@@ -165,6 +166,8 @@ class BaseLitModule(LightningModule):
             "loss": loss,
             "ppl": torch.exp(loss),
             "aa_accuracy": dataset_accuracies.pop("global"),
+            "aa_accuracy_first_sequence": dataset_accuracies.pop("first_sequence"),
+            "aa_accuracy_last_sequence": dataset_accuracies.pop("last_sequence"),
         }
         if "coords" in batch:
             global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
@@ -174,6 +177,7 @@ class BaseLitModule(LightningModule):
                 batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
             ).any()
             if is_interleaved:
+                # accuracy where coordinates are available
                 aa_has_coords_mask = batch["interleaved_coords_mask"].any((-1, -2))
                 has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
                     outputs,
@@ -206,8 +210,16 @@ class BaseLitModule(LightningModule):
                 ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                     ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
                 ),
+                sep_token_id=self.tokenizer.sep_token_id,
+                calc_full_no_context_accuracies=True,
             )
             global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
+            global_metrics["3di_accuracy_first_sequence"] = dataset_accuracies_3di.pop(
+                "first_sequence"
+            )
+            global_metrics["3di_accuracy_last_sequence"] = dataset_accuracies_3di.pop(
+                "last_sequence"
+            )
 
         if log_global:
             self.log_dict(
@@ -224,7 +236,13 @@ class BaseLitModule(LightningModule):
         is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
         for ds_name in set(batch["ds_name"].text):
             ds_metrics = {
-                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name]
+                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name],
+                f"{step_name}/{ds_name}/aa_accuracy_first_sequence": dataset_accuracies[
+                    ds_name + "_first_sequence"
+                ],
+                f"{step_name}/{ds_name}/aa_accuracy_last_sequence": dataset_accuracies[
+                    ds_name + "_last_sequence"
+                ],
             }
             # TODO: coords frac for each dataset
             if is_single_dataset_batch:
@@ -234,6 +252,12 @@ class BaseLitModule(LightningModule):
                 ds_metrics[
                     f"{step_name}/{ds_name}/3di_accuracy"
                 ] = dataset_accuracies_3di[ds_name]
+                ds_metrics[
+                    f"{step_name}/{ds_name}/3di_accuracy_first_sequence"
+                ] = dataset_accuracies_3di[ds_name + "_first_sequence"]
+                ds_metrics[
+                    f"{step_name}/{ds_name}/3di_accuracy_last_sequence"
+                ] = dataset_accuracies_3di[ds_name + "_last_sequence"]
             if "coords" in batch and is_interleaved:
                 ds_metrics[
                     f"{step_name}/{ds_name}/has_coords_aa_accuracy"
