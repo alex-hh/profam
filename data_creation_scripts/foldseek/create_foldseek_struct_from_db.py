@@ -75,7 +75,10 @@ def save_pdbs_to_parquet(
             
         # Run FoldMason on the cluster
         if run_foldmason:
-            if (max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason) or len(cluster_filelist) < 3:
+            if (
+                    (max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason)
+                    or len(cluster_filelist) < 3
+            ):
                 print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
                 has_foldmason_results = False
             else:
@@ -130,6 +133,7 @@ def save_pdbs_to_parquet(
 
 
 def load_db(parquet_index=None):
+    assert parquet_index is not None
     if parquet_index is None:
         df = mpd.read_csv_glob(os.path.join(PROFAM_DATA_DIR, "afdb/foldseek_job_files/job*.csv"))
     else:
@@ -196,8 +200,7 @@ def create_foldseek_parquets(
     run_foldmason=False,
     max_cluster_size_for_foldmason=None,
 ):
-    # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
-    # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
+    print("Creating foldseek parquets", parquet_ids, flush=True)
     if parquet_ids is None:
         db = load_db()
         parquet_ids = list(range(len(db["parquet_index"].unique())))
