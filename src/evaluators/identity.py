@@ -1,6 +1,7 @@
 """We can implement both sequence recovery, requiring fixed length, and pairwise sequence identity."""
 from typing import Optional
 
+import itertools
 import numpy as np
 
 from src.evaluators.base import SamplingEvaluator
@@ -60,8 +61,13 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
                 unmasked_recoveries.append(unmasked_seq_id)
             else:
                 mismatched_lengths += 1
+        pairwise_identities = [
+            sequence_identity(seq1, seq2)
+            for seq1, seq2 in itertools.combinations(samples, 2)
+        ]
         return {
             "mean_recovery": np.mean(recoveries),
             "mean_recovery_at_residues_with_coords": np.mean(unmasked_recoveries),
             "mismatched_lengths": mismatched_lengths / len(samples),
+            "pairwise_identities": np.mean(pairwise_identities),
         }

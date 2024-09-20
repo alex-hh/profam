@@ -11,7 +11,8 @@ pipeline:
   num_generations: 10
   evaluation_parquet: "${paths.data_dir}/foldseek_representatives/0.parquet"
   max_protein_length: 766
+  min_plddt: null
 
-evaluator:
-  num_samples: 10
-  # verbose: true
+evaluators:
+  sequence_recovery:
+    verbose: true

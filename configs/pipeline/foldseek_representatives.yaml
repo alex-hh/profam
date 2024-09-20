@@ -6,6 +6,8 @@ evaluation_accessions_file: null
 evaluation_accessions: null
 parquet_index: null
 num_generations: 10
+max_protein_length: null
+min_plddt: null
 preprocessor:
   _target_: src.data.preprocessing.ParquetStructurePreprocessor
   structure_tokens_col: null  # representatives may not have structure tokens.

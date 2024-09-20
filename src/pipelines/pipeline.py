@@ -108,6 +108,7 @@ class BaseEvaluatorPipeline:
                 results_path = os.path.join(
                     self.pipeline_directory, evaluator_name, "results.csv"
                 )
+                os.makedirs(os.path.dirname(results_path), exist_ok=True)
                 results_df.to_csv(results_path, index=True)
 
     def make_summary(self):

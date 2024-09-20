@@ -9,7 +9,7 @@ name: neat-thunder_T${.sampling_kwargs.temperature}  # suggestion: use wandb run
 checkpoint_path: outputs/inverse_folding/neat-thunder/checkpoints/last.ckpt
 sampling_kwargs:
   batch_size: 48
-  temperature: 0.1
+  temperature: 0.3
 prompt_builder:
   _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
   preprocessor:
