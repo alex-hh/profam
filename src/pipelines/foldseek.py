@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 
 from src.data.parquet import build_representative_df
 from src.pipelines.mixins import ParquetGenerationsPipeline
@@ -22,7 +22,7 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
         assert self.evaluation_df is not None
         if self.max_protein_length is not None or self.min_plddt is not None:
             orig_len = len(self.evaluation_df)
-            rep_df = build_representative_df(self.evaluation_df, has_structure=True)
+            rep_df = build_representative_df(self.evaluation_df, has_structure=True).set_index(self.instance_id_col, drop=False)
             if self.max_protein_length is not None:
                 rep_df = rep_df[rep_df["length"] <= self.max_protein_length]
             if self.min_plddt is not None:
@@ -33,6 +33,8 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
                     rep_df[self.instance_id_col].values
                 )
             ]
+            self.evaluation_df["mean_plddt"] = rep_df["mean_plddt"]
+            self.evaluation_df["length"] = rep_df["length"]
             self.evaluation_accessions = list(
                 self.evaluation_df[self.instance_id_col].values
             )
@@ -48,3 +50,9 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
                 f"Filtered {orig_len} to {len(self.evaluation_df)} proteins"
                 f"{length_msg}{plddt_msg}"
             )
+
+    def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
+        summary = super().get_instance_summary(instance_id)
+        summary["target_plddt"] = self.evaluation_df.loc[instance_id, "mean_plddt"]
+        summary["target_length"] = self.evaluation_df.loc[instance_id, "length"]
+        return summary

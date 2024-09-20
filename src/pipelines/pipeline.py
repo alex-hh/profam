@@ -150,6 +150,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         )
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:
+        # TODO: check prompt as well
         if not self.save_results_to_file:
             return (
                 model_id in self.generations
@@ -157,9 +158,12 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             )
         else:
             output_path = os.path.join(
-                self.pipeline_directory, instance_id, model_id, "sequences.fa"
+                self.pipeline_directory, "generations", instance_id, model_id, "sequences.fa"
             )
-            retval = os.path.isfile(output_path)
+            prompt_output_path = os.path.join(
+                self.pipeline_directory, "prompts", instance_id, model_id, "prompt.json"
+            )
+            retval = os.path.isfile(output_path) and prompt_output_path
             return retval
 
     def has_all_generations(self, model_id: str) -> None:
@@ -226,7 +230,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
     def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
         if self.save_results_to_file:
-            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "generations", instance_id, model_name
+            )
             os.makedirs(outputs_dir, exist_ok=True)
             fasta.output_fasta(
                 [f"seq{i}" for i in range(len(sequences))],
@@ -238,7 +244,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
     def save_prompt(self, instance_id, model_name, prompt: str) -> None:
         if self.save_results_to_file:
-            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "prompts", instance_id, model_name
+            )
+            os.makedirs(outputs_dir, exist_ok=True)
             prompt.to_json(os.path.join(outputs_dir, "prompt.json"))
         else:
             self.prompts[model_name][instance_id] = prompt
@@ -246,7 +255,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
         if self.save_results_to_file:
             outputs_dir = os.path.join(
-                self.pipeline_directory, instance_id, sampler_name
+                self.pipeline_directory, "generations", instance_id, sampler_name
             )
             fasta_file = os.path.join(outputs_dir, "sequences.fa")
             _, sequences = fasta.read_fasta(fasta_file)
@@ -258,7 +267,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     def load_prompt(self, instance_id: str, sampler_name: str) -> ProteinDocument:
         if self.save_results_to_file:
             outputs_dir = os.path.join(
-                self.pipeline_directory, instance_id, sampler_name
+                self.pipeline_directory, "prompts", instance_id, sampler_name
             )
             prompt_file = os.path.join(outputs_dir, "prompt.json")
             prompt = ProteinDocument.from_json(prompt_file)
