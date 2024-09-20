@@ -28,6 +28,20 @@ def plddt_metrics(
     return metrics
 
 
+def calc_accuracy_with_masks(
+    token_accuracy,
+    sample_mask: Optional[torch.Tensor] = None,
+    token_mask: Optional[torch.Tensor] = None,
+):
+    if sample_mask is not None:
+        token_accuracy = token_accuracy[sample_mask]
+        if token_mask is not None:
+            token_mask = token_mask[sample_mask]
+    if token_mask is not None:
+        token_accuracy = token_accuracy * token_mask
+    return token_accuracy.sum() / token_mask.sum()
+
+
 def accuracy_from_outputs(
     model_outputs,
     labels,
@@ -36,6 +50,8 @@ def accuracy_from_outputs(
     dataset_names=None,
     ignore_token_ids: Optional[List[int]] = None,
     mask=None,
+    sep_token_id=None,
+    calc_full_no_context_accuracies: bool = False,
 ):
     """Compute the accuracy of the target sequence given the model outputs.
 
@@ -49,6 +65,7 @@ def accuracy_from_outputs(
         The accuracy of the target sequence.
     """
     labels = labels.clone()
+
     if ignore_token_ids is not None:
         ignore_token_ids = torch.tensor(ignore_token_ids).to(labels.device)
         labels[torch.isin(labels, ignore_token_ids)] = ignore_index
@@ -66,17 +83,46 @@ def accuracy_from_outputs(
         non_padding_mask = non_padding_mask & shift_mask
     # TODO: we might also want to ignore gaps...
     accuracy = (shift_logits.argmax(-1) == shift_labels).float()
+    global_accuracy = calc_accuracy_with_masks(accuracy, token_mask=non_padding_mask)
+
     if dataset_names is not None:
         # N.B. this also works for empty list
         ds_accuracies = {}
         for ds_name in set(dataset_names):
             in_dataset_mask = np.array(dataset_names) == ds_name
-            ds_accuracies[ds_name] = (
-                accuracy[in_dataset_mask] * non_padding_mask[in_dataset_mask]
-            ).sum() / non_padding_mask[in_dataset_mask].sum()
-        ds_accuracies["global"] = (
-            accuracy * non_padding_mask
-        ).sum() / non_padding_mask.sum()
+            ds_accuracies[ds_name] = calc_accuracy_with_masks(
+                accuracy, sample_mask=in_dataset_mask, token_mask=non_padding_mask
+            )
+        ds_accuracies["global"] = global_accuracy
         return ds_accuracies
-    accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
-    return accuracy
+
+    accuracy_metrics = {
+        "global": global_accuracy,
+    }
+    if calc_full_no_context_accuracies:
+        assert sep_token_id is not None
+        # cat ensures that sep token is included in the prev sequence for index
+        sequence_indices = torch.cat(
+            [
+                torch.zeros(logits.shape[0], 1),
+                torch.cumsum(sep_token_id, dim=-1)[:, :-1],
+            ],
+            dim=-1,
+        )
+        # TODO: assert that last non-padding token is a sep token (in pre-sliced labels)
+        # TODO: write test
+        first_sequence_mask = torch.cumsum(sep_token_id, dim=-1) == 0
+        last_sequence_mask = (
+            torch.cumsum(sep_token_id, dim=-1) == sequence_indices[:, -1:]
+        )
+
+        accuracy_metrics["first_sequence"] = calc_accuracy_with_masks(
+            accuracy,
+            token_mask=non_padding_mask & first_sequence_mask[:, start_ix + 1 :],
+        )
+        accuracy_metrics["last_sequence"] = calc_accuracy_with_masks(
+            accuracy,
+            token_mask=non_padding_mask & last_sequence_mask[:, start_ix + 1 :],
+        )
+
+    return accuracy_metrics

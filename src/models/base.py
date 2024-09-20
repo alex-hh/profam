@@ -873,7 +873,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.log_ds_sample_counts(batch)
         return loss
 
-    def on_train_begin(self):
+    def on_train_start(self):
         self.dataset_sample_counts = {}
         self.doc_id_counts = {}
 
