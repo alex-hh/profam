@@ -1,7 +1,7 @@
 defaults:
-  - preprocessor: parquet_structure
+  - preprocessor: parquet_structure_noisy
 _target_: src.data.datasets.ProteinDatasetConfig
-name: foldseek_with_3di
+name: foldseek_representatives
 data_path_pattern: foldseek_representatives/*.parquet
 holdout_data_files: null
 holdout_identifiers: null

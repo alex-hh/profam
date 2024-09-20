@@ -290,6 +290,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         sampling_only: bool = False,
         offload_sampler: bool = False,
         device: Optional[str] = None,
+        disable_tqdm: bool = False,
     ):
         if not isinstance(evaluators, List):
             assert isinstance(evaluators, SamplingEvaluator)
@@ -301,7 +302,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         if rerun_sampler:
             rerun_evaluator = True
 
-        for instance_id in tqdm.tqdm(instance_ids, disable=verbose):
+        for instance_id in tqdm.tqdm(instance_ids, disable=verbose or disable_tqdm):
             maybe_print(
                 "Running evaluation pipeline for instance", instance_id, verbose=verbose
             )

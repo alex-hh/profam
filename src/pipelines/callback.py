@@ -61,6 +61,7 @@ class SamplingEvaluationPipelineCallback(Callback):
             rerun_evaluator=True,
             rerun_sampler=True,
             device=model.device,
+            disable_tqdm=True,
         )
 
         all_metrics = {}
