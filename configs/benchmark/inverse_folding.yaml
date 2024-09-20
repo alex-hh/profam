@@ -7,7 +7,7 @@ defaults:
   - override /pipeline: foldseek_representatives
 
 pipeline:
-  pipeline_id: foldseek_representatives_n10
+  pipeline_id: foldseek_representatives_n${pipeline.num_generations}
   num_generations: 10
   evaluation_parquet: "${paths.data_dir}/foldseek_representatives/0.parquet"
   max_protein_length: 766

@@ -57,13 +57,15 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
                 unmasked_recoveries.append(unmasked_seq_id)
             else:
                 mismatched_lengths += 1
-        pairwise_identities = [
-            sequence_identity(seq1, seq2)
-            for seq1, seq2 in itertools.combinations(samples, 2)
-        ]
-        return {
+        metrics = {
             "mean_recovery": np.mean(recoveries),
             "mean_recovery_at_residues_with_coords": np.mean(unmasked_recoveries),
             "mismatched_lengths": mismatched_lengths / len(samples),
-            "pairwise_identities": np.mean(pairwise_identities),
         }
+        if len(samples) > 1:
+            pairwise_identities = [
+                sequence_identity(seq1, seq2)
+                for seq1, seq2 in itertools.combinations(samples, 2)
+            ]
+            metrics["pairwise_identities"] = np.mean(pairwise_identities)
+        return metrics
