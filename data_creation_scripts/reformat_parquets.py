@@ -1,5 +1,9 @@
 import glob
 import os
+import argparse
+import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pandas as pd
 import tqdm
 
@@ -26,6 +30,12 @@ def rename_column_in_parquet(file_path, old_column_name, new_column_name):
         return
 
 
+def convert_row_to_float16(row, column_names):
+    for column_name in column_names:
+        row[column_name] = [np.array(arr, dtype='float16') for arr in row[column_name]]
+    return row
+
+
 def convert_coords_to_float16(file_path, column_names):
     """
     Converts columns in a Parquet file to float16.
@@ -36,12 +46,14 @@ def convert_coords_to_float16(file_path, column_names):
     """
     # Read the Parquet file into a Pandas DataFrame
     df = pd.read_parquet(file_path)
+    df.apply(lambda row: convert_row_to_float16(row, column_names), axis=1)
 
     # Convert columns to float16
-    df[column_names] = df[column_names].astype('float16')
+    table = pa.Table.from_pandas(df)
+    print(table.schema)
 
     # Save the updated file
-    df.to_parquet(file_path, index=False)
+    pq.write_table(table, file_path)
 
 
 def process_parquet_files(file_list, old_column_name, new_column_name):
@@ -54,16 +66,21 @@ def process_parquet_files(file_list, old_column_name, new_column_name):
     :param output_dir: Directory where the updated files will be saved. If None, it overwrites the original files.
     """
     for file_path in tqdm.tqdm(file_list):
+        print(file_path)
         rename_column_in_parquet(file_path, old_column_name, new_column_name)
         convert_coords_to_float16(file_path, ["N", "CA", "C", "O", "plddts"])
 
 
 # Example usage
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Rename a column in a Parquet file.")
+    parser.add_argument("data_folder", help="Folder containing Parquet files.")
+    args = parser.parse_args()
     # List of Parquet files
     data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
     print("Data directory: (set DATA_DIR env var to override)", data_dir)
-    parquet_files = glob.glob(os.path.join(data_dir, 'foldseek_struct/*.parquet'))
+    glob_str = os.path.join(data_dir, args.data_folder, '*.parquet')
+    parquet_files = glob.glob(glob_str)
 
     # Rename 'cluster_id' to 'fam_id' in each file
     process_parquet_files(parquet_files, old_column_name='cluster_id', new_column_name='fam_id')
