@@ -64,6 +64,24 @@ def accuracy_from_outputs(
     Returns:
         The accuracy of the target sequence.
     """
+    if calc_full_no_context_accuracies:
+        assert sep_token_id is not None
+        # cat ensures that sep token is included in the prev sequence for index
+        sequence_indices = torch.cat(
+            [
+                torch.zeros(labels.shape[0], 1, device=labels.device),
+                torch.cumsum(labels == sep_token_id, dim=-1)[:, :-1],
+            ],
+            dim=-1,
+        )
+        # TODO: assert that last non-padding token is a sep token (in pre-sliced labels)
+        # TODO: write test
+        first_sequence_mask = sequence_indices == 0
+        last_sequence_mask = sequence_indices == sequence_indices[:, -1:]
+
+        first_sequence_mask = first_sequence_mask[:, start_ix + 1 :]
+        last_sequence_mask = last_sequence_mask[:, start_ix + 1 :]
+
     labels = labels.clone()
 
     if ignore_token_ids is not None:
@@ -85,23 +103,18 @@ def accuracy_from_outputs(
     accuracy = (shift_logits.argmax(-1) == shift_labels).float()
     global_accuracy = calc_accuracy_with_masks(accuracy, token_mask=non_padding_mask)
 
+    accuracy_metrics = {
+        "global": global_accuracy,
+    }
     if calc_full_no_context_accuracies:
-        assert sep_token_id is not None
-        # cat ensures that sep token is included in the prev sequence for index
-        sequence_indices = torch.cat(
-            [
-                torch.zeros(logits.shape[0], 1),
-                torch.cumsum(sep_token_id, dim=-1)[:, :-1],
-            ],
-            dim=-1,
+        accuracy_metrics["first_sequence"] = calc_accuracy_with_masks(
+            accuracy,
+            token_mask=first_sequence_mask & non_padding_mask,
         )
-        # TODO: assert that last non-padding token is a sep token (in pre-sliced labels)
-        # TODO: write test
-        first_sequence_mask = sequence_indices == 0
-        last_sequence_mask = sequence_indices == sequence_indices[:, -1:]
-
-        first_sequence_mask = first_sequence_mask[:, start_ix + 1 :] & non_padding_mask
-        last_sequence_mask = last_sequence_mask[:, start_ix + 1 :] & non_padding_mask
+        accuracy_metrics["last_sequence"] = calc_accuracy_with_masks(
+            accuracy,
+            token_mask=last_sequence_mask & non_padding_mask,
+        )
 
     if dataset_names is not None:
         # N.B. this also works for empty list
@@ -115,27 +128,14 @@ def accuracy_from_outputs(
                 ds_accuracies[ds_name + "_first_sequence"] = calc_accuracy_with_masks(
                     accuracy,
                     sample_mask=in_dataset_mask,
-                    token_mask=first_sequence_mask,
+                    token_mask=first_sequence_mask & non_padding_mask,
                 )
                 ds_accuracies[ds_name + "_last_sequence"] = calc_accuracy_with_masks(
                     accuracy,
                     sample_mask=in_dataset_mask,
-                    token_mask=last_sequence_mask,
+                    token_mask=last_sequence_mask & non_padding_mask,
                 )
-        ds_accuracies["global"] = global_accuracy
-        return ds_accuracies
 
-    accuracy_metrics = {
-        "global": global_accuracy,
-    }
-    if calc_full_no_context_accuracies:
-        accuracy_metrics["first_sequence"] = calc_accuracy_with_masks(
-            accuracy,
-            token_mask=first_sequence_mask,
-        )
-        accuracy_metrics["last_sequence"] = calc_accuracy_with_masks(
-            accuracy,
-            token_mask=last_sequence_mask,
-        )
+        accuracy_metrics.update(ds_accuracies)
 
     return accuracy_metrics

@@ -15,7 +15,6 @@ evaluate_gym: false # not implemented yet
 evaluate_ec_class: false # not implemented yet
 evaluate_ec_cluster_class: false # not implemented yet
 val_dataset_names:
-  - interpro
   - ec
 gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 max_gym_sequences: null
