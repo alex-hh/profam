@@ -77,7 +77,9 @@ def accuracy_from_outputs(
         # TODO: assert that last non-padding token is a sep token (in pre-sliced labels)
         # TODO: write test
         first_sequence_mask = sequence_indices == 0
-        last_sequence_mask = sequence_indices == sequence_indices[:, -1:]
+        last_sequence_mask = (
+            sequence_indices == sequence_indices[:, -1:] - 1
+        )  # -1 because padding tokens will get extra seq index having seen final sep
 
         first_sequence_mask = first_sequence_mask[:, start_ix + 1 :]
         last_sequence_mask = last_sequence_mask[:, start_ix + 1 :]
