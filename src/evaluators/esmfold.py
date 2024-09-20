@@ -105,7 +105,7 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
     def _load_precomputed_reference_structure(self, output_dir, representative):
         target_file = os.path.join(output_dir, "target.pdb")
         if os.path.exists(target_file):
-            ref_prot = Protein.from_pdb_file(target_file, bfactor_is_plddt=True)
+            ref_prot = Protein.from_pdb(target_file, bfactor_is_plddt=True)
             if representative.sequence == ref_prot.sequence:
                 return ref_prot, True
             return ref_prot, False
@@ -118,7 +118,7 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         for i, seq in enumerate(samples):
             sample_file = os.path.join(output_dir, f"sample_{i}.pdb")
             if os.path.exists(sample_file):
-                prot = Protein.from_pdb_file(sample_file, bfactor_is_plddt=True)
+                prot = Protein.from_pdb(sample_file, bfactor_is_plddt=True)
                 sample_prots.append(prot)
                 if prot.sequence != seq:
                     is_valid = False
