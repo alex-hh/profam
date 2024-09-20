@@ -43,17 +43,13 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
         mismatched_lengths = 0
         recoveries = []
         unmasked_recoveries = []
-        if self.verbose:
-            print("Target")
-            print(target_sequence)
         for i, seq in enumerate(samples):
-            if self.verbose and i == 0:
-                print(seq)
             if len(seq) == len(target_sequence):
                 unmasked_seq = [aa for aa, m in zip(seq, backbone_coords_mask) if m]
                 seq_id = sequence_identity(target_sequence, seq)
                 if self.verbose and i == 0:
-                    print(seq_id)
+                    print(f"Target sequence and first sample (identity: {seq_id:.3f})")
+                    print(target_sequence + "\n" + seq)
                 unmasked_seq_id = sequence_identity(
                     unmasked_target_sequence, unmasked_seq
                 )

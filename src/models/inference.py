@@ -130,6 +130,7 @@ class ProFamSampler:
             sampling_kwargs["fixed_length"] = len(
                 protein_document.representative.sequence
             )
+
         if document_is_prompt:
             raise NotImplementedError("We need to infer original sequence length...")
         else:
@@ -155,7 +156,8 @@ class ProFamSampler:
                 else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
                 **sampling_kwargs,
             )
-            return self.model.tokenizer.decode_tokens(tokens), prompt
+            sequences = self.model.tokenizer.decode_tokens(tokens)
+        return sequences, prompt
 
     @classmethod
     def from_checkpoint_dir(
