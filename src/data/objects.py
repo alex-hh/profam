@@ -101,6 +101,8 @@ class Protein:
                 view.setStyle(
                     {"model": -1, "serial": i + 1}, {"cartoon": {"color": color}}
                 )
+        else:
+            view.setStyle({"model": -1}, {"cartoon": {"color": "blue"}})
 
     def view_superimposed(self, view, other, align: bool = True):
         coords = self.backbone_coords
