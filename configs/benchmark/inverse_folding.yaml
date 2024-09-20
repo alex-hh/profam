@@ -16,3 +16,5 @@ pipeline:
 evaluators:
   sequence_recovery:
     verbose: true
+  esmfold_if:
+    save_structures: true

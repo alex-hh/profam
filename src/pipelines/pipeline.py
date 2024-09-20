@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
+import tqdm
 
 from src import constants
 from src.data.objects import ProteinDocument
@@ -287,7 +288,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         if rerun_sampler:
             rerun_evaluator = True
 
-        for instance_id in instance_ids:
+        for instance_id in tqdm.tqdm(instance_ids, disable=verbose):
             maybe_print(
                 "Running evaluation pipeline for instance", instance_id, verbose=verbose
             )
@@ -306,6 +307,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 self.save_generations(instance_id, sampler.name, generations)
                 self.save_prompt(instance_id, sampler.name, prompt)
             else:
+                maybe_print(
+                    f"Loading generations for instance: {instance_id}",
+                )
                 generations = self.load_generations(instance_id, sampler.name)
                 prompt = self.load_prompt(instance_id, sampler.name)
 

@@ -76,7 +76,8 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         prompt_plddt: bool = True,
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
-        save_structures: bool = False,
+        save_structures: bool = False,  # TODO: check whether saved structures correspond to samples and re-use if so.
+        # force_recompute_structures: bool = False, in this case can manually delete saved structures.
         verbose: bool = False,
         max_length: int = 512,  # TODO look into cpu offloading...
         **kwargs,
@@ -100,6 +101,31 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         if self.half_precision:
             print("Using half precision")
             self.esmfold = self.esmfold.half()
+
+    def _load_precomputed_reference_structure(self, output_dir, representative):
+        target_file = os.path.join(output_dir, "target.pdb")
+        if os.path.exists(target_file):
+            ref_prot = Protein.from_pdb_file(target_file, bfactor_is_plddt=True)
+            if representative.sequence == ref_prot.sequence:
+                return ref_prot, True
+            return ref_prot, False
+        else:
+            return None, False
+
+    def _load_precomputed_sample_structures(self, output_dir, samples):
+        sample_prots = []
+        is_valid = True
+        for i, seq in enumerate(samples):
+            sample_file = os.path.join(output_dir, f"sample_{i}.pdb")
+            if os.path.exists(sample_file):
+                prot = Protein.from_pdb_file(sample_file, bfactor_is_plddt=True)
+                sample_prots.append(prot)
+                if prot.sequence != seq:
+                    is_valid = False
+            else:
+                is_valid = False
+                break
+        return sample_prots, is_valid
 
     def _evaluate_samples(
         self,
@@ -128,10 +154,15 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
             not self.use_precomputed_reference_structures
             or representative.backbone_coords is None
         ):
-            if len(representative.sequence) <= self.max_length:
+            ref_prot, is_valid = self._load_precomputed_reference_structure(
+                output_dir, representative
+            )
+            if not is_valid and len(representative.sequence) <= self.max_length:
                 assert not representative.sequence.endswith("|")
                 out = self.esmfold.infer(seq)
                 ref_prot = esmfold_output_to_proteins(out)[0]
+                if self.save_structures:
+                    ref_prot.to_pdb_file(os.path.join(output_dir, "target.pdb"))
             else:
                 ref_prot = None
         else:
@@ -140,22 +171,31 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
             if ref_prot.sequence[-1] == "|":
                 ref_prot = ref_prot.slice_arrays(0, len(ref_prot.sequence) - 1)
 
-        sample_prots = []
+        num_samples_greater_than_max_length = 0
+        (
+            sample_prots,
+            precomputed_samples_are_valid,
+        ) = self._load_precomputed_sample_structures(output_dir, samples)
+        if not precomputed_samples_are_valid:
+            sample_prots = []
+            for i, seq in enumerate(samples):
+                if len(seq) <= self.max_length:
+                    out = self.esmfold.infer(seq)
+                    prot = esmfold_output_to_proteins(out)[0]
+                    sample_prots.append(prot)
+                    if self.save_structures:
+                        prot.to_pdb_file(os.path.join(output_dir, f"sample_{i}.pdb"))
+                else:
+                    num_samples_greater_than_max_length += (
+                        1  # n.b. this will be wrong if we re-use
+                    )
+
         tm_scores = []
         rmsds = []
-        num_samples_greater_than_max_length = 0
-        for i, seq in enumerate(samples):
-            if len(seq) <= self.max_length:
-                out = self.esmfold.infer(seq)
-                prot = esmfold_output_to_proteins(out)[0]
-                sample_prots.append(prot)
-                if ref_prot is not None:
-                    tm_scores.append(tm_score(prot, ref_prot))
-                    rmsds.append(rmsd(ref_prot, prot))
-            else:
-                num_samples_greater_than_max_length += 1
-            if self.save_structures:
-                prot.to_pdb_file(os.path.join(output_dir, f"sample_{i}.pdb"))
+        for prot in sample_prots:
+            if ref_prot is not None:
+                tm_scores.append(tm_score(prot, ref_prot))
+                rmsds.append(rmsd(ref_prot, prot))
 
         self.esmfold = self.esmfold.to("cpu")
         if self.verbose:
@@ -167,8 +207,12 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
         metrics = {
             "sample_plddt": np.mean([np.mean(prot.plddt) for prot in sample_prots]),
             "sample_lens": np.mean([len(prot) for prot in sample_prots]),
-            "num_samples_greater_than_max_length": num_samples_greater_than_max_length,
         }
+        if not precomputed_samples_are_valid:
+            # only computed correctly if running for the first time. #TODO: fix
+            metrics[
+                "num_samples_greater_than_max_length"
+            ] = num_samples_greater_than_max_length
         if ref_prot is not None:
             metrics["prompt_plddt"] = np.mean(ref_prot.plddt)
             metrics["prompt_lens"] = len(ref_prot)
