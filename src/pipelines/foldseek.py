@@ -22,7 +22,9 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
         assert self.evaluation_df is not None
         if self.max_protein_length is not None or self.min_plddt is not None:
             orig_len = len(self.evaluation_df)
-            rep_df = build_representative_df(self.evaluation_df, has_structure=True).set_index(self.instance_id_col, drop=False)
+            rep_df = build_representative_df(
+                self.evaluation_df, has_structure=True
+            ).set_index(self.instance_id_col, drop=False)
             if self.max_protein_length is not None:
                 rep_df = rep_df[rep_df["length"] <= self.max_protein_length]
             if self.min_plddt is not None:

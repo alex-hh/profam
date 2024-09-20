@@ -158,7 +158,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             )
         else:
             output_path = os.path.join(
-                self.pipeline_directory, "generations", instance_id, model_id, "sequences.fa"
+                self.pipeline_directory,
+                "generations",
+                instance_id,
+                model_id,
+                "sequences.fa",
             )
             prompt_output_path = os.path.join(
                 self.pipeline_directory, "prompts", instance_id, model_id, "prompt.json"
@@ -322,7 +326,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 generations = self.load_generations(instance_id, sampler.name)
                 prompt = self.load_prompt(instance_id, sampler.name)
 
-            model_device = sampler.device
+            sampler_device = sampler.device
             if not sampling_only:
                 if offload_sampler:
                     sampler.to(
@@ -343,7 +347,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                         print("Failed to run validation on instance", instance_id)
                         raise e
                 if offload_sampler:
-                    sampler.to(model_device)  # move back to original device
+                    sampler.to(sampler_device)  # move back to original device
 
         if sampling_only:
             return
