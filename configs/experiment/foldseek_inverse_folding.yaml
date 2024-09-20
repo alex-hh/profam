@@ -6,6 +6,7 @@
 
 defaults:
   - /extra_callbacks@extra_callbacks.esmfold_if: esmfold_if
+  - /extra_callbacks@extra_callbacks.esmfold_if_high_plddt: esmfold_if
   - override /callbacks: default_with_shuffle
   - override /data: foldseek_representatives_interleaved
   - override /model: llama_small
@@ -22,16 +23,37 @@ extra_callbacks:
       max_tokens: ${data.max_tokens}
       seed: 42
     pipeline:
+      num_generations: 1
+      pipeline_id: foldseek_representatives
       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
       max_instances: 15
-      max_sequence_length: 512  # used to filter candidate target proteins
+      max_protein_length: 512  # used to filter candidate target proteins
     match_representative_length: true
+    sampling_kwargs:
+      temperature: 0.3
+
+  esmfold_if_high_plddt:
+    prompt_builder:
+      _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
+      preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
+      max_tokens: ${data.max_tokens}
+      seed: 42
+    pipeline:
+      num_generations: 1
+      pipeline_id: foldseek_representatives_high_plddt
+      evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
+      max_instances: 15
+      max_protein_length: 512  # used to filter candidate target proteins
+      min_plddt: 0.9
+    match_representative_length: true
+    sampling_kwargs:
+      temperature: 0.3
 
 trainer:
   min_epochs: 10
   max_epochs: 10000
   gradient_clip_val: 1.0
-  val_check_interval: 25000  # number of BATCHES: not steps
+  val_check_interval: 10000  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
 

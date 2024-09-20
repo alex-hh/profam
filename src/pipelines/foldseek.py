@@ -10,12 +10,12 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
     def __init__(
         self,
         *args,
+        max_instances: Optional[int] = None,
         max_protein_length: Optional[int] = None,
         min_plddt: Optional[float] = None,
         **kwargs,
     ):
         # TODO: make this cooperate better with the base class
-        assert kwargs.get("max_instances", None) is None
         super().__init__(*args, **kwargs)
         self.max_protein_length = max_protein_length
         self.min_plddt = min_plddt
@@ -52,6 +52,12 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
                 f"Filtered {orig_len} to {len(self.evaluation_df)} proteins"
                 f"{length_msg}{plddt_msg}"
             )
+        if max_instances is not None:
+            self.evaluation_df = self.evaluation_df.head(max_instances)
+            self.evaluation_accessions = list(
+                self.evaluation_df[self.instance_id_col].values
+            )
+            print(f"Filtered to {max_instances} proteins")
 
     def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
         summary = super().get_instance_summary(instance_id)

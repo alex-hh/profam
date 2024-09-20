@@ -208,7 +208,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             evaluator.name, instance_id, sampler_name
         ):
             output_dir = os.path.join(
-                self.pipeline_directory, instance_id, sampler_name, evaluator.name
+                self.pipeline_directory, evaluator.name, instance_id, sampler_name
             )
             if rerun_evaluator:
                 if os.path.isdir(output_dir):

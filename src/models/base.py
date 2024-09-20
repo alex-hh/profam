@@ -228,6 +228,7 @@ class BaseLitModule(LightningModule):
                 on_epoch=step_name != "train",
                 prog_bar=True,
                 add_dataloader_idx=False,
+                sync_dist=step_name != "train",
             )
 
         # n.b. this assumes a batch only contains a single dataset - only true during val!
@@ -268,6 +269,7 @@ class BaseLitModule(LightningModule):
                 on_epoch=True,
                 prog_bar=False,
                 add_dataloader_idx=False,
+                sync_dist=step_name != "train",  # Q: what happens if sync_dist is False
             )
 
     def training_step(
@@ -403,6 +405,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
             on_epoch=True,
             prog_bar=True,
             add_dataloader_idx=False,
+            sync_dist=True,
         )
 
 
@@ -803,7 +806,12 @@ class BaseFamilyLitModule(BaseLitModule):
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
         self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
+            "gym/spearman",
+            spearman_corr,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
         )
 
     def validation_step_family_classification(
@@ -865,6 +873,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 top_k_acc,
                 on_step=False,
                 on_epoch=True,
+                sync_dist=True,
             )
         return torch.tensor(metric, device=self.device, dtype=torch.float32)
 
@@ -907,6 +916,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 f"{k}_max_sampled_doc": max(v.values())
                 for k, v in self.doc_id_counts.items()
             },
+            sync_dist=True,
         )
 
     def log_ds_sample_counts(self, batch):
