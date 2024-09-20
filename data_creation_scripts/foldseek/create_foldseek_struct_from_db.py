@@ -217,7 +217,7 @@ def create_foldseek_parquets(
         db = db[(db["af50_cluster_id"] == db["accession"])]
         cluster_col = "af50_cluster_id"
 
-    db = db.set_index("accession")
+    db = db.set_index("accession", drop=False)
 
     if num_processes is None:
         pdb_lookup = dict()
