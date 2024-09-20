@@ -410,8 +410,6 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
-        self.dataset_sample_counts = {}
-        self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
         self.embed_coords = embed_coords
@@ -877,6 +875,18 @@ class BaseFamilyLitModule(BaseLitModule):
         self.log_ds_sample_counts(batch)
         return loss
 
+    def on_train_begin(self):
+        self.dataset_sample_counts = {}
+        self.doc_id_counts = {}
+
+    def on_train_epoch_end(self):
+        self.log_dict(
+            {
+                f"{k}_max_sampled_doc": max(v.values())
+                for k, v in self.doc_id_counts.items()
+            },
+        )
+
     def log_ds_sample_counts(self, batch):
         """Log statistics about dataset usage.
 
@@ -902,11 +912,3 @@ class BaseFamilyLitModule(BaseLitModule):
                 self.doc_id_counts[dataset][doc_id] = (
                     self.doc_id_counts[dataset].get(doc_id, 0) + 1
                 )
-            self.log_dict(
-                {
-                    f"{k}_max_sampled_doc": max(v.values())
-                    for k, v in self.doc_id_counts.items()
-                },
-                on_step=False,
-                on_epoch=True,
-            )
