@@ -191,6 +191,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         protein_document: ProteinDocument,
         rerun_evaluator: bool = False,
         device: Optional[str] = None,
+        verbose: bool = False,
     ) -> None:
         generated_sequences = self.load_generations(instance_id, sampler_name)
         if rerun_evaluator or not self.has_result(
@@ -212,7 +213,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             )
 
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
-            print(f"Instance {instance_id} metrics: {metrics_str}")
+            if verbose:
+                print(f"Instance {instance_id} {evaluator.name} metrics: {metrics_str}")
+
             metrics.update(self.get_instance_summary(instance_id))
             metrics["sampler"] = sampler_name
             metrics["instance"] = instance_id

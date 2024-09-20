@@ -51,10 +51,11 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
             if len(seq) == len(target_sequence):
                 unmasked_seq = [aa for aa, m in zip(seq, backbone_coords_mask) if m]
                 seq_id = sequence_identity(target_sequence, seq)
+                if self.verbose and i == 0:
+                    print(seq_id)
                 unmasked_seq_id = sequence_identity(
                     unmasked_target_sequence, unmasked_seq
                 )
-                print("Seq ID", seq_id)
                 recoveries.append(seq_id)
                 unmasked_recoveries.append(unmasked_seq_id)
             else:

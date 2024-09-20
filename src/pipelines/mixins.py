@@ -61,6 +61,7 @@ class ParquetMixin:
                 .to_dict()
             )
         if self.max_instances is not None:
+            # Limit the number of instances - parquets often pre-shuffled
             self.evaluation_accessions = self.evaluation_accessions[
                 : self.max_instances
             ]
