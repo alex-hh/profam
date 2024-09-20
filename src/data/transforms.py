@@ -131,12 +131,15 @@ def rotate_backbones(proteins: ProteinDocument, **kwargs):
         # apply a separate random rotation to each protein
         # TODO: handle nans.
         assert coords.ndim == 3  # l, 4, 3
-        rotation = R.random()
-        flat_coords = coords.reshape(-1, 3)
-        flat_nan_mask = np.isnan(flat_coords).any(axis=1)
-        flat_coords[~flat_nan_mask] = rotation.apply(flat_coords[~flat_nan_mask])
-        flat_coords = flat_coords.reshape(-1, 4, 3)
-        new_coords.append(flat_coords)
+        if np.isnan(coords).all():
+            new_coords.append(coords)
+        else:
+            rotation = R.random()
+            flat_coords = coords.reshape(-1, 3)
+            flat_nan_mask = np.isnan(flat_coords).any(axis=1)
+            flat_coords[~flat_nan_mask] = rotation.apply(flat_coords[~flat_nan_mask])
+            flat_coords = flat_coords.reshape(-1, 4, 3)
+            new_coords.append(flat_coords)
     return proteins.clone(backbone_coords=new_coords)
 
 
@@ -148,8 +151,11 @@ def centre_backbones(proteins: ProteinDocument, **kwargs):
     new_coords = []
     for coords in proteins.backbone_coords:
         assert coords.ndim == 3  # l, 4, 3
-        centroid = np.nanmean(coords)
-        new_coords.append(coords - centroid)
+        if np.isnan(coords).all():
+            new_coords.append(coords)
+        else:
+            centroid = np.nanmean(coords)
+            new_coords.append(coords - centroid)
     return proteins.clone(backbone_coords=new_coords)
 
 

@@ -5,11 +5,10 @@ defaults:
   - /model: llama_small
   - /tokenizer@model.tokenizer: profam
   - /data/dataset/preprocessor@prompt_builder.preprocessor: parquet_structure
-name: neat-thunder  # suggestion: use wandb run name
+name: neat-thunder_T${.sampling_kwargs.temperature}  # suggestion: use wandb run name
 checkpoint_path: outputs/inverse_folding/neat-thunder/checkpoints/last.ckpt
 sampling_kwargs:
-  batch_size: 3
-  max_generated_length: 512
+  batch_size: 48
   temperature: 0.1
 prompt_builder:
   _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
