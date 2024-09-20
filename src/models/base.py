@@ -132,7 +132,6 @@ class BaseLitModule(LightningModule):
             "train/batch_time",
             self._t1 - self._t0,
             on_step=True,
-            on_epoch=True,
             prog_bar=True,
         )
 
@@ -264,13 +263,12 @@ class BaseLitModule(LightningModule):
     def on_before_optimizer_step(self, optimizer):
         # https://github.com/Lightning-AI/pytorch-lightning/issues/1462
         self.log(
-            "grad_norm",
+            "train/grad_norm",
             calc_grad_norm(self.model.parameters()),
             on_step=True,
-            on_epoch=True,
             prog_bar=True,
         )
-        self.log("lr", optimizer.param_groups[0]["lr"])
+        self.log("train/lr", optimizer.param_groups[0]["lr"])
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
