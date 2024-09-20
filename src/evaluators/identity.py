@@ -1,7 +1,7 @@
 """We can implement both sequence recovery, requiring fixed length, and pairwise sequence identity."""
+import itertools
 from typing import Optional
 
-import itertools
 import numpy as np
 
 from src.evaluators.base import SamplingEvaluator

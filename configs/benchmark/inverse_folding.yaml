@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-  - /evaluator@evaluators.esmfold_if: esmfold_if
+  # - /evaluator@evaluators.esmfold_if: esmfold_if
   - /evaluator@evaluators.sequence_recovery: sequence_recovery
   - override /sampler: neat-thunder_if
   - override /pipeline: foldseek_representatives

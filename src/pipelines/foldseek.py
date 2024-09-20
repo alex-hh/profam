@@ -1,4 +1,5 @@
 from typing import Optional
+
 from src.data.parquet import build_representative_df
 from src.pipelines.mixins import ParquetGenerationsPipeline
 
@@ -32,9 +33,17 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
                     rep_df[self.instance_id_col].values
                 )
             ]
-            self.evaluation_accessions = list(self.evaluation_df[self.instance_id_col].values)
-            length_msg = f"with length <={self.max_protein_length}" if self.max_protein_length is not None else ""
-            plddt_msg = f"; with pLDDT >={self.min_plddt}" if self.min_plddt is not None else ""
+            self.evaluation_accessions = list(
+                self.evaluation_df[self.instance_id_col].values
+            )
+            length_msg = (
+                f"with length <={self.max_protein_length}"
+                if self.max_protein_length is not None
+                else ""
+            )
+            plddt_msg = (
+                f"; with pLDDT >={self.min_plddt}" if self.min_plddt is not None else ""
+            )
             print(
                 f"Filtered {orig_len} to {len(self.evaluation_df)} proteins"
                 f"{length_msg}{plddt_msg}"
