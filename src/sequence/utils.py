@@ -24,7 +24,10 @@ def sequence_identity(seq_a, seq_b, ignore_gaps=False):
         # non_gap_B = len([aa for aa in seq_b if aa != "-"])
         # seq_id = dist / min(non_gap_A, non_gap_B)
     else:
-        seq_id = (len(seq_a) - dist) / len(seq_a)
+        if dist == len(seq_a):
+            seq_id = 0
+        else:
+            seq_id = (len(seq_a) - dist) / len(seq_a)
     return seq_id
 
 
