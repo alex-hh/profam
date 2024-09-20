@@ -1,14 +1,16 @@
 # @package _global_
 
 defaults:
+  - /evaluator@evaluators.esmfold_if: esmfold_if
+  - /evaluator@evaluators.sequence_recovery: sequence_recovery
   - override /sampler: neat-thunder_if
-  - override /pipeline: foldseek_with_coords
-  - override /evaluator: esmfold_if
+  - override /pipeline: foldseek_representatives
 
 pipeline:
   pipeline_id: foldseek_representatives_n10
   num_generations: 10
   evaluation_parquet: "${paths.data_dir}/foldseek_representatives/0.parquet"
+  max_protein_length: 766
 
 evaluator:
   num_samples: 10

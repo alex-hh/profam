@@ -1,10 +1,10 @@
 # N.B. this model requires COORDS TO BE DUPLICATED ON THE SEQUENCE SIDE
-
+# A llama small model trained on foldseek representatives
 _target_: src.models.inference.ProFamSampler
 defaults:
   - /model: llama_small
   - /tokenizer@model.tokenizer: profam
-  - /preprocessor@prompt_builder.preprocessor: parquet_3di_with_interleaved_coords
+  - /data/dataset/preprocessor@prompt_builder.preprocessor: parquet_structure
 name: neat-thunder  # suggestion: use wandb run name
 checkpoint_path: outputs/inverse_folding/neat-thunder/checkpoints/last.ckpt
 sampling_kwargs:

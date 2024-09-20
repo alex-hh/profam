@@ -11,19 +11,18 @@ class ParquetMixin:
     def __init__(
         self,
         *args,
-        instance_id_col="cluster_id",
+        instance_id_col="fam_id",
         evaluation_parquet: str = None,
         evaluation_accessions_file: str = None,
         parquet_index: str = None,
         evaluation_accessions: list = None,
         max_instances: Optional[int] = None,
-        max_sequence_length: Optional[int] = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.instance_id_col = instance_id_col
         self.max_instances = max_instances
-        self.max_sequence_length = max_sequence_length
+        # TODO: standardise parquet index - i.e. create in former case
 
         if evaluation_parquet is not None:
             assert evaluation_accessions_file is None
@@ -33,14 +32,6 @@ class ParquetMixin:
             if evaluation_accessions is not None:
                 self.evaluation_df = self.evaluation_df.loc[evaluation_accessions]
             self.parquet_index = None
-            if self.max_sequence_length is not None:
-                self.evaluation_df["min_sequence_lengths"] = self.evaluation_df[
-                    "sequences"
-                ].apply(lambda x: min([len(seq) for seq in x]))
-                self.evaluation_df = self.evaluation_df[
-                    self.evaluation_df["min_sequence_lengths"]
-                    <= self.max_sequence_length
-                ]
             self.evaluation_accessions = list(self.evaluation_df.index.values)
         else:
             assert self.max_sequence_length is None

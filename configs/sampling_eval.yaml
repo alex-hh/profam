@@ -5,7 +5,7 @@ defaults:
   - _self_
   - sampler: null  # needs to be set
   - pipeline: pfam_example
-  - evaluator: pfam_profile_hmm
+  # - evaluator@evaluators.hmm_profile: pfam_profile_hmm   to be set like this in experiment yaml
   - paths: benchmark  # TODO: handle hydra path?
   - extras: default
   - constants: profam

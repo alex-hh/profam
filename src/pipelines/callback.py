@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Union
 
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
+from omegaconf import DictConfig
 
 from src.evaluators.base import SamplingEvaluator
 from src.models.inference import ProFamSampler, PromptBuilder
@@ -29,7 +30,7 @@ class SamplingEvaluationPipelineCallback(Callback):
         self.sampling_kwargs = sampling_kwargs or {}
         self.prompt_builder = prompt_builder
         self.match_representative_length = match_representative_length
-        if isinstance(self.evaluators, Dict):
+        if isinstance(self.evaluators, Dict) or isinstance(self.evaluators, DictConfig):
             self.evaluators = list(self.evaluators.values())
         if not isinstance(self.evaluators, List):
             assert isinstance(self.evaluators, SamplingEvaluator)
