@@ -214,7 +214,7 @@ class BaseLitModule(LightningModule):
             self.log_dict(
                 {f"{step_name}/{k}": v for k, v in global_metrics.items()},
                 on_step=step_name == "train",
-                on_epoch=True,
+                on_epoch=step_name != "train",
                 prog_bar=True,
                 add_dataloader_idx=False,
             )
