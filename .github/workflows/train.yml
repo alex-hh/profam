@@ -30,7 +30,7 @@ jobs:
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 python src/train.py \
-          model=mistral \
+          model=llama_test \
           trainer=cpu \
           trainer.max_epochs=1 \
           data=example_data \
@@ -46,11 +46,3 @@ jobs:
           +trainer.num_sanity_val_steps=0 \
           trainer.val_check_interval=1.0 \
           trainer.target_tokens_per_batch=null \
-          'model.config.hidden_size=4' \
-          'model.config.intermediate_size=4' \
-          'model.config.num_attention_heads=1' \
-          'model.config.num_hidden_layers=1' \
-          'model.config.num_key_value_heads=1' \
-          'data.dataset_cfgs.openfold_aligned.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
-          'data.dataset_cfgs.openfold_raw.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
-          'data.dataset_cfgs.ec.data_path_pattern="tiny_data/expasy_ec/*.fasta"'

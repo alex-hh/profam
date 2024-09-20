@@ -1,12 +1,13 @@
 _target_: src.data.hf_protein_datamodule.ProteinDataMixture
 defaults:
-  - dataset@dataset_cfgs.openfold_aligned: openfold_aligned
-  - dataset@dataset_cfgs.openfold_raw: openfold_raw
-  - dataset@dataset_cfgs.ec: ec
+  - dataset@dataset_cfgs.openfold_aligned: openfold_aligned_example
+  - dataset@dataset_cfgs.openfold_raw: openfold_raw_example
+  - dataset@dataset_cfgs.ec: ec_example
   - _self_
 data_weights:
   openfold_aligned: 0.5
   openfold_raw: 0.5
+
 batch_size: 2
 max_tokens: 3000
 data_dir: data/example_data # example data is in repo main dir
