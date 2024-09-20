@@ -10,6 +10,7 @@
 #$ -j y
 date
 # conda activate venvPF
+source /share/apps/source_files/python/python-3.11.9.source
 source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
 
 # copy the datasets to the scratch space

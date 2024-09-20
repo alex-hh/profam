@@ -10,6 +10,7 @@
 date
 hostname
 # conda activate venvPF
+source /share/apps/source_files/python/python-3.11.9.source
 source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
 # source /share/apps/source_files/python/python-3.11.9.source
 python3 data_creation_scripts/foldseek/prepare_job_files.py
