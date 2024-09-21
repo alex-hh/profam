@@ -3,6 +3,7 @@ from typing import Any, Dict, Mapping, Optional, Union
 
 from lightning.fabric.loggers.logger import _DummyExperiment as DummyExperiment
 from lightning.pytorch.loggers.logger import Logger
+from lightning.pytorch.loggers.wandb import WandbLogger
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from typing_extensions import override
 
@@ -38,3 +39,8 @@ class StdOutLogger(Logger):
     def version(self) -> str:
         """Return the experiment version."""
         return ""
+
+
+class WandbLogger(WandbLogger):
+    # TODO: extended to optionally log hydra config file and git hash
+    pass
