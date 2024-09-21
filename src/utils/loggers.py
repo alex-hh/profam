@@ -63,9 +63,7 @@ class WandbLogger(WandbLogger):
 
             artifact = wandb.Artifact("hydra_outputs", type="config")
             hydra_dir = os.path.join(hydra_cfg["runtime"]["output_dir"], ".hydra")
-            artifact.add_file(os.path.join(hydra_dir, "config.yaml"))
-            artifact.add_file(os.path.join(hydra_dir, "hydra.yaml"))
-            artifact.add_file(os.path.join(hydra_dir, "overrides.yaml"))
+            artifact.add_dir(hydra_dir)
             self.experiment.log_artifact(artifact)
 
         if self.log_git_hash:
