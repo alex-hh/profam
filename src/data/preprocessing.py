@@ -1,5 +1,6 @@
 import functools
 import os
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -24,6 +25,39 @@ def load_named_preprocessor(preprocessor_name, overrides: Optional[List[str]] = 
     return instantiate(preprocessor_cfg, _convert_="partial")
 
 
+def uniformly_sample_clusters(
+    sequences, cluster_ids, max_total_length, tokens_per_sequence=1
+):
+    # Step 1: Group sequences by their attributes
+    clusters = defaultdict(list)
+    for ix, (seq, cl_id) in enumerate(zip(sequences, cluster_ids)):
+        clusters[cl_id].append((ix, seq))
+
+    selected_ids = []
+    total_length = 0
+
+    # Step 2: Sample the same number of items from each stratum
+    while True:
+        unique_cluster_ids = list(clusters.keys())
+        cluster = np.random.choice(unique_cluster_ids)
+        candidates = clusters[cluster]
+        ix, seq = candidates.pop(np.random.choice(len(candidates)))
+
+        if (
+            total_length + len(seq) + tokens_per_sequence > max_total_length
+            or not clusters
+        ):
+            break
+
+        selected_ids.append(ix)
+        total_length += len(seq) + tokens_per_sequence
+
+        if not candidates:
+            del clusters[cluster]
+
+    return selected_ids
+
+
 @dataclass
 class PreprocessingConfig:
     keep_insertions: bool = False
@@ -34,8 +68,6 @@ class PreprocessingConfig:
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
     # https://github.com/mit-ll-responsible-ai/hydra-zen/issues/182
     allow_unk: bool = False
-    batched_map: bool = False  # should map be called with batched=True
-    map_batch_size: int = 100
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -130,13 +162,29 @@ def backbone_coords_from_example(example, sequence_col="sequences"):
 class BasePreprocessor:
     def __init__(
         self,
-        config: PreprocessingConfig,
+        config: PreprocessingConfig,  # configures preprocessing of individual proteins
         transform_fns: Optional[List[Callable]] = None,
         interleave_structure_sequence: bool = False,
+        batched_map: bool = False,  # should map be called with batched=True
+        map_batch_size: int = 100,
+        sample_uniformly_from_col: Optional[
+            str
+        ] = None,  # for redundancy-aware sampling
+        max_sequences_per_document: Optional[int] = None,
     ):
         self.cfg = config
         self.transform_fns = transform_fns
-        self.interleave_structure_sequence = interleave_structure_sequence
+        self.interleave_structure_sequence = (
+            interleave_structure_sequence  # should this be part of config?
+        )
+        self.batched_map = batched_map
+        self.map_batch_size = map_batch_size
+        self.sample_uniformly_from_col = sample_uniformly_from_col
+        self.max_sequences = max_sequences_per_document
+        if self.sample_uniformly_from_col is not None:
+            # instead of sampling sequences uniformly, we sample from unique values in this column
+            # then sample within those values uniformly to build a batch.
+            raise NotImplementedError()
 
     def build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -282,10 +330,12 @@ class FastaPreprocessor(BasePreprocessor):
         lines = text.split("\n")
         if not len(lines[-1]):
             lines = lines[:-1]
-        # min 2 lines per seq, assume at least 10 tks per line
+        # rough upper bound: min 2 lines per seq, assume at least 10 tks per line
         max_fasta_lines_to_preprocess = (
-            max_tokens or 1e8
-        ) // 5  # upper bound on lines to proc.
+            (max_tokens or 1e8) // 5
+            if self.max_sequences is None
+            else self.max_sequences * 50
+        )
         if len(lines) > max_fasta_lines_to_preprocess:
             lines = subsample_fasta_lines(
                 lines,
@@ -335,7 +385,9 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         sequence_iterator = example[self.sequence_col]
-        max_sequences_to_preprocess = max_tokens // 10
+        max_sequences_to_preprocess = (
+            (max_tokens // 40) if self.max_sequences is None else self.max_sequences
+        )
         # n.b. this also shuffles
         if shuffle:
             sequences = random_subsample(
@@ -396,8 +448,19 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         # TODO: configure whether or not to use alignments, structure tokens col, etc.
-        max_sequences_to_preprocess = (max_tokens or 1e8) // 10
-        if shuffle:
+        max_sequences_to_preprocess = (
+            (max_tokens or 1e8) // 40
+            if self.max_sequences is None
+            else self.max_sequences
+        )
+        if self.sample_uniformly_from_col is not None:
+            assert shuffle
+            sequence_ids = uniformly_sample_clusters(
+                example["sequences"],
+                example[self.sample_uniformly_from_col],
+                max_tokens - 3,
+            )
+        elif shuffle:
             sequence_ids = random_subsample(
                 np.arange(len(example["sequences"])),
                 max_sequences_to_preprocess,

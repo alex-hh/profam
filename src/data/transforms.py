@@ -68,18 +68,15 @@ def sample_to_max_tokens(
         proteins = proteins[perm]
 
     if max_tokens is not None:
-        cumulative_lengths = list(
-            itertools.accumulate(
-                [len(s) + extra_tokens_per_sequence for s in proteins.sequences]
-            )
-        )
-        insertion_point = bisect.bisect_left(
-            cumulative_lengths,
-            max_tokens - extra_tokens_per_document,
-        )
-    else:
-        insertion_point = len(proteins)
-    proteins = proteins[:insertion_point]
+        total_length = 0
+        sampled_proteins = []
+        for seq in enumerate(proteins.sequences):
+            total_length += len(seq) + extra_tokens_per_sequence
+            if total_length > max_tokens - extra_tokens_per_document:
+                break
+            sampled_proteins.append(seq)
+        return sampled_proteins
+
     return proteins
 
 

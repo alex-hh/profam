@@ -191,11 +191,18 @@ class BaseLitModule(LightningModule):
                         + [aa.lower() for aa in aa_letters]
                         + self.tokenizer.all_special_tokens
                     ),
+                    calc_full_no_context_accuracies=True,
                     mask=(aa_has_coords_mask & batch["aa_mask"]),
                 )
                 global_metrics[
                     "has_coords_aa_accuracy"
                 ] = has_coords_dataset_accuracies.pop("global")
+                global_metrics[
+                    "has_coords_aa_accuracy_first_sequence"
+                ] = has_coords_dataset_accuracies.pop("first_sequence")
+                global_metrics[
+                    "has_coords_aa_accuracy_last_sequence"
+                ] = has_coords_dataset_accuracies.pop("last_sequence")
                 global_metrics["aa_has_coords_frac"] = (
                     aa_has_coords_mask & batch["aa_mask"]
                 ).float().sum() / batch["aa_mask"].float().sum()

@@ -249,7 +249,7 @@ class Throughput:
                 )
                 dev_items_per_sec = elapsed_non_padding_lengths / elapsed_time
                 metrics[
-                    f"device{self.separator}_non_padding_tokens_per_sec"
+                    f"device{self.separator}non_padding_tokens_per_sec"
                 ] = dev_items_per_sec
                 if add_global_metrics:
                     items_per_sec = dev_items_per_sec * self.world_size

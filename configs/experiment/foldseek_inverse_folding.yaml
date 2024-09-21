@@ -53,7 +53,7 @@ trainer:
   min_epochs: 10
   max_epochs: 10000
   gradient_clip_val: 1.0
-  val_check_interval: 10000  # number of BATCHES: not steps
+  val_check_interval: 30000  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
 
