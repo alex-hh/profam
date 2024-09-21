@@ -69,7 +69,14 @@ class WandbLogger(WandbLogger):
             self.experiment.log_artifact(artifact)
 
         if self.log_git_hash:
-            with open(os.path.join(BASEDIR, "commit_hash.txt"), "r") as f:
-                commit_hash = f.read().strip()
-            hparams["git_hash"] = commit_hash
+            hash_file = os.path.join(BASEDIR, "commit_hash.txt")
+            if os.path.isfile(hash_file):
+                with open(hash_file, "r") as f:
+                    commit_hash = f.read().strip()
+                hparams["git_hash"] = commit_hash
+            else:
+                raise FileNotFoundError(
+                    f"File {hash_file} not found!\nPlease run the following:\n"
+                    f"echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit"
+                )
         super().log_hyperparameters(hparams, **kwargs)
