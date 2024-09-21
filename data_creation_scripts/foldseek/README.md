@@ -8,3 +8,7 @@ To build parquets from these files, run create_foldseek_struct_from_db with appr
 Examples of parallelising using the cluster are given in the submit scripts
 create_foldseek_af50_struct_from_db_array.qsub.sh
 and create_foldseek_representatives_from_db_array.qsub.sh
+
+To handle failures:
+~/profam/scripts/check_parquets.sh /SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct 9211 > ~/profam_parquets_rerun.txt
+bash ~/profam/submit_scripts/create_foldseek_af50_struct_from_db_job_list.sh ~/profam_parquets_rerun.txt

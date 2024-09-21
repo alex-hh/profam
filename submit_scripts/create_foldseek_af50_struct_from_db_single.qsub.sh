@@ -1,23 +1,21 @@
 #!/bin/bash
-#$ -l tmem=12G
-#$ -l h_vmem=12G
+#$ -l tmem=24G
+#$ -l h_vmem=24G
 #$ -l h_rt=38:55:30
 #$ -S /bin/bash
-#$ -t 1-10000  # 8000 for 2000000 at 250; 1800/4500 for 450000 at 250/100
 #$ -N foldseekF
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd ~/ProFam/ahh/profam
-#$ -tc 1000
 #$ -j y
 #$ -l avx2=yes  # for foldmason
-##$ -l tscratch=5G
 
 date
 hostname
-file_prefix=$((SGE_TASK_ID - 1))
+file_prefix=$1
 source /share/apps/source_files/python/python-3.11.9.source
 source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
 output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/${file_prefix}.parquet"
+echo "Checking for output file $output_file"
 if [ ! -f $output_file ]; then
     echo "Output file not found: $output_file"
     SCRATCH_DIR=/scratch0/$USER/$JOB_ID/$SGE_TASK_ID

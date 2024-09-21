@@ -6,13 +6,14 @@
 #$ -S /bin/bash
 #$ -N aug_foldseek
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
-#$ -wd ~/profam
+#$ -wd ~/ProFam/ahh/profam
 #$ -t 1-1
 #$ -tc 1000
 #$ -j y
 date
 # conda activate venvPF
-source ~/source_files/afenv.source
+source /share/apps/source_files/python/python-3.11.9.source
+source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
 
 # copy the datasets to the scratch space
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID

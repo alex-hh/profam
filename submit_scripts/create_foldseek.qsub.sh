@@ -5,10 +5,11 @@
 #$ -S /bin/bash
 #$ -N foldseekF
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
-#$ -wd ~/profam
+#$ -wd ~/ProFam/ahh/profam
 #$ -j y
 date
 # conda activate venvPF
-source ~/source_files/afenv.source
+source /share/apps/source_files/python/python-3.11.9.source
+source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
 python3 data_creation_scripts/create_foldseek_with_af50.py $1
 date

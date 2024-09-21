@@ -15,6 +15,7 @@ from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
 import time
 import os
+import numpy as np
 import pandas as pd
 from modin import pandas as mpd
 import pyarrow as pa
@@ -51,25 +52,33 @@ def save_pdbs_to_parquet(
 
         for afdb_id in cluster_members:
             pdb = os.path.join(pdbs_dir, afdb_id + ".pdb")
-            cluster_filelist.append(pdb)
+            try:
+                structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
+            except Exception as e:
+                print(f"Error loading {pdb}: {e}")
+                continue
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
             af50_cluster_id.append(metadata["af50_cluster_id"])
-            structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
+            cluster_filelist.append(pdb)
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)  # residues, atoms, xyz
             residue_identities = get_residues(structure)[1]
-            b_factors = structure.b_factor[get_residue_starts(structure)]
+            b_factors = np.array(structure.b_factor[get_residue_starts(structure)]).astype("float16")
             seq = "".join(
                 [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
             )
             all_b_factors.append(b_factors)
             sequences.append(seq)
             for ix, atom_name in enumerate(["N", "CA", "C", "O"]):
-                all_coords[atom_name].append(coords[:, ix, :].flatten())
+                # N.B. need to use recent versions of pyarrow for half float support
+                all_coords[atom_name].append(coords[:, ix, :].flatten().astype("float16"))
             
         # Run FoldMason on the cluster
         if run_foldmason:
-            if max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason:
+            if (
+                    (max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason)
+                    or len(cluster_filelist) < 3
+            ):
                 print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
                 has_foldmason_results = False
             else:
@@ -115,6 +124,8 @@ def save_pdbs_to_parquet(
     df = pd.DataFrame(results)
     # Q. why not just df.to_parquet?
     table = pa.Table.from_pandas(df)
+    # https://github.com/apache/arrow/pull/42103 suggests that float16 is supported??
+    print(table.schema)
     output_file = os.path.join(f'{save_dir}', f'{parquet_id}.parquet')
     pq.write_table(table, output_file)
     print(f"Saved {clusters_to_save} clusters to {output_file}")
@@ -122,6 +133,7 @@ def save_pdbs_to_parquet(
 
 
 def load_db(parquet_index=None):
+    assert parquet_index is not None
     if parquet_index is None:
         df = mpd.read_csv_glob(os.path.join(PROFAM_DATA_DIR, "afdb/foldseek_job_files/job*.csv"))
     else:
@@ -188,8 +200,7 @@ def create_foldseek_parquets(
     run_foldmason=False,
     max_cluster_size_for_foldmason=None,
 ):
-    # TODO: instead of loading the cluster dictionary we can just save a file which lists the cluster sizes.
-    # af50 version doesn't really work with parquet ids...no i guess it still does: db is limited to a single parquet in that case. 
+    print("Creating foldseek parquets", parquet_ids, flush=True)
     if parquet_ids is None:
         db = load_db()
         parquet_ids = list(range(len(db["parquet_index"].unique())))
@@ -197,7 +208,7 @@ def create_foldseek_parquets(
         assert len(parquet_ids) == 1
         db = load_db(parquet_ids[0])
 
-    db = db[db["zip_filename"]!=""]
+    db = db[(db["zip_filename"]!="")&(~db["zip_filename"].isnull())]
 
     cluster_col = "cluster_id"
     if representative_only:
@@ -206,7 +217,7 @@ def create_foldseek_parquets(
         db = db[(db["af50_cluster_id"] == db["accession"])]
         cluster_col = "af50_cluster_id"
 
-    db = db.set_index("accession")
+    db = db.set_index("accession", drop=False)
 
     if num_processes is None:
         pdb_lookup = dict()
