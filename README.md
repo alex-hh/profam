@@ -104,11 +104,35 @@ or additions should be accompanied with associated tests in the tests/ directory
 
 ### Data loading
 
-TODO
+We use iterable HF Dataset instances to load raw data representing protein documents
+(e.g. dictionaries of sequences, cluster ids, coords, etc.) from parquet files.
+
+During data loading and benchmarking, raw protein document data is converted into
+instances of the ProteinDocument dataclass.
+
+During training, data loading involves a few steps:
+  1. A protein document instance is extracted from raw (e.g. parquet/fasta) data
+  2. The protein document is preprocessed, with standardisations and other transformatins
+     applied to its contents (e.g. subsampling of sequences, calculation of MSA-aware sequence
+     positions, rotation of backbone coordinates...)
+  3. The protein document is encoded into a dictionary of tensors by the ProFamTokenizer
+  4. Batches are constructed by collating protein document tensor dictionaries.
+
+Steps 1-3 are handled by a Preprocessor instance, which has configuration determining how
+the document should be extracted and processed. Preprocessors live in src/data/preprocessing.py,
+and are applied to dataset instances via the map() function (which runs on-the-fly on iterable
+datasets during training.)
+A preprocessor applies a set of transformations to the document. Transformations are functions
+which accept protein documents as input and return a new protein document. These live in
+src/data/transforms.py.
 
 ### Benchmarking
 
-TODO
+The benchmarks are organised around three sets of objects:
+* pipelines (src/pipelines): represent collections of test documents and handle saving results and running models on these test cases
+* evaluators (src/evaluators): basically functions which compute metrics given the input test document and the model's outputs (e.g. generations)
+* samplers/scorers: wrappers for profam and baseline models which implement standard methods called by pipeline.
+  - e.g. samplers should have a sample_seqs method which accepts as input a ProteinDocument and returns sequences
 
 
 ## Project Directory Structure
