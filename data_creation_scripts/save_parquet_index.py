@@ -11,8 +11,9 @@ import tqdm
 
 
 def main(args):
+    data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
     with open(args.index_file_path, "w") as f:
-        files = glob.glob(args.data_file_pattern)
+        files = glob.glob(os.path.join(data_dir, args.data_folder, "*.parquet"))
         print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
         f.write("identifier,parquet_file,cluster_size,sequence_length\n")
         for file in tqdm.tqdm(files):
@@ -30,8 +31,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("index_file_path")
-    parser.add_argument("data_file_pattern")
-    parser.add_argument("--identifier_col", default="cluster_id")
+    parser.add_argument("data_folder")
+    parser.add_argument("--identifier_col", default="fam_id")
     args = parser.parse_args()
     main(args)
