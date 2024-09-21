@@ -5,9 +5,9 @@
 defaults:
   - _self_
   - data: example_data
-  - model: mistral
+  - model: llama_small
   - callbacks: default_no_shuffle
-  - logger: wandb
+  - logger: stdout
   - trainer: mps
   - paths: default
   - extras: default
