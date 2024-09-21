@@ -3,8 +3,7 @@ name: Train Model
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - '*'
+    branches: [main]
 
 jobs:
   train:
