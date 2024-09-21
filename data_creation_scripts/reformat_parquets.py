@@ -75,12 +75,16 @@ def process_parquet_files(file_list, old_column_name, new_column_name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Rename a column in a Parquet file.")
     parser.add_argument("data_folder", help="Folder containing Parquet files.")
+    parser.add_argument("--parquet_index", type=int, default=None)
     args = parser.parse_args()
     # List of Parquet files
     data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
     print("Data directory: (set DATA_DIR env var to override)", data_dir)
-    glob_str = os.path.join(data_dir, args.data_folder, '*.parquet')
-    parquet_files = glob.glob(glob_str)
+    if args.parquet_index is None:
+        glob_str = os.path.join(data_dir, args.data_folder, '*.parquet')
+        parquet_files = glob.glob(glob_str)
+    else:
+        parquet_files = [os.path.join(data_dir, args.data_folder, f"{args.parquet_index}.parquet")]
 
     # Rename 'cluster_id' to 'fam_id' in each file
     process_parquet_files(parquet_files, old_column_name='cluster_id', new_column_name='fam_id')
