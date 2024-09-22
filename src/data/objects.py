@@ -466,6 +466,7 @@ class ProteinDocument:
                 original_size=self.original_size,
             )
         elif isinstance(key, np.ndarray) or isinstance(key, list):
+            assert len(key) > 0, "Empty key"
             return ProteinDocument(
                 identifier=self.identifier,
                 sequences=[self.sequences[i] for i in key],

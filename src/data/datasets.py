@@ -58,7 +58,7 @@ def load_protein_dataset(
     tokenizer: ProFamTokenizer,
     data_dir="data",
     split="train",
-    max_tokens: Optional[int] = None,
+    max_tokens_per_item: Optional[int] = None,
     shuffle: bool = True,
     feature_names: Optional[List[str]] = None,
     world_size: int = 1,
@@ -98,19 +98,20 @@ def load_protein_dataset(
         assert len(data_files) > 0, "No files left after holdout"
 
     assert isinstance(data_files, list)
-    data_files = data_files * cfg.file_repeats
-    random.shuffle(data_files)  # TODO: seed explicitly?
+    data_files = sorted(data_files) * cfg.file_repeats
+    if shuffle:
+        random.shuffle(data_files)  # TODO: seed explicitly?
     print(
         f"Loading {cfg.name} dataset from {len(data_files)} files, "
         f"({cfg.file_repeats} repeats), "
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
-    print("Data files", data_files[:5])
+    print("Data files", data_files[:7])
     if cfg.stream:
         # ensure no issues with ddp by skipping shards
         # should result in each worker using the same number of shards
         # https://github.com/huggingface/datasets/issues/6623
-        data_files = data_files[:, (len(data_files) // world_size) * world_size]
+        data_files = data_files[: (len(data_files) // world_size) * world_size]
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
@@ -170,7 +171,7 @@ def load_protein_dataset(
             or example[cfg.identifier_col] not in cfg.holdout_identifiers
         )
         length_filter = filter_on_length(
-            example, cfg=cfg, max_tokens=max_tokens, tokenizer=tokenizer
+            example, cfg=cfg, max_tokens=max_tokens_per_item, tokenizer=tokenizer
         )
         if cfg.preprocessor.required_keys is not None:
             for k in cfg.preprocessor.required_keys:
@@ -209,7 +210,7 @@ def load_protein_dataset(
         example = cfg.preprocessor.preprocess_protein_data(
             example,
             tokenizer=tokenizer,
-            max_tokens=max_tokens,
+            max_tokens=max_tokens_per_item,
             shuffle=shuffle,
         )
 
