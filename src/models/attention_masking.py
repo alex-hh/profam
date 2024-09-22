@@ -1,9 +1,12 @@
 from typing import Optional
 
 import torch
+from transformers.cache_utils import StaticCache
+
+from src.models.utils import InputAwareDynamicCache
 
 
-def _prepare_4d_causal_attention_mask_with_cache_position(
+def _prepare_4d_attention_mask_with_cache_position(
     attention_mask: torch.Tensor,
     sequence_length: int,
     target_length: int,
@@ -12,21 +15,20 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
     min_dtype: float,
     cache_position: torch.Tensor,
     batch_size: int,
+    attention_bias: Optional[torch.Tensor] = None,
 ):
     """
-    TODO: if we want to integrate with hf proper, it would make more sense for attention mask to always be
-    non-inverted.
-
     We assume that the attention mask is one of the following:
         - a 2D binary mask, with 1s indicating keys that can be attended to in the full sequence
         - a 4D binary mask, with 1s indicating permitted attention.
             shape should be [broadcastable to?] (batch_size, head_dim, query_length, key_value_length)
             query_length when using cache is equal to number of uncached tokens
-        - a 4D bias mask, with -inf indicating disallowed attention.
-            shape should be [broadcastable to?] (batch_size, head_dim, query_length, key_value_length)
 
-    Creates a causal 4D mask of shape `(batch_size, 1, query_length, key_value_length)` from a 2D mask of shape
+    Creates a causal 4D bias of shape `(batch_size, 1, query_length, key_value_length)` from a 2D mask of shape
     `(batch_size, key_value_length)`, or if the input `attention_mask` is already 4D, do nothing.
+    This bias can then be added to the attention logits to achieve the desired attention masking pattern.
+
+    TODO: check whether head dim is supported?
 
     Args:
         attention_mask (`torch.Tensor`):
@@ -50,9 +52,9 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
     # original code was optimised for memory - make sure this is too.
     # for example - masked fill might be better but requires inverted mask
     if attention_mask is not None:
-        assert torch.is_floating_point(attention_mask) or is_integer(
+        assert is_integer(
             attention_mask
-        ), "Attention mask must be numeric"
+        ), "Attention mask must be integer type for binary masking."
     if attention_mask is None or attention_mask.ndim == 2:
         # N.B. the combination of binary and non-binary masks in the original code here is pretty confusing.
         # we try to first build required binary mask, then convert to a bias mask.
@@ -71,26 +73,20 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
                 full_attention_mask = attention_mask
             causal_mask = causal_mask & full_attention_mask[:, None, :].bool()
         causal_mask = causal_mask[:, None]  # add head dim
-    elif (
-        torch.isin(
-            attention_mask, torch.tensor([0, 1], device=attention_mask.device)
-        ).all()
-        and not (attention_mask == 0).all()
-    ):
+    else:
         # if we pass all 0s there is ambiguity, but we assume it means a bias mask, since it would prevent any attention.
         causal_mask = attention_mask.bool()
-    else:
-        causal_mask = attention_mask
 
     assert causal_mask.ndim == 4
-    # TODO: check if attention mask is binary at this point.
-    # In this case we assume that the mask comes already in inverted form and requires no inversion or slicing.
     if causal_mask.dtype == torch.bool:
         # causal mask is binary mask with 1s where attention is allowed
         # invert and use -inf to mask out disallowed attentions
         causal_mask = causal_mask.logical_not().to(dtype) * min_dtype
 
-    # otherwise bias mask already: pass on through
+    if attention_bias is not None:
+        # add bias to mask
+        causal_mask += attention_bias
+
     return causal_mask
 
 
@@ -124,6 +120,8 @@ def _prepare_bidirectional_4d_binary_mask(
     device: torch.device,
     batch_size: int,
 ):
+    # TODO: check if full_attention_mask_2d corresponds to how null attention mask is
+    # handled in the original code.
     full_attention_mask_2d = torch.ones(batch_size, target_length, device=device)
     if attention_mask_2d is not None:
         full_attention_mask_2d[:, : attention_mask_2d.shape[1]] = attention_mask_2d
@@ -145,7 +143,7 @@ def _prepare_intra_separator_bidirectional_4d_binary_mask(
     sep_token_id: int,
 ):
     """Mask for attention within a sequence/document, but not between sequences/documents."""
-    raise NotImplementedError()
+    raise NotImplementedError("check sep ids get assigned correctly")
     assert cache_position.shape[0] == sequence_length
     full_attention_mask_2d = torch.ones(batch_size, target_length, device=device)
     if attention_mask_2d is not None:
@@ -260,7 +258,9 @@ def _prepare_prefix_lm_4d_binary_mask(
     )
     # now we identify pairs of positions that belong to the same prefix. currently we assume
     # that no uncached position can be in a prefix.
-    raise NotImplementedError("Check sep /pref ids get assigned correctly.")
+    raise NotImplementedError(
+        "Check sep /pref (seq/struct sep?) ids get assigned correctly."
+    )
     prefix_index = torch.cumsum(input_ids == prefix_separator_token_id, dim=-1) + 1
     sequence_index = torch.cumsum(input_ids == item_separator_token_id, dim=-1) + 1
     is_prefix = prefix_index == sequence_index
@@ -326,23 +326,35 @@ def is_integer(tensor: torch.Tensor, signed: bool | None = None) -> bool:
 def prepare_binary_attention_mask(
     attention_mask_type: str,
     attention_mask_2d: Optional[torch.Tensor],
-    sequence_length: int,
-    target_length: int,
+    new_sequence_length: int,
     device: torch.device,
     cache_position: torch.Tensor,
     batch_size: int,
-    input_ids: Optional[torch.LongTensor] = None,
-    sep_token_id: Optional[int] = None,
-    seq_struct_sep_token_id: Optional[int] = None,
+    past_key_values: Optional[torch.Tensor] = None,
 ):
     """Because attention mask creation is handled entirely in forward,
     e.g. in LlamaModel._update_causal_mask,
     during generation we don't in principle need to change anything.
     """
+    past_seen_tokens = (
+        past_key_values.get_seq_length() if past_key_values is not None else 0
+    )
+    using_static_cache = isinstance(past_key_values, StaticCache)
+
+    if using_static_cache:
+        target_length = past_key_values.get_max_length()
+    else:
+        # Q. why the +1 here? Are we handling it correctly in all cases?
+        target_length = (
+            attention_mask_2d.shape[-1]
+            if isinstance(attention_mask_2d, torch.Tensor)
+            else past_seen_tokens + new_sequence_length + 1
+        )
+
     if attention_mask_type == "causal":
         return _prepare_causal_4d_binary_mask(
             attention_mask_2d,
-            sequence_length,
+            new_sequence_length,
             target_length,
             device,
             cache_position,
@@ -351,18 +363,20 @@ def prepare_binary_attention_mask(
     elif attention_mask_type == "bidirectional":
         return _prepare_bidirectional_4d_binary_mask(
             attention_mask_2d,
-            sequence_length,
+            new_sequence_length,
             target_length,
             device,
             cache_position,
             batch_size,
         )
     elif attention_mask_type == "sequence":
-        assert input_ids is not None
+        assert past_key_values is not None and isinstance(
+            past_key_values, InputAwareDynamicCache
+        )
         return _prepare_intra_separator_4d_binary_mask(
-            input_ids,
+            past_key_values.input_ids_cache,
             attention_mask_2d,
-            sequence_length,
+            new_sequence_length,
             target_length,
             device,
             cache_position,
@@ -370,10 +384,13 @@ def prepare_binary_attention_mask(
             sep_token_id=sep_token_id,
         )
     elif attention_mask_type == "document":
+        assert past_key_values is not None and isinstance(
+            past_key_values, InputAwareDynamicCache
+        )
         raise NotImplementedError()  # would require document concatenation to be implemented
         # return _prepare_intra_separator_4d_binary_mask(
         #     attention_mask_2d,
-        #     sequence_length,
+        #     new_sequence_length,
         #     target_length,
         #     device,
         #     cache_position,
@@ -381,10 +398,13 @@ def prepare_binary_attention_mask(
         #     self.tokenizer.bos_token_id,
         # )
     elif attention_mask_type == "prefix-lm":
+        assert past_key_values is not None and isinstance(
+            past_key_values, InputAwareDynamicCache
+        )
         # need a prefix indicator
         return _prepare_prefix_lm_4d_binary_mask(
             attention_mask_2d,
-            sequence_length,
+            new_sequence_length,
             target_length,
             device,
             cache_position,

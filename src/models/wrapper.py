@@ -431,6 +431,14 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         position_ids = self.get_position_ids_for_model_forward(
             input_ids, seq_pos, position_ids
         )
+        if past_key_values is not None and use_cache:
+            # n.b. it's slight hack to do this before forward, but it
+            # helps input aware attention mask construction in _update_causal_mask,
+            # and nothing else in forward is affected (only _update_model_kwargs_for_generation)
+            # which is outside of forward.
+            assert isinstance(past_key_values, InputAwareDynamicCache)
+            # TODO: only if use cache?
+            past_key_values.update_inputs(input_ids=input_ids)
 
         outputs = super().forward(
             input_ids=None,
@@ -446,9 +454,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         )
 
         if past_key_values is not None and use_cache:
-            assert isinstance(past_key_values, InputAwareDynamicCache)
-            # TODO: only if use cache?
-            past_key_values.update_inputs(input_ids=input_ids)
             assert (
                 outputs.past_key_values.input_ids_cache
                 == past_key_values.input_ids_cache
