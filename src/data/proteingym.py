@@ -268,6 +268,7 @@ def load_gym_dataset(
         extra_tokens_per_document=tokenizer.num_start_tokens,
         use_msa_pos=use_msa_pos,
     )
+    # n.b. this isn't streamed
     dataset = Dataset.from_pandas(df, preserve_index=False)
     print("Loading gym dataset")
     dataset = dataset.map(

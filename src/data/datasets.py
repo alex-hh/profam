@@ -61,6 +61,7 @@ def load_protein_dataset(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
     feature_names: Optional[List[str]] = None,
+    world_size: int = 1,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -104,6 +105,12 @@ def load_protein_dataset(
         f"({cfg.file_repeats} repeats), "
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
+    print("Data files", data_files[:5])
+    if cfg.stream:
+        # ensure no issues with ddp by skipping shards
+        # should result in each worker using the same number of shards
+        # https://github.com/huggingface/datasets/issues/6623
+        data_files = data_files[:, (len(data_files) // world_size) * world_size]
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
@@ -192,6 +199,10 @@ def load_protein_dataset(
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
+        if not cfg.stream:
+            raise NotImplementedError(
+                "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
+            )
         if cfg.identifier_col is not None and not cfg.preprocessor.batched_map:
             # when batched mapping, we cat multiple identifiers together...
             identifier = example[cfg.identifier_col]

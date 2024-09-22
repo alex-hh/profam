@@ -2,6 +2,7 @@ import os
 from typing import Dict, List, Optional
 
 from datasets import interleave_datasets
+from datasets.distributed import split_dataset_by_node
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
@@ -90,6 +91,8 @@ class ProteinDataMixture(LightningDataModule):
             train_datasets = []
             train_data_weights = []
             train_dataset_names = []
+            world_size = self.trainer.world_size
+            print("World size", world_size)
             for data_key, dataset_config in self.dataset_cfgs.items():
                 if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
@@ -99,6 +102,7 @@ class ProteinDataMixture(LightningDataModule):
                         shuffle=self.shuffle,
                         max_tokens=self.max_tokens,
                         feature_names=self.feature_names,
+                        world_size=world_size,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
@@ -116,13 +120,19 @@ class ProteinDataMixture(LightningDataModule):
                 w / sum(train_data_weights) for w in train_data_weights
             ]
 
-            self.train_dataset = interleave_datasets(
-                train_datasets,
-                probabilities=train_data_weights,
-                stopping_strategy="all_exhausted",
-                split="train",
-                seed=42,
-            )
+            assert len(train_datasets) > 0
+            if len(train_datasets) > 1:
+                raise Exception(
+                    "Interleave datasets shuffling doesn't work: https://github.com/huggingface/datasets/issues/7156"
+                )
+                self.train_dataset = interleave_datasets(
+                    train_datasets,
+                    probabilities=train_data_weights,
+                    stopping_strategy="all_exhausted",
+                    split="train",
+                    seed=42,
+                )
+
             print("Num shards", self.train_dataset.n_shards)
             if self.num_workers is None:
                 self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
@@ -130,25 +140,51 @@ class ProteinDataMixture(LightningDataModule):
             # will shuffle the shards order and use a shuffle buffer when you start iterating
             # n.b. set_epoch is required in order for shuffling to be correctly randomised
             # - this is handled by ShuffleCallback
+            # TODO: configure seed
             self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
-            self.val_datasets = [
-                load_protein_dataset(
+            if world_size > 1:
+                assert (
+                    self.train_dataset.n_shards % world_size == 0
+                )  # handled in load_protein_dataset
+                # If the dataset has a number of shards that is a factor of world_size (i.e. if
+                # dataset.n_shards % world_size == 0), then the shards are evenly assigned across
+                # the nodes, which is the most optimized. Otherwise, each node keeps 1 example out of
+                # world_size, skipping the other examples.
+                # https://huggingface.co/docs/datasets/en/package_reference/main_classes#datasets.distributed.split_dataset_by_node
+                self.train_dataset = split_dataset_by_node(
+                    self.train_dataset,
+                    rank=self.trainer.global_rank,
+                    world_size=world_size,
+                )
+            self.val_datasets = []
+            for v_ds_name in self.val_dataset_names:
+                val_dataset_cfg = self.dataset_cfgs[v_ds_name]
+                assert not val_dataset_cfg.shuffle
+                val_dataset = load_protein_dataset(
                     self.dataset_cfgs[v_ds_name],
                     self.tokenizer,
                     data_dir=self.data_dir,
                     max_tokens=self.max_tokens,
+                    world_size=8,  # HACK: hard-coded for now
                 )
-                for v_ds_name in self.val_dataset_names
-            ]
-            self.test_dataset = load_protein_dataset(
-                self.dataset_cfgs[self.val_dataset_names[0]],
-                self.tokenizer,
-                max_tokens=self.max_tokens,
-                data_dir=self.data_dir,
-            )
+                # https://github.com/huggingface/datasets/issues/6623
+                assert 8 % world_size == 0, (
+                    f"HACK: To ensure consistent val we are currently hard-coding world_size=8 for val in"
+                    f"load_protein_dataset to ensure n_shards % 8 == 0"
+                    f"This will produce consistent val datasets for world sizes that are factors of 8."
+                )
+                assert (
+                    val_dataset.n_shards % world_size == 0
+                    and val_dataset.n_shards % 8 == 0
+                )
+                val_dataset = split_dataset_by_node(
+                    val_dataset, rank=self.trainer.global_rank, world_size=world_size
+                )
+                self.val_datasets.append(val_dataset)
+
             if self.evaluate_gym:
-                assert self.gym_dms_ids is not None
-                print("Loading gym dataset", self.gym_dms_ids)
+                # https://huggingface.co/docs/datasets/use_with_pytorch#distributed
+
                 self.gym_dataset = load_gym_dataset(
                     dms_ids=self.gym_dms_ids,
                     tokenizer=self.tokenizer,
@@ -159,6 +195,20 @@ class ProteinDataMixture(LightningDataModule):
                     num_proc=self.num_workers,
                     use_filtered_msa=self.use_filtered_gym_msas,
                 )
+                if world_size > 1:
+                    # calls shard contiguous=True under the hood, which does
+                    # https://github.com/huggingface/datasets/blob/3.0.0/src/datasets/arrow_dataset.py#L4609
+                    # div = len(dataset) // world_size  0 if len(dataset) < world_size
+                    # mod = len(dataset) % world_size
+                    # start = rank * div + min(rank, mod)  min(rank, mod) if len(dataset) < world_size
+                    # end = start + div + (1 if rank < mod else 0)
+                    # so we get an empty slice on ranks for which rank > len(dataset) - hopefully handled fine?
+                    self.gym_dataset = split_dataset_by_node(
+                        self.gym_dataset,
+                        rank=self.trainer.global_rank,
+                        world_size=world_size,
+                    )
+
             if self.evaluate_ec_class:
                 # TODO: add other classifier dataset kwargs to config
                 self.ec_class_dataset = load_classifier_dataset(
@@ -166,6 +216,12 @@ class ProteinDataMixture(LightningDataModule):
                     self.tokenizer,
                     max_tokens=self.max_tokens,
                 )
+                if world_size > 1:
+                    self.ec_class_dataset = split_dataset_by_node(
+                        self.ec_class_dataset,
+                        rank=self.trainer.global_rank,
+                        world_size=world_size,
+                    )
             if self.evaluate_ec_cluster_class:
                 self.ec_cluster_class_dataset = load_ec_cluster_classifier_dataset(
                     tokenizer=self.tokenizer,
@@ -173,6 +229,12 @@ class ProteinDataMixture(LightningDataModule):
                     val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
                     max_tokens=self.max_tokens,
                 )
+                if world_size > 1:
+                    self.ec_cluster_class_dataset = split_dataset_by_node(
+                        self.ec_cluster_class_dataset,
+                        rank=self.trainer.global_rank,
+                        world_size=world_size,
+                    )
 
             self._is_setup = True
 
