@@ -12,8 +12,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import torch
 from torch import nn
-from transformers import ModelOutput, GenerationConfig, PreTrainedModel
+from transformers import GenerationConfig, PreTrainedModel
 from transformers.cache_utils import Cache
+from transformers.utils import ModelOutput
 
 from src.models.utils import InputAwareDynamicCache
 from src.utils.tokenizers import ProFamTokenizer
@@ -26,6 +27,8 @@ def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
     assert sep_counts.max() <= 1
     should_pad = sep_counts.cumsum(-1) > 1
     assert (input_ids[should_pad] == padding_token_id).all()
+
+
 # Question: how do we configure the cache type used by a model? can we?
 
 # Ideally we just want to write a modified cache class that also holds input ids
@@ -164,7 +167,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # in sample loop 'input_ids' gets incremented with generated tokens
 
         assert input_ids.ndim == 2
-        assert "seq_pos" in kwargs
+        if self.use_seq_pos:
+            assert seq_pos is not None
 
         inputs = super().prepare_inputs_for_generation(
             input_ids,
@@ -174,7 +178,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             **kwargs,
         )  # slices out prompt and uses cache typically.
 
-        generated_tokens = input_ids[:, kwargs["seq_pos"].shape[-1] :]
+        generated_tokens = input_ids[:, seq_pos.shape[-1] :]
         if (generated_tokens == self.tokenizer.sep_token_id).any() or (
             generated_tokens == self.tokenizer.seq_struct_sep_token_id
         ).any():
@@ -247,10 +251,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             new_seq_pos = torch.where(
                 torch.isin(
                     past_key_values.input_ids_cache[:, -1:],
-                    [
-                        self.tokenizer.sep_token_id,
-                        self.tokenizer.seq_struct_sep_token_id,
-                    ],
+                    torch.tensor(
+                        [
+                            self.tokenizer.sep_token_id,
+                            self.tokenizer.seq_struct_sep_token_id,
+                        ]
+                    ),
                 ),
                 torch.full_like(prev_seq_pos, self.start_seq_pos),
                 prev_seq_pos + 1,
@@ -287,7 +293,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         )
 
     def compute_start_sequence_index(self, past_key_values):
-        if past_key_values is None:
+        # TODO: write test for this!
+        if past_key_values is None or past_key_values.input_ids_cache is None:
             return 0
         # model will automatically do compute_sequence_index on new tokens
         # so we just need to tell it the sequence index of the new tokens
@@ -375,6 +382,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         if self.embed_sequence_index:
             start_sequence_index = self.compute_start_sequence_index(past_key_values)
+        else:
+            start_sequence_index = None
 
         inputs_embeds = self.embed_inputs(
             input_ids,
@@ -402,9 +411,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if past_key_values is not None and use_cache:
             assert isinstance(past_key_values, InputAwareDynamicCache)
             # TODO: only if use cache?
-            past_key_values.update_inputs(input_ids)
-
-        assert (
-            outputs.past_key_values.input_ids_cache == past_key_values.input_ids_cache
-        ).all()
+            past_key_values.update_inputs(input_ids=input_ids)
+            assert (
+                outputs.past_key_values.input_ids_cache
+                == past_key_values.input_ids_cache
+            ).all()  # check that we are updating the past key values in outputs
         return outputs

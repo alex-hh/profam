@@ -1,7 +1,7 @@
 import os
+from typing import List, Optional
 
 import torch
-from typing import List, Optional
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from transformers.cache_utils import DynamicCache
@@ -61,9 +61,8 @@ class InputAwareDynamicCache(DynamicCache):
         if self.input_ids_cache is not None:
             raise NotImplementedError()
 
-    def update_inputs(self, input_ids, attention_mask):
+    def update_inputs(self, input_ids):
         assert input_ids.ndim == 2
-        assert attention_mask.ndim == 2
         if self.input_ids_cache is None:
             self.input_ids_cache = input_ids.clone()
         else:
