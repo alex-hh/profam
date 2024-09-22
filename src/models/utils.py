@@ -59,7 +59,9 @@ class InputAwareDynamicCache(DynamicCache):
         """Repeat the cache `repeats` times in the batch dimension. Used in contrastive search."""
         super().batch_repeat_interleave(repeats)
         if self.input_ids_cache is not None:
-            raise NotImplementedError()
+            self.input_ids_cache = self.input_ids_cache.repeat_interleave(
+                repeats, dim=0
+            )
 
     def update_inputs(self, input_ids):
         assert input_ids.ndim == 2
@@ -73,6 +75,13 @@ class InputAwareDynamicCache(DynamicCache):
         assert not cache.key_cache
         # basically we just create a new cache - we can do this ourselves
         raise NotImplementedError()
+
+    @classmethod
+    def from_legacy_cache(cls, cache):
+        new_cache = super().from_legacy_cache(cache)
+        if isinstance(cache, cls):
+            new_cache.input_ids_cache = cache.input_ids_cache
+        return new_cache
 
 
 def accuracy_from_outputs(

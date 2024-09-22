@@ -381,6 +381,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             past_key_values = InputAwareDynamicCache()
 
         if self.embed_sequence_index:
+            if past_key_values is not None:
+                assert isinstance(past_key_values, InputAwareDynamicCache)
+                print(past_key_values.input_ids_cache)
             start_sequence_index = self.compute_start_sequence_index(past_key_values)
         else:
             start_sequence_index = None
