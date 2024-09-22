@@ -17,16 +17,11 @@ from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
-<<<<<<< HEAD
 from src.models import metrics
-from src.models.utils import log_likelihood_from_outputs
-=======
 from src.models.utils import (
     InputAwareDynamicCache,
-    accuracy_from_outputs,
     log_likelihood_from_outputs,
 )
->>>>>>> 6153ca9 (cache updates and partial wrapper refactor)
 from src.utils.tokenizers import ProFamTokenizer
 
 

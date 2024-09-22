@@ -1,8 +1,10 @@
 import os
 
 import torch
+from typing import List, Optional
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
+from transformers.cache_utils import DynamicCache
 
 from src.constants import BASEDIR, VOCAB_SIZE
 
