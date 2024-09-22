@@ -191,6 +191,7 @@ class BaseLitModule(LightningModule):
                         + [aa.lower() for aa in aa_letters]
                         + self.tokenizer.all_special_tokens
                     ),
+                    sep_token_id=self.tokenizer.sep_token_id,
                     calc_full_no_context_accuracies=True,
                     mask=(aa_has_coords_mask & batch["aa_mask"]),
                 )
