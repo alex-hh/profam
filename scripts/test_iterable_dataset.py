@@ -12,8 +12,7 @@ def gen(shards):
 
 def main():
     dataset = datasets.IterableDataset.from_generator(
-        gen,
-        gen_kwargs={'shards': list(range(25))}  # TODO: how to understand this?
+        gen, gen_kwargs={"shards": list(range(25))}  # TODO: how to understand this?
     )
     # dataset = dataset.shuffle(buffer_size=1)  can individually shuffle here
 
@@ -38,6 +37,5 @@ def main():
         print(batch)
 
 
-
 if __name__ == "__main__":
-     main()
+    main()
