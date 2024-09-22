@@ -62,6 +62,7 @@ def load_protein_dataset(
     shuffle: bool = True,
     feature_names: Optional[List[str]] = None,
     world_size: int = 1,
+    verbose: bool = False,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -134,22 +135,23 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    print("Verifying dataset content:")
-    for i, item in enumerate(dataset.take(3)):
-        print(f"  Item {i + 1}:")
-        for key, value in item.items():
-            if isinstance(value, str):
-                value_to_print = value[:100]
-            elif isinstance(value, list):
-                # TODO: if its a list of lists we want to print only first few elements
-                if isinstance(value[0], list):
-                    value_to_print = f"[{value[0][:10]},...]"
+    if verbose:
+        print("Verifying dataset content:")
+        for i, item in enumerate(dataset.take(3)):
+            print(f"  Item {i + 1}:")
+            for key, value in item.items():
+                if isinstance(value, str):
+                    value_to_print = value[:100]
+                elif isinstance(value, list):
+                    # TODO: if its a list of lists we want to print only first few elements
+                    if isinstance(value[0], list):
+                        value_to_print = f"[{value[0][:10]},...]"
+                    else:
+                        value_to_print = f"{value[:3]}..." if len(value) > 3 else value
                 else:
-                    value_to_print = f"{value[:3]}..." if len(value) > 3 else value
-            else:
-                value_to_print = value
-            print(f"    {key}: {value_to_print}")
-        print()
+                    value_to_print = value
+                print(f"    {key}: {value_to_print}")
+            print()
 
     if cfg.holdout_identifiers:
         assert (
