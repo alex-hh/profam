@@ -7,7 +7,7 @@ data:
   num_workers: 4  # per gpu
 
 trainer:
-  precision: 32
+  precision: 16-mixed
   devices: 8
 
 logger:
