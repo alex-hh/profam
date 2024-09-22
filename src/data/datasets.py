@@ -172,7 +172,7 @@ def load_protein_dataset(
 
         if cfg.minimum_mean_plddt is not None:
             if "plddts" in example:
-                mean_plddt = np.mean(example["plddts"])
+                mean_plddt = np.mean([np.mean(plddt) for plddt in example["plddts"]])
                 filter_plddt = mean_plddt >= (cfg.minimum_mean_plddt or 0.0)
             else:
                 filter_plddt = True

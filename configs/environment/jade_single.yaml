@@ -1,6 +1,7 @@
 # @package _global_
 
 defaults:
+  - override /logger: wandb
   - override /trainer: gpu
 
 data:
