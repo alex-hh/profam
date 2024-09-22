@@ -1,13 +1,14 @@
 # @package _global_
 
 defaults:
+  - override /logger: wandb
   - override /trainer: ddp
 
 data:
   num_workers: 4  # per gpu
 
 trainer:
-  precision: 32
+  precision: 16-mixed
   devices: 6
 
 logger:

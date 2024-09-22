@@ -69,13 +69,13 @@ def sample_to_max_tokens(
 
     if max_tokens is not None:
         total_length = 0
-        sampled_proteins = []
-        for seq in enumerate(proteins.sequences):
+        sampled_protein_ids = []
+        for ix, seq in enumerate(proteins.sequences):
             total_length += len(seq) + extra_tokens_per_sequence
             if total_length > max_tokens - extra_tokens_per_document:
                 break
-            sampled_proteins.append(seq)
-        return sampled_proteins
+            sampled_protein_ids.append(ix)
+        return proteins[sampled_protein_ids]
 
     return proteins
 
