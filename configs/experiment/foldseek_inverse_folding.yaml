@@ -71,3 +71,4 @@ logger:
 float32_matmul_precision: high
 pre_evaluate_gym: false  # use to run evaluation first to check for issues
 pre_evaluate_ec_class: false
+experiment_group: inverse_folding
