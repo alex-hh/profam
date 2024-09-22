@@ -172,7 +172,7 @@ def load_protein_dataset(
 
         if cfg.minimum_mean_plddt is not None:
             if "plddts" in example:
-                mean_plddt = np.mean(example["plddts"])
+                mean_plddt = np.mean([np.mean(plddt) for plddt in example["plddts"]])
                 filter_plddt = mean_plddt >= (cfg.minimum_mean_plddt or 0.0)
             else:
                 filter_plddt = True
@@ -192,7 +192,7 @@ def load_protein_dataset(
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
-        if cfg.identifier_col is not None and not cfg.preprocessor.cfg.batched_map:
+        if cfg.identifier_col is not None and not cfg.preprocessor.batched_map:
             # when batched mapping, we cat multiple identifiers together...
             identifier = example[cfg.identifier_col]
         example = cfg.preprocessor.preprocess_protein_data(
@@ -202,7 +202,7 @@ def load_protein_dataset(
             shuffle=shuffle,
         )
 
-        if cfg.preprocessor.cfg.batched_map:
+        if cfg.preprocessor.batched_map:
             # Q: should we tolist all tensors?
             if torch.is_tensor(example["input_ids"]):
                 assert example["input_ids"].ndim == 2
@@ -244,8 +244,8 @@ def load_protein_dataset(
 
         dataset = dataset.filter(prefilter_example).map(
             wrapped_preprocess,
-            batched=cfg.preprocessor.cfg.batched_map,
-            batch_size=cfg.preprocessor.cfg.map_batch_size,
+            batched=cfg.preprocessor.batched_map,
+            batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
         )
         # n.b. coords is returned as a list...

@@ -118,6 +118,7 @@ def preprocess_protein_sequences(
     max_tokens: Optional[int] = None,
     transform_fns: Optional[List[Callable]] = None,
 ):
+    assert isinstance(proteins, ProteinDocument), type(proteins)
     transform_fns = transform_fns or []
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
     if tokenizer.use_seq_pos:
@@ -269,7 +270,7 @@ class BasePreprocessor:
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ) -> Dict[str, Any]:
-        if self.cfg.batched_map:
+        if self.batched_map:
             return self._batched_preprocess_protein_data(
                 examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
             )
@@ -372,8 +373,21 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         sequence_col: str = "sequences",
         transform_fns: Optional[List[Callable]] = None,
         infer_representative_from_identifier: bool = False,
+        batched_map: bool = False,  # should map be called with batched=True
+        map_batch_size: int = 100,
+        sample_uniformly_from_col: Optional[
+            str
+        ] = None,  # for redundancy-aware sampling
+        max_sequences_per_document: Optional[int] = None,
     ):
-        super().__init__(config, transform_fns)
+        super().__init__(
+            config,
+            transform_fns,
+            interleave_structure_sequence=False,
+            batched_map=batched_map,
+            map_batch_size=map_batch_size,
+            sample_uniformly_from_col=sample_uniformly_from_col,
+        )
         self.sequence_col = sequence_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
 
@@ -418,6 +432,12 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         identifier_col: str = "fam_id",
         infer_representative_from_identifier: bool = False,
         transform_fns: Optional[List[Callable]] = None,
+        batched_map: bool = False,  # should map be called with batched=True
+        map_batch_size: int = 100,
+        sample_uniformly_from_col: Optional[
+            str
+        ] = None,  # for redundancy-aware sampling
+        max_sequences_per_document: Optional[int] = None,
     ):
         if interleave_structure_sequence:
             # handle like this because useful to have an interleave_structure_sequence attribute for lenght filtering
@@ -432,6 +452,10 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             config,
             transform_fns,
             interleave_structure_sequence=interleave_structure_sequence,
+            batched_map=batched_map,
+            map_batch_size=map_batch_size,
+            sample_uniformly_from_col=sample_uniformly_from_col,
+            max_sequences_per_document=max_sequences_per_document,
         )
         self.sequence_col = sequence_col
         self.structure_tokens_col = structure_tokens_col

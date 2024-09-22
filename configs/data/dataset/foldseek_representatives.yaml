@@ -9,6 +9,6 @@ identifier_col: fam_id
 is_parquet: true
 length_filter: max_tokens
 preprocessor:
-  structure_tokens_col: null
+  structure_tokens_col: null  # N.B. we could actually pass
   config:
     document_token: "[AFDB]"

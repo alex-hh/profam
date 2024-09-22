@@ -1,26 +1,20 @@
 _target_: src.data.hf_protein_datamodule.ProteinDataMixture
 # https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
 defaults:
-  - dataset@dataset_cfgs.foldseek: foldseek_representatives_interleaved
-  - dataset@dataset_cfgs.foldseek_val: foldseek_representatives_interleaved
+  - dataset@dataset_cfgs.foldseek: foldseek_interleaved
+  - dataset@dataset_cfgs.foldseek_val: foldseek_interleaved
   - _self_
 data_weights:
   foldseek: 1.0
 dataset_cfgs:
   foldseek:
     name: foldseek
-    holdout_data_files: foldseek_representatives/0.parquet
+    holdout_data_files: foldseek_struct/0.parquet
     minimum_mean_plddt: 0.6
-    preprocessor:
-      batched_map: true
-      map_batch_size: 250
   foldseek_val:
     name: foldseek_val
-    data_path_pattern: foldseek_representatives/0.parquet
+    data_path_pattern: foldseek_struct/0.parquet
     minimum_mean_plddt: 0.6
-    preprocessor:
-      batched_map: true
-      map_batch_size: 250
 batch_size: 6
 max_tokens: 8192
 data_dir: ${paths.data_dir}
