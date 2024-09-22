@@ -56,6 +56,7 @@ class WandbLogger(WandbLogger):
 
     @rank_zero_only
     def log_hyperparameters(self, hparams, **kwargs):
+        hparams["wandb_run_name"] = self.experiment.name
         hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
         hydra_cfg["runtime"]["output_dir"]
         if self.log_hydra_config_file:
