@@ -12,17 +12,15 @@ dataset_cfgs:
     holdout_data_files: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
     preprocessor:
-      config:
-        batched_map: true
-        map_batch_size: 250
+      batched_map: true
+      map_batch_size: 250
   foldseek_val:
     name: foldseek_val
     data_path_pattern: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
     preprocessor:
-      config:
-        batched_map: true
-        map_batch_size: 250
+      batched_map: true
+      map_batch_size: 250
 batch_size: 6
 max_tokens: 8192
 data_dir: ${paths.data_dir}

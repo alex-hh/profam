@@ -275,6 +275,7 @@ class ProteinDocument:
         str
     ] = None  # e.g. seed or cluster representative
     original_size: Optional[int] = None  # total number of proteins in original set
+    document_ids: Optional[List[int]] = None
 
     def __post_init__(self):
         for field in [
@@ -283,6 +284,7 @@ class ProteinDocument:
             "backbone_coords_masks",
             "interleaved_coords_masks",
             "modality_masks",
+            "document_ids",
         ]:
             attr = getattr(self, field)
             if attr is not None and isinstance(attr[0], list):
@@ -304,6 +306,9 @@ class ProteinDocument:
                 np.stack([seq_mask, struct_mask], axis=1).astype(bool)
                 for seq_mask, struct_mask in zip(sequences_masks, structure_masks)
             ]
+        if self.document_ids is None:
+            # amother alternative: use > as beginning of document
+            self.document_ids = [np.ones(l) for l in self.sequence_lengths]
 
         check_array_lengths(
             self.sequences,
@@ -313,6 +318,7 @@ class ProteinDocument:
             self.structure_tokens,
             self.interleaved_coords_masks,
             self.modality_masks,
+            self.document_ids,
         )
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
             self.backbone_coords_masks = [

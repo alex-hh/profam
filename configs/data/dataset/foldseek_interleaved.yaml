@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: parquet_structure
+  - preprocessor: parquet_structure_noisy
 _target_: src.data.datasets.ProteinDatasetConfig
 name: foldseek
 data_path_pattern: foldseek_struct/*.parquet
@@ -7,6 +7,8 @@ holdout_data_files: null
 holdout_identifiers: null
 identifier_col: fam_id
 is_parquet: true
+length_filter: max_seq_pos
+minimum_sequences: null
 preprocessor:
   interleave_structure_sequence: true
   structure_tokens_col: null
