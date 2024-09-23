@@ -95,18 +95,18 @@ def prepare_data_files(data_dir, cfg, world_size=1):
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
 
-    print("Data files", data_files[:7])
     if cfg.stream:
         # ensure no issues with ddp by skipping shards
         # should result in each worker using the same number of shards
         # https://github.com/huggingface/datasets/issues/6623
         data_files = data_files[: (len(data_files) // world_size) * world_size]
-    return
+    return data_files
 
 
 def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
+    dataset_name: str,
     data_dir="data",
     split="train",
     max_tokens_per_example: Optional[int] = None,
@@ -227,7 +227,7 @@ def load_protein_dataset(
             if torch.is_tensor(example["input_ids"]):
                 assert example["input_ids"].ndim == 2
             batch_size = len(example["input_ids"])
-            example["ds_name"] = [cfg.name] * batch_size
+            example["ds_name"] = [dataset_name] * batch_size
             if "coords" in example:
                 # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
                 example["coords"] = [c.tolist() for c in example["coords"]]
@@ -237,10 +237,10 @@ def load_protein_dataset(
                         m.tolist() for m in example["interleaved_coords_mask"]
                     ]
         else:
-            example["ds_name"] = cfg.name
+            example["ds_name"] = dataset_name
             # TODO: get identifier for fasta files...
             if cfg.identifier_col is not None:
-                example["identifier"] = cfg.name + "/" + identifier
+                example["identifier"] = dataset_name + "/" + identifier
             if "coords" in example:
                 # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
                 example["coords"] = example["coords"].tolist()

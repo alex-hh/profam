@@ -98,6 +98,7 @@ class ProteinDataMixture(LightningDataModule):
                     dataset = load_protein_dataset(
                         dataset_config,
                         self.tokenizer,
+                        dataset_name=data_key,
                         data_dir=self.data_dir,
                         shuffle=self.shuffle,
                         max_tokens_per_example=self.max_tokens,
@@ -169,23 +170,27 @@ class ProteinDataMixture(LightningDataModule):
                 val_dataset = load_protein_dataset(
                     self.dataset_cfgs[v_ds_name],
                     self.tokenizer,
+                    dataset_name=v_ds_name,
                     data_dir=self.data_dir,
                     max_tokens_per_example=self.max_tokens,
-                    world_size=8,  # HACK: hard-coded for now
+                    world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
                 )
-                # https://github.com/huggingface/datasets/issues/6623
-                assert 8 % world_size == 0, (
-                    f"HACK: To ensure consistent val we are currently hard-coding world_size=8 for val in"
-                    f"load_protein_dataset to ensure n_shards % 8 == 0"
-                    f"This will produce consistent val datasets for world sizes that are factors of 8."
-                )
-                assert (
-                    val_dataset.n_shards % world_size == 0
-                    and val_dataset.n_shards % 8 == 0
-                )
-                val_dataset = split_dataset_by_node(
-                    val_dataset, rank=self.trainer.global_rank, world_size=world_size
-                )
+                if world_size > 1:
+                    # https://github.com/huggingface/datasets/issues/6623
+                    assert 8 % world_size == 0, (
+                        f"HACK: To ensure consistent val we are currently hard-coding world_size=8 for val in"
+                        f"load_protein_dataset to ensure n_shards % 8 == 0"
+                        f"This will produce consistent val datasets for world sizes that are factors of 8."
+                    )
+                    assert (
+                        val_dataset.n_shards % world_size == 0
+                        and val_dataset.n_shards % 8 == 0
+                    )
+                    val_dataset = split_dataset_by_node(
+                        val_dataset,
+                        rank=self.trainer.global_rank,
+                        world_size=world_size,
+                    )
                 self.val_datasets.append(val_dataset)
 
             if self.evaluate_gym:
