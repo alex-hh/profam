@@ -1,10 +1,10 @@
-import bisect
 import itertools
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+from src.constants import BACKBONE_ATOMS
 from src.data.objects import Protein, ProteinDocument
 from src.sequence.fasta import convert_sequence_with_positions
 from src.utils.tokenizers import ProFamTokenizer
@@ -110,6 +110,26 @@ def noise_backbones(proteins: ProteinDocument, std: float = 0.1, **kwargs):
         noise = np.random.normal(scale=std, size=coords.shape)
         new_coords.append(coords + noise)
     return proteins.clone(backbone_coords=new_coords)
+
+
+def mask_atoms(proteins: ProteinDocument, atom_names: Optional[List] = None, **kwargs):
+    if atom_names is None:
+        atom_names = BACKBONE_ATOMS
+    new_coords = []
+    new_coords_masks = []
+    for coords, coords_mask in zip(
+        proteins.backbone_coords, proteins.backbone_coords_masks
+    ):
+        assert coords.ndim == 3
+        assert coords_mask.ndim == 3
+        atom_ids = [BACKBONE_ATOMS.index(at) for at in atom_names]
+        coords[:, atom_ids, :] = np.nan
+        coords_mask[:, atom_ids, :] = 0.0
+        new_coords.append(coords)
+        new_coords_masks.append(coords_mask)
+    return proteins.clone(
+        backbone_coords=new_coords, backbone_coords_masks=new_coords_masks
+    )
 
 
 def rescale_backbones(proteins: ProteinDocument, scale: float = 6.0, **kwargs):
