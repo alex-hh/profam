@@ -131,6 +131,8 @@ class ProteinDataMixture(LightningDataModule):
                     split="train",
                     seed=42,
                 )
+            else:
+                self.train_dataset = train_datasets[0]
 
             print("Num shards", self.train_dataset.n_shards)
             if self.num_workers is None:
