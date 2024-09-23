@@ -1,7 +1,6 @@
 defaults:
   - preprocessor: "gym_msa"
 _target_: src.data.datasets.ProteinDatasetConfig
-name: gym_val_msas
 data_path_pattern: null
 holdout_data_files: null
 holdout_identifiers: null

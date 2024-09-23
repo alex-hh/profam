@@ -15,7 +15,6 @@ from src.utils.tokenizers import ProFamTokenizer
 
 @dataclass
 class ProteinDatasetConfig:
-    name: str
     preprocessor: Optional[BasePreprocessor] = None
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
@@ -53,17 +52,7 @@ def filter_on_length(example, cfg, max_tokens, tokenizer):
         raise ValueError(f"Unknown length filter {cfg.length_filter}")
 
 
-def load_protein_dataset(
-    cfg: ProteinDatasetConfig,
-    tokenizer: ProFamTokenizer,
-    data_dir="data",
-    split="train",
-    max_tokens_per_example: Optional[int] = None,
-    shuffle: bool = True,
-    feature_names: Optional[List[str]] = None,
-    world_size: int = 1,
-    verbose: bool = False,
-) -> Dataset:
+def prepare_data_files(data_dir, cfg, world_size=1):
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
         # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
@@ -101,16 +90,34 @@ def load_protein_dataset(
     assert isinstance(data_files, list)
     data_files = sorted(data_files) * cfg.file_repeats
     print(
-        f"Loading {cfg.name} dataset from {len(data_files)} files, "
+        f"Loading dataset from {len(data_files)} files, "
         f"({cfg.file_repeats} repeats), "
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
+
     print("Data files", data_files[:7])
     if cfg.stream:
         # ensure no issues with ddp by skipping shards
         # should result in each worker using the same number of shards
         # https://github.com/huggingface/datasets/issues/6623
         data_files = data_files[: (len(data_files) // world_size) * world_size]
+    return
+
+
+def load_protein_dataset(
+    cfg: ProteinDatasetConfig,
+    tokenizer: ProFamTokenizer,
+    data_dir="data",
+    split="train",
+    max_tokens_per_example: Optional[int] = None,
+    shuffle: bool = True,
+    feature_names: Optional[List[str]] = None,
+    world_size: int = 1,
+    verbose: bool = False,
+) -> Dataset:
+
+    data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
+
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
@@ -132,6 +139,7 @@ def load_protein_dataset(
             streaming=cfg.stream,
             sample_by="document",
         )
+
     print("Dataset n shards", dataset.n_shards)
     if verbose:
         print("Verifying dataset content:")

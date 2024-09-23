@@ -1,7 +1,6 @@
 defaults:
   - preprocessor: "parquet_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
-name: openfold_raw
 data_path_pattern: openfold/uniclust30_filtered_parquet/*.parquet
 holdout_data_files: null
 holdout_identifiers: null

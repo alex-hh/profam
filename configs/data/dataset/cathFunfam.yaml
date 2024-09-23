@@ -1,7 +1,6 @@
 defaults:
   - preprocessor: "fasta_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
-name: cathFunfam
 data_path_pattern: funfams/full_alignments/*/*.fa
 holdout_data_files: null
 holdout_identifiers: null
