@@ -201,19 +201,23 @@ class Protein:
             structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
         )
 
-    def slice_arrays(self, slice):
+    def slice_arrays(self, slice_or_indices):
         return Protein(
-            sequence=self.sequence[slice],
+            sequence=self.sequence[slice_or_indices]
+            if isinstance(slice_or_indices, slice)
+            else "".join([self.sequence[i] for i in slice_or_indices]),
             accession=self.accession,
-            positions=self.positions[slice] if self.positions is not None else None,
-            plddt=self.plddt[slice] if self.plddt is not None else None,
-            backbone_coords=self.backbone_coords[slice]
+            positions=self.positions[slice_or_indices]
+            if self.positions is not None
+            else None,
+            plddt=self.plddt[slice_or_indices] if self.plddt is not None else None,
+            backbone_coords=self.backbone_coords[slice_or_indices]
             if self.backbone_coords is not None
             else None,
-            backbone_coords_mask=self.backbone_coords_mask[slice]
+            backbone_coords_mask=self.backbone_coords_mask[slice_or_indices]
             if self.backbone_coords_mask is not None
             else None,
-            structure_tokens=self.structure_tokens[slice]
+            structure_tokens=self.structure_tokens[slice_or_indices]
             if self.structure_tokens is not None
             else None,
         )
