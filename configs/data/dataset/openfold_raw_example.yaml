@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: "fasta_raw"
+  - /preprocessor: "fasta_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
 name: openfold_aligned
 data_path_pattern: openfold/uniclust30_filtered/*/a3m/*.a3m

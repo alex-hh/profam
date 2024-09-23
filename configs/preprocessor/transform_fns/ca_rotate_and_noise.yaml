@@ -2,9 +2,10 @@
   _partial_: true
   threshold: 80.0  # TODO: make this easier to configure
 # n.b. if we train on unnoised and evaluate on noised, it's a total disaster
+# n.b. we're setting default noise level to zero! but can be overridden
 - _target_: src.data.transforms.noise_backbones
   _partial_: true
-  std: 0.1
+  std: 0.
 - _target_: src.data.transforms.mask_atoms
   _partial_: true
   atom_names: ['N', 'C', 'O']

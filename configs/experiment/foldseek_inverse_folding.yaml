@@ -8,7 +8,7 @@ defaults:
   - /extra_callbacks@extra_callbacks.esmfold_if: esmfold_if
   - /extra_callbacks@extra_callbacks.esmfold_if_high_plddt: esmfold_if
   - override /callbacks: default_with_shuffle
-  - override /data: foldseek_representatives_interleaved
+  - override /data: foldseek_representatives_interleaved_batch
   - override /model: llama_small
 
 tags: ["foldseek_if"]

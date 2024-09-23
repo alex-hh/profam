@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: parquet_structure
+  - /preprocessor: parquet_structure
 _target_: src.data.datasets.ProteinDatasetConfig
 name: foldseek_representatives
 data_path_pattern: foldseek_representatives/*.parquet
