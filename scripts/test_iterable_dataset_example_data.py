@@ -32,6 +32,7 @@ def test_non_interleaved_shuffle():
         max_tokens_per_item=1000,
         shuffle=False,
     )
+    data = data.shuffle()
     dataloader = torch.utils.data.DataLoader(
         data,
         batch_size=1,
@@ -42,6 +43,7 @@ def test_non_interleaved_shuffle():
         print(i, batch["text"][0][:10])
 
     print("\nNew epoch")
+    data = data.set_epoch(1)
 
     for i, batch in enumerate(dataloader):
         print(i, batch["text"][0][:10])
@@ -77,6 +79,7 @@ def test_interleaved_shuffle():
     data = datasets.interleave_datasets(
         [data1, data2], probabilities=[0.5, 0.5], stopping_strategy="all_exhausted"
     )
+    data = data.shuffle(buffer_size=1)
     dataloader = torch.utils.data.DataLoader(
         data,
         batch_size=1,
@@ -87,6 +90,7 @@ def test_interleaved_shuffle():
         print(i, batch["text"][0][:10])
 
     print("\nNew epoch")
+    data = data.set_epoch(1)
 
     for i, batch in enumerate(dataloader):
         print(i, batch["text"][0][:10])
