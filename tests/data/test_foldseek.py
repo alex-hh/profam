@@ -79,7 +79,7 @@ def foldseek_interleaved_structure_sequence_batch(
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=max_tokens,
+        max_tokens_per_example=max_tokens,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -99,7 +99,7 @@ def foldseek_datapoint(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=2048,
+        max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -234,7 +234,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=2048,
+        max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -294,7 +294,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         cfg,
         profam_tokenizer,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        max_tokens=max_tokens,
+        max_tokens_per_example=max_tokens,
         shuffle=False,
     )
     example = next(iter(dataset))

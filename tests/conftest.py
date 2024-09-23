@@ -150,7 +150,7 @@ def pfam_batch(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=2048,
+        max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
     )
@@ -172,7 +172,7 @@ def foldseek_batch(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=2048,
+        max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         use_seq_pos=True,
         max_seq_pos=2048,

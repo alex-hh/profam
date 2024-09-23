@@ -100,7 +100,7 @@ class ProteinDataMixture(LightningDataModule):
                         self.tokenizer,
                         data_dir=self.data_dir,
                         shuffle=self.shuffle,
-                        max_tokens=self.max_tokens,
+                        max_tokens_per_example=self.max_tokens,
                         feature_names=self.feature_names,
                         world_size=world_size,
                     )
@@ -114,6 +114,8 @@ class ProteinDataMixture(LightningDataModule):
                         list(next(iter(dataset)).keys()),
                     )
                     train_datasets.append(dataset)
+                    # TODO: we could also shuffle individual datasets here - is there a reason we might want to?
+                    # https://github.com/huggingface/datasets/issues/6623#issuecomment-2367769573 c.f. currently wont aßffect interleave anyways
                     train_data_weights.append(self.data_weights[data_key])
                     train_dataset_names.append(data_key)
             train_data_weights = [
@@ -122,9 +124,6 @@ class ProteinDataMixture(LightningDataModule):
 
             assert len(train_datasets) > 0
             if len(train_datasets) > 1:
-                raise Exception(
-                    "Interleave datasets shuffling doesn't work: https://github.com/huggingface/datasets/issues/7156"
-                )
                 self.train_dataset = interleave_datasets(
                     train_datasets,
                     probabilities=train_data_weights,
@@ -137,10 +136,15 @@ class ProteinDataMixture(LightningDataModule):
             if self.num_workers is None:
                 self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
             print(f"Using {self.num_workers} workers for data loading")
+            # c.f. iterable dataset examples...
             # will shuffle the shards order and use a shuffle buffer when you start iterating
             # n.b. set_epoch is required in order for shuffling to be correctly randomised
             # - this is handled by ShuffleCallback
-            # TODO: configure seed
+            # TODO: configure seed - although non-null seed prob important for ddp?
+            # or does split_dataset_by_node synchronise the state of the data?
+            # no - seeding is required. in face an error will be raised if not.
+            # split dataset by node sets distributed config.
+            # https://github.com/huggingface/datasets/blob/2eb4edb97e1a6af2ea62738ec58afbd3812fc66e/src/datasets/iterable_dataset.py#L1707
             self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
             if world_size > 1:
                 assert (
@@ -164,7 +168,7 @@ class ProteinDataMixture(LightningDataModule):
                     self.dataset_cfgs[v_ds_name],
                     self.tokenizer,
                     data_dir=self.data_dir,
-                    max_tokens=self.max_tokens,
+                    max_tokens_per_example=self.max_tokens,
                     world_size=8,  # HACK: hard-coded for now
                 )
                 # https://github.com/huggingface/datasets/issues/6623

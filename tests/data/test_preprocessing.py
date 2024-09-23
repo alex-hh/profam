@@ -19,7 +19,7 @@ def foldseek_datapoint(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=2048,
+        max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -61,7 +61,7 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=None,
+        max_tokens_per_example=None,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],

@@ -58,7 +58,7 @@ def load_protein_dataset(
     tokenizer: ProFamTokenizer,
     data_dir="data",
     split="train",
-    max_tokens_per_item: Optional[int] = None,
+    max_tokens_per_example: Optional[int] = None,
     shuffle: bool = True,
     feature_names: Optional[List[str]] = None,
     world_size: int = 1,
@@ -100,8 +100,6 @@ def load_protein_dataset(
 
     assert isinstance(data_files, list)
     data_files = sorted(data_files) * cfg.file_repeats
-    if shuffle:
-        random.shuffle(data_files)  # TODO: seed explicitly?
     print(
         f"Loading {cfg.name} dataset from {len(data_files)} files, "
         f"({cfg.file_repeats} repeats), "
@@ -173,7 +171,7 @@ def load_protein_dataset(
             or example[cfg.identifier_col] not in cfg.holdout_identifiers
         )
         length_filter = filter_on_length(
-            example, cfg=cfg, max_tokens=max_tokens_per_item, tokenizer=tokenizer
+            example, cfg=cfg, max_tokens=max_tokens_per_example, tokenizer=tokenizer
         )
         if cfg.preprocessor.required_keys is not None:
             for k in cfg.preprocessor.required_keys:
@@ -212,7 +210,7 @@ def load_protein_dataset(
         example = cfg.preprocessor.preprocess_protein_data(
             example,
             tokenizer=tokenizer,
-            max_tokens=max_tokens_per_item,
+            max_tokens=max_tokens_per_example,
             shuffle=shuffle,
         )
 
