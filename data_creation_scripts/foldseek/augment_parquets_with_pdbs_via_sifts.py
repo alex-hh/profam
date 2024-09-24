@@ -6,6 +6,7 @@ import argparse
 import os
 import pandas as pd
 from src.constants import PROFAM_DATA_DIR
+from src.structure import sifts as sifts_utils
 from src.tools.sifts import SIFTS
 
 
@@ -28,32 +29,38 @@ def main(args):
         parquet_df["pdb_ids"] = None
 
         def annotate_row_with_pdbs(row):
-            accessions = row["accessions"]
             pdb_ids = []
             pdb_N = []
             pdb_CA = []
             pdb_C = []
             pdb_O = []
-            for accession in accessions:
+            for accession, sequence in zip(row["accessions"], row["sequences"]):
                 if accession in accessions_with_pdbs:
                     sifts = SIFTS(sifts_table_file=os.path.join(PROFAM_DATA_DIR, "sifts", "evcouplings_sifts.csv"))
                     hits = sifts.by_uniprot_id(accession, reduce_chains=True)
-                    if len(hits) > 1:
-                        # select hit with highest coverage
-                        # TODO: if I use from_id, does this save a pdb file anywhere?
-                        pass
+                    prot, pdb_id = sifts_utils.build_highest_coverage_protein_from_pdb_hits(hits, sequence)
+                    pdb_ids.append(pdb_id)
+                    pdb_N.append(prot.backbone_coords[:, 0, :])
+                    pdb_CA.append(prot.backbone_coords[:, 1, :])
+                    pdb_C.append(prot.backbone_coords[:, 2, :])
+                    pdb_O.append(prot.backbone_coords[:, 3, :])
+
                 else:
                     pdb_ids.append(None)
                     pdb_N.append(None)
                     pdb_CA.append(None)
                     pdb_C.append(None)
                     pdb_O.append(None)
+
             row["pdb_ids"] = pdb_ids
             row["pdb_N"] = pdb_N
             row["pdb_CA"] = pdb_CA
             row["pdb_C"] = pdb_C
             row["pdb_O"] = pdb_O
             return row
+
+        # TODO: if we want to use float16 column, how should we represent missing values? what's data efficient way?
+        # if no pdb matches at all in the cluster, what's an efficient way to represent that?
         parquet_df = parquet_df.apply(annotate_row_with_pdbs, axis=1)
         parquet_df.to_parquet(os.path.join(PROFAM_DATA_DIR, args.data_folder, parquet_file))
 

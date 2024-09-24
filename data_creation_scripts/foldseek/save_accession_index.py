@@ -18,6 +18,8 @@ def main(args):
             af50_dict = pickle.load(f)
 
     index_df = pd.read_csv(os.path.join(PROFAM_DATA_DIR, args.data_folder, "index.csv")).set_index("identifier")
+    print(index_df.head())
+    print("Number of indexed clusters", index_df["identifier"].nunique())
 
     with open(os.path.join(PROFAM_DATA_DIR, args.data_folder, "accession_index.csv"), "w") as f:
         for cluster_id, member_ids in cluster_dict.items():

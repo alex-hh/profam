@@ -3,7 +3,7 @@
 #$ -l h_vmem=48G
 #$ -l h_rt=128:55:30
 #$ -S /bin/bash
-#$ -N builddb
+#$ -N saveindex
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd ~/ProFam/ahh/profam
 #$ -j y
