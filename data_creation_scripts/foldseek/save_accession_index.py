@@ -20,6 +20,7 @@ def main(args):
     index_df = pd.read_csv(os.path.join(PROFAM_DATA_DIR, args.data_folder, "index.csv")).set_index("identifier")
 
     with open(os.path.join(PROFAM_DATA_DIR, args.data_folder, "accession_index.csv"), "w") as f:
+        f.write("accession,cluster_id,parquet_file\n")
         for cluster_id, member_ids in cluster_dict.items():
             cluster_accessions = []
             assert cluster_id in member_ids
@@ -28,8 +29,9 @@ def main(args):
                 cluster_accessions.append(member_id)
                 if args.include_af50:
                     cluster_accessions += af50_dict.get(member_id, [])
+
             for member_id in cluster_accessions:
-                f.write(f"{member_id},{parquet_file}\n")
+                f.write(f"{member_id},{cluster_id},{parquet_file}\n")
 
 
 if __name__ == "__main__":
