@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=12G
-#$ -l h_vmem=12G
+#$ -l tmem=24G
+#$ -l h_vmem=24G
 #$ -l h_rt=35:55:30
 #$ -S /bin/bash
 #$ -N reformatFoldseek
