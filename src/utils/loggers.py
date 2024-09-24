@@ -53,7 +53,6 @@ class WandbLogger(WandbLogger):
         super().__init__(**kwargs)
         self.log_hydra_config_file = log_hydra_config_file
         self.log_git_hash = log_git_hash
-        print("WandbLogger initialized", log_hydra_config_file, log_git_hash)
 
     @rank_zero_only
     def log_hyperparams(self, hparams, **kwargs):
@@ -80,5 +79,4 @@ class WandbLogger(WandbLogger):
                     f"echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit"
                 )
         # hparams is just wandb_run_name and git_hash - why?
-        print("Logging hyperparams", hparams, flush=True)
         super().log_hyperparams(hparams, **kwargs)
