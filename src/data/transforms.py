@@ -95,6 +95,10 @@ def noise_backbones(proteins: ProteinDocument, std: float = 0.1, **kwargs):
     desirable feature in real world applications where the protein
     backbone geometry is not known at atomic resolution.
 
+    LigandMPNN:
+    Protein and context atoms were noised by adding 0.1 A standard deviation
+    Gaussian noise to avoid protein backbone memorization
+
     ESM-IF: Even after Amber relaxation, the backbone coordinates predicted
     by AlphaFold2 contain artifacts in the sub-Angstrom scale that may give away amino
     acid identities. Without adding noise on predicted structures, there is a
