@@ -272,6 +272,7 @@ class ProteinDocument:
         List[np.ndarray]
     ] = None  # if interleaving, indicates which coords are available at each sequence position
     structure_tokens: Optional[List[str]] = None
+    struct_is_pdb: Optional[List[np.ndarray]] = None
     # L x 2, boolean mask for modality (0: sequence, 1: structure)
     # really tells us about what we are predicting: we could condition on e.g. sequence within interleaved structure.
     modality_masks: Optional[np.ndarray] = None
@@ -286,6 +287,7 @@ class ProteinDocument:
             "plddts",
             "backbone_coords",
             "backbone_coords_masks",
+            "struct_is_pdb",
             "interleaved_coords_masks",
             "modality_masks",
             "document_ids",
@@ -320,6 +322,7 @@ class ProteinDocument:
             self.backbone_coords,
             self.backbone_coords_masks,
             self.structure_tokens,
+            self.struct_is_pdb,
             self.interleaved_coords_masks,
             self.modality_masks,
             self.document_ids,

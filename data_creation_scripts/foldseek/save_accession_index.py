@@ -19,13 +19,17 @@ def main(args):
 
     index_df = pd.read_csv(os.path.join(PROFAM_DATA_DIR, args.data_folder, "index.csv")).set_index("identifier")
     print(index_df.head())
-    print("Number of indexed clusters", index_df["identifier"].nunique())
+    print("Number of indexed clusters", len(index_df))
 
     with open(os.path.join(PROFAM_DATA_DIR, args.data_folder, "accession_index.csv"), "w") as f:
         for cluster_id, member_ids in cluster_dict.items():
             cluster_accessions = []
             assert cluster_id in member_ids
-            parquet_file = index_df.loc[cluster_id]["parquet_file"]
+            try:
+                parquet_file = index_df.loc[cluster_id]["parquet_file"]
+            except:
+                print(f"Cluster {cluster_id} not found in index")
+                continue
             for member_id in member_ids:
                 cluster_accessions.append(member_id)
                 if args.include_af50:

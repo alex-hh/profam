@@ -34,6 +34,7 @@ def main(args):
             pdb_CA = []
             pdb_C = []
             pdb_O = []
+            has_pdb_mask = []
             for accession, sequence in zip(row["accessions"], row["sequences"]):
                 if accession in accessions_with_pdbs:
                     sifts = SIFTS(sifts_table_file=os.path.join(PROFAM_DATA_DIR, "sifts", "evcouplings_sifts.csv"))
@@ -44,19 +45,18 @@ def main(args):
                     pdb_CA.append(prot.backbone_coords[:, 1, :])
                     pdb_C.append(prot.backbone_coords[:, 2, :])
                     pdb_O.append(prot.backbone_coords[:, 3, :])
+                    has_pdb_mask.append(True)
 
                 else:
-                    pdb_ids.append(None)
-                    pdb_N.append(None)
-                    pdb_CA.append(None)
-                    pdb_C.append(None)
-                    pdb_O.append(None)
+                    has_pdb_mask.append(False)
 
+            # in this format clusters with no hits are represented with empty lists plus pdb mask
             row["pdb_ids"] = pdb_ids
             row["pdb_N"] = pdb_N
             row["pdb_CA"] = pdb_CA
             row["pdb_C"] = pdb_C
             row["pdb_O"] = pdb_O
+            row["pdb_index_mask"] = has_pdb_mask   # to reconstruct a dense array we'll use values[has_pdb_mask] = pdb_N for example
             return row
 
         # TODO: if we want to use float16 column, how should we represent missing values? what's data efficient way?

@@ -11,6 +11,7 @@ import tqdm
 
 
 def main(args):
+    # TODO: add number of pdbs
     data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
     with open(args.index_file_path, "w") as f:
         files = glob.glob(os.path.join(data_dir, args.data_folder, "*.parquet"))

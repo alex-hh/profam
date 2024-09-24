@@ -138,26 +138,53 @@ def preprocess_protein_sequences(
     return proteins
 
 
-def backbone_coords_from_example(example, sequence_col="sequences"):
+def backbone_coords_from_example(
+    example,
+    selected_ids: Optional[List[int]] = None,
+    sequence_col="sequences",
+    use_pdb_if_available_prob: float = 0.0,
+):
     ns = example["N"]
     cas = example["CA"]
     cs = example["C"]
     oxys = example["O"]
+    sequences = example[sequence_col]
+    prot_has_pdb = (
+        example["pdb_index_mask"] if "pdb_index_mask" in example else [False] * len(ns)
+    )
     coords = []
-    for seq, n, ca, c, o in zip(
-        example[sequence_col],
-        ns,
-        cas,
-        cs,
-        oxys,
-    ):
+    is_pdb = []
+
+    for ix in selected_ids or range(len(ns)):
+        seq = sequences[ix]
+        has_pdb = prot_has_pdb[ix]
+        use_pdb = has_pdb and np_random().rand() < use_pdb_if_available_prob
+
+        if use_pdb:
+            # I guess test that this is working is that lengths line up
+            pdb_index = list(np.argwhere(example["extra_pdb_mask"]).reshape(-1)).index(
+                ix
+            )
+            n = example["pdb_N"][pdb_index]
+            ca = example["pdb_CA"][pdb_index]
+            c = example["pdb_C"][pdb_index]
+            o = example["pdb_O"][pdb_index]
+            is_pdb.append(True)
+        else:
+            n = ns[ix]
+            ca = cas[ix]
+            c = cs[ix]
+            o = oxys[ix]
+            is_pdb.append(False)
+
         recons_coords = np.zeros((len(seq), 4, 3))
         recons_coords[:, 0] = np.array(n).reshape(-1, 3)
         recons_coords[:, 1] = np.array(ca).reshape(-1, 3)
         recons_coords[:, 2] = np.array(c).reshape(-1, 3)
         recons_coords[:, 3] = np.array(o).reshape(-1, 3)
         coords.append(recons_coords)
-    return coords
+
+    return coords, is_pdb
 
 
 class BasePreprocessor:
@@ -430,6 +457,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         interleave_structure_sequence: bool = False,
         structure_first_prob: float = 1.0,
         identifier_col: str = "fam_id",
+        prefer_pdb_if_available_prob: float = 0.0,
         infer_representative_from_identifier: bool = False,
         transform_fns: Optional[List[Callable]] = None,
         batched_map: bool = False,  # should map be called with batched=True
@@ -457,6 +485,10 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             sample_uniformly_from_col=sample_uniformly_from_col,
             max_sequences_per_document=max_sequences_per_document,
         )
+        # Two options for pdb handling:
+        # 1. include pdbs as explicit things in document
+        # 2. just choose either pdb or af structure when building document
+        self.prefer_pdb_if_available_prob = prefer_pdb_if_available_prob
         self.sequence_col = sequence_col
         self.structure_tokens_col = structure_tokens_col
         self.identifier_col = identifier_col
@@ -471,6 +503,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
     def build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
+        has_pdb = "pdb_ids" in example
         # TODO: configure whether or not to use alignments, structure tokens col, etc.
         max_sequences_to_preprocess = (
             (max_tokens or 1e8) // 40
@@ -493,11 +526,26 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             sequence_ids = np.arange(
                 min(max_sequences_to_preprocess, len(example["sequences"]))
             )
+
+        extra_pdb_ids = [
+            ix
+            for ix in np.argwhere(example["pdb_index_mask"])
+            if ix not in sequence_ids
+        ]
+        if shuffle:
+            extra_pdb_ids = list(np.random.shuffle(extra_pdb_ids))
+
+        sequence_ids = (
+            sequence_ids + extra_pdb_ids[: min(len(extra_pdb_ids), len(sequence_ids))]
+        )  # at most double the number of sequences to preprocess
         sequences = [example["sequences"][i] for i in sequence_ids]
         accessions = [example["accessions"][i] for i in sequence_ids]
+
         # we assume sequence processing and structure token processing are consistent.
         # later we will check that everything ends up the same length - which is important
         # because otherwise incorrect config could easily lead to misalignment
+
+        # CAREFUL: STRUCTURE TOKENS ARE NOT DERIVED FROM PDB WHERE AVAILABLE
         if self.structure_tokens_col is not None:
             structure_tokens_iterator = example[self.structure_tokens_col]
             structure_tokens = [
@@ -512,16 +560,27 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         else:
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
+
         if "N" in example and not self.cfg.keep_gaps:
             assert not any(["-" in seq for seq in sequences])
             if structure_tokens is not None:
                 assert not any(["-" in seq for seq in structure_tokens])
-            coords = backbone_coords_from_example(
-                example, sequence_col=self.sequence_col
+            coords, struct_is_pdb = backbone_coords_from_example(
+                example,
+                selected_ids=sequence_ids,
+                sequence_col=self.sequence_col,
             )
-            coords = [coords[i] for i in sequence_ids]
-            plddts = example["plddts"]
-            plddts = [plddts[i] for i in sequence_ids]
+            # TODO: same thing for structure tokens?
+            plddts = []
+            for is_pdb, ix in zip(struct_is_pdb, sequence_ids):
+                if is_pdb:
+                    coords_mask = np.isnan(coords[ix]).any(axis=-1)
+                    plddt = np.full_like(example["plddts"][ix], 100)
+                    plddt[coords_mask] = 0
+                    plddts.append(plddt)
+                else:
+                    plddts.append(example["plddts"][ix])
+
         else:
             # TODO: support aligned coords, plddts
             coords = None
@@ -532,6 +591,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             accessions=accessions,
             plddts=plddts,
             backbone_coords=coords,
+            struct_is_pdb=struct_is_pdb,
             structure_tokens=structure_tokens,
             representative_accession=example[self.identifier_col]
             if self.infer_representative_from_identifier

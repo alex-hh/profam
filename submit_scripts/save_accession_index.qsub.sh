@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=48G
-#$ -l h_vmem=48G
+#$ -l tmem=68G
+#$ -l h_vmem=68G
 #$ -l h_rt=128:55:30
 #$ -S /bin/bash
 #$ -N saveindex
