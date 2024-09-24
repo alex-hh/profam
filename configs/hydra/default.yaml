@@ -8,7 +8,7 @@ defaults:
 # output directory, generated dynamically on each run
 run:
   # now uses strftime
-  dir: ${paths.log_dir/runs/${now:%Y-%m-%d}_${now:%H-%M-%S-%f}
+  dir: ${paths.log_dir}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S-%f}
 sweep:
   dir: ${paths.log_dir}/multiruns/${now:%Y-%m-%d}_${now:%H-%M-%S-%f}
   subdir: ${hydra.job.num}
