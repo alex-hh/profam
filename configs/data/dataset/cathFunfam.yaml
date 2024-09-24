@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: "fasta_raw"
+  - /preprocessor: "fasta_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
 data_path_pattern: funfams/full_alignments/*/*.fa
 holdout_data_files: null

@@ -8,7 +8,7 @@ defaults:
   - /extra_callbacks@extra_callbacks.esmfold_if: esmfold_if
   - /extra_callbacks@extra_callbacks.esmfold_if_high_plddt: esmfold_if
   - override /callbacks: default_with_shuffle
-  - override /data: foldseek_representatives_interleaved
+  - override /data: foldseek_representatives_interleaved_batch
   - override /model: llama_small
 
 tags: ["foldseek_if"]
@@ -71,3 +71,4 @@ logger:
 float32_matmul_precision: high
 pre_evaluate_gym: false  # use to run evaluation first to check for issues
 pre_evaluate_ec_class: false
+experiment_group: inverse_folding

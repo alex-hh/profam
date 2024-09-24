@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: "fasta_raw"
+  - /preprocessor: "fasta_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
 data_path_pattern: ted/ted_s50_by_sfam/*S50_rep_seq.fasta
 holdout_data_files: null

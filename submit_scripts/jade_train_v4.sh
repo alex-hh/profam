@@ -12,6 +12,7 @@
 #SBATCH --gres=gpu:6
 #SBATCH --output=/jmain02/home/J2AD021/dxt03/axh06-dxt03/ProFam/profam/slurm_logs/slurm_%j.out
 
+echo "Command line arguments" $@
 
 module load cuda/12.4
 module load python/3.8.6

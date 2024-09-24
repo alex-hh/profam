@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: "fasta_raw"
+  - /preprocessor: "fasta_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
 data_path_pattern: ec/ec_fastas/*.fasta
 holdout_data_files: null

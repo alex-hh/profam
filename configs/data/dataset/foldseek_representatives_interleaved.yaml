@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: parquet_structure_noisy
+  - /preprocessor: parquet_structure_noisy
 _target_: src.data.datasets.ProteinDatasetConfig
 data_path_pattern: foldseek_representatives/*.parquet
 holdout_data_files: null
