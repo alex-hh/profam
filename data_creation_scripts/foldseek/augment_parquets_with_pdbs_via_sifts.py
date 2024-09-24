@@ -15,6 +15,10 @@ def main(args):
     # or something like that to build a temp file for specific parquet index
     # or use lmdb or similar...
     df = pd.read_csv(os.path.join(PROFAM_DATA_DIR, args.data_folder, "accession_index.csv"))
+    sifts = SIFTS(sifts_table_file=os.path.join(PROFAM_DATA_DIR, "sifts", "evcouplings_sifts.csv"))
+    accessions_with_pdbs = set(sifts.table["uniprot_ac"].unique())
+    # grep ',specific_parquet_file$' your_file.csv > temp.csv
+
     if args.parquet_index is None:
         parquet_files = df["parquet_file"].unique()
     else:
@@ -24,7 +28,7 @@ def main(args):
     for parquet_file in parquet_files:
         # TODO: check this preserves float 16
         parquet_accession_df = df[df["parquet_file"] == parquet_file]
-        accessions_with_pdbs = set(parquet_accession_df["accession"].unique())
+        parquet_accessions_with_pdbs = set(parquet_accession_df["accession"].unique()).intersection(accessions_with_pdbs)
         parquet_df = pd.read_parquet(os.path.join(PROFAM_DATA_DIR, args.data_folder, parquet_file))
         parquet_df["pdb_ids"] = None
 
@@ -36,8 +40,7 @@ def main(args):
             pdb_O = []
             has_pdb_mask = []
             for accession, sequence in zip(row["accessions"], row["sequences"]):
-                if accession in accessions_with_pdbs:
-                    sifts = SIFTS(sifts_table_file=os.path.join(PROFAM_DATA_DIR, "sifts", "evcouplings_sifts.csv"))
+                if accession in parquet_accessions_with_pdbs:
                     hits = sifts.by_uniprot_id(accession, reduce_chains=True)
                     prot, pdb_id = sifts_utils.build_highest_coverage_protein_from_pdb_hits(hits, sequence)
                     pdb_ids.append(pdb_id)

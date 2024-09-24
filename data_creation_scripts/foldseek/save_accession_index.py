@@ -30,10 +30,13 @@ def main(args):
             except:
                 print(f"Cluster {cluster_id} not found in index")
                 continue
-            for member_id in member_ids:
-                cluster_accessions.append(member_id)
-                if args.include_af50:
-                    cluster_accessions += af50_dict.get(member_id, [])
+            if args.include_foldseek_members:
+                for member_id in member_ids:
+                    cluster_accessions.append(member_id)
+                    if args.include_af50_members:
+                        cluster_accessions += af50_dict.get(member_id, [])
+            else:
+                cluster_accessions.append(cluster_id)
             for member_id in cluster_accessions:
                 f.write(f"{member_id},{parquet_file}\n")
 
@@ -41,6 +44,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("data_folder", type=str)
-    parser.add_argument("--include_af50", action="store_true")
+    parser.add_argument("--include_foldseek_members", action="store_true")
+    parser.add_argument("--include_af50_members", action="store_true")
     args = parser.parse_args()
+    if args.include_af50_members:
+        assert args.include_foldseek_members, "Must include foldseek members to include af50 members"
     main(args)

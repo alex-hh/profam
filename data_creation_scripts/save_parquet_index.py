@@ -13,7 +13,7 @@ import tqdm
 def main(args):
     # TODO: add number of pdbs
     data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
-    with open(args.index_file_path, "w") as f:
+    with open(os.path.join(data_dir, args.data_folder, "index.csv"), "w") as f:
         files = glob.glob(os.path.join(data_dir, args.data_folder, "*.parquet"))
         print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
         f.write("identifier,parquet_file,cluster_size,sequence_length\n")
