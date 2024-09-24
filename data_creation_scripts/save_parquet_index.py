@@ -15,7 +15,7 @@ def main(args):
     data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
     with open(os.path.join(data_dir, args.data_folder, "index.csv"), "w") as f:
         files = glob.glob(os.path.join(data_dir, args.data_folder, "*.parquet"))
-        print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
+        print(f"Found {len(files)} parquet files in {os.path.join(data_dir, args.data_folder)}")
         f.write("identifier,parquet_file,cluster_size,sequence_length\n")
         for file in tqdm.tqdm(files):
             df = pd.read_parquet(file)

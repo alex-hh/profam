@@ -30,7 +30,6 @@ def main(args):
         parquet_accession_df = df[df["parquet_file"] == parquet_file]
         parquet_accessions_with_pdbs = set(parquet_accession_df["accession"].unique()).intersection(accessions_with_pdbs)
         parquet_df = pd.read_parquet(os.path.join(PROFAM_DATA_DIR, args.data_folder, parquet_file))
-        parquet_df["pdb_ids"] = None
 
         def annotate_row_with_pdbs(row):
             pdb_ids = []
