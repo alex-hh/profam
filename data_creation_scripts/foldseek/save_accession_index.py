@@ -11,7 +11,7 @@ def main(args):
         cluster_dict = pickle.load(f)
     print("Number of clusters:", len(cluster_dict))
 
-    if args.include_af50:
+    if args.include_af50_members:
         af50_dict_path = os.path.join(PROFAM_DATA_DIR, "afdb", "af50_cluster_dict.pkl")
         print("loading af50 dictionary")
         with open(af50_dict_path, "rb") as f:
