@@ -100,7 +100,7 @@ def prepare_data_files(data_dir, cfg, world_size=1):
         # should result in each worker using the same number of shards
         # https://github.com/huggingface/datasets/issues/6623
         # print("Slicing data files to ensure equal distribution across workers")
-        if len(data_files // world_size) == 0:
+        if len(data_files) // world_size == 0:
             raise ValueError(
                 "Fewer data files than world size, difficult to handle in ddp"
             )

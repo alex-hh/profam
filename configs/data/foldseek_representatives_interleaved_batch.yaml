@@ -17,6 +17,7 @@ dataset_cfgs:
     data_path_pattern: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
     shuffle: false
+    file_repeats: ${trainer.devices}  # for ddp
     preprocessor:
       batched_map: true
       map_batch_size: 250
