@@ -1,3 +1,5 @@
+Some of the way this is written is designed to allow for parallelisation on the cluster while avoiding io issues.
+
 First run save_pickled_dicts
 
 Next run prepare_job_files. On the cluster the output is saved to afdb/foldseek_job_files
