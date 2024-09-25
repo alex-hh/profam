@@ -70,6 +70,36 @@ class PreprocessingConfig:
     allow_unk: bool = False
 
 
+def filter_on_length(
+    example,
+    max_tokens,
+    tokenizer,
+    sequence_col="sequences",
+    filter_type=None,
+    interleave_structure_sequence=False,
+):
+    if filter_type is None:
+        return True
+    elif filter_type == "max_seq_pos":
+        return any([len(s) <= tokenizer.max_seq_pos - 1 for s in example[sequence_col]])
+    elif filter_type == "max_tokens":
+        # why would we do this?
+        if max_tokens is None:
+            return True
+        elif interleave_structure_sequence:
+            return (
+                max([len(s) for s in example[sequence_col]])
+                <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
+            )
+        else:
+            return (
+                max([len(s) for s in example[sequence_col]])
+                <= max_tokens - tokenizer.num_start_tokens - 1
+            )
+    else:
+        raise ValueError(f"Unknown length filter {filter_type}")
+
+
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
     start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
     end_ix = start_ix[1:]
@@ -166,8 +196,6 @@ class BasePreprocessor:
         config: PreprocessingConfig,  # configures preprocessing of individual proteins
         transform_fns: Optional[List[Callable]] = None,
         interleave_structure_sequence: bool = False,
-        batched_map: bool = False,  # should map be called with batched=True
-        map_batch_size: int = 100,
         sample_uniformly_from_col: Optional[
             str
         ] = None,  # for redundancy-aware sampling
@@ -187,12 +215,20 @@ class BasePreprocessor:
             # then sample within those values uniformly to build a batch.
             raise NotImplementedError()
 
+    def filter(
+        self,
+        example,
+        min_sequences: Optional[int] = None,
+        min_mean_plddt: Optional[float] = None,
+    ):
+        raise NotImplementedError()
+
     def build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         raise NotImplementedError()
 
-    def _batched_preprocess_protein_data(
+    def batched_preprocess_protein_data(
         self,
         examples: Dict[str, List[Any]],
         tokenizer: ProFamTokenizer,
@@ -229,7 +265,7 @@ class BasePreprocessor:
             allow_unk=getattr(self.cfg, "allow_unk", False),
         )
 
-    def _preprocess_protein_data(
+    def preprocess_protein_data(
         self,
         example: Dict[str, Any],
         tokenizer: ProFamTokenizer,
@@ -262,22 +298,6 @@ class BasePreprocessor:
                 max_tokens,
             )
         return tokenized.data
-
-    def preprocess_protein_data(
-        self,
-        examples: Dict[str, Any],
-        tokenizer: ProFamTokenizer,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
-    ) -> Dict[str, Any]:
-        if self.batched_map:
-            return self._batched_preprocess_protein_data(
-                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
-            )
-        else:
-            return self._preprocess_protein_data(
-                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
-            )
 
     def build_documents(
         self,
@@ -325,6 +345,20 @@ class FastaPreprocessor(BasePreprocessor):
     def required_keys(self):
         return ["text"]
 
+    def filter(
+        self,
+        example,
+        min_sequences: Optional[int] = None,
+        holdout_identifiers: Optional[List[str]] = None,
+    ):
+        assert (
+            holdout_identifiers is None
+        ), "Holdout identifiers not supported for fasta"
+        filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
+            self.cfg.minimum_sequences or 1
+        )
+        return filter_num_seqs
+
     def build_document_from_text(
         self, text, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
@@ -368,11 +402,59 @@ class FastaPreprocessor(BasePreprocessor):
             return self.build_document_from_text(example["text"], max_tokens, shuffle)
 
 
-class ParquetSequencePreprocessor(BasePreprocessor):
+class ParquetPreprocessor(BasePreprocessor):
+    def filter(
+        self,
+        example,
+        min_sequences: Optional[int] = None,
+        holdout_identifiers: Optional[List[str]] = None,
+    ):
+        filter_num_seqs = len(example[self.sequence_col]) >= (
+            self.cfg.minimum_sequences or 1
+        )
+        # TODO: we need to be very careful with this!
+        filter_identifier = (
+            holdout_identifiers is None
+            or example[self.identifier_col] not in holdout_identifiers
+        )
+        length_filter = filter_on_length(
+            example,
+            filter_type=self.length_filter,
+            max_tokens=None,
+            tokenizer=self.tokenizer,
+            sequence_col=self.sequence_col,
+            interleave_structure_sequence=self.interleave_structure_sequence,
+        )
+        if self.required_keys is not None:
+            for k in self.required_keys:
+                if k not in example or not example[k]:
+                    return False
+
+        return filter_num_seqs and filter_identifier and length_filter
+
+    def batched_preprocess_protein_data(
+        self,
+        examples: Dict[str, List[Any]],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        examples = super().batched_preprocess_protein_data(
+            examples, tokenizer, max_tokens, shuffle
+        )
+        # Q: should we tolist all tensors?
+        if torch.is_tensor(examples["input_ids"]):
+            assert examples["input_ids"].ndim == 2
+        batch_size = len(examples["input_ids"])
+        return examples
+
+
+class ParquetSequencePreprocessor(ParquetPreprocessor):
     def __init__(
         self,
         config: PreprocessingConfig,
         sequence_col: str = "sequences",
+        identifier_col: str = "fam_id",
         transform_fns: Optional[List[Callable]] = None,
         infer_representative_from_identifier: bool = False,
         batched_map: bool = False,  # should map be called with batched=True
@@ -381,6 +463,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
             str
         ] = None,  # for redundancy-aware sampling
         max_sequences_per_document: Optional[int] = None,
+        length_filter: Optional[str] = None,  # max_tokens, max_seq_pos
     ):
         super().__init__(
             config,
@@ -391,7 +474,9 @@ class ParquetSequencePreprocessor(BasePreprocessor):
             sample_uniformly_from_col=sample_uniformly_from_col,
         )
         self.sequence_col = sequence_col
+        self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
+        self.length_filter = length_filter
 
     @property
     def required_keys(self):
@@ -423,7 +508,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
 
 
 # TODO: make sure we can handle an aligned version - test
-class ParquetStructurePreprocessor(BasePreprocessor):
+class ParquetStructurePreprocessor(ParquetPreprocessor):
     def __init__(
         self,
         config: PreprocessingConfig,
@@ -434,12 +519,12 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         identifier_col: str = "fam_id",
         infer_representative_from_identifier: bool = False,
         transform_fns: Optional[List[Callable]] = None,
-        batched_map: bool = False,  # should map be called with batched=True
-        map_batch_size: int = 100,
         sample_uniformly_from_col: Optional[
             str
         ] = None,  # for redundancy-aware sampling
         max_sequences_per_document: Optional[int] = None,
+        minimum_mean_plddt: Optional[float] = None,
+        length_filter: Optional[str] = None,  # max_tokens, max_seq_pos
     ):
         if interleave_structure_sequence:
             # handle like this because useful to have an interleave_structure_sequence attribute for lenght filtering
@@ -463,6 +548,8 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         self.structure_tokens_col = structure_tokens_col
         self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
+        self.minimum_mean_plddt = minimum_mean_plddt
+        self.length_filter = length_filter
 
     @property
     def required_keys(self):
@@ -540,3 +627,62 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             else None,
             original_size=len(example["sequences"]),
         )
+
+    def filter(
+        self,
+        example,
+        min_sequences: Optional[int] = None,
+        holdout_identifiers: Optional[List[str]] = None,
+    ):
+        super_filter = super().filter(example, min_sequences, holdout_identifiers)
+        if self.minimum_mean_plddt is not None:
+            if "plddts" in example:
+                mean_plddt = np.mean([np.mean(plddt) for plddt in example["plddts"]])
+                filter_plddt = mean_plddt >= (self.cfg.minimum_mean_plddt or 0.0)
+            else:
+                filter_plddt = True
+            return super_filter and filter_plddt
+        else:
+            return super_filter
+
+    def batched_preprocess_protein_data(
+        self,
+        examples: Dict[str, List[Any]],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        examples = super().batched_preprocess_protein_data(
+            examples, tokenizer, max_tokens, shuffle
+        )
+        if self.identifier_col is not None:
+            examples["identifier"] = examples[self.identifier_col]
+        if "coords" in examples:
+            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+            examples["coords"] = [c.tolist() for c in examples["coords"]]
+            examples["coords_mask"] = [m.tolist() for m in examples["coords_mask"]]
+            if "interleaved_coords_mask" in examples:
+                examples["interleaved_coords_mask"] = [
+                    m.tolist() for m in examples["interleaved_coords_mask"]
+                ]
+        return examples
+
+    def preprocess_protein_data(
+        self,
+        example: Dict[str, Any],
+        tokenizer: ProFamTokenizer,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ) -> Dict[str, Any]:
+        example = super()._preprocess_protein_data(
+            example, tokenizer, max_tokens, shuffle
+        )
+        if "coords" in example:
+            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+            example["coords"] = example["coords"].tolist()
+            example["coords_mask"] = example["coords_mask"].tolist()
+            if "interleaved_coords_mask" in example:
+                example["interleaved_coords_mask"] = example[
+                    "interleaved_coords_mask"
+                ].tolist()
+        return example

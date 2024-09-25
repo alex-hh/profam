@@ -15,7 +15,6 @@ from src.utils.tokenizers import ProFamTokenizer
 
 @dataclass
 class ProteinDatasetConfig:
-    preprocessor: Optional[BasePreprocessor] = None
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
     holdout_identifiers: Optional[List[str]] = None
@@ -23,33 +22,11 @@ class ProteinDatasetConfig:
     data_path_file: Optional[str] = None
     file_repeats: int = 1
     minimum_sequences: Optional[int] = None
-    is_parquet: bool = False
+    file_type: str = "parquet"  # or "text", "json"
     shuffle: bool = True
-    length_filter: Optional[str] = None  # max_tokens, max_seq_pos
-    minimum_mean_plddt: Optional[float] = None
     stream: bool = True
-
-
-def filter_on_length(example, cfg, max_tokens, tokenizer):
-    if cfg.length_filter is None:
-        return True
-    elif cfg.length_filter == "max_seq_pos":
-        return any([len(s) <= tokenizer.max_seq_pos - 1 for s in example["sequences"]])
-    elif cfg.length_filter == "max_tokens":
-        if max_tokens is None:
-            return True
-        elif cfg.preprocessor.interleave_structure_sequence:
-            return (
-                max([len(s) for s in example["sequences"]])
-                <= (max_tokens // 2) - tokenizer.num_start_tokens - 2
-            )
-        else:
-            return (
-                max([len(s) for s in example["sequences"]])
-                <= max_tokens - tokenizer.num_start_tokens - 1
-            )
-    else:
-        raise ValueError(f"Unknown length filter {cfg.length_filter}")
+    batched_map: bool = (False,)  # should map be called with batched=True
+    map_batch_size: int = (100,)
 
 
 def prepare_data_files(data_dir, cfg, world_size=1):
@@ -109,102 +86,26 @@ def prepare_data_files(data_dir, cfg, world_size=1):
     return data_files
 
 
-def load_protein_dataset(
-    cfg: ProteinDatasetConfig,
-    tokenizer: ProFamTokenizer,
-    dataset_name: str,
-    data_dir="data",
-    split="train",
-    max_tokens_per_example: Optional[int] = None,
-    shuffle: bool = True,
-    feature_names: Optional[List[str]] = None,
-    world_size: int = 1,
-    verbose: bool = False,
-) -> Dataset:
+class ProteinDatasetBuilder:
+    def __init__(
+        self,
+        name: str,
+        cfg: ProteinDatasetConfig,
+        tokenizer: ProFamTokenizer,
+        preprocessor: Optional[BasePreprocessor] = None,
+    ):
+        self.name = name
+        self.cfg = cfg
+        self.tokenizer = tokenizer
+        self.preprocessor = preprocessor
+        # TODO: make dataset an attr?
 
-    data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
-
-    if cfg.is_parquet:
-        dataset = load_dataset(
-            path="parquet",
-            data_files=data_files,
-            split=split,
-            streaming=cfg.stream,
-            verification_mode="no_checks",
-        )
-    else:
-        # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
-        # TODO: load identifier?
-        assert (
-            cfg.holdout_identifiers is None
-        ), "Holdout identifiers not supported for fasta"
-        dataset = load_dataset(
-            "text",
-            data_files=data_files,
-            split=split,
-            streaming=cfg.stream,
-            sample_by="document",
-        )
-
-    print("Dataset n shards", dataset.n_shards)
-    if verbose:
-        print("Verifying dataset content:")
-        for i, item in enumerate(dataset.take(3)):
-            print(f"  Item {i + 1}:")
-            for key, value in item.items():
-                if isinstance(value, str):
-                    value_to_print = value[:100]
-                elif isinstance(value, list):
-                    # TODO: if its a list of lists we want to print only first few elements
-                    if isinstance(value[0], list):
-                        value_to_print = f"[{value[0][:10]},...]"
-                    else:
-                        value_to_print = f"{value[:3]}..." if len(value) > 3 else value
-                else:
-                    value_to_print = value
-                print(f"    {key}: {value_to_print}")
-            print()
-
-    if cfg.holdout_identifiers:
-        assert (
-            cfg.identifier_col is not None
-        ), "Need identifier column for identifier holdout"
-
-    def prefilter_example(example):
-        # TODO: base this on max_seq_pos
-        if "sequences" in example:
-            filter_num_seqs = len(example["sequences"]) >= (cfg.minimum_sequences or 1)
-        else:
-            # TODO: this is inexact
-            filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
-                cfg.minimum_sequences or 1
-            )
-        # TODO: we need to be very careful with this!
-        filter_identifier = (
-            cfg.holdout_identifiers is None
-            or example[cfg.identifier_col] not in cfg.holdout_identifiers
-        )
-        length_filter = filter_on_length(
-            example, cfg=cfg, max_tokens=max_tokens_per_example, tokenizer=tokenizer
-        )
-        if cfg.preprocessor.required_keys is not None:
-            for k in cfg.preprocessor.required_keys:
-                if k not in example or not example[k]:
-                    return False
-
-        if cfg.minimum_mean_plddt is not None:
-            if "plddts" in example:
-                mean_plddt = np.mean([np.mean(plddt) for plddt in example["plddts"]])
-                filter_plddt = mean_plddt >= (cfg.minimum_mean_plddt or 0.0)
-            else:
-                filter_plddt = True
-            return (
-                length_filter and filter_plddt and filter_identifier and filter_num_seqs
-            )
-        else:
-            return length_filter and filter_identifier and filter_num_seqs
-
-    def wrapped_preprocess(example):
+    def preprocess_examples(
+        self,
+        examples,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+    ):
         """Function to be mapped.
 
         a map is an instruction for converting an example to a new example.
@@ -214,66 +115,109 @@ def load_protein_dataset(
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
-        if not cfg.stream:
+        if not self.cfg.stream:
             raise NotImplementedError(
                 "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
             )
-        if cfg.identifier_col is not None and not cfg.preprocessor.batched_map:
-            # when batched mapping, we cat multiple identifiers together...
-            identifier = example[cfg.identifier_col]
-        example = cfg.preprocessor.preprocess_protein_data(
-            example,
-            tokenizer=tokenizer,
-            max_tokens=max_tokens_per_example,
-            shuffle=shuffle,
+        if self.batched_map:
+            examples = self.preprocessor.batched_preprocess_protein_data(
+                examples,
+                self.tokenizer,
+                max_tokens=max_tokens_per_example,
+                shuffle=shuffle_proteins_in_document,
+            )
+            examples["ds_name"] = [self.name] * len(examples["input_ids"])
+            if "identifier" in examples:
+                examples["identifier"] = [
+                    self.name + "/" + ident for ident in examples["identifier"]
+                ]
+            return examples
+        else:
+            # examples is a single row dict in this case
+            examples = self.preprocessor.preprocess_protein_data(
+                examples,
+                self.tokenizer,
+                max_tokens=max_tokens_per_example,
+                shuffle=shuffle_proteins_in_document,
+            )
+            examples["ds_name"] = self.name
+            if "identifier" in examples:
+                examples["identifier"] = self.name + "/" + examples["identifier"]
+            return examples
+
+    def process(
+        self,
+        dataset: Dataset,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+        feature_names: Optional[List[str]] = None,
+    ):
+        """
+        Process a dataset with a preprocessor.
+
+        feature_names: names of features to keep
+        """
+        if self.preprocessor is not None:
+            # Q. how does batched map interact with interleave datasets?
+            if dataset.column_names is not None:
+                # Q: what causes None? maybe loading text rather than parquet
+                remove_columns = [
+                    c for c in dataset.column_names if c not in (feature_names or [])
+                ]  # shouldnt be necessary but is for plddts - bug?
+            else:
+                remove_columns = None
+
+            dataset = dataset.filter(
+                self.preprocessor.filter,
+                min_sequences=self.cfg.minimum_sequences,
+                holdout_identifiers=self.cfg.holdout_identifiers,
+            ).map(
+                self.preprocess_examples,
+                batched=self.cfg.batched_map,
+                batch_size=self.cfg.map_batch_size,
+                remove_columns=remove_columns,
+            )
+            # n.b. coords is returned as a list...
+
+        return dataset
+
+    def load(
+        self,
+        data_dir="data",
+        split="train",
+        world_size: int = 1,
+        verbose: bool = False,
+    ):
+        # TODO: maybe handle world size elsewhere by shard slicing...
+        data_files = prepare_data_files(data_dir, self.cfg, world_size=world_size)
+
+        dataset = load_dataset(
+            self.cfg.file_type,
+            data_files=data_files,
+            split=split,
+            streaming=self.cfg.stream,
+            sample_by="document",
         )
 
-        if cfg.preprocessor.batched_map:
-            # Q: should we tolist all tensors?
-            if torch.is_tensor(example["input_ids"]):
-                assert example["input_ids"].ndim == 2
-            batch_size = len(example["input_ids"])
-            example["ds_name"] = [dataset_name] * batch_size
-            if "coords" in example:
-                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = [c.tolist() for c in example["coords"]]
-                example["coords_mask"] = [m.tolist() for m in example["coords_mask"]]
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = [
-                        m.tolist() for m in example["interleaved_coords_mask"]
-                    ]
-        else:
-            example["ds_name"] = dataset_name
-            # TODO: get identifier for fasta files...
-            if cfg.identifier_col is not None:
-                example["identifier"] = dataset_name + "/" + identifier
-            if "coords" in example:
-                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = example["coords"].tolist()
-                example["coords_mask"] = example["coords_mask"].tolist()
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = example[
-                        "interleaved_coords_mask"
-                    ].tolist()
+        print("Dataset n shards", dataset.n_shards)
+        if verbose:
+            print("Verifying dataset content:")
+            for i, item in enumerate(dataset.take(3)):
+                print(f"  Item {i + 1}:")
+                for key, value in item.items():
+                    if isinstance(value, str):
+                        value_to_print = value[:100]
+                    elif isinstance(value, list):
+                        # TODO: if its a list of lists we want to print only first few elements
+                        if isinstance(value[0], list):
+                            value_to_print = f"[{value[0][:10]},...]"
+                        else:
+                            value_to_print = (
+                                f"{value[:3]}..." if len(value) > 3 else value
+                            )
+                    else:
+                        value_to_print = value
+                    print(f"    {key}: {value_to_print}")
+                print()
 
-        return example
-
-    if cfg.preprocessor is not None:
-        # Q. how does batched map interact with interleave datasets?
-        if dataset.column_names is not None:
-            # Q: what causes None? maybe loading text rather than parquet
-            remove_columns = [
-                c for c in dataset.column_names if c not in (feature_names or [])
-            ]  # shouldnt be necessary but is for plddts - bug?
-        else:
-            remove_columns = None
-
-        dataset = dataset.filter(prefilter_example).map(
-            wrapped_preprocess,
-            batched=cfg.preprocessor.batched_map,
-            batch_size=cfg.preprocessor.map_batch_size,
-            remove_columns=remove_columns,
-        )
-        # n.b. coords is returned as a list...
-
-    return dataset
+        return dataset

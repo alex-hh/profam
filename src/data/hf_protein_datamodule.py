@@ -93,17 +93,21 @@ class ProteinDataMixture(LightningDataModule):
             train_dataset_names = []
             world_size = self.trainer.world_size
             print("World size", world_size)
-            for data_key, dataset_config in self.dataset_cfgs.items():
+            for data_key, dataset_builder in self.dataset_builders.items():
+                assert (
+                    dataset_builder.name == data_key
+                ), "Dataset builder name must match data key"
                 if data_key not in self.val_dataset_names:
-                    dataset = load_protein_dataset(
-                        dataset_config,
-                        self.tokenizer,
-                        dataset_name=data_key,
+                    dataset = dataset_builder.load(
                         data_dir=self.data_dir,
-                        shuffle=self.shuffle,
-                        max_tokens_per_example=self.max_tokens,
-                        feature_names=self.feature_names,
                         world_size=world_size,
+                        verbose=False,
+                    )
+                    dataset = dataset_builder.process(
+                        dataset,
+                        max_tokens_per_example=self.max_tokens,
+                        shuffle_proteins_in_document=self.shuffle,
+                        feature_names=self.feature_names,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
