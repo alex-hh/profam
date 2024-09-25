@@ -24,7 +24,7 @@ def test_foldseek_backbone_loading(foldseek_df):
     for _, row in foldseek_df.iterrows():
         foldseek_example = row.to_dict()
         # Q. why does this successfully load the backbone coordinates as arrays?
-        backbone_coords = backbone_coords_from_example(foldseek_example)
+        backbone_coords, _ = backbone_coords_from_example(foldseek_example)
         for seq, acc, recons_coords in zip(
             foldseek_example["sequences"],
             foldseek_example["accessions"],
@@ -119,7 +119,7 @@ def test_foldseek_interleaved_tokenization(
     ).sum()
 
     batch_seqs = foldseek_datapoint["sequences"][:num_sequences_in_batch]
-    batch_coords = backbone_coords_from_example(foldseek_datapoint)[
+    batch_coords, _ = backbone_coords_from_example(foldseek_datapoint)[
         :num_sequences_in_batch
     ]
     batch_plddts = foldseek_datapoint["plddts"][:num_sequences_in_batch]

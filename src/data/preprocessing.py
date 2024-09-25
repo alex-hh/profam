@@ -154,8 +154,10 @@ def backbone_coords_from_example(
     )
     coords = []
     is_pdb = []
+    if selected_ids is None:
+        selected_ids = range(len(ns))
 
-    for ix in selected_ids or range(len(ns)):
+    for ix in selected_ids:
         seq = sequences[ix]
         has_pdb = prot_has_pdb[ix]
         use_pdb = has_pdb and np_random().rand() < use_pdb_if_available_prob
@@ -537,7 +539,8 @@ class ParquetStructurePreprocessor(BasePreprocessor):
                 extra_pdb_ids = list(np.random.shuffle(extra_pdb_ids))
 
             sequence_ids = (
-                sequence_ids + extra_pdb_ids[: min(len(extra_pdb_ids), len(sequence_ids))]
+                sequence_ids
+                + extra_pdb_ids[: min(len(extra_pdb_ids), len(sequence_ids))]
             )  # at most double the number of sequences to preprocess
         sequences = [example["sequences"][i] for i in sequence_ids]
         accessions = [example["accessions"][i] for i in sequence_ids]
