@@ -11,7 +11,7 @@ time_window_24_hours = timedelta(hours=24)
 current_time = datetime.now()
 
 # Command to list details of train.log files in all folders
-ls_command = "ls -l */train.log"
+ls_command = "ls -l */wandb/debug-cli*.log"
 
 # Run the command and capture the output
 output = subprocess.check_output(ls_command, shell=True).decode("utf-8")
