@@ -71,7 +71,6 @@ def foldseek_interleaved_structure_sequence_batch(
         interleave_structure_sequence=True,
     )
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         preprocessor=parquet_3di_processor,
         data_path_pattern="foldseek_struct/0.parquet",
         is_parquet=True,
@@ -92,7 +91,6 @@ def foldseek_interleaved_structure_sequence_batch(
 @pytest.fixture()
 def foldseek_datapoint(profam_tokenizer):
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         data_path_pattern="foldseek_struct/0.parquet",
         is_parquet=True,
     )
@@ -226,7 +224,6 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         ],
     )
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         preprocessor=preprocessor,
         data_path_pattern="foldseek_struct/0.parquet",
         is_parquet=True,
@@ -284,7 +281,6 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         map_batch_size=30,
     )
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         preprocessor=parquet_3di_processor,
         data_path_pattern="foldseek_representatives/0.parquet",
         is_parquet=True,
