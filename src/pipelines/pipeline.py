@@ -1,5 +1,7 @@
 import os
 import shutil
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
@@ -12,6 +14,14 @@ from src.data.preprocessing import BasePreprocessor
 from src.evaluators.base import SamplingEvaluator
 from src.sequence import fasta
 from src.utils.utils import maybe_print
+
+
+def load_named_pipeline(pipeline_name: str):
+    with initialize_config_dir(
+        os.path.join(constants.BASEDIR, "configs/pipeline"), version_base="1.3"
+    ):
+        pipeline_cfg = compose(config_name=pipeline_name)
+    return instantiate(pipeline_cfg)
 
 
 class BaseEvaluatorPipeline:

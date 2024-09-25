@@ -2,7 +2,7 @@
 import copy
 import json
 import os
-
+import time
 import numpy as np
 
 from src import constants
@@ -63,9 +63,11 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
             jsonl_file = os.path.join(
                 constants.PROFAM_DATA_DIR, "cath/cath42/chain_set.jsonl"
             )
+        t0 = time.time()
         splits = json.load(
             open(os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json"))
         )
+        t1 = time.time()
         self.instance_dicts = {
             entry["name"].replace(".", ""): entry
             for entry in load_coords(jsonl_file)
@@ -75,6 +77,7 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         print(
             f"Loaded CATH {version} ({split_name} split) entries: ",
             len(self.instance_dicts),
+            f"in {t1-t0:.2f}s",
         )
 
     def instance_ids(self):

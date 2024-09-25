@@ -1,5 +1,12 @@
 #!/bin/bash
 data_dir=$1
+
+# check if data_dir is empty argument and raise error if not
+if [ -z "$data_dir" ]; then
+    echo "Error: data_dir is not set"
+    exit 1
+fi
+
 mkdir -p $data_dir/cath/cath42
 mkdir -p $data_dir/cath/cath43
 
