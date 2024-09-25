@@ -18,7 +18,11 @@ def main(args):
         print(f"Found {len(files)} parquet files in {os.path.join(data_dir, args.data_folder)}")
         f.write("identifier,parquet_file,cluster_size,sequence_length\n")
         for file in tqdm.tqdm(files):
-            df = pd.read_parquet(file)
+            try:
+                df = pd.read_parquet(file)
+            except Exception as e:
+                print(f"Could not read {file}")
+                raise e
             for _, row in df.iterrows():
                 representative = row[args.identifier_col]
                 try:

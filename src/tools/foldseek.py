@@ -1,7 +1,12 @@
 import os
 import subprocess
+import time
 
 import pandas as pd
+import requests
+
+# Base URL for the API
+FOLDSEEK_API_URL = "https://search.foldseek.com/api/"
 
 
 def convert_pdbs_to_3di(pdb_files, output_file):
