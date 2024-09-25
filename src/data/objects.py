@@ -322,7 +322,6 @@ class ProteinDocument:
             self.backbone_coords,
             self.backbone_coords_masks,
             self.structure_tokens,
-            self.struct_is_pdb,
             self.interleaved_coords_masks,
             self.modality_masks,
             self.document_ids,
@@ -331,6 +330,8 @@ class ProteinDocument:
             self.backbone_coords_masks = [
                 np.ones_like(xyz) for xyz in self.backbone_coords
             ]
+        if self.struct_is_pdb is not None:
+            assert len(self.struct_is_pdb) == len(self.sequences)
 
     def __len__(self):
         return len(self.sequences)

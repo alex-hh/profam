@@ -503,8 +503,8 @@ class ParquetStructurePreprocessor(BasePreprocessor):
     def build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
+        # TODO: configure whether or not to use alignments, structure tokens col, PDB, etc.
         has_pdb = "pdb_ids" in example
-        # TODO: configure whether or not to use alignments, structure tokens col, etc.
         max_sequences_to_preprocess = (
             (max_tokens or 1e8) // 40
             if self.max_sequences is None
@@ -527,17 +527,18 @@ class ParquetStructurePreprocessor(BasePreprocessor):
                 min(max_sequences_to_preprocess, len(example["sequences"]))
             )
 
-        extra_pdb_ids = [
-            ix
-            for ix in np.argwhere(example["pdb_index_mask"])
-            if ix not in sequence_ids
-        ]
-        if shuffle:
-            extra_pdb_ids = list(np.random.shuffle(extra_pdb_ids))
+        if has_pdb:
+            extra_pdb_ids = [
+                ix
+                for ix in np.argwhere(example["pdb_index_mask"])
+                if ix not in sequence_ids
+            ]
+            if shuffle:
+                extra_pdb_ids = list(np.random.shuffle(extra_pdb_ids))
 
-        sequence_ids = (
-            sequence_ids + extra_pdb_ids[: min(len(extra_pdb_ids), len(sequence_ids))]
-        )  # at most double the number of sequences to preprocess
+            sequence_ids = (
+                sequence_ids + extra_pdb_ids[: min(len(extra_pdb_ids), len(sequence_ids))]
+            )  # at most double the number of sequences to preprocess
         sequences = [example["sequences"][i] for i in sequence_ids]
         accessions = [example["accessions"][i] for i in sequence_ids]
 
