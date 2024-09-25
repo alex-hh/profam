@@ -6,7 +6,7 @@ defaults:
   - /tokenizer@model.tokenizer: profam
   - /data/dataset/preprocessor@prompt_builder.preprocessor: parquet_structure
 name: twilight-snowflake_T${.sampling_kwargs.temperature}  # suggestion: use wandb run name
-checkpoint_path: outputs/inverse_folding/neat-thunder/checkpoints/last.ckpt
+checkpoint_path: outputs/inverse_folding/twilight-snowflake/checkpoints/last.ckpt
 match_representative_length: true
 sampling_kwargs:
   batch_size: 12
