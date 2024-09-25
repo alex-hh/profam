@@ -7,6 +7,7 @@ import urllib.request
 from collections import defaultdict
 from tqdm import tqdm
 import argparse
+import math  # Added import for math
 
 # download and process go uniprot file : https://www.ebi.ac.uk/GOA/downloads.html
 # goa_uniprot_all.gaf.gz : 19GB file contains all GO annotations for proteins in UniProtKB
@@ -19,8 +20,8 @@ ASPECT_IDX = 8
 DB_OBJECT_TYPE_IDX = 11
 INPUT_URL = 'ftp://ftp.ebi.ac.uk/pub/databases/GO/goa/UNIPROT/goa_uniprot_all.gaf.gz'
 GOA_FILE = 'data/GO_MF/goa_uniprot_all.gaf.gz'
-OUTPUT_FILE = 'data/GO_MF/mf_to_uniprot_100k_mapping.tsv.gz'
-MAX_UNIPROT_IDS = 100000  # 100k seems most reasonable
+OUTPUT_FILE = 'data/GO_MF/mf_to_uniprot_mapping_ic.tsv.gz'
+#MAX_UNIPROT_IDS = 100000  # 100k seems most reasonable
 MIN_UNIPROT_IDS = 2
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -61,19 +62,28 @@ def process_goa_file(input_file, output_file):
                 uniprot_id = columns[UNIPROT_ID_IDX]
                 go_to_uniprot[go_term].add(uniprot_id)
     
-    logging.info(f"Filtering GO terms based on UniProt ID count (min: {MIN_UNIPROT_IDS}, max: {MAX_UNIPROT_IDS})")
+    logging.info(f"Filtering GO terms based on UniProt ID count (min: {MIN_UNIPROT_IDS})")
     filtered_go_to_uniprot = {
         go_term: uniprot_ids
         for go_term, uniprot_ids in go_to_uniprot.items()
-        if MIN_UNIPROT_IDS <= len(uniprot_ids) <= MAX_UNIPROT_IDS
+        if MIN_UNIPROT_IDS <= len(uniprot_ids)
+        # <= MAX_UNIPROT_IDS
     }
+    
+    # Calculate Information Content for each GO term
+    total_go_terms = len(filtered_go_to_uniprot)
+    go_to_ic = {}
+    for go_term, uniprot_ids in filtered_go_to_uniprot.items():
+        p_t = len(uniprot_ids) / total_go_terms
+        go_to_ic[go_term] = -math.log(p_t)
     
     logging.info(f"Writing {len(filtered_go_to_uniprot)} GO documents to {output_file}")
     ensure_dir(output_file)
     with gzip.open(output_file, 'wt', newline='') as f:
         writer = csv.writer(f, delimiter='\t')
         for go_term, uniprot_ids in filtered_go_to_uniprot.items():
-            writer.writerow([go_term, ','.join(uniprot_ids)])
+            ic = go_to_ic.get(go_term, 0)
+            writer.writerow([go_term, ic, ','.join(uniprot_ids)])  # Modified line to include IC
 
 def main():
     """Main function to process the GOA file and create the mapping."""
