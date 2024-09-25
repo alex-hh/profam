@@ -25,8 +25,8 @@ class ProteinDatasetConfig:
     file_type: str = "parquet"  # or "text", "json"
     shuffle: bool = True
     stream: bool = True
-    batched_map: bool = (False,)  # should map be called with batched=True
-    map_batch_size: int = (100,)
+    batched_map: bool = False  # should map be called with batched=True
+    map_batch_size: int = 100
 
 
 def prepare_data_files(data_dir, cfg, world_size=1):

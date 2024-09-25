@@ -1,14 +1,24 @@
+_target_: src.data.datasets.ProteinDatasetBuilder
+name: foldseek_representatives_interleaved
 defaults:
   - /preprocessor: parquet_structure_noisy
-_target_: src.data.datasets.ProteinDatasetConfig
-data_path_pattern: foldseek_representatives/*.parquet
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: fam_id
-is_parquet: true
-length_filter: max_tokens
+
+cfg:
+  _target_: src.data.datasets.ProteinDatasetConfig
+  data_path_pattern: foldseek_representatives/*.parquet
+  holdout_data_files: null
+  holdout_identifiers: null
+  identifier_col: fam_id
+  file_type: parquet
+  minimum_sequences: null
+  shuffle: true
+  batched_map: false
+  map_batch_size: 100
+  stream: true
+
 preprocessor:
   structure_tokens_col: null
   interleave_structure_sequence: true
   config:
     document_token: "[AFDB]"
+  length_filter: max_tokens

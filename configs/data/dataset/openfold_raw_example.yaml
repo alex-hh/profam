@@ -1,8 +1,17 @@
+_target_: src.data.datasets.ProteinDatasetBuilder
+name: openfold_raw_example
 defaults:
   - /preprocessor: "fasta_raw"
-_target_: src.data.datasets.ProteinDatasetConfig
-data_path_pattern: openfold/uniclust30_filtered/*/a3m/*.a3m
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: null
-is_parquet: false
+
+cfg:
+  _target_: src.data.datasets.ProteinDatasetConfig
+  data_path_pattern: openfold/uniclust30_filtered/*/a3m/*.a3m
+  holdout_data_files: null
+  holdout_identifiers: null
+  identifier_col: null
+  file_type: text
+  minimum_sequences: null
+  shuffle: true
+  batched_map: false
+  map_batch_size: 100
+  stream: true

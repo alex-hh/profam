@@ -12,7 +12,7 @@ from omegaconf import DictConfig, open_dict
 
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.datasets import ProteinDatasetBuilder, ProteinDatasetConfig
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
@@ -140,16 +140,19 @@ def proteingym_batch(profam_tokenizer):
 @pytest.fixture()
 def pfam_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
-        name="pfam",
         keep_gaps=False,
         data_path_pattern="pfam/Domain_60429258_61033370.parquet",
         keep_insertions=True,
         to_upper=True,
         is_parquet=True,
     )
-    data = load_protein_dataset(
-        cfg,
+    builder = ProteinDatasetBuilder(
+        name="pfam",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
+        preprocessor=None,
+    )
+    data = builder.load(
         max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
@@ -169,13 +172,15 @@ def foldseek_batch(profam_tokenizer):
         to_upper=True,
         is_parquet=True,
     )
-    data = load_protein_dataset(
-        cfg,
+    builder = ProteinDatasetBuilder(
+        name="foldseek",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
+        preprocessor=None,
+    )
+    data = builder.load(
         max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        use_seq_pos=True,
-        max_seq_pos=2048,
         shuffle=False,
     )
     datapoint = next(iter(data))

@@ -83,7 +83,7 @@ def filter_on_length(
     elif filter_type == "max_seq_pos":
         return any([len(s) <= tokenizer.max_seq_pos - 1 for s in example[sequence_col]])
     elif filter_type == "max_tokens":
-        # why would we do this?
+        # relevant for e.g. non-batched processing for if where max_tokens could be lower than max_seq_pos
         if max_tokens is None:
             return True
         elif interleave_structure_sequence:

@@ -15,18 +15,24 @@ dataset_cfgs:
   foldseek:
     data_path_pattern: foldseek_struct/*.parquet
     holdout_data_files: foldseek_struct/0.parquet
+    name: foldseek
   foldseek_val:
     data_path_pattern: foldseek_struct/0.parquet
+    name: foldseek_val
   foldseek_3di:
     data_path_pattern: foldseek_struct/*.parquet
     holdout_data_files: foldseek_struct/0.parquet
+    name: foldseek_3di
   foldseek_3di_val:
     data_path_pattern: foldseek_struct/0.parquet
+    name: foldseek_3di_val
   foldseek_3di_msa:
     data_path_pattern: foldseek_struct/*.parquet
     holdout_data_files: foldseek_struct/0.parquet
+    name: foldseek_3di_msa
   foldseek_3di_msa_val:
-    holdout_data_files: foldseek_struct/0.parquet
+    data_path_pattern: foldseek_struct/0.parquet
+    name: foldseek_3di_msa_val
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
