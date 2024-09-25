@@ -1,12 +1,12 @@
 import os
 import shutil
-from hydra import compose, initialize_config_dir
-from hydra.utils import instantiate
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
 import tqdm
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
 
 from src import constants
 from src.data.objects import ProteinDocument

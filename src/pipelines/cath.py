@@ -3,6 +3,7 @@ import copy
 import json
 import os
 import time
+
 import numpy as np
 
 from src import constants
@@ -104,5 +105,14 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
                     accession=instance_id,
                     backbone_coords=backbone_coords,
                 )
-            ]
+            ],
+            representative_accession=instance_id,
         )
+
+    def get_instance_summary(self, instance_id):
+        return {
+            "target_length": len(self.instance_dicts[instance_id]["seq"]),
+            "target_has_coords_frac": (
+                ~np.isnan(self.instance_dicts[instance_id]["coords"]["CA"])
+            ).mean(),
+        }
