@@ -80,7 +80,8 @@ def main():
         gen, gen_kwargs={"shards": list(range(24))}  # TODO: how to understand this?
     )
     dataset2 = datasets.IterableDataset.from_generator(
-        gen, gen_kwargs={"shards": list(range(100,124))}  # TODO: how to understand this?
+        gen,
+        gen_kwargs={"shards": list(range(100, 124))},  # TODO: how to understand this?
     )
     print(dataset1.n_shards)
     # THIS IS THE LINE THAT IS IGNORED ATM
@@ -134,9 +135,13 @@ def main():
     for i, batch in enumerate(dataloader2):
         print(batch)
         epoch_2_shards.append(batch["shards"][0])
-    
+
     # print(torch.cat(epoch_2_shards).sort().values)
-    assert (torch.cat(epoch_2_shards).sort().values == torch.cat([torch.arange(24), torch.arange(100,124)])).all()
+    assert (
+        torch.cat(epoch_2_shards).sort().values
+        == torch.cat([torch.arange(24), torch.arange(100, 124)])
+    ).all()
+
 
 if __name__ == "__main__":
     main()

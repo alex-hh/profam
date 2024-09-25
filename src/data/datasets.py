@@ -102,7 +102,7 @@ def prepare_data_files(data_dir, cfg, world_size=1):
         # print("Slicing data files to ensure equal distribution across workers")
         if len(data_files) // world_size == 0:
             raise ValueError(
-                "Fewer data files than world size, difficult to handle in ddp"
+                f"Fewer data files ({len(data_files)}) than world size ({world_size}), difficult to handle in ddp"
             )
         else:
             data_files = data_files[: (len(data_files) // world_size) * world_size]
