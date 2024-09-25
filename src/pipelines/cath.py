@@ -37,14 +37,12 @@ def coords_list_to_dict(coords_dict):
 def load_coords(jsonl_file):
     """Split-specific jsonl files should be created by running data_creation_scripts/create_cath_splits.py"""
     entries = []
-    exclude_names = exclude_names or []
     with open(jsonl_file) as f:
         for line in f:
             coords_dict = json.loads(line)
             if coords_dict["name"] == "3j7y.K":
                 coords_dict["name"] = "3j7y.KK"  # disambiguate from 3j7y.k
-            if coords_dict["name"] not in exclude_names:
-                entries.append(coords_dict)
+            entries.append(coords_dict)
     return entries
 
 
@@ -67,12 +65,12 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         splits = json.load(
             open(os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json"))
         )
-        t1 = time.time()
         self.instance_dicts = {
             entry["name"].replace(".", ""): entry
             for entry in load_coords(jsonl_file)
-            if entry["name"].replace(".", "") in splits[split_name]
+            if entry["name"] in splits[split_name]
         }
+        t1 = time.time()
         version = "4.3" if self.use_cath_43 else "4.2"
         print(
             f"Loaded CATH {version} ({split_name} split) entries: ",
@@ -81,14 +79,14 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         )
 
     def instance_ids(self):
-        return [entry["name"].replace(".", "") for entry in self.entries]
+        return sorted(list(self.instance_dicts.keys()))
 
     def load_protein_document(self, instance_id):
         if instance_id == "3j7y.K":
             instance_id = "3j7y.KK"  # disambiguate from 3j7y.k
         elif instance_id == "3j7yK":
             instance_id = "3j7yKK"
-        entry = self.entries[instance_id]
+        entry = self.instance_dicts[instance_id]
         backbone_coords = np.stack(
             [
                 np.array(entry["coords"]["N"]),
@@ -98,7 +96,7 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
             ],
             axis=1,
         ).astype(np.float32)
-        sequence = entry["sequence"]
+        sequence = entry["seq"]
         return ProteinDocument.from_proteins(
             [
                 Protein(

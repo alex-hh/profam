@@ -16,11 +16,11 @@ from src.sequence import fasta
 from src.utils.utils import maybe_print
 
 
-def load_named_pipeline(pipeline_name: str):
+def load_named_pipeline(pipeline_name: str, overrides: Optional[List[str]] = None):
     with initialize_config_dir(
         os.path.join(constants.BASEDIR, "configs/pipeline"), version_base="1.3"
     ):
-        pipeline_cfg = compose(config_name=pipeline_name)
+        pipeline_cfg = compose(config_name=pipeline_name, overrides=overrides)
     return instantiate(pipeline_cfg)
 
 
