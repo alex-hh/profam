@@ -573,6 +573,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
                 example,
                 selected_ids=sequence_ids,
                 sequence_col=self.sequence_col,
+                use_pdb_if_available_prob=self.prefer_pdb_if_available_prob,
             )
             # TODO: same thing for structure tokens?
             plddts = []

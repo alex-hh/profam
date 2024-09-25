@@ -55,10 +55,27 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         super().__init__(*args, **kwargs)
         self.use_cath_43 = use_cath_43
         self.split_name = split_name
-        self.entries = load_coords(
-            self.split_name, convert_to_list=True, exclude_names=self.exclude_names
+        if self.use_cath_43:
+            jsonl_file = os.path.join(
+                constants.PROFAM_DATA_DIR, "cath/cath43/chain_set.jsonl"
+            )
+        else:
+            jsonl_file = os.path.join(
+                constants.PROFAM_DATA_DIR, "cath/cath42/chain_set.jsonl"
+            )
+        splits = json.load(
+            open(os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json"))
         )
-        self.instance_dicts = {entry["name"]: entry for entry in self.entries}
+        self.instance_dicts = {
+            entry["name"].replace(".", ""): entry
+            for entry in load_coords(jsonl_file)
+            if entry["name"].replace(".", "") in splits[split_name]
+        }
+        version = "4.3" if self.use_cath_43 else "4.2"
+        print(
+            f"Loaded CATH {version} ({split_name} split) entries: ",
+            len(self.instance_dicts),
+        )
 
     def instance_ids(self):
         return [entry["name"].replace(".", "") for entry in self.entries]
