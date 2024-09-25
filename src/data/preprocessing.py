@@ -464,6 +464,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         transform_fns: Optional[List[Callable]] = None,
         batched_map: bool = False,  # should map be called with batched=True
         map_batch_size: int = 100,
+        upsample_pdb: bool = False,
         sample_uniformly_from_col: Optional[
             str
         ] = None,  # for redundancy-aware sampling
@@ -495,7 +496,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         self.structure_tokens_col = structure_tokens_col
         self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
-
+        self.upsample_pdb = upsample_pdb
     @property
     def required_keys(self):
         if self.structure_tokens_col is None:
@@ -529,7 +530,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
                 min(max_sequences_to_preprocess, len(example["sequences"]))
             )
 
-        if has_pdb:
+        if has_pdb and self.upsample_pdb:
             extra_pdb_ids = [
                 ix
                 for ix in np.argwhere(example["pdb_index_mask"])
