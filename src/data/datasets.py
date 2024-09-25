@@ -87,6 +87,13 @@ def prepare_data_files(data_dir, cfg, world_size=1):
 
 
 class ProteinDatasetBuilder:
+    """For core hf related dataset building c.f. https://huggingface.co/docs/datasets/en/dataset_script.
+
+    This class is different in that it is more focussed on preprocessing.
+    It might be useful however to move towards the standardised splits.
+    - although this is basically just directory-based
+    """
+
     def __init__(
         self,
         name: str,
@@ -98,7 +105,27 @@ class ProteinDatasetBuilder:
         self.cfg = cfg
         self.tokenizer = tokenizer
         self.preprocessor = preprocessor
-        # TODO: make dataset an attr?
+
+    def process(self, dataset: Dataset):
+        raise NotImplementedError("Must implement process method")
+
+    def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
+        raise NotImplementedError("Must implement load method")
+
+
+class StreamedProteinDatasetBuilder(ProteinDatasetBuilder):
+    def __init__(
+        self,
+        name: str,
+        cfg: ProteinDatasetConfig,
+        tokenizer: ProFamTokenizer,
+        preprocessor: Optional[BasePreprocessor] = None,
+    ):
+        super().__init__(name, cfg, tokenizer, preprocessor)
+        if not self.cfg.stream:
+            raise NotImplementedError(
+                "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
+            )
 
     def preprocess_examples(
         self,
@@ -115,10 +142,7 @@ class ProteinDatasetBuilder:
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
-        if not self.cfg.stream:
-            raise NotImplementedError(
-                "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
-            )
+
         if self.batched_map:
             examples = self.preprocessor.batched_preprocess_protein_data(
                 examples,
@@ -184,7 +208,6 @@ class ProteinDatasetBuilder:
     def load(
         self,
         data_dir="data",
-        split="train",
         world_size: int = 1,
         verbose: bool = False,
     ):
@@ -194,7 +217,7 @@ class ProteinDatasetBuilder:
         dataset = load_dataset(
             self.cfg.file_type,
             data_files=data_files,
-            split=split,
+            split="train",  # just automatically assigns all files to train - get this 'split'
             streaming=self.cfg.stream,
             sample_by="document",
         )

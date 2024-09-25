@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import transforms
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.datasets import ProteinDatasetConfig
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
 from src.data.utils import CustomDataCollator
@@ -98,7 +98,7 @@ def load_msa_for_row(
     extra_tokens_per_document: int = 2,
     use_msa_pos: bool = True,
 ):
-    msa_file = os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"])
+    msa_file = row["MSA_filename"]
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
     _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
@@ -107,9 +107,6 @@ def load_msa_for_row(
         to_upper=True,
         keep_gaps=True if use_msa_pos else keep_gaps,
     )
-    # need to allow room for the completion
-    # todo should be max completion length (once we handle indels)
-    max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     proteins = ProteinDocument(
         sequences=seqs,
         accessions=None,
@@ -119,6 +116,9 @@ def load_msa_for_row(
         backbone_coords=None,
         structure_tokens=None,
     )
+    # need to allow room for the completion
+    # todo should be max completion length (once we handle indels)
+    max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     proteins = sample_to_max_tokens(
         proteins,
         seed=seed,
@@ -148,14 +148,11 @@ def load_comp_seq_dms_for_row(
     row,
     seed,
     max_mutated_sequences,
-    gym_data_dir,
     use_msa_pos: bool = True,
     keep_gaps: bool = False,
 ):
 
-    dms_df = pd.read_csv(
-        os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", row["DMS_filename"])
-    )
+    dms_df = pd.read_csv(row["DMS_filename"])
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
     completion_seqs = dms_df["mutated_sequence"].tolist()
@@ -183,44 +180,20 @@ def load_comp_seq_dms_for_row(
     return row
 
 
-def build_gym_structure_prompt_df():
-    pass
-
-
 def build_gym_df(
     dms_ids,
     gym_data_dir: str,
     seed: Optional[int] = None,
     max_mutated_sequences: Optional[int] = None,
-    max_tokens: int = 5000,
-    keep_gaps: bool = False,
-    use_filtered_msa: bool = False,
-    extra_tokens_per_document: int = 2,
-    use_msa_pos: bool = True,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
-    df = df.apply(
-        load_msa_for_row,
-        axis=1,
-        seed=seed,
-        gym_data_dir=gym_data_dir,
-        max_tokens=max_tokens,
-        keep_gaps=keep_gaps,
-        use_filtered_msa=use_filtered_msa,
-        extra_tokens_per_document=extra_tokens_per_document,
-        use_msa_pos=use_msa_pos,
-        keep_wt=True,
-        drop_wt=False,
+    df["MSA_filename"] = df["MSA_filename"].apply(
+        lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
     )
-    df = df.apply(
-        load_comp_seq_dms_for_row,
-        axis=1,
-        seed=seed,
-        max_mutated_sequences=max_mutated_sequences,
-        gym_data_dir=gym_data_dir,
-        use_msa_pos=use_msa_pos,
+    df["DMS_filename"] = df["DMS_filename"].apply(
+        lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
     )
     df["ds_name"] = "gym"
     return df[
@@ -236,333 +209,116 @@ def build_gym_df(
     ]
 
 
-def load_gym_dataset(
-    dms_ids,
-    tokenizer,
-    seed: Optional[int] = None,
-    max_mutated_sequences: Optional[int] = None,
-    max_tokens: int = 5000,
-    mutant_bos_token: str = "sep",
-    gym_data_dir: str = "data/example_data/ProteinGym",
-    keep_gaps: bool = False,
-    num_proc: Optional[int] = None,
-    use_filtered_msa: bool = False,
-    use_msa_pos: bool = True,
-):
-    """mutant_bos_token should almost always be sep.
-
-    when using a BaseSingleSequenceLitModule, however, we want it
-    to be bos, since no context sequences are passed during scoring.
-    """
-    print(f"Loading gym dataset for evaluation, keeping gaps: {keep_gaps}")
-    if num_proc == 0:
-        num_proc = None
-    df = build_gym_df(
-        dms_ids,
-        gym_data_dir=gym_data_dir,
-        seed=seed,
-        max_mutated_sequences=max_mutated_sequences,
-        max_tokens=max_tokens,
-        keep_gaps=keep_gaps,
-        use_filtered_msa=use_filtered_msa,
-        extra_tokens_per_document=tokenizer.num_start_tokens,
-        use_msa_pos=use_msa_pos,
-    )
-    # n.b. this isn't streamed
-    dataset = Dataset.from_pandas(df, preserve_index=False)
-    print("Loading gym dataset")
-    dataset = dataset.map(
-        functools.partial(
-            tokenize,
-            tokenizer=tokenizer,
-            mutant_bos_token=mutant_bos_token,
-            document_token="[MSA]" if keep_gaps else "[RAW]",
-        ),
-        batched=False,
-        remove_columns=["DMS_id", "MSA", "completion_seqs"],
-        num_proc=num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
-    )
-    # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-    columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
-    if tokenizer.use_seq_pos:
-        columns += ["seq_pos", "completion_seq_pos"]
-
-    dataset.set_format(
-        type="torch",
-        columns=columns,
-    )
-    return dataset
-
-
-def load_gym_msa_dataset(
-    dms_id,
-    tokenizer,
-    gym_data_dir: str = "data/example_data/ProteinGym",
-    keep_gaps: bool = True,
-    num_proc: Optional[int] = None,
-):
-    """For single-sequence training."""
-    if num_proc == 0:
-        num_proc = None
-    df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
-    row = df[df["DMS_id"] == dms_id].iloc[0]
-    _, seqs = fasta.read_fasta(
-        os.path.join(gym_data_dir, "DMS_msa_files", row["MSA_filename"]),
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=keep_gaps,
-    )
-    dataset = Dataset.from_dict({"sequence": seqs})
-
-    def tokenize_sequence(example):
-        # prepend sep token to ensure data lines up with completion ids
-        if isinstance(example["sequence"], str):
-            return tokenizer(
-                tokenizer.sep_token + example["sequence"] + tokenizer.sep_token,
-                return_tensors="pt",
-            )
-        else:
-            return tokenizer(
-                [
-                    tokenizer.sep_token + s + tokenizer.sep_token
-                    for s in example["sequence"]
-                ],
-                return_tensors="pt",
-            )
-
-    dataset = dataset.map(
-        tokenize_sequence,
-        batched=True,
-        remove_columns=["sequence"],
-        num_proc=num_proc,
-    )
-    return dataset
-
-
-class GymSingleMSADataModule(LightningDataModule):
-    """For training on a single protein gym MSA."""
-
+class GymDatasetBuilder(ProteinDatasetBuilder):
     def __init__(
         self,
+        name: str,
+        cfg: ProteinDatasetConfig,
         tokenizer: ProFamTokenizer,
-        gym_dms_id: str,
-        gym_data_dir: str,
-        batch_size: int,
-        max_gym_sequences: Optional[int] = None,
-        num_workers: int = 0,
-        keep_gaps: bool = True,
-        use_seq_pos: bool = False,
-    ):
-        super().__init__()
-        self.gym_data_dir = gym_data_dir
-        self.batch_size = batch_size
-        self.max_gym_sequences = max_gym_sequences
-        self.gym_dms_id = gym_dms_id
-        self.num_workers = num_workers
-        self.keep_gaps = keep_gaps
-        self.use_seq_pos = use_seq_pos
-        self.tokenizer = tokenizer
-        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
-        # TODO: fix to avoid hardcoding
-        assert self.gym_dms_id is not None
-        assert self.gym_data_dir is not None
-        self.gym_dataset = load_gym_dataset(
-            dms_ids=[gym_dms_id],
-            tokenizer=self.tokenizer,
-            max_mutated_sequences=self.max_gym_sequences,
-            gym_data_dir=self.gym_data_dir,
-            num_proc=self.num_workers,
-            keep_gaps=self.keep_gaps,
-        )
-        self.msa_dataset = load_gym_msa_dataset(
-            dms_id=gym_dms_id,
-            tokenizer=self.tokenizer,
-            gym_data_dir=self.gym_data_dir,
-            keep_gaps=self.keep_gaps,
-        )
-        ddict = self.msa_dataset.train_test_split(test_size=0.01, seed=42)
-        self.train_dataset = ddict["train"]
-        self.val_dataset = ddict["test"]
-
-    def train_dataloader(self) -> List[DataLoader]:
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            collate_fn=self.collator,
-            num_workers=self.num_workers,
-            persistent_workers=True,
-            shuffle=True,
-        )
-
-    def val_dataloader(self) -> List[DataLoader]:
-        loaders = [
-            DataLoader(
-                self.val_dataset,
-                batch_size=self.batch_size,
-                collate_fn=self.collator,
-                shuffle=False,
-                num_workers=self.num_workers,
-            )
-        ]
-        loaders.append(
-            [
-                DataLoader(
-                    self.gym_dataset,
-                    batch_size=1,  # gym needs batch size 1
-                    shuffle=False,
-                )  # n.b. in this case we do standard collation
-            ]
-        )
-        return loaders
-
-    def test_dataloader(self) -> List[DataLoader]:
-        loaders = [
-            DataLoader(
-                self.test_dataset,
-                batch_size=self.batch_size,
-                collate_fn=self.collator,
-                shuffle=False,
-                num_workers=self.num_workers,
-            )
-        ]
-        loaders.append(
-            [
-                DataLoader(
-                    self.gym_dataset,
-                    batch_size=1,  # gym needs batch size 1
-                    shuffle=False,
-                )  # n.b. in this case we do standard collation
-            ]
-        )
-        return loaders
-
-
-class GymMultiMSADataModule(LightningDataModule):
-    """For training on multiple protein gym MSAs.
-
-    Idea here is going to be to concatenate sequences from a single MSA up to
-    the max tokens limit, then tokenize.
-
-    This data module is therefore compatible with both single-sequence models
-    and multi-sequence models. It's also compatible with single MSA training and
-    multi-MSA training.
-
-    TODO: could this be unified with the hfdatamodule?
-    """
-
-    def __init__(
-        self,
-        dataset_cfg: ProteinDatasetConfig,
-        val_dataset_cfg: ProteinDatasetConfig,
-        tokenizer: ProFamTokenizer,
-        gym_dms_ids: str,
-        gym_data_dir: str,
-        data_dir: str,
-        batch_size: int,
-        max_tokens: int,
-        max_gym_sequences: Optional[int] = None,
-        num_workers: int = 0,
-        # when using a single sequence model (BaseSingleSequenceLitModule), it
-        # scoring passes as input to the model only the completion ids. Therefore
-        # the completion ids should have the bos token at the start.
-        # n.b. during training the model might nonetheless receive multiple concatenated
-        # sequences
+        dms_ids: List[str],
+        preprocessor: Optional[BasePreprocessor] = None,
+        num_proc: Optional[int] = None,
+        seed: Optional[int] = None,  # for msa sampling
+        max_mutated_sequences: Optional[int] = None,
         mutant_bos_token: str = "sep",
-        # will allow sampling multiple times from same dataset.
+        keep_gaps: bool = False,
+        use_filtered_msa: bool = False,
+        extra_tokens_per_document: int = 2,
+        use_msa_pos: bool = True,
     ):
-        super().__init__()
-        self.gym_data_dir = gym_data_dir
-        self.data_dir = data_dir
-        self.batch_size = batch_size
-        self.max_gym_sequences = max_gym_sequences
-        self.max_tokens = max_tokens
-        self.gym_dms_ids = gym_dms_ids
-        self.num_workers = num_workers
-        self.tokenizer = tokenizer
-        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
-        # TODO: fix to avoid hardcoding
-        assert self.gym_dms_ids is not None
-        assert self.gym_data_dir is not None
-        self.gym_dataset = load_gym_dataset(
-            dms_ids=gym_dms_ids,
-            tokenizer=self.tokenizer,
-            max_mutated_sequences=self.max_gym_sequences,
-            gym_data_dir=self.gym_data_dir,
-            mutant_bos_token=mutant_bos_token,  # we might want to set to bos
-            max_tokens=max_tokens,
-            num_proc=self.num_workers,
-            keep_gaps=dataset_cfg.keep_gaps,
-        )
-        self.train_dataset = load_protein_dataset(
-            dataset_cfg,
-            tokenizer=self.tokenizer,
-            max_tokens_per_example=self.max_tokens,
-            data_dir=self.data_dir,
-        )
-        self.train_dataset = self.train_dataset.shuffle(
-            buffer_size=self.train_dataset.n_shards // dataset_cfg.file_repeats,
-            seed=42,
-        )
-        # TODO: fix so that train, val, test aren't all the same
-        self.val_dataset = load_protein_dataset(
-            val_dataset_cfg,
-            tokenizer=self.tokenizer,
-            max_tokens_per_example=self.max_tokens,
-            data_dir=self.data_dir,
-        )
-        self.test_dataset = load_protein_dataset(
-            val_dataset_cfg,
-            tokenizer=self.tokenizer,
-            max_tokens_per_example=self.max_tokens,
-            data_dir=self.data_dir,
-        )
+        """Thing that's a bit different about Gym (and family classification)
+        is that we have this prompt/completions structure.
 
-    def train_dataloader(self) -> List[DataLoader]:
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            collate_fn=self.collator,
-            num_workers=self.num_workers,
-        )
+        We can still use a preprocessor to build the prompt, but we need
+        to additionally handle preprocessing of completions. So we probably
+        want a custom process method.
 
-    def val_dataloader(self) -> List[DataLoader]:
-        loaders = [
-            DataLoader(
-                self.val_dataset,
-                batch_size=self.batch_size,
-                collate_fn=self.collator,
-                shuffle=False,
-                num_workers=self.num_workers,
-            )
-        ]
-        loaders.append(
-            [
-                DataLoader(
-                    self.gym_dataset,
-                    batch_size=1,  # gym needs batch size 1
-                    shuffle=False,
-                )  # n.b. in this case we do standard collation
-            ]
-        )
-        return loaders
+        TODO: flexibly configure msa construction.
+        """
+        super().__init__(name, cfg, tokenizer, preprocessor)
+        self.dms_ids = dms_ids
+        self.seed = seed
+        self.max_mutated_sequences = max_mutated_sequences
+        self.mutant_bos_token = mutant_bos_token
+        self.keep_gaps = keep_gaps
+        self.use_filtered_msa = use_filtered_msa
+        self.extra_tokens_per_document = extra_tokens_per_document
+        self.use_msa_pos = use_msa_pos
+        self.num_proc = num_proc
 
-    def test_dataloader(self) -> List[DataLoader]:
-        loaders = [
-            DataLoader(
-                self.test_dataset,
-                batch_size=self.batch_size,
-                collate_fn=self.collator,
-                shuffle=False,
-                num_workers=self.num_workers,
-            )
-        ]
-        loaders.append(
-            [
-                DataLoader(
-                    self.gym_dataset,
-                    batch_size=1,  # gym needs batch size 1
-                    shuffle=False,
-                )  # n.b. in this case we do standard collation
-            ]
+    def process(
+        self,
+        dataset: Dataset,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+        feature_names: Optional[List[str]] = None,
+    ):
+        """mutant_bos_token should almost always be sep.
+
+        when using a BaseSingleSequenceLitModule, however, we want it
+        to be bos, since no context sequences are passed during scoring.
+        """
+        print(f"Processing gym dataset for evaluation, keeping gaps: {self.keep_gaps}")
+        dataset = dataset.map(
+            functools.partial(
+                load_msa_for_row,
+                tokenizer=self.tokenizer,
+                gym_data_dir=os.path.join(gym_data_dir, "ProteinGym"),
+                keep_gaps=self.keep_gaps,
+                use_filtered_msa=self.use_filtered_msa,
+                extra_tokens_per_document=self.extra_tokens_per_document,
+                use_msa_pos=self.use_msa_pos,
+            ),
+            batched=False,
+            num_proc=self.num_proc,
         )
-        return loaders
+        dataset = dataset.map(
+            functools.partial(
+                load_comp_seq_dms_for_row,
+                tokenizer=self.tokenizer,
+                gym_data_dir=os.path.join(gym_data_dir, "ProteinGym"),
+                use_msa_pos=self.use_msa_pos,
+                keep_gaps=self.keep_gaps,
+            ),
+            batched=False,
+            num_proc=self.num_proc,
+        )
+        dataset = dataset.map(
+            functools.partial(
+                tokenize,
+                tokenizer=self.tokenizer,
+                mutant_bos_token=self.mutant_bos_token,
+                document_token="[MSA]" if self.keep_gaps else "[RAW]",
+            ),
+            batched=False,
+            remove_columns=["DMS_id", "MSA", "completion_seqs"],
+            num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
+        )
+        # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+        columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
+        if self.tokenizer.use_seq_pos:
+            columns += ["seq_pos", "completion_seq_pos"]
+
+        dataset.set_format(
+            type="torch",
+            columns=columns,
+        )
+        return dataset
+
+    def load(
+        self, data_dir="data", split="train", world_size: int = 1, verbose: bool = False
+    ):
+        df = build_gym_df(
+            self.dms_ids,
+            gym_data_dir=os.path.join(gym_data_dir, "ProteinGym"),
+            seed=self.seed,  # For what?
+            max_mutated_sequences=self.max_mutated_sequences,
+            max_tokens=self.max_tokens,
+            keep_gaps=self.keep_gaps,
+            use_filtered_msa=self.use_filtered_msa,
+            extra_tokens_per_document=self.tokenizer.num_start_tokens,
+            use_msa_pos=self.use_msa_pos,
+        )
+        # n.b. this isn't streamed
+        dataset = Dataset.from_pandas(df, preserve_index=False)
+        return dataset

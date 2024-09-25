@@ -1,4 +1,4 @@
-_target_: src.data.datasets.ProteinDatasetBuilder
+_target_: src.data.datasets.StreamedProteinDatasetBuilder
 name: openfold_raw_example
 defaults:
   - /preprocessor: "fasta_raw"

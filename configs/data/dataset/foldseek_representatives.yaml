@@ -1,4 +1,4 @@
-_target_: src.data.datasets.ProteinDatasetBuilder
+_target_: src.data.datasets.StreamedProteinDatasetBuilder
 name: foldseek_representatives
 defaults:
   - /preprocessor: parquet_structure

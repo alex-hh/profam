@@ -1,4 +1,4 @@
-_target_: src.data.datasets.ProteinDatasetBuilder
+_target_: src.data.datasets.StreamedProteinDatasetBuilder
 name: openfold_aligned_example
 defaults:
   - /preprocessor: "fasta_msa"
