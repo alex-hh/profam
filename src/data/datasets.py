@@ -152,6 +152,10 @@ def load_protein_dataset(
 
     def prefilter_example(example):
         # TODO: base this on max_seq_pos
+        structure_tokens_col = getattr(cfg.preprocessor, "structure_tokens_col", None)
+        if structure_tokens_col is not None and example[structure_tokens_col] is None:
+            # TODO: refactor datasets will handle this more gracefully
+            return False
         if "sequences" in example:
             filter_num_seqs = len(example["sequences"]) >= (cfg.minimum_sequences or 1)
         else:

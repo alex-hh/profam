@@ -24,8 +24,9 @@ def foldseek_datapoint(profam_tokenizer):
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
-    return next(iter(data))
-
+    data = data.filter(lambda x: x["msta_3di"] is not None)
+    ds_iter = iter(data)
+    return next(ds_iter)
 
 # TODO: add tests for standard preprocessing.
 
