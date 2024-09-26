@@ -8,7 +8,7 @@ import torch
 
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
 from src.data.preprocessing import backbone_coords_from_example
 from src.data.utils import CustomDataCollator
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
@@ -71,16 +71,20 @@ def foldseek_interleaved_structure_sequence_batch(
         interleave_structure_sequence=True,
     )
     cfg = ProteinDatasetConfig(
-        preprocessor=parquet_3di_processor,
         data_path_pattern="foldseek_struct/0.parquet",
         is_parquet=True,
     )
-    data = load_protein_dataset(
-        cfg,
+    builder = StreamedProteinDatasetBuilder(
+        name="foldseek_example",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
+        preprocessor=parquet_3di_processor,
+    )
+    data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
+    data = builder.process(
+        data,
         max_tokens_per_example=max_tokens,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
+        shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     datapoint = next(iter(data))
@@ -92,14 +96,19 @@ def foldseek_interleaved_structure_sequence_batch(
 def foldseek_datapoint(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
+        file_type="parquet",
     )
-    data = load_protein_dataset(
-        cfg,
+    builder = StreamedProteinDatasetBuilder(
+        name="foldseek_example",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
+        preprocessor=None,
+    )
+    data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
+    data = builder.process(
+        data,
         max_tokens_per_example=2048,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
+        shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     return next(iter(data))
@@ -224,18 +233,23 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         ],
     )
     cfg = ProteinDatasetConfig(
-        preprocessor=preprocessor,
         data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
+        file_type="parquet",
     )
-    data = load_protein_dataset(
-        cfg,
+    builder = StreamedProteinDatasetBuilder(
+        name="foldseek_example",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
+        preprocessor=preprocessor,
+    )
+    data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
+    data = builder.process(
+        data,
         max_tokens_per_example=2048,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
+        shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
+
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
     batch = collator([datapoint])
@@ -277,21 +291,26 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         config=preprocessing_cfg,
         structure_tokens_col=None,
         interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
+    )
+    cfg = ProteinDatasetConfig(
+        data_path_pattern="foldseek_representatives/0.parquet",
+        file_type="parquet",
+        shuffle=False,
         batched_map=True,
         map_batch_size=30,
     )
-    cfg = ProteinDatasetConfig(
+    builder = StreamedProteinDatasetBuilder(
+        name="foldseek_example",
+        cfg=cfg,
+        tokenizer=profam_tokenizer,
         preprocessor=parquet_3di_processor,
-        data_path_pattern="foldseek_representatives/0.parquet",
-        is_parquet=True,
-        shuffle=False,
     )
-    dataset = load_protein_dataset(
-        cfg,
-        profam_tokenizer,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        max_tokens_per_example=max_tokens,
-        shuffle=False,
+    data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
+    data = builder.process(
+        data,
+        max_tokens_per_example=2048,
+        shuffle_proteins_in_document=False,
+        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
-    example = next(iter(dataset))
+    example = next(iter(data))
     assert (example["input_ids"] == profam_tokenizer.sep_token_id).sum() > 1

@@ -5,7 +5,7 @@ import pytest
 
 from src.constants import BASEDIR
 from src.data import preprocessing
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.datasets import ProteinDatasetBuilder, ProteinDatasetConfig
 from src.data.utils import examples_list_to_dict
 
 
@@ -13,14 +13,19 @@ from src.data.utils import examples_list_to_dict
 def foldseek_datapoint(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
+        file_type="parquet",
     )
-    data = load_protein_dataset(
-        cfg,
+    builder = ProteinDatasetBuilder(
+        name="foldseek_example",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
+        preprocessor=None,
+    )
+    data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
+    data = builder.process(
+        data,
         max_tokens_per_example=2048,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
+        shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     return next(iter(data))
@@ -56,14 +61,20 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
         data_path_pattern="foldseek_representatives/0.parquet",
         is_parquet=True,
     )
-    data = load_protein_dataset(
-        cfg,
+    builder = ProteinDatasetBuilder(
+        name="foldseek_example",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
+        preprocessor=None,
+    )
+    data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
+    data = builder.process(
+        data,
         max_tokens_per_example=None,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
+        shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
+
     example = next(iter(data))
     assert len(example["sequences"]) == 1
     protein_len = (

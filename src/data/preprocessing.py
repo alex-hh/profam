@@ -206,8 +206,6 @@ class BasePreprocessor:
         self.interleave_structure_sequence = (
             interleave_structure_sequence  # should this be part of config?
         )
-        self.batched_map = batched_map
-        self.map_batch_size = map_batch_size
         self.sample_uniformly_from_col = sample_uniformly_from_col
         self.max_sequences = max_sequences_per_document
         if self.sample_uniformly_from_col is not None:
@@ -457,8 +455,6 @@ class ParquetSequencePreprocessor(ParquetPreprocessor):
         identifier_col: str = "fam_id",
         transform_fns: Optional[List[Callable]] = None,
         infer_representative_from_identifier: bool = False,
-        batched_map: bool = False,  # should map be called with batched=True
-        map_batch_size: int = 100,
         sample_uniformly_from_col: Optional[
             str
         ] = None,  # for redundancy-aware sampling
@@ -469,8 +465,6 @@ class ParquetSequencePreprocessor(ParquetPreprocessor):
             config,
             transform_fns,
             interleave_structure_sequence=False,
-            batched_map=batched_map,
-            map_batch_size=map_batch_size,
             sample_uniformly_from_col=sample_uniformly_from_col,
         )
         self.sequence_col = sequence_col
@@ -539,8 +533,6 @@ class ParquetStructurePreprocessor(ParquetPreprocessor):
             config,
             transform_fns,
             interleave_structure_sequence=interleave_structure_sequence,
-            batched_map=batched_map,
-            map_batch_size=map_batch_size,
             sample_uniformly_from_col=sample_uniformly_from_col,
             max_sequences_per_document=max_sequences_per_document,
         )
