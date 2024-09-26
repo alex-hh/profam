@@ -15,7 +15,8 @@ defaults:
   - override /callbacks: default_with_shuffle
   - override /trainer: default
 
-tags: ["gym_train"]
+experiment_group: example
+tags: ["${.experiment_group}"]
 
 seed: 12345
 

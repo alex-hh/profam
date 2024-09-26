@@ -1,4 +1,5 @@
 defaults:
+  - throughput
   - model_checkpoint
   - model_summary
   - rich_progress_bar
@@ -10,7 +11,7 @@ defaults:
 model_checkpoint:
   dirpath: ${paths.output_dir}/checkpoints
   filename: "epoch_{epoch:03d}"
-  monitor: "val/loss/dataloader_idx_0"
+  monitor: "val/loss"
   mode: "min"
   save_last: True
   auto_insert_metric_name: False

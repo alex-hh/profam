@@ -93,6 +93,10 @@ def convert_sequence_with_positions(
     positions = []
     is_match = []
     sequence = ""
+
+    # if not use_msa_pos:
+    #     return seq, list(range(1, len(seq+1))), [True] * len(seq)
+
     if keep_insertions:
         assert to_upper, "If keeping insertions should convert to upper case"
     for aa in seq:
