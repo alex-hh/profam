@@ -228,8 +228,6 @@ def _prepare_sequence_causal_bidirectional_4d_binary_mask(
 
 def _prepare_prefix_lm_4d_binary_mask(
     input_ids: torch.LongTensor,
-    last_cached_prefix_start: Optional[int],
-    last_cached_seq_start: Optional[int],
     attention_mask_2d: Optional[torch.Tensor],
     sequence_length: int,
     target_length: int,
@@ -246,8 +244,7 @@ def _prepare_prefix_lm_4d_binary_mask(
 
     Current version allows attention between items (proteins).
     """
-    input_ids
-    # we can start with a standard causal mask. then 'fill in' prefix blocks with bidirectional attention.
+    new_input_ids = input_ids[:, cache_position]
     causal_mask = _prepare_causal_4d_binary_mask(
         attention_mask_2d,
         sequence_length,
@@ -258,30 +255,18 @@ def _prepare_prefix_lm_4d_binary_mask(
     )
     # now we identify pairs of positions that belong to the same prefix. currently we assume
     # that no uncached position can be in a prefix.
-    raise NotImplementedError(
-        "Check sep /pref (seq/struct sep?) ids get assigned correctly."
-    )
-    prefix_index = torch.cumsum(input_ids == prefix_separator_token_id, dim=-1) + 1
-    sequence_index = torch.cumsum(input_ids == item_separator_token_id, dim=-1) + 1
+    # TODO: maybe allow attending to sep tokens
+    prefix_index = (
+        torch.cumsum(input_ids == prefix_separator_token_id, dim=-1) + 1
+    )  # prefix sep gets assigned to sequence not prefix
+    sequence_index = (
+        torch.cumsum(input_ids == item_separator_token_id, dim=-1) + 1
+    )  # item sep gets assigned to next sequence
     is_prefix = prefix_index == sequence_index
     prefix_index = torch.where(is_prefix, prefix_index, 0)
-    full_prefix_index = torch.zeros(batch_size, target_length, device=device)
-    full_prefix_index[:, cache_position] = prefix_index
-    if last_prefix_end == last_seq_end:
-        assert last_prefix_end is None and last_seq_end is None
-        # we have a new sequence. we're therefore in a prefix which ends at the first prefix separator.
-        # a prefix is somewhere where the prefix index is equal to the sequence index
-        pass
-
-    elif last_seq_end > last_prefix_end:
-        # we start with a prefix
-        full_prefix_index[:, last_seq_end + 1 : cache_position[0]] = 1
-
-    else:
-        # we start with a suffix
-        pass
-
-    same_prefix_mask = prefix_index[:, None, :] == full_prefix_index[:, :, None]
+    new_prefix_index = prefix_index[:, cache_position]
+    same_prefix_mask = new_prefix_index[:, :, None] == prefix_index[:, None, :]
+    print(same_prefix_mask.shape, causal_mask.shape)
     causal_mask.masked_fill(same_prefix_mask, 1)
     return causal_mask
 
@@ -409,8 +394,8 @@ def prepare_binary_attention_mask(
             device,
             cache_position,
             batch_size,
-            seq_struct_sep_token_id=seq_struct_sep_token_id,
-            sep_token_id=sep_token_id,
+            prefix_separator_token_id=seq_struct_sep_token_id,
+            item_separator_token_id=sep_token_id,
         )
     else:
         raise ValueError("Unsupported attention mask type", attention_mask_type)
