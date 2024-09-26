@@ -15,7 +15,7 @@ dataset_cfgs:
     data_path_pattern: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
     shuffle: false
-    file_repeats: ${trainer.devices}  # for ddp
+    file_repeats: 8  # for ddp
 batch_size: 18
 max_tokens: 1536
 data_dir: ${paths.data_dir}
