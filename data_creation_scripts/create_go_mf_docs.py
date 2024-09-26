@@ -7,9 +7,7 @@ import urllib.request
 from collections import defaultdict
 from tqdm import tqdm
 import argparse
-from goatools import obo_parser
-from goatools.anno.genetogo_reader import Gene2GoReader
-from goatools.semantic import TermCounts, get_info_content
+import math
 
 # download and process go uniprot file : https://www.ebi.ac.uk/GOA/downloads.html
 # goa_uniprot_all.gaf.gz : 19GB file contains all GO annotations for proteins in UniProtKB
@@ -49,6 +47,71 @@ def download_file(url, output_path):
     else:
         logging.info(f"File already exists at {output_path}")
 
+class GOTerm:
+    def __init__(self, id):
+        self.id = id
+        self.parents = set()
+        self.children = set()
+        self.namespace = None
+        self.annotation_count = 0
+
+def parse_go_obo(file_path):
+    """Parse the GO OBO file and return a dictionary of GO terms."""
+    go_terms = {}
+    current_term = None
+
+    with open(file_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line == '[Term]':
+                current_term = None
+            elif line.startswith('id: '):
+                go_id = line.split(': ')[1]
+                current_term = GOTerm(go_id)
+                go_terms[go_id] = current_term
+            elif current_term is not None:
+                if line.startswith('namespace: '):
+                    current_term.namespace = line.split(': ')[1]
+                elif line.startswith('is_a: '):
+                    parent_id = line.split(' ')[1]
+                    current_term.parents.add(parent_id)
+                    if parent_id in go_terms:
+                        go_terms[parent_id].children.add(current_term.id)
+
+    return go_terms
+
+def count_annotations(go_terms, go_to_uniprot):
+    """Count annotations for each GO term, including children."""
+    for go_id, uniprot_ids in go_to_uniprot.items():
+        if go_id in go_terms:
+            term = go_terms[go_id]
+            term.annotation_count += len(uniprot_ids)
+            
+            # Propagate counts to parents
+            stack = list(term.parents)
+            while stack:
+                parent_id = stack.pop()
+                if parent_id in go_terms:
+                    parent = go_terms[parent_id]
+                    parent.annotation_count += len(uniprot_ids)
+                    stack.extend(parent.parents)
+
+def calculate_ic(go_terms):
+    """Calculate the Information Content for each GO term."""
+    namespace_totals = defaultdict(int)
+    for term in go_terms.values():
+        namespace_totals[term.namespace] += term.annotation_count
+
+    ic_values = {}
+    for go_id, term in go_terms.items():
+        if term.namespace and term.annotation_count > 0:
+            p_t = term.annotation_count / namespace_totals[term.namespace]
+            ic_values[go_id] = -math.log(p_t)
+        else:
+            ic_values[go_id] = 0
+
+    return ic_values
+
 def download_go_obo():
     """Downloads the GO OBO file."""
     ensure_dir(GO_OBO_FILE)
@@ -62,39 +125,6 @@ def download_go_obo():
             sys.exit(1)
     else:
         logging.info(f"GO OBO file already exists at {GO_OBO_FILE}")
-
-def calculate_ic(go_to_uniprot):
-    """Calculates Information Content for GO terms using GOATOOLS."""
-    logging.info("Calculating Information Content for GO terms")
-    
-    # Load the GO OBO file
-    go_obo = obo_parser.GODag(GO_OBO_FILE)
-    
-    # Create a Gene2GoReader-like object from our data
-    class CustomGene2GoReader:
-        def __init__(self, go_to_uniprot):
-            self.go_to_uniprot = go_to_uniprot
-        
-        def associations(self):
-            for go_id, uniprot_ids in self.go_to_uniprot.items():
-                for uniprot_id in uniprot_ids:
-                    yield (uniprot_id, go_id)
-    
-    gene2go = CustomGene2GoReader(go_to_uniprot)
-    
-    # Calculate termcounts
-    termcounts = TermCounts(go_obo, gene2go.associations())
-    
-    # Calculate IC for each GO term
-    go_to_ic = {}
-    for go_id in go_to_uniprot.keys():
-        if go_id in go_obo:
-            go_to_ic[go_id] = get_info_content(go_id, termcounts)
-        else:
-            logging.warning(f"GO term {go_id} not found in the OBO file")
-            go_to_ic[go_id] = 0
-    
-    return go_to_ic
 
 def process_goa_file(input_file, output_file):
     """Processes the GOA file, filters entries, and creates GO term to UniProt ID mapping."""
@@ -121,15 +151,24 @@ def process_goa_file(input_file, output_file):
         if MIN_UNIPROT_IDS <= len(uniprot_ids)
     }
     
-    # Calculate Information Content for each GO term using GOATOOLS
-    go_to_ic = calculate_ic(filtered_go_to_uniprot)
+    # Parse GO OBO file
+    logging.info("Parsing GO OBO file")
+    go_terms = parse_go_obo(GO_OBO_FILE)
+    
+    # Count annotations
+    logging.info("Counting annotations")
+    count_annotations(go_terms, filtered_go_to_uniprot)
+    
+    # Calculate IC
+    logging.info("Calculating Information Content")
+    ic_values = calculate_ic(go_terms)
     
     logging.info(f"Writing {len(filtered_go_to_uniprot)} GO documents to {output_file}")
     ensure_dir(output_file)
     with gzip.open(output_file, 'wt', newline='') as f:
         writer = csv.writer(f, delimiter='\t')
         for go_term, uniprot_ids in filtered_go_to_uniprot.items():
-            ic = go_to_ic.get(go_term, 0)
+            ic = ic_values.get(go_term, 0)
             writer.writerow([go_term, ic, ','.join(uniprot_ids)])
 
 def main():
