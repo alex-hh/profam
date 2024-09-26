@@ -29,7 +29,6 @@ from torch import arange
 
 import src.data.utils as data_utils
 from src.data.family_classification import family_columns
-from src.data.utils import tokenize, tokenize_completions
 from src.sequence import fasta
 
 
@@ -48,6 +47,7 @@ def tokenize_pfam(
     seed=42,
 ):
     """"""
+    raise NotImplementedError()
     msa_name = msa_path["msa_paths"].split("/")[-1].split("_")[0]
     msa_names, msa_seqs = fasta.read_fasta(
         msa_path["msa_paths"],
