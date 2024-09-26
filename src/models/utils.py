@@ -49,6 +49,9 @@ class InputAwareDynamicCache(DynamicCache):
 
     Oh - is it because attention_mask is expected to align with target length?
     Seemingly yes
+
+    N.B. we do not assume get_seq_length is consistent with input_ids_cache,
+    which is updated before forward to include new input ids.
     """
 
     def __init__(self, *args, **kwargs):

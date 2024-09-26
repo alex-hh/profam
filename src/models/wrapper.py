@@ -436,8 +436,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             # helps input aware attention mask construction in _update_causal_mask,
             # and nothing else in forward is affected (only _update_model_kwargs_for_generation)
             # which is outside of forward.
+            # cache_position is inferred based on past_key_values.get_seq_length
             assert isinstance(past_key_values, InputAwareDynamicCache)
-            # TODO: only if use cache?
             past_key_values.update_inputs(input_ids=input_ids)
 
         outputs = super().forward(

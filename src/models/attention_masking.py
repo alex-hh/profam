@@ -388,6 +388,7 @@ def prepare_binary_attention_mask(
         )
         # need a prefix indicator
         return _prepare_prefix_lm_4d_binary_mask(
+            past_key_values.input_ids_cache,  # includes new input ids
             attention_mask_2d,
             new_sequence_length,
             target_length,
