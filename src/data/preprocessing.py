@@ -146,8 +146,6 @@ def preprocess_protein_sequences(
     proteins: ProteinDocument,
     cfg: PreprocessingConfig,
     tokenizer: ProFamTokenizer,
-    max_tokens: Optional[int] = None,
-    transform_fns: Optional[List[Callable]] = None,
 ):
     assert isinstance(proteins, ProteinDocument), type(proteins)
     transform_fns = transform_fns or []
@@ -163,9 +161,6 @@ def preprocess_protein_sequences(
         )
     else:
         proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
-    proteins = transforms.apply_transforms(
-        transform_fns, proteins, tokenizer, max_tokens=max_tokens
-    )
     return proteins
 
 
@@ -246,18 +241,19 @@ class BasePreprocessor:
         )
         transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
         transform_fns += self.transform_fns or []
-        proteins_list = [
-            preprocess_protein_sequences(
+        processed_proteins_list = []
+        for proteins in proteins_list:
+            proteins = preprocess_protein_sequences(
                 proteins,
                 self.cfg,
                 tokenizer,
-                max_tokens=max_tokens,
-                transform_fns=transform_fns,
             )
-            for proteins in proteins_list
-        ]
+            proteins = transforms.apply_transforms(
+                transform_fns, proteins, tokenizer, max_tokens=max_tokens
+            )
+            processed_proteins_list.append(proteins)
         return tokenizer.batched_encode(
-            proteins_list,
+            processed_proteins_list,
             document_token=self.cfg.document_token,
             padding="max_length",
             max_length=max_tokens,
@@ -281,8 +277,9 @@ class BasePreprocessor:
             proteins,
             self.cfg,
             tokenizer,
-            max_tokens=max_tokens,
-            transform_fns=transform_fns,
+        )
+        proteins = transforms.apply_transforms(
+            transform_fns, proteins, tokenizer, max_tokens=max_tokens
         )
         tokenized = tokenizer.encode(
             proteins,
