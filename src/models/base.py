@@ -1,5 +1,6 @@
 import os
 import time
+import warnings
 from typing import Any, Dict, List, Optional
 
 import hydra
@@ -16,6 +17,7 @@ from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
+from src.data.objects import StringObject
 from src.models.utils import accuracy_from_outputs, log_likelihood_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -135,18 +137,17 @@ class BaseLitModule(LightningModule):
         )
 
     @torch.no_grad()
-    def log_metrics(
-        self, batch, outputs, step_name, log_global: bool = False, log_ds: bool = False
-    ):
+    def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
-        if not log_global and not log_ds:
-            return
 
-        aa_accuracy = accuracy_from_outputs(
+        dataset_accuracies = accuracy_from_outputs(
             outputs,
             batch["labels"],
             ignore_index=-100,
+            dataset_names=batch[
+                "ds_name"
+            ].text,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                 ["-", "X", "x"]
                 + [aa.lower() for aa in aa_letters]
@@ -159,83 +160,55 @@ class BaseLitModule(LightningModule):
                 self.tokenizer.convert_tokens_to_ids([aa.lower() for aa in aa_letters])
             ).to(batch["input_ids"]),
         ).any()
+
+        global_metrics = {
+            "loss": loss,
+            "ppl": torch.exp(loss),
+            "aa_accuracy": dataset_accuracies.pop("global"),
+        }
         if has_3di:
-            accuracy_3di = accuracy_from_outputs(
+            dataset_accuracies_3di = accuracy_from_outputs(
                 outputs,
                 batch["labels"],
                 ignore_index=-100,
+                dataset_names=batch["ds_name"].text,
                 ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                     ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
                 ),
             )
-        if log_ds:
-            # n.b. this assumes a batch only contains a single dataset - only true during val!
-            ds_name = (
-                batch["ds_name"][0]
-                if isinstance(batch["ds_name"], list)
-                else batch["ds_name"].text[0]
-            )
-            self.log(
-                f"{step_name}/{ds_name}/loss",
-                loss,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=False,
-            )
-            self.log(
-                f"{step_name}/{ds_name}/aa_accuracy",
-                aa_accuracy,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=False,
-            )
-            if has_3di:
-                self.log(
-                    f"{step_name}/{ds_name}/3di_accuracy",
-                    accuracy_3di,
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=False,
-                    add_dataloader_idx=False,
-                )
+            global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
+
         if log_global:
-            # log the loss again with generic name for the sake of model checkpointing
-            self.log(
-                f"{step_name}/loss",
-                loss,
-                on_step=False,
+            self.log_dict(
+                {f"{step_name}/{k}": v for k, v in global_metrics.items()},
+                on_step=step_name == "train",
                 on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=True,
-            )
-            # n.b. this might be biased for batch size > 1
-            self.log(
-                f"{step_name}/{ds_name}/ppl",
-                torch.exp(loss),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
+                prog_bar=True,
                 add_dataloader_idx=False,
             )
-            self.log(
-                f"{step_name}/aa_accuracy",
-                aa_accuracy,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=False,
-            )
+
+        # n.b. this assumes a batch only contains a single dataset - only true during val!
+        # assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])
+        assert isinstance(batch["ds_name"], StringObject)
+        is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
+        for ds_name in set(batch["ds_name"].text):
+            ds_metrics = {
+                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name]
+            }
+            if is_single_dataset_batch:
+                # global metrics are dataset specific
+                ds_metrics[f"{step_name}/{ds_name}/loss"] = loss
             if has_3di:
-                self.log(
-                    f"{step_name}/3di_accuracy",
-                    accuracy_3di,
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=False,
-                    add_dataloader_idx=False,
-                )
+                ds_metrics[
+                    f"{step_name}/{ds_name}/3di_accuracy"
+                ] = dataset_accuracies_3di[ds_name]
+            self.log_dict(
+                ds_metrics,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -248,7 +221,7 @@ class BaseLitModule(LightningModule):
             **forward_kwargs,
         )
         loss = outputs.loss
-        self.log_metrics(batch, outputs, "train", log_global=True, log_ds=False)
+        self.log_metrics(batch, outputs, "train", log_global=True)
         return loss
 
     def on_before_optimizer_step(self, optimizer):
@@ -282,7 +255,10 @@ class BaseLitModule(LightningModule):
             )
         loss = outputs.loss
         self.log_metrics(
-            batch, outputs, "val", log_global=dataloader_idx == 0, log_ds=True
+            batch,
+            outputs,
+            "val",
+            log_global=dataloader_idx == 0,
         )
         return loss
 
@@ -302,9 +278,7 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        self.log_metrics(
-            batch, outputs, "test", log_global=dataloader_idx == 0, log_ds=True
-        )
+        self.log_metrics(batch, outputs, "test", log_global=dataloader_idx == 0)
         return loss
 
 
@@ -328,11 +302,11 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         all_lls = []
         for batch_start in range(0, completion_ids.shape[1], batch_size):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
+            # fmt: off
             input_ids = completion_ids[
-                :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # b_mut, L
+                :, batch_start: batch_start + batch_size
+            ].reshape(-1, L)  # b_mut, L
+            # fmt: on
             outputs = self.model(input_ids=input_ids)
             labels = torch.where(
                 input_ids == self.tokenizer.pad_token_id, -100, input_ids.clone()
@@ -410,6 +384,21 @@ class BaseFamilyLitModule(BaseLitModule):
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
 
+    def trim_eval_batch(self, seqs_ids):
+        """
+        trim to first padding token in mini-batch
+        (if batch-size is 1: avoid padding entirely)
+        """
+        pad_tok = self.tokenizer.vocab["[PAD]"]
+        mask = seqs_ids != pad_tok
+        indices = torch.arange(seqs_ids.shape[-1], device=seqs_ids.device).expand(
+            seqs_ids.shape
+        )
+        # Set indices with padding to 0
+        indices = torch.where(mask, indices, torch.tensor(0, device=seqs_ids.device))
+        max_non_pad_index_per_seq = torch.max(indices, dim=-1).values
+        return seqs_ids[..., : max_non_pad_index_per_seq.max() + 1]
+
     def _score_seqs_kv_cache(
         self,
         input_ids,
@@ -445,18 +434,21 @@ class BaseFamilyLitModule(BaseLitModule):
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
         ):
             # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
+            # fmt: off
             this_input_ids = completion_ids[
-                :, batch_start : batch_start + batch_size
-            ].reshape(
-                -1, L
-            )  # b_mut, L
+                :, batch_start: batch_start + batch_size
+            ].reshape(-1, L)  # b_mut, L
+            # fmt: on
+            # remove unnecessary padding:
+            this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
+            L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
             if self.use_seq_pos:
+                # fmt: off
                 this_seq_pos = completion_seq_pos[
-                    :, batch_start : batch_start + batch_size
-                ].reshape(
-                    -1, L
-                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+                    :, batch_start: batch_start + batch_size, :L_mini_batch
+                ].reshape(-1, L_mini_batch)
+                # fmt: on
                 forward_kwargs["seq_pos"] = this_seq_pos
             if self.embed_sequence_index:
                 forward_kwargs["start_sequence_index"] = start_sequence_index
@@ -476,6 +468,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 -100,
                 this_input_ids.clone(),
             )
+            # start_ix is 0 as this is likelihood for first AA (pos 1)
             log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
 
             all_lls.append(log_likelihood.mean(-1))  # b_mut
@@ -498,7 +491,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 "Mutant batch size > 1 not yet supported for mutant scoring"
             )
         all_lls = []
-        completion_start_pos = input_ids.shape[1] + 1  # skip the SEP token
+        likelihood_start_ix = input_ids.shape[1]
         for completion_ix in tqdm.tqdm(
             range(completion_ids.shape[1]), disable=not verbose
         ):
@@ -506,6 +499,9 @@ class BaseFamilyLitModule(BaseLitModule):
                 [input_ids, completion_ids[:, completion_ix]],
                 dim=1,
             )
+            # remove unnecessary padding:
+            this_input_ids = self.trim_eval_batch(this_input_ids)
+            L_mini_batch = this_input_ids.shape[-1]  # beware: includes prompt too
             forward_kwargs = {}
             # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
             labels = torch.where(
@@ -514,19 +510,18 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids.clone(),
             )
             assert (
-                this_input_ids[..., completion_start_pos - 1]
-                == self.tokenizer.sep_token_id
-            )  # SEP token
+                this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
+            )  # SEP token which signals end of last prompt seq
             if self.use_seq_pos:
                 this_seq_pos = torch.cat(
                     [seq_pos, completion_seq_pos[:, completion_ix]],
                     dim=1,
-                )
+                )[..., :L_mini_batch]
                 forward_kwargs["seq_pos"] = this_seq_pos
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
-            # TODO: maybe relabel start_ix - a bit confusing
+            # remember likelihood at n predicts position n+1
             log_likelihood = log_likelihood_from_outputs(
-                outputs, labels, start_ix=completion_start_pos - 1
+                outputs, labels, start_ix=likelihood_start_ix
             )  # 1, L
 
             all_lls.append(log_likelihood.mean(-1).item())
@@ -770,17 +765,19 @@ class BaseFamilyLitModule(BaseLitModule):
         precision, recall, thresholds = precision_recall_curve(target_vals, lls)
         metric = auc(recall, precision)
         self.log(
-            "val/auprc_fam_classification",
+            f"val/{batch.get('ds_name').text[0]}_auprc_classification",
             metric,
             on_step=False,
             on_epoch=True,
+            add_dataloader_idx=False,
         )
         au_roc = roc_auc_score(target_vals, lls)
         self.log(
-            "val/auroc_fam_classification",
+            f"val/{batch.get('ds_name').text[0]}_auroc_classification",
             au_roc,
             on_step=False,
             on_epoch=True,
+            add_dataloader_idx=False,
         )
         k_vals = [k for k in [1, 2, 5, 10] if k < len(target_vals)]
         for top_k in k_vals:
@@ -790,12 +787,111 @@ class BaseFamilyLitModule(BaseLitModule):
                 )
             ) / min(top_k, sum(target_vals))
             self.log(
-                f"val/top_{top_k}_acc_fam_classification",
+                f"val/{batch.get('ds_name').text[0]}_top_{top_k}_acc_classification",
                 top_k_acc,
                 on_step=False,
                 on_epoch=True,
+                add_dataloader_idx=False,
             )
+        if batch["ds_name"].text[0] in ["pfam_fam_class"]:
+            # only do this for evals where the eval seqs remain the same across
+            # batches and we consider the likelihood of each eval seq conditioned
+            # on different family 'prompts'
+            self.update_family_likelihoods(batch, lls)
         return torch.tensor(metric, device=self.device, dtype=torch.float32)
+
+    def update_family_likelihoods(self, batch, lls):
+        """
+        each batch evaluates the ll of all test seqs
+        conditioned on a single family. This means
+        we can re-use the KV cache across all seqs.
+        For the multi-class objective we need to store
+        the likelihood of each seq conditioned on each
+        family. lls from each batch are stored here
+        """
+        if not hasattr(self, "family_likelihoods"):
+            self.family_likelihoods = {}
+            self.batch_counter = 0
+        val_ds_name = batch["ds_name"].text[0]
+        if val_ds_name not in self.family_likelihoods:
+            self.family_likelihoods[val_ds_name] = {}
+        for eval_seq_ix, bin_label in enumerate(
+            batch["family_labels"][0].cpu().numpy()
+        ):
+            ll = lls[eval_seq_ix]
+            if eval_seq_ix not in self.family_likelihoods[val_ds_name]:
+                self.family_likelihoods[val_ds_name][eval_seq_ix] = {}
+            if bin_label == 1:
+                if (
+                    1 in self.family_likelihoods[val_ds_name][eval_seq_ix]
+                ):  # 1 fam per seq
+                    warnings.warn("Multiple families assigned for eval seq")
+                self.family_likelihoods[val_ds_name][eval_seq_ix][1] = ll
+            else:
+                if 0 not in self.family_likelihoods[val_ds_name][eval_seq_ix]:
+                    self.family_likelihoods[val_ds_name][eval_seq_ix][0] = []
+                self.family_likelihoods[val_ds_name][eval_seq_ix][0].append(ll)
+        self.batch_counter += 1
+        if self.trainer.sanity_checking:
+            self.family_likelihoods = {}
+            self.batch_counter = 0
+
+    def on_validation_epoch_end(self):
+        """
+        Likelihood scores are accumulated across batches
+        at end of epoch multi-class metrics can be calcd
+        """
+        super().on_validation_epoch_end()
+        if self.trainer.sanity_checking:
+            return
+        if hasattr(self, "family_likelihoods"):
+            ce_scores = []
+            acc_scores = []
+            for val_name in self.family_likelihoods:
+                for eval_seq, lls in self.family_likelihoods[val_name].items():
+                    # softmax likelihoods to get probability over families
+                    labels = np.array([1] + [0] * len(lls[0]))
+                    if 1 in lls:
+                        lls_arr = np.array([lls[1]] + lls[0])
+                        self.log(
+                            f"val/{val_name}_mean_ll_across_fam_prompts",
+                            lls_arr.mean(),
+                            on_step=False,
+                            add_dataloader_idx=False,
+                        )
+                        self.log(
+                            f"val/{val_name}_variance_ll_across_fam_prompts",
+                            np.var(lls_arr),
+                            on_step=False,
+                            add_dataloader_idx=False,
+                        )
+                        lls_arr = lls_arr - lls_arr.max()
+                        probs = np.exp(lls_arr) / np.exp(lls_arr).sum()
+                        # calculate cross entropy
+                        ce = -np.log(probs[labels == 1]).mean()
+                        ce_scores.append(ce)
+                        if np.argmax(probs) == 0:
+                            acc_scores.append(1)
+                        else:
+                            acc_scores.append(0)
+                    else:
+                        warnings.warn(f"Warning: Eval seq has no positive family")
+
+                self.log(
+                    f"val/{val_name}_multiclass_cr_ent",
+                    sum(ce_scores) / len(ce_scores),
+                    on_step=False,
+                    add_dataloader_idx=False,
+                )
+
+                self.log(
+                    f"val/{val_name}_multiclass_acc",
+                    sum(acc_scores) / len(acc_scores),
+                    on_step=False,
+                    add_dataloader_idx=False,
+                )
+        self.family_likelihoods = {}
+        self.batch_counter = 0
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -810,77 +906,19 @@ class BaseFamilyLitModule(BaseLitModule):
             **forward_kwargs,
         )
         loss = outputs.loss
-        # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        # TODO: handle ds-level metrics for train batches which can include multiple datasets
+        self.log_metrics(batch, outputs, "train", log_global=True)
         self.log(
-            "train/accuracy", accuracy, on_step=False, on_epoch=True, prog_bar=True
+            "train/n_seqs",
+            (batch["input_ids"] == self.tokenizer.sep_token_id)
+            .float()
+            .sum(axis=1)
+            .mean()
+            .item(),
+            on_step=True,
+            on_epoch=False,
         )
-        # https://huggingface.co/docs/transformers/perplexity
-        # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round
-        with torch.no_grad():
-            self.log(
-                "train/ppl",
-                torch.exp(loss),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-            )
-            self.log(
-                "train/n_seqs",
-                (batch["input_ids"] == self.tokenizer.sep_token_id)
-                .float()
-                .sum(axis=1)
-                .mean()
-                .item(),
-                on_step=True,
-                on_epoch=False,
-            )
-            self.log_ds_sample_counts(batch)
-
-            # TODO: verify that on_epoch skips missing batches
-            if "ds_name" in batch:
-                per_dataset_accuracies = accuracy_from_outputs(
-                    outputs,
-                    batch["input_ids"],
-                    dataset_names=batch["ds_name"].text,
-                    ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-                )
-                self.log_dict(
-                    {
-                        f"train/{k}_acc": v.item()
-                        for k, v in per_dataset_accuracies.items()
-                    },
-                    on_step=False,
-                    on_epoch=True,
-                )
-
-            if "identifier" in batch:
-                for i, (dataset, doc_id) in enumerate(
-                    zip(batch["ds_name"].text, batch["identifier"].text)
-                ):
-                    self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
-                    self.doc_id_counts[dataset][doc_id] = (
-                        self.doc_id_counts[dataset].get(doc_id, 0) + 1
-                    )
-                self.log_dict(
-                    {
-                        f"{k}_max_sampled_doc": max(v.values())
-                        for k, v in self.doc_id_counts.items()
-                    },
-                    on_step=False,
-                    on_epoch=True,
-                )
-            if "total_num_sequences" in batch:
-                self.log(
-                    "train/total_num_sequences",
-                    batch["total_num_sequences"].float().mean(),
-                )
+        self.log_ds_sample_counts(batch)
         return loss
 
     def log_ds_sample_counts(self, batch):
@@ -896,3 +934,19 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=True,
             on_epoch=False,
         )
+        if "identifier" in batch:
+            for i, (dataset, doc_id) in enumerate(
+                zip(batch["ds_name"].text, batch["identifier"].text)
+            ):
+                self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
+                self.doc_id_counts[dataset][doc_id] = (
+                    self.doc_id_counts[dataset].get(doc_id, 0) + 1
+                )
+            self.log_dict(
+                {
+                    f"{k}_max_sampled_doc": max(v.values())
+                    for k, v in self.doc_id_counts.items()
+                },
+                on_step=False,
+                on_epoch=True,
+            )

@@ -7,14 +7,17 @@ import argparse
 import glob
 import os
 import pandas as pd
+import tqdm
 
 
 def main(args):
-    with open(args.index_file_path, "w") as f:
-        files = glob.glob(args.data_file_pattern)
-        print(f"Found {len(files)} files matching pattern {args.data_file_pattern}")
+    data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
+    with open(os.path.join(data_dir, args.data_folder, "index.csv"), "w") as f:
+        data_file_pattern = os.path.join(data_dir, args.data_folder, "*.parquet")
+        files = glob.glob(data_file_pattern)
+        print(f"Found {len(files)} files matching pattern {data_file_pattern}")
         f.write("identifier,parquet_file,cluster_size,sequence_length\n")
-        for file in files:
+        for file in tqdm.tqdm(files):
             df = pd.read_parquet(file)
             for _, row in df.iterrows():
                 representative = row[args.identifier_col]
@@ -29,8 +32,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("index_file_path")
-    parser.add_argument("data_file_pattern")
-    parser.add_argument("--identifier_col", default="cluster_id")
+    parser.add_argument("data_folder")
+    parser.add_argument("--identifier_col", default="fam_id")
     args = parser.parse_args()
     main(args)

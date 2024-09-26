@@ -109,7 +109,6 @@ def parquet_3di_processor():
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        is_aligned=False,
         transforms=[partial(transforms.interleave_structure_sequence, max_tokens=2048)],
         keep_columns=["plddts"],
     )
@@ -141,7 +140,6 @@ def foldseek_interleaved_structure_sequence_batch(
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        is_aligned=False,
         transforms=[
             partial(transforms.interleave_structure_sequence, max_tokens=max_tokens)
         ],

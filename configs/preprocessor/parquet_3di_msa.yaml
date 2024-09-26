@@ -1,0 +1,17 @@
+_target_: src.data.preprocessing.ParquetStructureTokensPreprocessorConfig
+keep_gaps: true
+keep_insertions: false
+to_upper: false
+document_token: "[MSA]"
+sequence_col: "msta_aa"
+structure_tokens_col: "msta_3di"
+truncate_after_n_sequences: null
+use_msa_pos: true
+# https://github.com/facebookresearch/hydra/issues/1939
+# https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
+transforms:
+  - _target_: src.data.transforms.interleave_structure_sequence
+    _partial_: true
+    max_tokens: ${data.max_tokens}
+    structure_first_prob: 1.0
+keep_columns: ["plddts"]

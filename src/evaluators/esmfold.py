@@ -1,6 +1,5 @@
 import io
 import os
-import shutil
 from typing import List, Optional
 
 import numpy as np
@@ -68,7 +67,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         half_precision: bool = False,
         use_precomputed_reference_structures: bool = True,
         save_structures: bool = False,
-        max_length: int = 650,  # TODO look into cpu offloading...
+        max_length: int = 512,  # TODO look into cpu offloading...
         **kwargs,
     ):
         super().__init__(name, seed=seed, num_samples=num_samples, **kwargs)
@@ -143,6 +142,7 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                 with open(os.path.join(output_dir, f"sample_{i}.pdb"), "w") as f:
                     f.write(pdb_str)
 
+        self.esmfold = self.esmfold.to("cpu")
         return {
             "prompt_plddt": np.mean(prompt_plddts),
             "sample_plddt": np.mean(sample_plddts),

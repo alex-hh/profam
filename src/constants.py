@@ -27,3 +27,8 @@ aa_letters = [
     "W",
     "Y",
 ]
+
+
+PROFAM_DATA_DIR = os.environ.get(
+    "PROFAM_DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data"
+)

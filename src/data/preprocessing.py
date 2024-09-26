@@ -25,6 +25,7 @@ class BasePreprocessorConfig:
     ] = None  # making callable raises an omegaconf validationerror: unsupported value type 'callable'
     keep_columns: Optional[List[str]] = None
     allow_unk: bool = False
+    add_final_sep: bool = True
 
 
 @dataclass
@@ -52,7 +53,6 @@ class ParquetSequencePreprocessorConfig(BasePreprocessorConfig):
 class ParquetStructureTokensPreprocessorConfig(BasePreprocessorConfig):
     sequence_col: str = "sequences"
     structure_tokens_col: str = "structure_tokens"
-    is_aligned: bool = False
 
     def __post_init__(self):
         self.preprocessor = "parquet_structure_tokens"
@@ -108,7 +108,7 @@ def subsample_and_tokenize_protein_data(
         document_token=cfg.document_token,
         padding=padding,
         max_length=max_tokens,
-        add_final_sep=True,
+        add_final_sep=getattr(cfg, "add_final_sep", True),
         allow_unk=getattr(cfg, "allow_unk", False),
     )
     # tokenized.input_ids is flat now
@@ -168,7 +168,9 @@ def preprocess_fasta_data(
             to_upper=False if tokenizer.use_seq_pos else cfg.to_upper,
         )
     ]
+
     proteins = ProteinDocument(sequences=sequences)
+    # add seq_pos if specified
     proteins = preprocess_protein_sequences(proteins, cfg, tokenizer)
     return subsample_and_tokenize_protein_data(
         proteins,
@@ -179,14 +181,14 @@ def preprocess_fasta_data(
     )
 
 
-def backbone_coords_from_example(example):
+def backbone_coords_from_example(example, sequence_col="sequences"):
     ns = example["N"]
     cas = example["CA"]
     cs = example["C"]
     oxys = example["O"]
     coords = []
     for seq, n, ca, c, o in zip(
-        example["sequences"],
+        example[sequence_col],
         ns,
         cas,
         cs,
@@ -234,11 +236,11 @@ def preprocess_parquet_with_structure_tokens(
         )[0].lower()
         for i in sequence_ids
     ]
-    if "N" in example and not cfg.is_aligned:
+    if "N" in example and not cfg.keep_gaps:
         assert not any(["-" in seq for seq in sequences]) and not any(
             ["-" in seq for seq in structure_tokens]
         )
-        coords = backbone_coords_from_example(example)
+        coords = backbone_coords_from_example(example, sequence_col=cfg.sequence_col)
         coords = [coords[i] for i in sequence_ids]
         plddts = example["plddts"]
         plddts = [plddts[i] for i in sequence_ids]
@@ -270,7 +272,7 @@ def preprocess_parquet_sequence_data(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
 ) -> Dict[str, Any]:
-    sequence_iterator = example["sequences"]
+    sequence_iterator = example[cfg.sequence_col]
     max_sequences_to_preprocess = max_tokens // 10
     # n.b. this also shuffles
     if shuffle:

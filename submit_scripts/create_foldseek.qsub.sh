@@ -1,0 +1,15 @@
+#!/bin/bash
+#$ -l tmem=128G
+#$ -l h_vmem=128G
+#$ -l h_rt=12:0:0
+#$ -S /bin/bash
+#$ -N foldseekF
+#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
+#$ -wd ~/ProFam/ahh/profam
+#$ -j y
+date
+# conda activate venvPF
+source /share/apps/source_files/python/python-3.11.9.source
+source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
+python3 data_creation_scripts/create_foldseek_with_af50.py $1
+date
