@@ -3,6 +3,7 @@ from typing import Dict, Optional
 
 import torch
 
+from src.data import transforms
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
     BasePreprocessor,
@@ -31,7 +32,10 @@ class PromptBuilder:
             max_tokens=self.max_tokens - max_length, shuffle=True, seed=self.seed
         ) + (self.preprocessor.transform_fns or [])
         proteins = preprocess_protein_sequences(
-            proteins, self.preprocessor.cfg, tokenizer, transform_fns=transform_fns
+            proteins, self.preprocessor.cfg, tokenizer
+        )
+        proteins = transforms.apply_transforms(
+            transform_fns, proteins, tokenizer, max_tokens=self.max_tokens - max_length
         )
         return proteins
 
@@ -75,7 +79,9 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             representative_doc,
             self.preprocessor.cfg,
             tokenizer,
-            transform_fns=transform_fns,
+        )
+        representative_doc = transforms.apply_transforms(
+            transform_fns, representative_doc, tokenizer, max_tokens=None
         )
         representative_doc = representative_doc.slice_arrays(
             [slice(0, len(representative.sequence) + 1)]

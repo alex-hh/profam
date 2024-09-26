@@ -148,7 +148,6 @@ def preprocess_protein_sequences(
     tokenizer: ProFamTokenizer,
 ):
     assert isinstance(proteins, ProteinDocument), type(proteins)
-    transform_fns = transform_fns or []
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
     if tokenizer.use_seq_pos:
         proteins = transforms.convert_sequences_adding_positions(

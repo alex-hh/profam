@@ -94,14 +94,18 @@ class BaseProteinDatasetBuilder:
     def __init__(
         self,
         name: str,
-        tokenizer: ProFamTokenizer,
         preprocessor: Optional[BasePreprocessor] = None,
     ):
         self.name = name
-        self.tokenizer = tokenizer
         self.preprocessor = preprocessor
 
-    def process(self, dataset: Dataset):
+    def process(
+        self,
+        dataset: Dataset,
+        tokenizer: ProFamTokenizer,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+    ):
         raise NotImplementedError("Must implement process method")
 
     def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
@@ -113,12 +117,11 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
         self,
         name: str,
         cfg: ProteinDatasetConfig,
-        tokenizer: ProFamTokenizer,
         preprocessor: Optional[BasePreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
     ):
-        super().__init__(name, tokenizer, preprocessor)
+        super().__init__(name, preprocessor)
         self.cfg = cfg
         self.batched_map = batched_map
         self.map_batch_size = map_batch_size
@@ -126,6 +129,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
     def preprocess_examples(
         self,
         examples,
+        tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
     ):
@@ -142,7 +146,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
         if self.batched_map:
             examples = self.preprocessor.batched_preprocess_protein_data(
                 examples,
-                self.tokenizer,
+                tokenizer,
                 max_tokens=max_tokens_per_example,
                 shuffle=shuffle_proteins_in_document,
             )
@@ -156,7 +160,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
             # examples is a single row dict in this case
             examples = self.preprocessor.preprocess_protein_data(
                 examples,
-                self.tokenizer,
+                tokenizer,
                 max_tokens=max_tokens_per_example,
                 shuffle=shuffle_proteins_in_document,
             )
@@ -168,6 +172,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
     def process(
         self,
         dataset: Dataset,
+        tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
@@ -192,7 +197,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
                 fn_kwargs={
                     "min_sequences": self.cfg.minimum_sequences,
                     "holdout_identifiers": self.cfg.holdout_identifiers,
-                    "tokenizer": self.tokenizer,
+                    "tokenizer": tokenizer,
                 },
             ).map(
                 self.preprocess_examples,
@@ -200,6 +205,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
                 batch_size=self.map_batch_size,
                 remove_columns=remove_columns,
                 fn_kwargs={
+                    "tokenizer": tokenizer,
                     "max_tokens_per_example": max_tokens_per_example,
                     "shuffle_proteins_in_document": shuffle_proteins_in_document,
                 },
