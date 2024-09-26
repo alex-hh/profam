@@ -19,3 +19,7 @@ Finally, build index files to help with downstream processing:
 
 e.g.
 data_creation_scripts/save_parquet_index.py foldseek_af50_struct
+
+data_creation_scripts/save_accession_index.py foldseek_af50_struct --include_foldseek_members --include_af50_members
+data_creation_scripts/save_accession_index.py foldseek_struct --include_foldseek_members
+data_creation_scripts/save_accession_index.py foldseek_representatives

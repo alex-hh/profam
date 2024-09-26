@@ -497,6 +497,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
         self.upsample_pdb = upsample_pdb
+
     @property
     def required_keys(self):
         if self.structure_tokens_col is None:
