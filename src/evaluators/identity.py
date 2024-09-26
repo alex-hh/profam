@@ -54,6 +54,8 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
                 )
                 recoveries.append(seq_id)
                 unmasked_recoveries.append(unmasked_seq_id)
+            else:
+                raise Exception("Sequence length mismatch")
 
         metrics = {
             "mean_recovery": np.mean(recoveries),
