@@ -48,16 +48,23 @@ class GPT2LitModule(BaseFamilyLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
+        embed_sequence_index: bool = False,
+        pass_constant_position_ids_for_global_index: bool = False,
+        pass_sequence_position_ids_for_global_index: bool = False,
+        max_sequence_index: int = 1024,
     ) -> None:
         if tokenizer.use_seq_pos or embed_coords:
             # commenting out to check computation of inputs embeds is working
             model = WrappedGP2LMHeadModel(
                 config,
                 "transformer.wte",
+                tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
-                use_seq_pos=tokenizer.use_seq_pos,
-                max_seq_pos=tokenizer.max_seq_pos,
                 embed_coords=embed_coords,
+                embed_sequence_index=embed_sequence_index,
+                max_sequence_index=max_sequence_index,
+                pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
+                pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
             )
         else:
             model = GPT2LMHeadModel(config)

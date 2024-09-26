@@ -2,7 +2,6 @@ from typing import List, Optional
 
 import numpy as np
 import torch
-from transformers.cache_utils import DynamicCache
 
 
 def calc_grad_norm(params):
@@ -14,23 +13,6 @@ def calc_grad_norm(params):
     )
 
     return grad_norm
-
-
-class UpdatedDynamicCache(DynamicCache):
-    """A DynamicCache that allows for batched key-value caching.
-    Manually implements latest version of DynamicCache from transformers.
-    (once this is released we can remove this class)
-    """
-
-    def batch_repeat_interleave(self, repeats: int):
-        """Repeat the cache `repeats` times in the batch dimension. Used in contrastive search."""
-        for layer_idx in range(len(self)):
-            self.key_cache[layer_idx] = self.key_cache[layer_idx].repeat_interleave(
-                repeats, dim=0
-            )
-            self.value_cache[layer_idx] = self.value_cache[layer_idx].repeat_interleave(
-                repeats, dim=0
-            )
 
 
 def accuracy_from_outputs(

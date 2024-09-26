@@ -84,7 +84,7 @@ def convert_sequence_with_positions(
     If use_msa_pos is False, or the sequence is unaligned,
     positions are relative to the retained sequence - ignored insertions dont contribute
 
-    TODO: write test
+    For both raw and aligned sequences, the first non-insertions should have position 1.
 
     N.B. currently there is ambiguity between position encoding for a gap then insert
     and a match state. we require a binary mask to resolve.
@@ -131,7 +131,7 @@ def convert_sequence_with_positions(
     ), f"positions length {len(positions)} != sequence length {len(sequence)}"
     assert len(sequence) == len(
         is_match
-    ), f"sequenc length {len(sequence)} != is_match length {len(is_match)}"
+    ), f"sequence length {len(sequence)} != is_match length {len(is_match)}"
     return sequence, positions, is_match
 
 

@@ -13,15 +13,12 @@ from scipy.stats import spearmanr
 from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
 from torch import nn
 from transformers import PreTrainedTokenizerFast
+from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
-from src.models.utils import (
-    UpdatedDynamicCache,
-    accuracy_from_outputs,
-    log_likelihood_from_outputs,
-)
+from src.models.utils import accuracy_from_outputs, log_likelihood_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -379,6 +376,10 @@ class BaseFamilyLitModule(BaseLitModule):
         self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
+        if self.use_seq_pos:
+            self.embed_sequence_index = self.model.embed_sequence_index
+        else:
+            self.embed_sequence_index = False
 
     def get_forward_kwargs(self, batch):
         return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
@@ -418,6 +419,17 @@ class BaseFamilyLitModule(BaseLitModule):
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
         L = completion_ids.shape[-1]
+
+        if self.embed_sequence_index:
+            prompt_sequence_index = self.model.compute_sequence_index(input_ids)
+            assert (input_ids[:, -1] == input_ids[0, -1]).all()
+            if input_ids[0, -1] == self.tokenizer.sep_token_id:
+                start_sequence_index = prompt_sequence_index[:, -1] + 1
+            else:
+                # maybe completion ids starts with sep token, in which case sequence index
+                # will automatically be incremented in model forward
+                start_sequence_index = prompt_sequence_index[:, -1]
+
         for batch_start in tqdm.tqdm(
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
         ):
@@ -438,9 +450,11 @@ class BaseFamilyLitModule(BaseLitModule):
                 ].reshape(-1, L_mini_batch)
                 # fmt: on
                 forward_kwargs["seq_pos"] = this_seq_pos
+            if self.embed_sequence_index:
+                forward_kwargs["start_sequence_index"] = start_sequence_index
 
             actual_batch_size = this_input_ids.shape[0]
-            cache = UpdatedDynamicCache.from_legacy_cache(past_key_values)
+            cache = DynamicCache.from_legacy_cache(past_key_values)
             cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
 
             outputs = self.model(
