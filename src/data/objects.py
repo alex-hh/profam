@@ -6,6 +6,18 @@ import numpy as np
 from src.data.fasta import read_fasta_lines
 
 
+class StringObject:
+    """
+    Custom class to allow for
+    non-tensor elements in batch
+    """
+
+    text: List[str]
+
+    def to(self, device):
+        return self
+
+
 @dataclass
 class Protein:
     sequence: str

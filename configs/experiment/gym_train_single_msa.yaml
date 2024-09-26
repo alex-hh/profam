@@ -9,7 +9,8 @@ defaults:
   - override /callbacks: default
   - override /trainer: default
 
-tags: ["gym_train"]
+experiment_group: "gym_train"
+tags: ["${.experiment_group}"]
 
 seed: 12345
 

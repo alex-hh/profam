@@ -16,6 +16,7 @@ from transformers import PreTrainedTokenizerFast
 from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
+from src.data.objects import StringObject
 from src.models.utils import (
     UpdatedDynamicCache,
     accuracy_from_outputs,
@@ -139,18 +140,17 @@ class BaseLitModule(LightningModule):
         )
 
     @torch.no_grad()
-    def log_metrics(
-        self, batch, outputs, step_name, log_global: bool = False, log_ds: bool = False
-    ):
+    def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
-        if not log_global and not log_ds:
-            return
 
-        aa_accuracy = accuracy_from_outputs(
+        dataset_accuracies = accuracy_from_outputs(
             outputs,
             batch["labels"],
             ignore_index=-100,
+            dataset_names=batch[
+                "ds_name"
+            ].text,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                 ["-", "X", "x"]
                 + [aa.lower() for aa in aa_letters]
@@ -163,83 +163,55 @@ class BaseLitModule(LightningModule):
                 self.tokenizer.convert_tokens_to_ids([aa.lower() for aa in aa_letters])
             ).to(batch["input_ids"]),
         ).any()
+
+        global_metrics = {
+            "loss": loss,
+            "ppl": torch.exp(loss),
+            "aa_accuracy": dataset_accuracies.pop("global"),
+        }
         if has_3di:
-            accuracy_3di = accuracy_from_outputs(
+            dataset_accuracies_3di = accuracy_from_outputs(
                 outputs,
                 batch["labels"],
                 ignore_index=-100,
+                dataset_names=batch["ds_name"].text,
                 ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                     ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
                 ),
             )
-        if log_ds:
-            # n.b. this assumes a batch only contains a single dataset - only true during val!
-            ds_name = (
-                batch["ds_name"][0]
-                if isinstance(batch["ds_name"], list)
-                else batch["ds_name"].text[0]
-            )
-            self.log(
-                f"{step_name}/{ds_name}/loss",
-                loss,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=False,
-            )
-            self.log(
-                f"{step_name}/{ds_name}/aa_accuracy",
-                aa_accuracy,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=False,
-            )
-            if has_3di:
-                self.log(
-                    f"{step_name}/{ds_name}/3di_accuracy",
-                    accuracy_3di,
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=False,
-                    add_dataloader_idx=False,
-                )
+            global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
+
         if log_global:
-            # log the loss again with generic name for the sake of model checkpointing
-            self.log(
-                f"{step_name}/loss",
-                loss,
-                on_step=False,
+            self.log_dict(
+                {f"{step_name}/{k}": v for k, v in global_metrics.items()},
+                on_step=step_name == "train",
                 on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=True,
-            )
-            # n.b. this might be biased for batch size > 1
-            self.log(
-                f"{step_name}/{ds_name}/ppl",
-                torch.exp(loss),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
+                prog_bar=True,
                 add_dataloader_idx=False,
             )
-            self.log(
-                f"{step_name}/aa_accuracy",
-                aa_accuracy,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=False,
-            )
+
+        # n.b. this assumes a batch only contains a single dataset - only true during val!
+        # assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])
+        assert isinstance(batch["ds_name"], StringObject)
+        is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
+        for ds_name in set(batch["ds_name"].text):
+            ds_metrics = {
+                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name]
+            }
+            if is_single_dataset_batch:
+                # global metrics are dataset specific
+                ds_metrics[f"{step_name}/{ds_name}/loss"] = loss
             if has_3di:
-                self.log(
-                    f"{step_name}/3di_accuracy",
-                    accuracy_3di,
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=False,
-                    add_dataloader_idx=False,
-                )
+                ds_metrics[
+                    f"{step_name}/{ds_name}/3di_accuracy"
+                ] = dataset_accuracies_3di[ds_name]
+            self.log_dict(
+                ds_metrics,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+            )
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -252,7 +224,7 @@ class BaseLitModule(LightningModule):
             **forward_kwargs,
         )
         loss = outputs.loss
-        self.log_metrics(batch, outputs, "train", log_global=True, log_ds=False)
+        self.log_metrics(batch, outputs, "train", log_global=True)
         return loss
 
     def on_before_optimizer_step(self, optimizer):
@@ -286,7 +258,10 @@ class BaseLitModule(LightningModule):
             )
         loss = outputs.loss
         self.log_metrics(
-            batch, outputs, "val", log_global=dataloader_idx == 0, log_ds=True
+            batch,
+            outputs,
+            "val",
+            log_global=dataloader_idx == 0,
         )
         return loss
 
@@ -306,9 +281,7 @@ class BaseLitModule(LightningModule):
                 **forward_kwargs,
             )
         loss = outputs.loss
-        self.log_metrics(
-            batch, outputs, "test", log_global=dataloader_idx == 0, log_ds=True
-        )
+        self.log_metrics(batch, outputs, "test", log_global=dataloader_idx == 0)
         return loss
 
 
@@ -909,7 +882,6 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        batch_size = batch["input_ids"].shape[0]
         forward_kwargs = self.get_forward_kwargs(batch)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
@@ -920,102 +892,19 @@ class BaseFamilyLitModule(BaseLitModule):
             **forward_kwargs,
         )
         loss = outputs.loss
-        # labels have -100 at padding positions due to collater
-        accuracy = accuracy_from_outputs(
-            outputs,
-            batch["labels"],
-            ignore_index=-100,
-            ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-        )
+        # TODO: handle ds-level metrics for train batches which can include multiple datasets
+        self.log_metrics(batch, outputs, "train", log_global=True)
         self.log(
-            "train/loss",
-            loss,
+            "train/n_seqs",
+            (batch["input_ids"] == self.tokenizer.sep_token_id)
+            .float()
+            .sum(axis=1)
+            .mean()
+            .item(),
             on_step=True,
-            on_epoch=True,
-            prog_bar=True,
-            batch_size=batch_size,
+            on_epoch=False,
         )
-        self.log(
-            "train/accuracy",
-            accuracy,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            batch_size=batch_size,
-        )
-        # https://huggingface.co/docs/transformers/perplexity
-        # n.b. this might be biased for batch size > 1 (averaging over all docs before exp rather than other way round
-        with torch.no_grad():
-            self.log(
-                "train/ppl",
-                torch.exp(loss),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                batch_size=batch_size,
-            )
-            self.log(
-                "train/n_seqs",
-                (batch["input_ids"] == self.tokenizer.sep_token_id)
-                .float()
-                .sum(axis=1)
-                .mean()
-                .item(),
-                on_step=True,
-                on_epoch=False,
-                batch_size=batch_size,
-            )
-            self.log_ds_sample_counts(batch)
-
-            # TODO: verify that on_epoch skips missing batches
-            if "ds_name" in batch:
-                per_dataset_accuracies = accuracy_from_outputs(
-                    outputs,
-                    batch["input_ids"],
-                    dataset_names=batch["ds_name"].text,
-                    ignore_token_ids=[self.tokenizer.convert_tokens_to_ids("-")],
-                )
-                self.log_dict(
-                    {
-                        f"train/{k}_acc": v.item()
-                        for k, v in per_dataset_accuracies.items()
-                    },
-                    on_step=True,
-                    on_epoch=False,
-                    batch_size=batch_size,
-                )
-
-            if "identifier" in batch:
-                for i, (dataset, doc_id) in enumerate(
-                    zip(batch["ds_name"].text, batch["identifier"].text)
-                ):
-                    self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
-                    self.doc_id_counts[dataset][doc_id] = (
-                        self.doc_id_counts[dataset].get(doc_id, 0) + 1
-                    )
-                self.log_dict(
-                    {
-                        f"{k}_max_sampled_doc": max(v.values())
-                        for k, v in self.doc_id_counts.items()
-                    },
-                    on_step=False,
-                    on_epoch=True,
-                    batch_size=batch_size,
-                )
-                self.log_dict(
-                    {
-                        f"{k}_min_sampled_doc": min(v.values())
-                        for k, v in self.doc_id_counts.items()
-                    },
-                    on_step=False,
-                    on_epoch=True,
-                    batch_size=batch_size,
-                )
-            if "total_num_sequences" in batch:
-                self.log(
-                    "train/total_num_sequences",
-                    batch["total_num_sequences"].float().mean(),
-                )
+        self.log_ds_sample_counts(batch)
         return loss
 
     def log_ds_sample_counts(self, batch):
@@ -1031,3 +920,19 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=True,
             on_epoch=False,
         )
+        if "identifier" in batch:
+            for i, (dataset, doc_id) in enumerate(
+                zip(batch["ds_name"].text, batch["identifier"].text)
+            ):
+                self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
+                self.doc_id_counts[dataset][doc_id] = (
+                    self.doc_id_counts[dataset].get(doc_id, 0) + 1
+                )
+            self.log_dict(
+                {
+                    f"{k}_max_sampled_doc": max(v.values())
+                    for k, v in self.doc_id_counts.items()
+                },
+                on_step=False,
+                on_epoch=True,
+            )

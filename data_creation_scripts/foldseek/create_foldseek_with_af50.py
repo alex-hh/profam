@@ -11,29 +11,10 @@ import argparse
 import pickle
 import numpy as np
 import os
-import re
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-
-
-def make_sequence_dictionary(fasta_path):
-    """Should be <80 GB memory required to load all sequences;
-    considerably lower for just cluster representatives.
-
-    To handle larger files, we could partition the cluster dict
-    (or e.g. first process representatives then process the rest.)
-    """
-    sequence_dict = {}
-    with open(fasta_path, "r") as f:
-        for line in f:
-            if line.startswith(">"):
-                # TODO: check this
-                uniprot_acc = re.search("UA=(\w+)", line).group(1)
-                sequence = next(f).strip()
-                sequence_dict[uniprot_acc] = sequence
-    print("Number of sequences in dictionary:", len(sequence_dict))
-    return sequence_dict
+from .utils import make_cluster_dictionary, make_af50_dictionary, make_sequence_dictionary
 
 
 def make_cluster_dictionary(cluster_path):
@@ -100,8 +81,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
     with open(seq_fail_path, "w") as fail_file:
         for foldseek_cluster_id in clusters:
             sequences = []
-            is_foldseek_representative = []
-            is_af50_representative = []
+            af50_cluster_id = []
             accessions = []
             members = cluster_dict[foldseek_cluster_id]
             cluster_counter += 1
@@ -110,9 +90,8 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
                 try:
                     sequence = sequence_dict[foldseek_cluster_id]
                     sequences.append(sequence)
-                    is_foldseek_representative.append(member == foldseek_cluster_id)
-                    is_af50_representative.append(True)
                     accessions.append(member)
+                    af50_cluster_id.append(member)
                     seq_success_counter += 1
                 except:
                     seq_fail_counter += 1
@@ -124,8 +103,7 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
                         try:
                             sequence = sequence_dict[af50_member]
                             sequences.append(sequence)
-                            is_foldseek_representative.append(False)
-                            is_af50_representative.append(False)
+                            af50_cluster_id.append(member)
                             seq_success_counter += 1
                             accessions.append(af50_member)
                         except:
@@ -134,14 +112,13 @@ def create_foldseek_parquets(cluster_dict, af50_dict, sequence_dict, save_dir, s
 
             res = {
                 "sequences": sequences,
-                "cluster_id": foldseek_cluster_id,
-                "is_foldseek_representative": is_foldseek_representative,
+                "fam_id": foldseek_cluster_id,
+                "af50_cluster_id": af50_cluster_id,
                 "accessions": accessions,
             }
-            if not skip_af50:
-                res["is_af50_representative"] = is_af50_representative
+
             results.append(res)
-            if cluster_counter % 10000 == 0:
+            if cluster_counter % 5000 == 0:
                 print("\nProcessed", cluster_counter, "clusters")
                 print("Number of failed sequences:", seq_fail_counter)
                 print("Number of successful sequences:", seq_success_counter)
@@ -167,7 +144,7 @@ if __name__ == "__main__":
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_v2/"
     else:
         save_dir = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/"
-    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
+    af50_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/5-allmembers-repId-entryId-cluFlag-taxId.tsv"
     afdb_fasta_path = "/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences.fasta"
 
     cluster_dict_pickle_path = os.path.join(save_dir, "foldseek_cluster_dict.pkl")

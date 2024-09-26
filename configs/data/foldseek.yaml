@@ -5,6 +5,8 @@ defaults:
   - dataset@dataset_cfgs.foldseek_3di: foldseek_with_3di
   - dataset@dataset_cfgs.foldseek_val: foldseek
   - dataset@dataset_cfgs.foldseek_3di_val: foldseek_with_3di
+  - dataset@dataset_cfgs.foldseek_3di_msa: foldseek_with_3di_msa
+  - dataset@dataset_cfgs.foldseek_3di_msa_val: foldseek_with_3di_msa
   - _self_
 data_weights:
   foldseek: 0.5
@@ -12,15 +14,20 @@ data_weights:
 dataset_cfgs:
   foldseek:
     data_path_pattern: foldseek_struct/*.parquet
+    holdout_data_files: foldseek_struct/0.parquet
   foldseek_val:
     name: foldseek_val
     data_path_pattern: foldseek_struct/0.parquet
-    holdout_data_files: foldseek_struct/0.parquet
   foldseek_3di:
     data_path_pattern: foldseek_struct/*.parquet
+    holdout_data_files: foldseek_struct/0.parquet
   foldseek_3di_val:
     name: foldseek_with_3di_val
     data_path_pattern: foldseek_struct/0.parquet
+  foldseek_3di_msa:
+    data_path_pattern: foldseek_struct/*.parquet
+    holdout_data_files: foldseek_struct/0.parquet
+  foldseek_3di_msa_val:
     holdout_data_files: foldseek_struct/0.parquet
 batch_size: 22
 max_tokens: 8192

@@ -12,7 +12,8 @@ defaults:
 # all parameters below will be merged with parameters from default configurations set above
 # this allows you to overwrite only specified parameters
 
-tags: ["mnist", "simple_dense_net"]
+experiment_group: example
+tags: ["${.experiment_group}"]
 
 seed: 12345
 

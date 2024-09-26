@@ -9,7 +9,8 @@ defaults:
   - override /data: pfam
   - override /model: llama_tiny
 
-tags: ["pfam"]
+experiment_group: "pfam"
+tags: ["${.pfam}"]
 
 seed: 12345
 

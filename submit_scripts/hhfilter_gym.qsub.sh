@@ -7,7 +7,7 @@
 #$ -S /bin/bash
 #$ -N hhfilter_gym
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
-#$ -wd ~/profam
+#$ -wd ~/ProFam/ahh/profam
 #$ -j y
 
 

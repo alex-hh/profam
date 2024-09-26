@@ -66,12 +66,16 @@ def accuracy_from_outputs(
     # TODO: we might also want to ignore gaps...
     accuracy = (shift_logits.argmax(-1) == shift_labels).float()
     if dataset_names is not None:
+        # N.B. this also works for empty list
         ds_accuracies = {}
         for ds_name in set(dataset_names):
             in_dataset_mask = np.array(dataset_names) == ds_name
             ds_accuracies[ds_name] = (
                 accuracy[in_dataset_mask] * non_padding_mask[in_dataset_mask]
             ).sum() / non_padding_mask[in_dataset_mask].sum()
+        ds_accuracies["global"] = (
+            accuracy * non_padding_mask
+        ).sum() / non_padding_mask.sum()
         return ds_accuracies
     accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
     return accuracy

@@ -8,6 +8,7 @@ logs/
 build/
 venvPF/
 wandb
+outputs
 .git
 nohup.out
 .pytest_cache
