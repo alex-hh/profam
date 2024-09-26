@@ -1,8 +1,8 @@
 import os
-from Bio import pairwise2
-from Bio.pairwise2 import format_alignment
+
 import pandas as pd
-from Bio import SeqIO
+from Bio import SeqIO, pairwise2
+from Bio.pairwise2 import format_alignment
 
 
 def read_fasta(file_path):
@@ -19,9 +19,11 @@ def read_parquet(file_path, fam_id):
         return {}
     return dict(zip(accessions, df["sequences"]))
 
+
 def make_seq_id_to_accession():
     df = pd.read_csv("data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv")
     return dict(zip(df["accession"], df["Entry"]))
+
 
 def print_pairwise_alignment(seq1, seq2):
     alignments = pairwise2.align.globalxx(seq1, seq2)
@@ -29,7 +31,6 @@ def print_pairwise_alignment(seq1, seq2):
         print(format_alignment(*a))
         break
     return alignments[0].score
-
 
 
 def compare_sequences(fasta_dir, parquet_dir, index_file):
@@ -46,17 +47,15 @@ def compare_sequences(fasta_dir, parquet_dir, index_file):
             fam_id = fasta_file.split("_")[0].split(".")[0]
             fasta_sequences = read_fasta(os.path.join(fasta_dir, fasta_file))
 
-            parquet_file = index_df[index_df["fam_id"] == fam_id][
-                "parquet_file"
-            ]
+            parquet_file = index_df[index_df["fam_id"] == fam_id]["parquet_file"]
             if len(parquet_file) == 0:
                 # print(f"No Parquet file found for {fam_id}")
                 continue
             else:
                 parquet_file = parquet_file.values[0]
             parquet_sequences = read_parquet(
-                os.path.join(parquet_dir, parquet_file),
-                fam_id)
+                os.path.join(parquet_dir, parquet_file), fam_id
+            )
 
             for seq_id, fasta_seq in fasta_sequences.items():
                 seq_id = seq_id.split("/")[0]
@@ -92,7 +91,6 @@ def compare_sequences(fasta_dir, parquet_dir, index_file):
     print(f"Parquet longer: {parquet_longer}")
     print(f"Fasta longer: {fasta_longer}")
     print(f"Same length: {same_length}")
-
 
 
 # Usage
