@@ -14,6 +14,7 @@ date
 # conda activate venvPF
 source /share/apps/source_files/python/python-3.11.9.source
 source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
+export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
 
 # copy the datasets to the scratch space
 SCRATCH_DIR=/scratch0/$USER/$JOB_ID

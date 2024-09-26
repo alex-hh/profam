@@ -60,6 +60,7 @@ def load_protein_dataset(
     split="train",
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
+    verbose: bool = False,
     feature_names: Optional[List[str]] = None,
 ) -> Dataset:
     if cfg.data_path_pattern is not None:
@@ -126,22 +127,23 @@ def load_protein_dataset(
             sample_by="document",
         )
     print("Dataset n shards", dataset.n_shards)
-    print("Verifying dataset content:")
-    for i, item in enumerate(dataset.take(3)):
-        print(f"  Item {i + 1}:")
-        for key, value in item.items():
-            if isinstance(value, str):
-                value_to_print = value[:100]
-            elif isinstance(value, list):
-                # TODO: if its a list of lists we want to print only first few elements
-                if isinstance(value[0], list):
-                    value_to_print = f"[{value[0][:10]},...]"
+    if verbose:
+        print("Verifying dataset content:")
+        for i, item in enumerate(dataset.take(3)):
+            print(f"  Item {i + 1}:")
+            for key, value in item.items():
+                if isinstance(value, str):
+                    value_to_print = value[:100]
+                elif isinstance(value, list):
+                    # TODO: if its a list of lists we want to print only first few elements
+                    if isinstance(value[0], list):
+                        value_to_print = f"[{value[0][:10]},...]"
+                    else:
+                        value_to_print = f"{value[:3]}..." if len(value) > 3 else value
                 else:
-                    value_to_print = f"{value[:3]}..." if len(value) > 3 else value
-            else:
-                value_to_print = value
-            print(f"    {key}: {value_to_print}")
-        print()
+                    value_to_print = value
+                print(f"    {key}: {value_to_print}")
+            print()
 
     if cfg.holdout_identifiers:
         assert (
@@ -150,6 +152,10 @@ def load_protein_dataset(
 
     def prefilter_example(example):
         # TODO: base this on max_seq_pos
+        structure_tokens_col = getattr(cfg.preprocessor, "structure_tokens_col", None)
+        if structure_tokens_col is not None and example[structure_tokens_col] is None:
+            # TODO: refactor datasets will handle this more gracefully
+            return False
         if "sequences" in example:
             filter_num_seqs = len(example["sequences"]) >= (cfg.minimum_sequences or 1)
         else:

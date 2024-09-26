@@ -75,4 +75,4 @@ class SamplingEvaluationPipelineCallback(Callback):
                 }
             )
             all_metrics[f"{self.pipeline.pipeline_id}/{evaluator_name}/time"] = t1 - t0
-        model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)
+        model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True, sync_dist=True)

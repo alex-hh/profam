@@ -214,10 +214,11 @@ class ESMFoldInverseFoldingEvaluator(SamplingEvaluator):
                 "num_samples_greater_than_max_length"
             ] = num_samples_greater_than_max_length
         if ref_prot is not None:
-            metrics["prompt_plddt"] = np.mean(ref_prot.plddt)
             metrics["prompt_lens"] = len(ref_prot)
             metrics["mean_tm_score"] = np.mean(tm_scores)
             metrics["mean_rmsd"] = np.mean(rmsds)
+            if ref_prot.plddt is not None:
+                metrics["prompt_plddt"] = np.mean(ref_prot.plddt)
         return metrics
 
 

@@ -93,6 +93,7 @@ def make_zip_dictionary(zip_index):
     line_counter = 0
     af2zip = {}
     with open(zip_index, "r") as f:
+        # trying to reduce line-by-line processing io by handling like this
         lines = f.readlines()
 
     for line in lines:

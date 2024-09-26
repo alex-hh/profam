@@ -41,6 +41,7 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            sync_dist=True,
         )
 
     def on_validation_epoch_start(self, trainer, pl_module):
@@ -54,6 +55,7 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            sync_dist=True,
         )
 
 
