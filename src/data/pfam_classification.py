@@ -31,11 +31,7 @@ from datasets import Dataset
 import src.data.utils as data_utils
 from src.data.family_classification import family_columns
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import (
-    FastaPreprocessorConfig,
-    preprocess_fasta_data,
-    preprocess_protein_sequences,
-)
+from src.data.preprocessing import FastaPreprocessor, preprocess_protein_sequences
 from src.data.utils import tokenize, tokenize_completions
 from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
@@ -56,6 +52,7 @@ def pfam_sample_from_msa_path(
     example = {
         "text": fasta_file_contents,
     }
+    raise NotImplementedError()
     tokenized_msa = preprocess_fasta_data(
         example,
         msa_cfg,
