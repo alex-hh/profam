@@ -220,10 +220,10 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         is that we have this prompt/completions structure.
 
         We can still use a preprocessor to build the prompt, but we need
-        to additionally handle preprocessing of completions. So we probably
-        want a custom process method.
+        to additionally handle preprocessing of completions.
 
-        TODO: flexibly configure msa construction.
+        We can still train on these datasets - just by setting seed None and
+        not setting val dataset name. In this case, model will ignore completions.
         """
         super().__init__(name=name, tokenizer=tokenizer, preprocessor=None)
         self.dms_ids = dms_ids

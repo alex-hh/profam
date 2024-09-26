@@ -28,9 +28,5 @@ max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_names:
   - foldseek_val
-gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
-evaluate_gym: True
-evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores
-gym_data_dir: ProteinGym
 use_filtered_gym_msas: true

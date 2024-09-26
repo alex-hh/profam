@@ -44,15 +44,7 @@ class ProteinDataMixture(LightningDataModule):
         val_dataset_names: List[str],
         batch_size: int = 8,
         max_tokens: int = 8192,
-        evaluate_gym: bool = False,
-        keep_gym_gaps: bool = False,
-        gym_data_dir: Optional[str] = None,
-        max_gym_sequences: Optional[int] = None,
-        gym_dms_ids: Optional[List[str]] = None,
-        use_filtered_gym_msas: bool = False,
         num_workers: Optional[int] = None,
-        evaluate_ec_class: bool = True,
-        evaluate_ec_cluster_class: bool = True,
         shuffle: bool = True,
         ignore_gaps: bool = False,
         feature_names: Optional[List[str]] = None,
@@ -64,18 +56,9 @@ class ProteinDataMixture(LightningDataModule):
         self.data_dir = data_dir
         self.val_dataset_names = val_dataset_names
         self.num_workers = num_workers
-        self.evaluate_gym = evaluate_gym
-        self.keep_gym_gaps = keep_gym_gaps
         self.max_tokens = max_tokens
         self.shuffle = shuffle
-        if self.evaluate_gym:
-            self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
-        self.evaluate_ec_class = evaluate_ec_class
-        self.evaluate_ec_cluster_class = evaluate_ec_cluster_class
-        self.max_gym_sequences = max_gym_sequences
-        self.gym_dms_ids = gym_dms_ids
         self.tokenizer = tokenizer
-        self.use_filtered_gym_msas = use_filtered_gym_msas
         self.feature_names = feature_names or DEFAULT_FEATURE_NAMES
         self.collator = CustomDataCollator(
             self.tokenizer,
@@ -197,60 +180,6 @@ class ProteinDataMixture(LightningDataModule):
                     )
                 self.val_datasets.append(val_dataset)
 
-            if self.evaluate_gym:
-                # https://huggingface.co/docs/datasets/use_with_pytorch#distributed
-
-                self.gym_dataset = load_gym_dataset(
-                    dms_ids=self.gym_dms_ids,
-                    tokenizer=self.tokenizer,
-                    max_mutated_sequences=self.max_gym_sequences,
-                    gym_data_dir=self.gym_data_dir,
-                    max_tokens=self.max_tokens,
-                    keep_gaps=self.keep_gym_gaps,
-                    num_proc=self.num_workers,
-                    use_filtered_msa=self.use_filtered_gym_msas,
-                )
-                if world_size > 1:
-                    # calls shard contiguous=True under the hood, which does
-                    # https://github.com/huggingface/datasets/blob/3.0.0/src/datasets/arrow_dataset.py#L4609
-                    # div = len(dataset) // world_size  0 if len(dataset) < world_size
-                    # mod = len(dataset) % world_size
-                    # start = rank * div + min(rank, mod)  min(rank, mod) if len(dataset) < world_size
-                    # end = start + div + (1 if rank < mod else 0)
-                    # so we get an empty slice on ranks for which rank > len(dataset) - hopefully handled fine?
-                    self.gym_dataset = split_dataset_by_node(
-                        self.gym_dataset,
-                        rank=self.trainer.global_rank,
-                        world_size=world_size,
-                    )
-
-            if self.evaluate_ec_class:
-                # TODO: add other classifier dataset kwargs to config
-                self.ec_class_dataset = load_classifier_dataset(
-                    "data/example_data/expasy_ec/*.fasta",
-                    self.tokenizer,
-                    max_tokens=self.max_tokens,
-                )
-                if world_size > 1:
-                    self.ec_class_dataset = split_dataset_by_node(
-                        self.ec_class_dataset,
-                        rank=self.trainer.global_rank,
-                        world_size=world_size,
-                    )
-            if self.evaluate_ec_cluster_class:
-                self.ec_cluster_class_dataset = load_ec_cluster_classifier_dataset(
-                    tokenizer=self.tokenizer,
-                    fasta_dir="../data/ec/ec_fastas",
-                    val_df_path="data/val/ec_val_clustered_seqs_w_different_ec_nums.csv",
-                    max_tokens=self.max_tokens,
-                )
-                if world_size > 1:
-                    self.ec_cluster_class_dataset = split_dataset_by_node(
-                        self.ec_cluster_class_dataset,
-                        rank=self.trainer.global_rank,
-                        world_size=world_size,
-                    )
-
             self._is_setup = True
 
     def train_dataloader(self) -> List[DataLoader]:
@@ -259,23 +188,6 @@ class ProteinDataMixture(LightningDataModule):
             batch_size=self.batch_size,
             collate_fn=self.collator,
             num_workers=self.num_workers,
-        )
-
-    def gym_dataloader(self) -> DataLoader:
-        assert self.evaluate_gym, "Gym validation not enabled"
-        return DataLoader(
-            self.gym_dataset,
-            batch_size=1,  # gym needs batch size 1
-            shuffle=False,
-        )
-
-    def ec_dataloader(self) -> DataLoader:
-        assert self.evaluate_ec_class, "EC class validation not enabled"
-        return DataLoader(
-            self.ec_class_dataset,
-            batch_size=1,
-            collate_fn=self.collator,
-            shuffle=False,
         )
 
     def val_dataloader(self) -> List[DataLoader]:

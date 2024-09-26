@@ -15,10 +15,4 @@ max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_names:
   - pfam_val
-gym_dms_ids: ${constants.gym_val_assay_list}
-evaluate_gym: false
-evaluate_ec_class: false
-evaluate_ec_cluster_class: false
 num_workers: null # None means use all available CPU cores
-gym_data_dir: ProteinGym
-use_filtered_gym_msas: true

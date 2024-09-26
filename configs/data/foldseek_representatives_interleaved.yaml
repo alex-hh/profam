@@ -23,12 +23,5 @@ max_tokens: 1536
 data_dir: ${paths.data_dir}
 val_dataset_names:
   - foldseek_val
-gym_dms_ids: ${constants.gym_val_assay_list}
-keep_gym_gaps: false
-evaluate_gym: true
-evaluate_ec_class: false
-evaluate_ec_cluster_class: false
 num_workers: null # None means use all available CPU cores
-gym_data_dir: ProteinGym
-use_filtered_gym_msas: true
 feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "original_size", "aa_mask", "coords", "coords_mask", "interleaved_coords_mask", "structure_mask", "plddts", "high_plddt_mask"]
