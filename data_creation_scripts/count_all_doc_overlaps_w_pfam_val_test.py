@@ -125,47 +125,60 @@ if __name__ == "__main__":
     save_dir = "data/val_test/"
     os.makedirs(save_dir, exist_ok=True)
     # Process Foldseek dataset
-    print("Processing Foldseek dataset")
-    foldseek_cluster_index_file = "../visualise_families/1-AFDBClusters-entryId_repId_taxId.tsv"
-    if not os.path.exists(foldseek_cluster_index_file):
-        foldseek_cluster_index_file = os.path.join(
-            base_data_dir,
-            "afdb",
-            "foldseek/1-AFDBClusters-entryId_repId_taxId.tsv",
-        )
-    foldseek_counts = process_dataset(
-        FoldseekOverlapCounter,
-        foldseek_cluster_index_file=foldseek_cluster_index_file
-    )
     save_path = os.path.join(save_dir, "foldseek_pfam_overlap_counts.json")
-    with open(save_path, 'w') as f:
-        json.dump(foldseek_counts, f, indent=2)
-    print("Foldseek counts saved to", save_path)
+    if not os.path.exists(save_path):
+        print("Processing Foldseek dataset")
+        foldseek_cluster_index_file = "../visualise_families/1-AFDBClusters-entryId_repId_taxId.tsv"
+        if not os.path.exists(foldseek_cluster_index_file):
+            foldseek_cluster_index_file = os.path.join(
+                base_data_dir,
+                "afdb",
+                "foldseek/1-AFDBClusters-entryId_repId_taxId.tsv",
+            )
+        foldseek_counts = process_dataset(
+            FoldseekOverlapCounter,
+            foldseek_cluster_index_file=foldseek_cluster_index_file
+        )
+        with open(save_path, 'w') as f:
+            json.dump(foldseek_counts, f, indent=2)
+        print("Foldseek counts saved to", save_path)
+    else:
+        print("Foldseek counts already exist at", save_path)
     
     # Process TED dataset
-    ted_counts = process_dataset(TEDOverlapCounter)
     save_path = os.path.join(save_dir, "ted_pfam_overlap_counts.json")
-    with open(save_path, 'w') as f:
-        json.dump(ted_counts, f, indent=2)
-    print("TED counts saved to", save_path)
+    if not os.path.exists(save_path):
+        ted_counts = process_dataset(TEDOverlapCounter)
+        with open(save_path, 'w') as f:
+            json.dump(ted_counts, f, indent=2)
+        print("TED counts saved to", save_path)
+    else:
+        print("TED counts already exist at", save_path)
 
     # Process EC dataset
-    ec_counts = process_dataset(ECOverlapCounter)
     save_path = os.path.join(save_dir, "ec_pfam_overlap_counts.json")
-    with open(save_path, 'w') as f:
-        json.dump(ec_counts, f, indent=2)
-    print("EC counts saved to", save_path)
+    if not os.path.exists(save_path):
+        ec_counts = process_dataset(ECOverlapCounter)
+        with open(save_path, 'w') as f:
+            json.dump(ec_counts, f, indent=2)
+        print("EC counts saved to", save_path)
+    else:
+        print("EC counts already exist at", save_path)
 
     # Process Parquet datasets
 
     # Process funfams
-    funfam_counts = process_dataset(
-        counter_class=ParquetOverlapCounter,
-        data_dir=os.path.join(base_data_dir, "funfams/parquets"),
-        fam_id_col="fam_id",
-        up_id_col="accessions"
-    )
     save_path = os.path.join(base_data_dir, "funfam_pfam_overlap_counts.json")
-    with open(save_path, 'w') as f:
-        json.dump(funfam_counts, f, indent=2)
-    print("Funfam counts saved to", save_path)
+    if not os.path.exists(save_path):
+        funfam_counts = process_dataset(
+            counter_class=ParquetOverlapCounter,
+            data_dir=os.path.join(base_data_dir, "funfams/parquets"),
+            fam_id_col="fam_id",
+            up_id_col="accessions"
+        )
+
+        with open(save_path, 'w') as f:
+            json.dump(funfam_counts, f, indent=2)
+        print("Funfam counts saved to", save_path)
+    else:
+        print("Funfam counts already exist at", save_path)
