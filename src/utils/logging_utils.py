@@ -43,4 +43,4 @@ def log_hyperparameters(object_dict: Dict[str, Any]) -> None:
 
     # send hparams to all loggers
     for logger in trainer.loggers:
-        logger.log_hyperparams(hparams)
+        logger.log_hyperparams(cfg)

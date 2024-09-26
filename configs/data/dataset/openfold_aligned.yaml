@@ -1,5 +1,5 @@
 defaults:
-  - preprocessor: "parquet_msa"
+  - /preprocessor: "parquet_msa"
 _target_: src.data.datasets.ProteinDatasetConfig
 name: openfold_aligned
 data_path_pattern: openfold/uniclust30_filtered_parquet/*.parquet

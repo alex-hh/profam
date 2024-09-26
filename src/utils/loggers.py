@@ -51,11 +51,12 @@ class WandbLogger(WandbLogger):
         self, log_hydra_config_file: bool = False, log_git_hash: bool = False, **kwargs
     ):
         super().__init__(**kwargs)
-        self.log_hydra_config = log_hydra_config_file
+        self.log_hydra_config_file = log_hydra_config_file
         self.log_git_hash = log_git_hash
 
     @rank_zero_only
-    def log_hyperparameters(self, hparams, **kwargs):
+    def log_hyperparams(self, hparams, **kwargs):
+        hparams["wandb_run_name"] = self.experiment.name
         hydra_cfg = hydra.core.hydra_config.HydraConfig.get()
         hydra_cfg["runtime"]["output_dir"]
         if self.log_hydra_config_file:
@@ -77,4 +78,5 @@ class WandbLogger(WandbLogger):
                     f"File {hash_file} not found!\nPlease run the following:\n"
                     f"echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit"
                 )
-        super().log_hyperparameters(hparams, **kwargs)
+        # hparams is just wandb_run_name and git_hash - why?
+        super().log_hyperparams(hparams, **kwargs)

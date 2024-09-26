@@ -31,9 +31,7 @@ aa_letters = [
 
 BACKBONE_ATOMS = ["N", "CA", "C", "O"]
 
-PROFAM_DATA_DIR = os.environ.get(
-    "PROFAM_DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data"
-)
+PROFAM_DATA_DIR = os.environ.get("PROFAM_DATA_DIR", os.path.join(BASEDIR, "data"))
 
 
 # features whose first non-batch dim is equal to the number of residues

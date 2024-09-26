@@ -5,7 +5,7 @@ defaults:
   - /model: llama_small
   - /tokenizer@model.tokenizer: profam
   - /data/dataset/preprocessor@prompt_builder.preprocessor: parquet_structure
-name: neat-thunder_T${.sampling_kwargs.temperature}  # suggestion: use wandb run name
+name: neat-thunder_end_T${.sampling_kwargs.temperature}  # suggestion: use wandb run name
 checkpoint_path: outputs/inverse_folding/neat-thunder/checkpoints/last.ckpt
 match_representative_length: true
 sampling_kwargs:

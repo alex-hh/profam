@@ -8,14 +8,12 @@ data_weights:
   foldseek: 1.0
 dataset_cfgs:
   foldseek:
-    name: foldseek
     holdout_data_files: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
     preprocessor:
       batched_map: true
       map_batch_size: 250
   foldseek_val:
-    name: foldseek_val
     data_path_pattern: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
     preprocessor:

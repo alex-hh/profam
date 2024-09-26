@@ -19,7 +19,6 @@ def instantiate_callbacks(
     :return: A list of instantiated callbacks.
     """
     callbacks: List[Callback] = []
-    print("Extra callbacks cfg: ", extra_callbacks_cfg)
 
     if not callbacks_cfg and not extra_callbacks_cfg:
         log.warning("No callback configs found! Skipping..")
