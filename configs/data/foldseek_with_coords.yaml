@@ -1,15 +1,15 @@
 _target_: src.data.hf_protein_datamodule.ProteinDataMixture
 # https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
 defaults:
-  - dataset@dataset_cfgs.foldseek: foldseek
-  - dataset@dataset_cfgs.foldseek_3di: foldseek_with_3di_and_coords
-  - dataset@dataset_cfgs.foldseek_val: foldseek
-  - dataset@dataset_cfgs.foldseek_3di_val: foldseek_with_3di_and_coords
+  - dataset@dataset_builders.foldseek: foldseek
+  - dataset@dataset_builders.foldseek_3di: foldseek_with_3di_and_coords
+  - dataset@dataset_builders.foldseek_val: foldseek
+  - dataset@dataset_builders.foldseek_3di_val: foldseek_with_3di_and_coords
   - _self_
 data_weights:
   foldseek: 0.5
   foldseek_3di: 0.5
-dataset_cfgs:
+dataset_builders:
   foldseek:
     data_path_pattern: foldseek_struct/*.parquet
     name: foldseek

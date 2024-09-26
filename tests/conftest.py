@@ -13,7 +13,7 @@ from omegaconf import DictConfig, open_dict
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
 from src.data.datasets import ProteinDatasetBuilder, ProteinDatasetConfig
-from src.data.proteingym import load_gym_dataset
+from src.data.proteingym import GymDatasetBuilder
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -122,16 +122,20 @@ def parquet_3di_processor():
 
 @pytest.fixture(scope="package")
 def proteingym_batch(profam_tokenizer):
-    # TODO: use filtered msa - processing the full msa very slow (why?)
-    data = load_gym_dataset(
-        dms_ids=["BLAT_ECOLX_Jacquier_2013"],
+    builder = GymDatasetBuilder(
+        name="pfam",
+        cfg=cfg,
         tokenizer=profam_tokenizer,
-        gym_data_dir="data/example_data/ProteinGym",
-        max_tokens=2048,
+        preprocessor=None,
+        dms_ids=["BLAT_ECOLX_Jacquier_2013"],
         keep_gaps=False,
-        num_proc=None,
         use_filtered_msa=True,
     )
+    data = builder.load(
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        shuffle=False,
+    )
+    data = builder.process(data, num_proc=None, max_tokens_per_example=2048)
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
     return collator([datapoint])

@@ -10,8 +10,9 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import transforms
-from src.data.datasets import ProteinDatasetConfig
+from src.data.datasets import ProteinDatasetBuilder, ProteinDatasetConfig
 from src.data.objects import ProteinDocument
+from src.data.preprocessing import BasePreprocessor
 from src.data.transforms import sample_to_max_tokens
 from src.data.utils import CustomDataCollator
 from src.sequence import fasta
@@ -244,7 +245,6 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
         self.use_filtered_msa = use_filtered_msa
         self.extra_tokens_per_document = extra_tokens_per_document
         self.use_msa_pos = use_msa_pos
-        self.num_proc = num_proc
 
     def process(
         self,
@@ -252,6 +252,7 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
         max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
+        num_proc: Optional[int] = None,
     ):
         """mutant_bos_token should almost always be sep.
 
@@ -270,7 +271,7 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
                 use_msa_pos=self.use_msa_pos,
             ),
             batched=False,
-            num_proc=self.num_proc,
+            num_proc=num_proc,
         )
         dataset = dataset.map(
             functools.partial(
@@ -305,9 +306,7 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
         )
         return dataset
 
-    def load(
-        self, data_dir="data", split="train", world_size: int = 1, verbose: bool = False
-    ):
+    def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
         df = build_gym_df(
             self.dms_ids,
             gym_data_dir=os.path.join(gym_data_dir, "ProteinGym"),
