@@ -12,7 +12,7 @@ from omegaconf import DictConfig, open_dict
 
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
-from src.data.datasets import ProteinDatasetBuilder, ProteinDatasetConfig
+from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
 from src.data.proteingym import GymDatasetBuilder
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
@@ -124,18 +124,21 @@ def parquet_3di_processor():
 def proteingym_batch(profam_tokenizer):
     builder = GymDatasetBuilder(
         name="pfam",
-        cfg=cfg,
         tokenizer=profam_tokenizer,
-        preprocessor=None,
         dms_ids=["BLAT_ECOLX_Jacquier_2013"],
         keep_gaps=False,
         use_filtered_msa=True,
+        seed=42,
+        num_proc=None,
     )
     data = builder.load(
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
     )
-    data = builder.process(data, num_proc=None, max_tokens_per_example=2048)
+    data = builder.process(
+        data,
+        max_tokens_per_example=2048,
+        shuffle_proteins_in_document=False,
+    )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
     return collator([datapoint])
@@ -150,7 +153,7 @@ def pfam_batch(profam_tokenizer):
         to_upper=True,
         is_parquet=True,
     )
-    builder = ProteinDatasetBuilder(
+    builder = StreamedProteinDatasetBuilder(
         name="pfam",
         cfg=cfg,
         tokenizer=profam_tokenizer,
@@ -159,7 +162,7 @@ def pfam_batch(profam_tokenizer):
     data = builder.load(
         max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
+        shuffle_proteins_in_document=False,
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
@@ -185,7 +188,6 @@ def foldseek_batch(profam_tokenizer):
     data = builder.load(
         max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)

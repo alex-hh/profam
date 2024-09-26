@@ -20,16 +20,13 @@ class ProteinDatasetConfig:
     holdout_identifiers: Optional[List[str]] = None
     identifier_col: Optional[str] = None
     data_path_file: Optional[str] = None
-    file_repeats: int = 1
     minimum_sequences: Optional[int] = None
+    file_repeats: int = 1
     file_type: str = "parquet"  # or "text", "json"
     shuffle: bool = True
-    stream: bool = True
-    batched_map: bool = False  # should map be called with batched=True
-    map_batch_size: int = 100
 
 
-def prepare_data_files(data_dir, cfg, world_size=1):
+def prepare_data_files(data_dir, cfg, world_size=1, stream: bool = True):
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
         # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
@@ -72,7 +69,7 @@ def prepare_data_files(data_dir, cfg, world_size=1):
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
 
-    if cfg.stream:
+    if stream:
         # ensure no issues with ddp by skipping shards
         # should result in each worker using the same number of shards
         # https://github.com/huggingface/datasets/issues/6623
@@ -86,7 +83,7 @@ def prepare_data_files(data_dir, cfg, world_size=1):
     return data_files
 
 
-class ProteinDatasetBuilder:
+class BaseProteinDatasetBuilder:
     """For core hf related dataset building c.f. https://huggingface.co/docs/datasets/en/dataset_script.
 
     This class is different in that it is more focussed on preprocessing.
@@ -97,12 +94,10 @@ class ProteinDatasetBuilder:
     def __init__(
         self,
         name: str,
-        cfg: ProteinDatasetConfig,
         tokenizer: ProFamTokenizer,
         preprocessor: Optional[BasePreprocessor] = None,
     ):
         self.name = name
-        self.cfg = cfg
         self.tokenizer = tokenizer
         self.preprocessor = preprocessor
 
@@ -113,19 +108,20 @@ class ProteinDatasetBuilder:
         raise NotImplementedError("Must implement load method")
 
 
-class StreamedProteinDatasetBuilder(ProteinDatasetBuilder):
+class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(
         self,
         name: str,
         cfg: ProteinDatasetConfig,
         tokenizer: ProFamTokenizer,
         preprocessor: Optional[BasePreprocessor] = None,
+        batched_map: bool = False,
+        map_batch_size: int = 100,
     ):
-        super().__init__(name, cfg, tokenizer, preprocessor)
-        if not self.cfg.stream:
-            raise NotImplementedError(
-                "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
-            )
+        super().__init__(name, tokenizer, preprocessor)
+        self.cfg = cfg
+        self.batched_map = batched_map
+        self.map_batch_size = map_batch_size
 
     def preprocess_examples(
         self,
@@ -193,13 +189,20 @@ class StreamedProteinDatasetBuilder(ProteinDatasetBuilder):
 
             dataset = dataset.filter(
                 self.preprocessor.filter,
-                min_sequences=self.cfg.minimum_sequences,
-                holdout_identifiers=self.cfg.holdout_identifiers,
+                fn_kwargs={
+                    "min_sequences": self.cfg.minimum_sequences,
+                    "holdout_identifiers": self.cfg.holdout_identifiers,
+                    "tokenizer": self.tokenizer,
+                },
             ).map(
                 self.preprocess_examples,
-                batched=self.cfg.batched_map,
-                batch_size=self.cfg.map_batch_size,
+                batched=self.batched_map,
+                batch_size=self.map_batch_size,
                 remove_columns=remove_columns,
+                fn_kwargs={
+                    "max_tokens_per_example": max_tokens_per_example,
+                    "shuffle_proteins_in_document": shuffle_proteins_in_document,
+                },
             )
             # n.b. coords is returned as a list...
 
@@ -212,14 +215,17 @@ class StreamedProteinDatasetBuilder(ProteinDatasetBuilder):
         verbose: bool = False,
     ):
         # TODO: maybe handle world size elsewhere by shard slicing...
-        data_files = prepare_data_files(data_dir, self.cfg, world_size=world_size)
-
+        data_files = prepare_data_files(
+            data_dir, self.cfg, world_size=world_size, stream=True
+        )
+        print("data_files", data_files[:5])
+        load_kwargs = {"sample_by": "document"} if self.cfg.file_type == "text" else {}
         dataset = load_dataset(
             self.cfg.file_type,
             data_files=data_files,
             split="train",  # just automatically assigns all files to train - get this 'split'
-            streaming=self.cfg.stream,
-            sample_by="document",
+            streaming=True,
+            **load_kwargs,
         )
 
         print("Dataset n shards", dataset.n_shards)

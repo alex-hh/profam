@@ -1,4 +1,4 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.datasets.StreamedStreamedProteinDatasetBuilder
 name: foldseek_representatives
 defaults:
   - /preprocessor: parquet_structure
@@ -12,9 +12,6 @@ cfg:
   minimum_sequences: null
   file_type: parquet
   shuffle: true
-  batched_map: false
-  map_batch_size: 100
-  stream: true
 
 preprocessor:
   structure_tokens_col: null

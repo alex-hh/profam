@@ -72,7 +72,7 @@ def foldseek_interleaved_structure_sequence_batch(
     )
     cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
+        file_type="parquet",
     )
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
@@ -291,19 +291,20 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         config=preprocessing_cfg,
         structure_tokens_col=None,
         interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
+        identifier_col="fam_id",  # switch when updating example data
     )
     cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
         shuffle=False,
-        batched_map=True,
-        map_batch_size=30,
     )
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         tokenizer=profam_tokenizer,
         preprocessor=parquet_3di_processor,
+        batched_map=True,
+        map_batch_size=30,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(

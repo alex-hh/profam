@@ -1,4 +1,4 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.datasets.StreamedStreamedProteinDatasetBuilder
 name: foldseek_msta
 defaults:
   - /preprocessor: parquet_3di_msa
@@ -11,9 +11,7 @@ cfg:
   identifier_col: fam_id
   file_type: parquet
   shuffle: true
-  batched_map: false
-  map_batch_size: 100
-  stream: true
+
 
 preprocessor:
   structure_tokens_col: null

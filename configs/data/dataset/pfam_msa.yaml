@@ -1,4 +1,4 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.datasets.StreamedStreamedProteinDatasetBuilder
 name: pfam_msa
 defaults:
   - /preprocessor: "parquet_msa"
@@ -13,6 +13,3 @@ cfg:
   file_type: text
   minimum_sequences: null
   shuffle: true
-  batched_map: false
-  map_batch_size: 100
-  stream: true

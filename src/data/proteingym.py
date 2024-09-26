@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import transforms
-from src.data.datasets import ProteinDatasetBuilder, ProteinDatasetConfig
+from src.data.datasets import BaseProteinDatasetBuilder, ProteinDatasetConfig
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import BasePreprocessor
 from src.data.transforms import sample_to_max_tokens
@@ -91,7 +91,6 @@ def load_msa_for_row(
     row,
     seed,
     max_tokens,
-    gym_data_dir,
     keep_wt=True,
     drop_wt=False,
     keep_gaps=False,
@@ -181,12 +180,7 @@ def load_comp_seq_dms_for_row(
     return row
 
 
-def build_gym_df(
-    dms_ids,
-    gym_data_dir: str,
-    seed: Optional[int] = None,
-    max_mutated_sequences: Optional[int] = None,
-):
+def build_gym_df(dms_ids, gym_data_dir: str):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
@@ -200,32 +194,27 @@ def build_gym_df(
     return df[
         [
             "DMS_id",
-            "MSA",
-            "seq_pos",
-            "DMS_scores",
-            "completion_seqs",
-            "completion_seq_pos",
+            "MSA_filename",
+            "DMS_filename",
             "ds_name",
         ]
     ]
 
 
-class GymDatasetBuilder(ProteinDatasetBuilder):
+class GymDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(
         self,
         name: str,
-        cfg: ProteinDatasetConfig,
         tokenizer: ProFamTokenizer,
         dms_ids: List[str],
-        preprocessor: Optional[BasePreprocessor] = None,
-        num_proc: Optional[int] = None,
-        seed: Optional[int] = None,  # for msa sampling
+        seed: Optional[int] = 42,  # for msa sampling
         max_mutated_sequences: Optional[int] = None,
         mutant_bos_token: str = "sep",
         keep_gaps: bool = False,
         use_filtered_msa: bool = False,
         extra_tokens_per_document: int = 2,
         use_msa_pos: bool = True,
+        num_proc: Optional[int] = None,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -236,7 +225,7 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
 
         TODO: flexibly configure msa construction.
         """
-        super().__init__(name, cfg, tokenizer, preprocessor)
+        super().__init__(name=name, tokenizer=tokenizer, preprocessor=None)
         self.dms_ids = dms_ids
         self.seed = seed
         self.max_mutated_sequences = max_mutated_sequences
@@ -245,6 +234,7 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
         self.use_filtered_msa = use_filtered_msa
         self.extra_tokens_per_document = extra_tokens_per_document
         self.use_msa_pos = use_msa_pos
+        self.num_proc = num_proc
 
     def process(
         self,
@@ -252,7 +242,6 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
         max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
-        num_proc: Optional[int] = None,
     ):
         """mutant_bos_token should almost always be sep.
 
@@ -263,23 +252,23 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
         dataset = dataset.map(
             functools.partial(
                 load_msa_for_row,
-                tokenizer=self.tokenizer,
-                gym_data_dir=os.path.join(gym_data_dir, "ProteinGym"),
+                seed=self.seed,  # For what?
+                max_tokens=max_tokens_per_example,
                 keep_gaps=self.keep_gaps,
                 use_filtered_msa=self.use_filtered_msa,
                 extra_tokens_per_document=self.extra_tokens_per_document,
                 use_msa_pos=self.use_msa_pos,
             ),
             batched=False,
-            num_proc=num_proc,
+            num_proc=self.num_proc,
         )
         dataset = dataset.map(
             functools.partial(
                 load_comp_seq_dms_for_row,
-                tokenizer=self.tokenizer,
-                gym_data_dir=os.path.join(gym_data_dir, "ProteinGym"),
+                seed=self.seed,
                 use_msa_pos=self.use_msa_pos,
                 keep_gaps=self.keep_gaps,
+                max_mutated_sequences=self.max_mutated_sequences,
             ),
             batched=False,
             num_proc=self.num_proc,
@@ -292,7 +281,13 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
                 document_token="[MSA]" if self.keep_gaps else "[RAW]",
             ),
             batched=False,
-            remove_columns=["DMS_id", "MSA", "completion_seqs"],
+            remove_columns=[
+                "DMS_id",
+                "MSA",
+                "completion_seqs",
+                "DMS_filename",
+                "MSA_filename",
+            ],
             num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
@@ -309,14 +304,7 @@ class GymDatasetBuilder(ProteinDatasetBuilder):
     def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
         df = build_gym_df(
             self.dms_ids,
-            gym_data_dir=os.path.join(gym_data_dir, "ProteinGym"),
-            seed=self.seed,  # For what?
-            max_mutated_sequences=self.max_mutated_sequences,
-            max_tokens=self.max_tokens,
-            keep_gaps=self.keep_gaps,
-            use_filtered_msa=self.use_filtered_msa,
-            extra_tokens_per_document=self.tokenizer.num_start_tokens,
-            use_msa_pos=self.use_msa_pos,
+            gym_data_dir=os.path.join(data_dir, "ProteinGym"),
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)

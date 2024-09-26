@@ -5,7 +5,7 @@ import pytest
 
 from src.constants import BASEDIR
 from src.data import preprocessing
-from src.data.datasets import ProteinDatasetBuilder, ProteinDatasetConfig
+from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
 from src.data.utils import examples_list_to_dict
 
 
@@ -15,7 +15,7 @@ def foldseek_datapoint(profam_tokenizer):
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = ProteinDatasetBuilder(
+    builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         tokenizer=profam_tokenizer,
@@ -59,9 +59,9 @@ def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
 def test_concat_representatives_into_single_document(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
-        is_parquet=True,
+        file_type="parquet",
     )
-    builder = ProteinDatasetBuilder(
+    builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         tokenizer=profam_tokenizer,

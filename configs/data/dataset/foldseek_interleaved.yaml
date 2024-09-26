@@ -1,4 +1,4 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.datasets.StreamedStreamedProteinDatasetBuilder
 name: foldseek_interleaved
 defaults:
   - /preprocessor: parquet_structure_noisy
@@ -12,9 +12,6 @@ cfg:
   file_type: parquet
   minimum_sequences: null
   shuffle: true
-  batched_map: false
-  map_batch_size: 100
-  stream: true
 
 preprocessor:
   interleave_structure_sequence: true

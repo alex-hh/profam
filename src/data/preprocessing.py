@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
+import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 
@@ -218,6 +219,7 @@ class BasePreprocessor:
         example,
         min_sequences: Optional[int] = None,
         min_mean_plddt: Optional[float] = None,
+        tokenizer: ProFamTokenizer = None,
     ):
         raise NotImplementedError()
 
@@ -348,13 +350,12 @@ class FastaPreprocessor(BasePreprocessor):
         example,
         min_sequences: Optional[int] = None,
         holdout_identifiers: Optional[List[str]] = None,
+        tokenizer: ProFamTokenizer = None,
     ):
         assert (
             holdout_identifiers is None
         ), "Holdout identifiers not supported for fasta"
-        filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
-            self.cfg.minimum_sequences or 1
-        )
+        filter_num_seqs = len(example["text"].split("\n")) // 2 >= (min_sequences or 1)
         return filter_num_seqs
 
     def build_document_from_text(
@@ -406,10 +407,9 @@ class ParquetPreprocessor(BasePreprocessor):
         example,
         min_sequences: Optional[int] = None,
         holdout_identifiers: Optional[List[str]] = None,
+        tokenizer: ProFamTokenizer = None,
     ):
-        filter_num_seqs = len(example[self.sequence_col]) >= (
-            self.cfg.minimum_sequences or 1
-        )
+        filter_num_seqs = len(example[self.sequence_col]) >= (min_sequences or 1)
         # TODO: we need to be very careful with this!
         filter_identifier = (
             holdout_identifiers is None
@@ -419,7 +419,7 @@ class ParquetPreprocessor(BasePreprocessor):
             example,
             filter_type=self.length_filter,
             max_tokens=None,
-            tokenizer=self.tokenizer,
+            tokenizer=tokenizer,
             sequence_col=self.sequence_col,
             interleave_structure_sequence=self.interleave_structure_sequence,
         )
@@ -437,6 +437,8 @@ class ParquetPreprocessor(BasePreprocessor):
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ) -> Dict[str, Any]:
+        if self.identifier_col is not None:
+            examples["identifier"] = examples[self.identifier_col]
         examples = super().batched_preprocess_protein_data(
             examples, tokenizer, max_tokens, shuffle
         )
@@ -625,8 +627,14 @@ class ParquetStructurePreprocessor(ParquetPreprocessor):
         example,
         min_sequences: Optional[int] = None,
         holdout_identifiers: Optional[List[str]] = None,
+        tokenizer: ProFamTokenizer = None,
     ):
-        super_filter = super().filter(example, min_sequences, holdout_identifiers)
+        super_filter = super().filter(
+            example,
+            min_sequences=min_sequences,
+            holdout_identifiers=holdout_identifiers,
+            tokenizer=tokenizer,
+        )
         if self.minimum_mean_plddt is not None:
             if "plddts" in example:
                 mean_plddt = np.mean([np.mean(plddt) for plddt in example["plddts"]])
@@ -647,8 +655,6 @@ class ParquetStructurePreprocessor(ParquetPreprocessor):
         examples = super().batched_preprocess_protein_data(
             examples, tokenizer, max_tokens, shuffle
         )
-        if self.identifier_col is not None:
-            examples["identifier"] = examples[self.identifier_col]
         if "coords" in examples:
             # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
             examples["coords"] = [c.tolist() for c in examples["coords"]]
@@ -666,8 +672,8 @@ class ParquetStructurePreprocessor(ParquetPreprocessor):
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ) -> Dict[str, Any]:
-        example = super()._preprocess_protein_data(
-            example, tokenizer, max_tokens, shuffle
+        example = super().preprocess_protein_data(
+            example, tokenizer, max_tokens, shuffle=shuffle
         )
         if "coords" in example:
             # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
