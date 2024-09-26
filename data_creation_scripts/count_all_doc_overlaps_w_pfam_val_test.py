@@ -85,7 +85,7 @@ class FoldseekOverlapCounter(BaseOverlapCounter):
             clust_to_up_ids = defaultdict(list)
             for _, row in id_clust_tax.iterrows():
                 clust_to_up_ids[row["clust"]].append(row["id"])
-            with open(json_path) as json_file:
+            with open(json_path, "w") as json_file:
                 json.dump(clust_to_up_ids, json_file, indent=4)
         else:
             with open(json_path) as json_file:
