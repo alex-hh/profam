@@ -32,7 +32,6 @@ import src.data.utils as data_utils
 from src.data.family_classification import family_columns
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import FastaPreprocessor, preprocess_protein_sequences
-from src.data.utils import tokenize, tokenize_completions
 from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -86,6 +85,7 @@ def load_pfam_classification_dataset(
     max_eval_per_fam: int = 4,
     use_msa_pos: bool = True,
 ):
+    raise NotImplementedError("need updating")
     if not os.path.exists(pfam_dir):
         zip_path = f"{pfam_dir}/../../pfam_val_test_fastas.zip"
         raise FileNotFoundError(
