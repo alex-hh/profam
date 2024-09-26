@@ -31,7 +31,11 @@ from datasets import Dataset
 import src.data.utils as data_utils
 from src.data.family_classification import family_columns
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import FastaPreprocessor, preprocess_protein_sequences, PreprocessingConfig
+from src.data.preprocessing import (
+    FastaPreprocessor,
+    PreprocessingConfig,
+    preprocess_protein_sequences,
+)
 from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
