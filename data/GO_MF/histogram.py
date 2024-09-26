@@ -5,12 +5,10 @@ import seaborn as sns
 import logging
 import pandas as pd
 import numpy as np
+import argparse
 
 # Add this import at the top of your file
 from sys import maxsize
-
-OUTPUT_FILE = "data/GO_MF/mf_to_uniprot_100k_mapping.tsv.gz"
-PLOT_OUTPUT_FILE = "data/GO_MF/mf_uniprot_distribution_100k.png"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -75,10 +73,15 @@ def visualize_distribution(uniprot_counts, stats, output_file):
 
 def main():
     """Main function to read the output file and visualize the distribution."""
-    logging.info("Reading output file and visualizing distribution.")
-    uniprot_counts = read_output_file(OUTPUT_FILE)
+    parser = argparse.ArgumentParser(description="Visualize distribution of UniProt IDs per GO term.")
+    parser.add_argument("-i", "--input", required=True, help="Input file path (gzipped TSV)")
+    parser.add_argument("-o", "--output", required=True, help="Output file path for the plot")
+    args = parser.parse_args()
+
+    logging.info(f"Reading input file: {args.input}")
+    uniprot_counts = read_output_file(args.input)
     stats = calculate_statistics(uniprot_counts)
-    visualize_distribution(uniprot_counts, stats, PLOT_OUTPUT_FILE)
+    visualize_distribution(uniprot_counts, stats, args.output)
     logging.info("Visualization complete.")
 
 if __name__ == "__main__":
