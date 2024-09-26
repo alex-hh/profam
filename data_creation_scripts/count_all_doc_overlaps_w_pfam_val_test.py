@@ -4,13 +4,13 @@ import pandas as pd
 from collections import defaultdict
 
 class BaseOverlapCounter:
-    def __init__(self, data_dir):
-        self.data_dir = data_dir
+    def __init__(self):
         self.pfam_val_test = self.load_pfam_val_test()
 
     def load_pfam_val_test(self):
         pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
         df = pd.read_csv(pfam_val_test_csv)
+        print(f"Loaded pfam val test csv with {len(df)} rows")
         fam_to_up = defaultdict(set)
         for i, row in df.iterrows():
             fam_to_up[row['fam_id']].add(row['Entry'])
@@ -19,8 +19,10 @@ class BaseOverlapCounter:
     def count_overlaps(self):
         fam_id_up_ids = self.get_fam_id_up_ids()
         overlap_counts = {}
-        for fam_id, up_ids in fam_id_up_ids.items():
-
+        total_fams = len(fam_id_up_ids)
+        for i, (fam_id, up_ids) in enumerate(fam_id_up_ids.items()):
+            if i % (total_fams // 20) == 0:
+                print(f"Processed {i+1}/{total_fams} families")
             for pfam_fam, test_ids in self.pfam_val_test.items():
                 intersection = set(up_ids).intersection(test_ids)
                 if len(intersection) > 0:
@@ -31,7 +33,7 @@ class BaseOverlapCounter:
 
 class FastaOverlapCounter(BaseOverlapCounter):
     def __init__(self, data_dir):
-        super().__init__(data_dir)
+        super().__init__()
         self.fasta_dir = data_dir
     
     def get_fam_id_from_docpath(self, doc_path):
@@ -67,8 +69,8 @@ class TEDOverlapCounter(FastaOverlapCounter):
         super().__init__(data_dir)
 
 class FoldseekOverlapCounter(BaseOverlapCounter):
-    def __init__(self, data_dir, foldseek_cluster_index_file="../visualise_families/1-AFDBClusters-entryId_repId_taxId.tsv"):
-        super().__init__(data_dir)
+    def __init__(self, foldseek_cluster_index_file):
+        super().__init__()
         self.foldseek_cluster_index_file = foldseek_cluster_index_file
     
     def get_fam_id_up_ids(self):
@@ -92,7 +94,7 @@ class FoldseekOverlapCounter(BaseOverlapCounter):
 
 class ParquetOverlapCounter(BaseOverlapCounter):
     def __init__(self, data_dir, fam_id_col, up_id_col):
-        super().__init__(data_dir)
+        super().__init__()
         self.parquet_dir = data_dir
         self.fam_id_col = fam_id_col
         self.up_id_col = up_id_col
@@ -112,33 +114,47 @@ class ParquetOverlapCounter(BaseOverlapCounter):
         return fam_id_up_ids
 
 
-def process_dataset(counter_class, data_dir, **kwargs):
-    counter = counter_class(data_dir, **kwargs)
+def process_dataset(counter_class, **kwargs):
+    counter = counter_class(**kwargs)
+    print("counter initialised for", counter_class.__name__ )
     overlap_counts = counter.count_overlaps()
     return overlap_counts
 
 if __name__ == "__main__":
     base_data_dir = "../data"
-    
+    save_dir = "data/val_test/"
+    os.makedirs(save_dir, exist_ok=True)
     # Process Foldseek dataset
-    foldseek_counts = process_dataset(FoldseekOverlapCounter, base_data_dir)
-    save_path = os.path.join(base_data_dir, "foldseek_pfam_overlap_counts.json")
+    print("Processing Foldseek dataset")
+    foldseek_cluster_index_file = "../visualise_families/1-AFDBClusters-entryId_repId_taxId.tsv"
+    if not os.path.exists(foldseek_cluster_index_file):
+        foldseek_cluster_index_file = os.path.join(
+            base_data_dir,
+            "afdb",
+            "foldseek/1-AFDBClusters-entryId_repId_taxId.tsv",
+        )
+    foldseek_counts = process_dataset(
+        FoldseekOverlapCounter,
+        foldseek_cluster_index_file=foldseek_cluster_index_file
+    )
+    save_path = os.path.join(save_dir, "foldseek_pfam_overlap_counts.json")
     with open(save_path, 'w') as f:
         json.dump(foldseek_counts, f, indent=2)
+    print("Foldseek counts saved to", save_path)
     
     # Process TED dataset
-    ted_counts = process_dataset(TEDOverlapCounter, base_data_dir)
-    save_path = os.path.join(base_data_dir, "ted_pfam_overlap_counts.json")
+    ted_counts = process_dataset(TEDOverlapCounter)
+    save_path = os.path.join(save_dir, "ted_pfam_overlap_counts.json")
     with open(save_path, 'w') as f:
         json.dump(ted_counts, f, indent=2)
-    
+    print("TED counts saved to", save_path)
+
     # Process EC dataset
-    ec_counts = process_dataset(ECOverlapCounter, base_data_dir)
-    save_path = os.path.join(base_data_dir, "ec_pfam_overlap_counts.json")
+    ec_counts = process_dataset(ECOverlapCounter)
+    save_path = os.path.join(save_dir, "ec_pfam_overlap_counts.json")
     with open(save_path, 'w') as f:
         json.dump(ec_counts, f, indent=2)
-
-    print("Overlap counting completed for Foldseek, TED, and EC datasets.")
+    print("EC counts saved to", save_path)
 
     # Process Parquet datasets
 
@@ -152,4 +168,4 @@ if __name__ == "__main__":
     save_path = os.path.join(base_data_dir, "funfam_pfam_overlap_counts.json")
     with open(save_path, 'w') as f:
         json.dump(funfam_counts, f, indent=2)
-
+    print("Funfam counts saved to", save_path)
