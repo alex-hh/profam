@@ -112,14 +112,8 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
 
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
         dataset = load_dataset(path="json", data_files=self.jsonl_file, split="train")
-
-        def rename_pdb_id(example):
-            example["name"] = example["name"].replace(".", "")
-            return example
-
-        dataset = dataset.map(rename_pdb_id, num_proc=self.num_proc)
         dataset = dataset.filter(
-            lambda x: x["name"] in self.split_ids, num_proc=self.num_proc
+            lambda x: x["name"].replace(".", "") in self.split_ids, num_proc=self.num_proc
         )
         return dataset
 
@@ -129,6 +123,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
     ):
+        example["name"] = example["name"].replace(".", "")
         protein = protein_from_coords_dict(example)
         proteins = ProteinDocument.from_proteins(
             [protein], representative_accession=protein.accession
@@ -170,15 +165,18 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
     ):
         # commented out due to issues. TODO: make minimal example and report
         # https://github.com/huggingface/datasets/issues/6319
-        # return dataset.map(
-        #     self.preprocess_example,
-        #     batched=False,
-        #     num_proc=self.num_proc,
-        #     fn_kwargs={"tokenizer": tokenizer, "max_tokens_per_example": max_tokens_per_example},
-        # )
-        processed_dataset = []
-        for example in dataset:
-            processed_dataset.append(
-                self.preprocess_example(example, tokenizer, max_tokens_per_example)
-            )
-        return Dataset.from_list(processed_dataset)
+        # https://discuss.huggingface.co/t/progress-bar-of-dataset-map-with-num-proc-1-hangs/64776/2
+        return dataset.map(
+            self.preprocess_example,
+            batched=False,
+            num_proc=self.num_proc,
+            batch_size=100,
+            writer_batch_size=100,
+            fn_kwargs={"tokenizer": tokenizer, "max_tokens_per_example": max_tokens_per_example},
+        )
+        # processed_dataset = []
+        # for example in dataset:
+        #     processed_dataset.append(
+        #         self.preprocess_example(example, tokenizer, max_tokens_per_example)
+        #     )
+        # return Dataset.from_list(processed_dataset)
