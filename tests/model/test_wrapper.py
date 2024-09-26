@@ -1,9 +1,23 @@
 import torch
 
+from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
 
 
-def test_prepare_inputs_for_generation(default_model, profam_tokenizer):
+def test_compute_sequence_index(default_model, profam_tokenizer):
+    sequences = ["ARC", "MKLLL", "MKPP"]
+    document = ProteinDocument(sequences=sequences)
+    tokenized = profam_tokenizer.encode(document)
+    sequence_indices = default_model.model.compute_sequence_index(
+        tokenized.input_ids[None]
+    )
+    expected_sequence_indices = torch.tensor(
+        [[0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]]
+    )
+    assert (sequence_indices == expected_sequence_indices).all()
+
+
+def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     # n.b. we need to be aware of main steps of generation pipeline (self.generate)
     # 1. null cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start
     # https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L1854
@@ -20,7 +34,7 @@ def test_prepare_inputs_for_generation(default_model, profam_tokenizer):
     # 4. compute logits for next position in sequence, predict a new token and update input ids
     # 5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
 
-    default_model.eval()  # required for cache to be activated (even with use_cache True)
+    model_seq_index.eval()  # required for cache to be activated (even with use_cache True)
     sequences = ["ARC", "MKLL", "MK"]
     # imagine we are generating a new sequence after the second prompt sequence
     tokenized = profam_tokenizer.encode(
@@ -36,25 +50,24 @@ def test_prepare_inputs_for_generation(default_model, profam_tokenizer):
     }
     # c.f. sample:
     # https://github.com/huggingface/transformers/blob/174890280b340b89c5bfa092f6b4fb0e2dc2d7fc/src/transformers/generation/utils.py#L2969C9-L2969C81
-    model_kwargs = default_model.model._get_initial_cache_position(
+    model_kwargs = model_seq_index.model._get_initial_cache_position(
         input_ids, model_kwargs
     )
-    print(model_kwargs["seq_pos"])
     # cache position is [0,1,2,3,4,5,6,7,8,9,10]
     # seq_pos is [[0,0,2,3,4,0,2,3,4,5,0]]
 
     with torch.no_grad():
-        outputs = default_model.model(input_ids=input_ids, **model_kwargs)
+        outputs = model_seq_index.model(input_ids=input_ids, **model_kwargs)
 
     # in the loop at this point we sample a token from the logits and cat to input ids
     # here we imagine that that token is M (third sequence)
     # given this sampled token, we need to update cache, cache_position
     # updated cache position is index of input ids to pass to model for next token
     # i.e. input_ids[:, cache_position] should be the input ids to pass to model
-    model_kwargs = default_model.model._update_model_kwargs_for_generation(
+    model_kwargs = model_seq_index.model._update_model_kwargs_for_generation(
         outputs,
         model_kwargs,
-        is_encoder_decoder=default_model.model.config.is_encoder_decoder,
+        is_encoder_decoder=model_seq_index.model.config.is_encoder_decoder,
     )
 
     print(tokenized.input_ids[None], model_kwargs["cache_position"])
@@ -63,26 +76,28 @@ def test_prepare_inputs_for_generation(default_model, profam_tokenizer):
 
     # cache position is [11]
     # we have to pass past_key_values for default prepare_inputs_for_generation to slice out added input ids
-    inputs = default_model.model.prepare_inputs_for_generation(
+    inputs = model_seq_index.model.prepare_inputs_for_generation(
         tokenized.input_ids[None, :-1],
         **model_kwargs,
     )
     print(inputs["input_ids"], inputs["seq_pos"])
+    assert (inputs["start_sequence_index"] == 2).all()
     assert (inputs["seq_pos"] == 2).all()
 
     # TODO: add next step.
 
     with torch.no_grad():
-        outputs = default_model.model(**inputs)
+        outputs = model_seq_index.model(**inputs)
 
-    model_kwargs = default_model.model._update_model_kwargs_for_generation(
+    model_kwargs = model_seq_index.model._update_model_kwargs_for_generation(
         outputs,
         model_kwargs,
-        is_encoder_decoder=default_model.model.config.is_encoder_decoder,
+        is_encoder_decoder=model_seq_index.model.config.is_encoder_decoder,
     )
-    inputs = default_model.model.prepare_inputs_for_generation(
+    inputs = model_seq_index.model.prepare_inputs_for_generation(
         tokenized.input_ids[None],
         **model_kwargs,
     )
     print(inputs["input_ids"], inputs["seq_pos"])
     assert (inputs["seq_pos"] == 3).all()
+    assert (inputs["start_sequence_index"] == 2).all()
