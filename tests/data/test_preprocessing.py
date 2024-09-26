@@ -28,6 +28,7 @@ def foldseek_datapoint(profam_tokenizer):
     ds_iter = iter(data)
     return next(ds_iter)
 
+
 # TODO: add tests for standard preprocessing.
 
 
