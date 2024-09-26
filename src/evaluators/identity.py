@@ -40,7 +40,6 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
         unmasked_target_sequence = [
             aa for aa, m in zip(target_sequence, backbone_coords_mask) if m
         ]
-        mismatched_lengths = 0
         recoveries = []
         unmasked_recoveries = []
         for i, seq in enumerate(samples):
@@ -55,12 +54,10 @@ class SequenceRecoveryEvaluator(SamplingEvaluator):
                 )
                 recoveries.append(seq_id)
                 unmasked_recoveries.append(unmasked_seq_id)
-            else:
-                mismatched_lengths += 1
+
         metrics = {
             "mean_recovery": np.mean(recoveries),
             "mean_recovery_at_residues_with_coords": np.mean(unmasked_recoveries),
-            "mismatched_lengths": mismatched_lengths / len(samples),
         }
         if len(samples) > 1:
             pairwise_identities = [
