@@ -54,9 +54,10 @@ class GOTerm:
         self.children = set()
         self.namespace = None
         self.annotation_count = 0
+        self.is_obsolete = False
 
 def parse_go_obo(file_path):
-    """Parse the GO OBO file and return a dictionary of GO terms."""
+    """Parse the GO OBO file and return a dictionary of MF GO terms."""
     go_terms = {}
     current_term = None
 
@@ -68,15 +69,20 @@ def parse_go_obo(file_path):
             elif line.startswith('id: '):
                 go_id = line.split(': ')[1]
                 current_term = GOTerm(go_id)
-                go_terms[go_id] = current_term
             elif current_term is not None:
                 if line.startswith('namespace: '):
                     current_term.namespace = line.split(': ')[1]
-                elif line.startswith('is_a: '):
+                    if current_term.namespace == 'molecular_function':
+                        go_terms[current_term.id] = current_term
+                    else:
+                        current_term = None
+                elif line.startswith('is_a: ') and current_term is not None:
                     parent_id = line.split(' ')[1]
                     current_term.parents.add(parent_id)
                     if parent_id in go_terms:
                         go_terms[parent_id].children.add(current_term.id)
+                elif line == 'is_obsolete: true':  # Add this block
+                    current_term.is_obsolete = True
 
     return go_terms
 
@@ -163,13 +169,14 @@ def process_goa_file(input_file, output_file):
     logging.info("Calculating Information Content")
     ic_values = calculate_ic(go_terms)
     
-    logging.info(f"Writing {len(filtered_go_to_uniprot)} GO documents to {output_file}")
+    logging.info(f"Writing non-obsolete GO documents to {output_file}")
     ensure_dir(output_file)
     with gzip.open(output_file, 'wt', newline='') as f:
         writer = csv.writer(f, delimiter='\t')
         for go_term, uniprot_ids in filtered_go_to_uniprot.items():
-            ic = ic_values.get(go_term, 0)
-            writer.writerow([go_term, ic, ','.join(uniprot_ids)])
+            if go_term in go_terms and not go_terms[go_term].is_obsolete:  # Add this condition
+                ic = ic_values.get(go_term, 0)
+                writer.writerow([go_term, ic, ','.join(uniprot_ids)])
 
 def main():
     """Main function to process the GOA file and create the mapping."""
