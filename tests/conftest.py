@@ -124,7 +124,6 @@ def parquet_3di_processor():
 def proteingym_batch(profam_tokenizer):
     builder = GymDatasetBuilder(
         name="pfam",
-        tokenizer=profam_tokenizer,
         dms_ids=["BLAT_ECOLX_Jacquier_2013"],
         keep_gaps=False,
         use_filtered_msa=True,
@@ -136,6 +135,7 @@ def proteingym_batch(profam_tokenizer):
     )
     data = builder.process(
         data,
+        tokenizer=profam_tokenizer,
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
     )
@@ -156,7 +156,6 @@ def pfam_batch(profam_tokenizer):
     builder = StreamedProteinDatasetBuilder(
         name="pfam",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=None,
     )
     data = builder.load(
@@ -182,7 +181,6 @@ def foldseek_batch(profam_tokenizer):
     builder = ProteinDatasetBuilder(
         name="foldseek",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=None,
     )
     data = builder.load(

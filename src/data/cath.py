@@ -2,18 +2,18 @@ import copy
 import json
 import os
 import time
+from typing import List, Optional
 
 import numpy as np
-from datasets import load_dataset, Dataset
-from typing import Optional, List
+from datasets import Dataset, load_dataset
+
 from src import constants
 from src.data import transforms
 from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import Protein, ProteinDocument
-from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 from src.data.preprocessing import PreprocessingConfig, preprocess_protein_sequences
+from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 from src.utils.tokenizers import ProFamTokenizer
-
 
 CATH_43_JSONL_FILE = os.path.join(
     constants.PROFAM_DATA_DIR, "cath/cath43/chain_set.jsonl"
@@ -89,11 +89,10 @@ def load_coords(jsonl_file):
 
 
 class CATHDatasetBuilder(BaseProteinDatasetBuilder):
-    
     def __init__(
         self,
         name: str,
-        document_token: str="[RAW]",
+        document_token: str = "[RAW]",
         split_name: str = "validation",
         use_cath_43: bool = False,
         num_proc: Optional[int] = None,
@@ -102,27 +101,38 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         self.use_cath_43 = use_cath_43
         self.split_name = split_name
         self.split_ids = (
-            cath_43_splits()[split_name] if use_cath_43 else cath_42_splits()[split_name]
+            cath_43_splits()[split_name]
+            if use_cath_43
+            else cath_42_splits()[split_name]
         )
         self.split_ids = [pdb_id.replace(".", "") for pdb_id in self.split_ids]
-        self.jsonl_file = (
-            CATH_43_JSONL_FILE if use_cath_43 else CATH_42_JSONL_FILE
-        )
+        self.jsonl_file = CATH_43_JSONL_FILE if use_cath_43 else CATH_42_JSONL_FILE
         self.num_proc = num_proc
         self.document_token = document_token
 
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
         dataset = load_dataset(path="json", data_files=self.jsonl_file, split="train")
+
         def rename_pdb_id(example):
             example["name"] = example["name"].replace(".", "")
             return example
+
         dataset = dataset.map(rename_pdb_id, num_proc=self.num_proc)
-        dataset = dataset.filter(lambda x: x["name"] in self.split_ids, num_proc=self.num_proc)
+        dataset = dataset.filter(
+            lambda x: x["name"] in self.split_ids, num_proc=self.num_proc
+        )
         return dataset
 
-    def preprocess_example(self, example, tokenizer: ProFamTokenizer, max_tokens_per_example: Optional[int] = None):
+    def preprocess_example(
+        self,
+        example,
+        tokenizer: ProFamTokenizer,
+        max_tokens_per_example: Optional[int] = None,
+    ):
         protein = protein_from_coords_dict(example)
-        proteins = ProteinDocument.from_proteins([protein], representative_accession=protein.accession)
+        proteins = ProteinDocument.from_proteins(
+            [protein], representative_accession=protein.accession
+        )
         proteins = transforms.fill_missing_fields(proteins, tokenizer=tokenizer)
         proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
         preprocessing_cfg = PreprocessingConfig(
@@ -132,7 +142,9 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             to_upper=True,
             document_token=self.document_token,
         )
-        proteins = preprocess_protein_sequences(proteins, cfg=preprocessing_cfg, tokenizer=tokenizer)
+        proteins = preprocess_protein_sequences(
+            proteins, cfg=preprocessing_cfg, tokenizer=tokenizer
+        )
         tokenized = tokenizer.encode(
             proteins,
             document_token=self.document_token,
@@ -166,5 +178,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         # )
         processed_dataset = []
         for example in dataset:
-            processed_dataset.append(self.preprocess_example(example, tokenizer, max_tokens_per_example))
+            processed_dataset.append(
+                self.preprocess_example(example, tokenizer, max_tokens_per_example)
+            )
         return Dataset.from_list(processed_dataset)

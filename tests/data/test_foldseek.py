@@ -43,15 +43,15 @@ def test_foldseek_backbone_loading(foldseek_df):
 
 def stitch_tokens(tokenizer, struct_tokens, seq_tokens):
     assert len(struct_tokens) == len(seq_tokens)
-    tensors = []
+    arrays = []
     for struct, seq in zip(struct_tokens, seq_tokens):
-        tensors += [
+        arrays += [
             struct,
-            torch.full((1,), tokenizer.seq_struct_sep_token_id),
+            np.full((1,), tokenizer.seq_struct_sep_token_id),
             seq,
         ]
-        tensors.append(torch.full((1,), tokenizer.convert_tokens_to_ids("[SEP]")))
-    return torch.cat(tensors, dim=0)
+        arrays.append(np.full((1,), tokenizer.convert_tokens_to_ids("[SEP]")))
+    return np.concatenate(arrays, axis=0)
 
 
 @pytest.fixture()
@@ -77,12 +77,12 @@ def foldseek_interleaved_structure_sequence_batch(
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=parquet_3di_processor,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
         data,
+        tokenizer=profam_tokenizer,
         max_tokens_per_example=max_tokens,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -101,12 +101,12 @@ def foldseek_datapoint(profam_tokenizer):
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=None,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
         data,
+        tokenizer=profam_tokenizer,
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -147,24 +147,24 @@ def test_foldseek_interleaved_tokenization(
         ).input_ids[0]
         for s_3d in batch_3dis
     ]
-    stitched_tokens = torch.tensor(
+    stitched_tokens = np.array(
         profam_tokenizer.convert_tokens_to_ids(["[RAW]", profam_tokenizer.bos_token])
     )
-    stitched_tokens = torch.cat(
+    stitched_tokens = np.concatenate(
         [
             stitched_tokens,
             stitch_tokens(
                 profam_tokenizer, individual_3d_tokens, individual_seq_tokens
             ),
         ],
-        dim=0,
+        axis=0,
     )
 
     assert (
         foldseek_interleaved_structure_sequence_batch["input_ids"][
             0, : stitched_tokens.shape[0]
         ]
-        == stitched_tokens
+        == torch.from_numpy(stitched_tokens)
     ).all()
 
     sep_locations = torch.argwhere(
@@ -239,12 +239,12 @@ def test_foldseek_plddt_masking(profam_tokenizer):
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=preprocessor,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
         data,
+        tokenizer=profam_tokenizer,
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -301,7 +301,6 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=parquet_3di_processor,
         batched_map=True,
         map_batch_size=30,
@@ -309,6 +308,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
         data,
+        tokenizer=profam_tokenizer,
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],

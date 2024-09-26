@@ -302,33 +302,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             ]
         )
 
-        # if self.add_document_token:
-        # assert document_token is not None, "Document type token expected"
-        # concatenated_seqs = [
-        #     get_sequence_of_sequences(
-        #         proteins,
-        #         sep_token=self.sep_token,
-        #         bos_token=self.bos_token if self.add_bos_token else None,
-        #         add_final_sep=add_final_sep,
-        #         document_token=document_token,
-        #     ) for proteins in proteins_list
-        # ]
-        # num_end_tokens = int(add_final_sep)
-        # tokenized = self(
-        #     concatenated_seqs,
-        #     truncation=False,  # shouldnt be necessary: bisection should handle
-        #     return_tensors="pt",
-        #     # padding="longest",
-        #     padding=padding,
-        #     add_special_tokens=False,
-        #     max_length=max_length,
-        # )
-        # if self.max_tokens is not None:
-        #     assert tokenized.input_ids.shape[1] <= self.max_tokens, (
-        #         tokenized.input_ids.shape[1],
-        #         self.max_tokens,
-        #     )
-
     def encode_completions(
         self,
         sequences,
@@ -339,7 +312,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         assert isinstance(sequences, list)
         tokenized = self(
             [bos_token + seq + eos_token for seq in sequences],
-            return_tensors="pt",
+            return_tensors="np",
             padding="longest",
             truncation=False,
             add_special_tokens=False,
@@ -363,7 +336,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )
-            tokenized.data["seq_pos"] = stack(all_positions)
+            tokenized.data["seq_pos"] = np.stack(all_positions)
 
         return tokenized
 

@@ -18,12 +18,12 @@ def foldseek_datapoint(profam_tokenizer):
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=None,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
         data,
+        tokenizer=profam_tokenizer,
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -64,12 +64,12 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
     builder = StreamedProteinDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
-        tokenizer=profam_tokenizer,
         preprocessor=None,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
         data,
+        tokenizer=profam_tokenizer,
         max_tokens_per_example=None,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],

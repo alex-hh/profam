@@ -5,16 +5,12 @@ from typing import List, Optional
 
 import pandas as pd
 from datasets import Dataset
-from lightning import LightningDataModule
-from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import transforms
-from src.data.datasets import BaseProteinDatasetBuilder, ProteinDatasetConfig
+from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import BasePreprocessor
 from src.data.transforms import sample_to_max_tokens
-from src.data.utils import CustomDataCollator
 from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -205,7 +201,6 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(
         self,
         name: str,
-        tokenizer: ProFamTokenizer,
         dms_ids: List[str],
         seed: Optional[int] = 42,  # for msa sampling
         max_mutated_sequences: Optional[int] = None,
@@ -225,7 +220,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         We can still train on these datasets - just by setting seed None and
         not setting val dataset name. In this case, model will ignore completions.
         """
-        super().__init__(name=name, tokenizer=tokenizer, preprocessor=None)
+        super().__init__(name=name, preprocessor=None)
         self.dms_ids = dms_ids
         self.seed = seed
         self.max_mutated_sequences = max_mutated_sequences
@@ -239,6 +234,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
     def process(
         self,
         dataset: Dataset,
+        tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
@@ -276,7 +272,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         dataset = dataset.map(
             functools.partial(
                 tokenize,
-                tokenizer=self.tokenizer,
+                tokenizer=tokenizer,
                 mutant_bos_token=self.mutant_bos_token,
                 document_token="[MSA]" if self.keep_gaps else "[RAW]",
             ),
@@ -292,7 +288,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
         columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
-        if self.tokenizer.use_seq_pos:
+        if tokenizer.use_seq_pos:
             columns += ["seq_pos", "completion_seq_pos"]
 
         dataset.set_format(
