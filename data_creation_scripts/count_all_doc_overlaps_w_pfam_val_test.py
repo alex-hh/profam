@@ -133,7 +133,7 @@ if __name__ == "__main__":
             foldseek_cluster_index_file = os.path.join(
                 base_data_dir,
                 "afdb",
-                "foldseek/1-AFDBClusters-entryId_repId_taxId.tsv",
+                "1-AFDBClusters-entryId_repId_taxId.tsv",
             )
         foldseek_counts = process_dataset(
             FoldseekOverlapCounter,
