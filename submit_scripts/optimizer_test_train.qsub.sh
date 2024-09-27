@@ -22,7 +22,7 @@ echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-
+export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
 conda activate venvPF
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
@@ -52,6 +52,8 @@ else
     exit 1
 fi
 tree -d $SCRATCH_DIR
+echo "ls ${SCRATCH_DIR}/pfam:"
+ls ${SCRATCH_DIR}/pfam
 echo "Optimizer: $OPTIMIZER"
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
@@ -65,6 +67,6 @@ model.optimizer=$OPTIMIZER \
 trainer.val_check_interval=1.0 \
 data.num_workers=8 \
 data.max_tokens=10000 \
-data.data_dir=$SCRATCH_DIR \
+paths.data_dir=$SCRATCH_DIR \
 
 date
