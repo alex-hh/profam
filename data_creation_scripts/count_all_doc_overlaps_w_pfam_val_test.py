@@ -68,6 +68,9 @@ class TEDOverlapCounter(FastaOverlapCounter):
     def __init__(self, data_dir="../data/ted/ted_s50_by_sfam"):
         super().__init__(data_dir)
 
+    def up_id_from_line(self, fasta_line):
+        return fasta_line.split("-")[1]
+
 class FoldseekOverlapCounter(BaseOverlapCounter):
     def __init__(self, foldseek_cluster_index_file):
         super().__init__()
