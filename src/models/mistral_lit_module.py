@@ -29,6 +29,7 @@ class MistralLitModule(BaseFamilyLitModule):
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
+        optimizer: str = "adamw",
     ) -> None:
         if tokenizer.use_seq_pos or embed_coords:
             model = WrappedMistralForCausalLM(

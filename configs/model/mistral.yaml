@@ -1,4 +1,5 @@
 _target_: src.models.mistral_lit_module.MistralLitModule
+optimizer: adamw
 config:
   _target_: transformers.MistralConfig
   vocab_size: 66

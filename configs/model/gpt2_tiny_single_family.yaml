@@ -1,6 +1,7 @@
 _target_: src.models.gpt.GPT2SingleSequenceLitModule
 scheduler_name: "inverse_sqrt"
 num_warmup_steps: 1000
+optimizer: adamw
 config:
   _target_: transformers.GPT2Config
   vocab_size: 66
@@ -10,3 +11,4 @@ config:
   n_positions: 2048
 embed_coords: false
 embed_sequence_index: false
+optimizer: adamw
