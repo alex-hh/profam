@@ -10,6 +10,7 @@ attrs==23.2.0
 autopage==0.5.2
 biotite==0.41.2
 biopython==1.78
+bitsandbytes==0.44.0
 certifi==2024.2.2
 cfgv==3.4.0
 charset-normalizer==3.3.2
