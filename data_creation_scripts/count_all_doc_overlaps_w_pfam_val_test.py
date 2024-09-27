@@ -65,7 +65,7 @@ class ECOverlapCounter(FastaOverlapCounter):
         super().__init__(data_dir)
 
 class TEDOverlapCounter(FastaOverlapCounter):
-    def __init__(self, data_dir="ted/ted_s50_by_sfam"):
+    def __init__(self, data_dir="../data/ted/ted_s50_by_sfam"):
         super().__init__(data_dir)
 
 class FoldseekOverlapCounter(BaseOverlapCounter):
