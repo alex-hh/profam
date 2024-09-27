@@ -1,7 +1,14 @@
 from typing import Optional
 
 import torch
-from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
+from torch import nn
+from transformers import (
+    LlamaConfig,
+    LlamaForCausalLM,
+    LlamaModel,
+    LlamaPreTrainedModel,
+    PreTrainedTokenizerFast,
+)
 from transformers.cache_utils import Cache, StaticCache
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 
@@ -10,11 +17,7 @@ from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
-class WrappedLlamaForCausalLM(
-    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
-):
-    attention_mask_type: str
-
+class WrappedLlamaModel(WrappedHFModelWithPositionEmbeddingsMixin, LlamaModel):
     def _update_causal_mask(
         self,
         attention_mask: torch.Tensor,
@@ -39,8 +42,8 @@ class WrappedLlamaForCausalLM(
             happens outside of forward pass anyway.
             2. compute the 4d binary attention mask in the wrapped forward pass
             and pass it to model.forward
-
-        Going for 1 as simplest and fairly reasonable anyway."""
+        Going for 1 as simplest and fairly reasonable anyway.
+        """
         if self.config._attn_implementation == "flash_attention_2":
             if self.attention_mask_type != "causal":
                 raise ValueError("Flash attention doesn't support custom masks")
@@ -61,6 +64,7 @@ class WrappedLlamaForCausalLM(
             self.config._attn_implementation == "sdpa"
             and not using_static_cache
             and not output_attentions
+            and self.attention_mask_type == "causal"
         ):
             if AttentionMaskConverter._ignore_causal_mask_sdpa(
                 attention_mask,
@@ -76,11 +80,16 @@ class WrappedLlamaForCausalLM(
         attention_mask = attention_masking.prepare_binary_attention_mask(
             self.attention_mask_type,
             attention_mask_2d=attention_mask,
-            sequence_length=sequence_length,
+            new_sequence_length=sequence_length,
             device=device,
-            past_key_values=past_key_values,
+            cache_position=cache_position,
             batch_size=input_tensor.shape[0],
-        )
+            past_key_values=past_key_values,
+            seq_struct_sep_token_id=self.tokenizer.seq_struct_sep_token_id,
+            sep_token_id=self.tokenizer.sep_token_id,
+        ).int()
+
+        print(f"{self.attention_mask_type} attention_mask", attention_mask)
 
         min_dtype = torch.finfo(dtype).min
         # convert the binary attentino mask to a bias to add to raw attention logits
@@ -109,6 +118,18 @@ class WrappedLlamaForCausalLM(
             )
 
         return causal_mask
+
+
+class WrappedLlamaForCausalLM(LlamaForCausalLM):
+    def __init__(self, config, *args, **kwargs):
+        LlamaPreTrainedModel.__init__(self, config)
+        # todo: maybe just wrap llamamodel (with position embedding wrapper also)
+        self.model = WrappedLlamaModel(config, *args, **kwargs)
+        self.vocab_size = config.vocab_size
+        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+
+        # Initialize weights and apply final processing
+        self.post_init()
 
 
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
@@ -162,12 +183,14 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
+        should_wrap = tokenizer.use_seq_pos or embed_coords
+        should_wrap = should_wrap = attention_mask_type is not None
         if (
-            tokenizer.use_seq_pos or embed_coords or attention_mask_type is not None,
+            should_wrap
         ):  # commenting out to check computation of inputs embeds is working
             model = WrappedLlamaForCausalLM(
                 config,
-                token_embedder="model.embed_tokens",
+                token_embedder="embed_tokens",
                 tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,

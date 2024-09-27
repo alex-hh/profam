@@ -19,7 +19,11 @@ def load_named_model_config(model_name, overrides: Optional[List[str]] = None):
     return model_cfg
 
 
-def load_named_model(model_name, overrides: Optional[List[str]] = None, tokenizer: Optional[ProFamTokenizer] = None):
+def load_named_model(
+    model_name,
+    overrides: Optional[List[str]] = None,
+    tokenizer: Optional[ProFamTokenizer] = None,
+):
     with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
         model_overrides = [f"+constants.vocab_size={VOCAB_SIZE}"] + (overrides or [])
         model_cfg = compose(

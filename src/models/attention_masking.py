@@ -266,8 +266,9 @@ def _prepare_prefix_lm_4d_binary_mask(
     prefix_index = torch.where(is_prefix, prefix_index, 0)
     new_prefix_index = prefix_index[:, cache_position]
     same_prefix_mask = new_prefix_index[:, :, None] == prefix_index[:, None, :]
-    print(same_prefix_mask.shape, causal_mask.shape)
-    causal_mask.masked_fill(same_prefix_mask, 1)
+    causal_mask[..., : same_prefix_mask.shape[-1]].masked_fill(
+        same_prefix_mask, 1
+    )  # TODO be very careful about shapes
     return causal_mask
 
 
@@ -316,6 +317,8 @@ def prepare_binary_attention_mask(
     cache_position: torch.Tensor,
     batch_size: int,
     past_key_values: Optional[torch.Tensor] = None,
+    seq_struct_sep_token_id: Optional[int] = None,
+    sep_token_id: Optional[int] = None,
 ):
     """Because attention mask creation is handled entirely in forward,
     e.g. in LlamaModel._update_causal_mask,
@@ -387,6 +390,7 @@ def prepare_binary_attention_mask(
             past_key_values, InputAwareDynamicCache
         )
         # need a prefix indicator
+        assert seq_struct_sep_token_id is not None and sep_token_id is not None
         return _prepare_prefix_lm_4d_binary_mask(
             past_key_values.input_ids_cache,  # includes new input ids
             attention_mask_2d,

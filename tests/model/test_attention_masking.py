@@ -10,7 +10,6 @@ from transformers.models.llama.modeling_llama import (
 from src.models.llama import LlamaLitModule
 from src.models.utils import load_named_model
 
-
 # TODO: rewrite this
 # def test_prepare_4d_causal_attention_mask_with_cache_position():
 #     # PASSING NOTHING AS INPUT ATTENTION MASK
@@ -104,11 +103,18 @@ from src.models.utils import load_named_model
 
 
 def test_custom_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
-    masked_model = load_named_model("llama_tiny", overrides=["+attention_mask_type=causal"], tokenizer=profam_tokenizer_noseqpos)
+    masked_model = load_named_model(
+        "llama_tiny",
+        overrides=["model.attention_mask_type=causal"],
+        tokenizer=profam_tokenizer_noseqpos,
+    )
+    masked_model.eval()
     sd = masked_model.state_dict()
     # instantiate wrapped and unwrapped models with same config and weights
     model = load_named_model("llama_tiny", tokenizer=profam_tokenizer_noseqpos)
-    model.load_state_dict(sd)
+    model.eval()
+    model.load_state_dict(sd, strict=False)  # token embedder causes mismatch
+
     masked_scores = masked_model.score_seqs(
         input_ids=proteingym_batch["input_ids"],
         completion_ids=proteingym_batch["completion_ids"][:, :2],
@@ -127,3 +133,20 @@ def test_custom_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
     )
 
     assert np.isclose(masked_scores, scores).all()
+
+    print("PREFIX MASK")
+    masked_model = load_named_model(
+        "llama_tiny",
+        overrides=["model.attention_mask_type=prefix-lm"],
+        tokenizer=profam_tokenizer_noseqpos,
+    )
+    masked_model.eval()
+    scores = masked_model.score_seqs(
+        input_ids=proteingym_batch["input_ids"],
+        completion_ids=proteingym_batch["completion_ids"][:, :2],
+        use_cache=True,
+        batch_size=1,
+        input_seq_pos=None,
+        completion_seq_pos=None,
+    )
+    # assert 1 == 0

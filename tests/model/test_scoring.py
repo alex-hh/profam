@@ -32,7 +32,7 @@ def test_kv_cache_no_seqpos(test_model_noseqpos, proteingym_batch):
         )
         past_key_values = outputs.past_key_values
 
-# # assert len(past_key_values) == config.num_hidden_layers
+    # # assert len(past_key_values) == config.num_hidden_layers
     # assert len(past_key_values[0]) == 2  # tuple (k, v)
     # assert past_key_values[0][0].shape == (
     #     batch_size,

@@ -10,3 +10,4 @@ config:
   n_positions: 2048
 embed_coords: false
 embed_sequence_index: false
+attention_mask_type: null

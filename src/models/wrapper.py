@@ -84,14 +84,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         max_sequence_index: int = 1024,
         attention_mask_type: str = "causal",
     ):
-        super().__init__(config)
         self.tokenizer = tokenizer
         self.use_seq_pos = tokenizer.use_seq_pos
         self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent
-        # TODO: avoid re-tracking - does this happen automatically?
-        self.token_embedder = nested_getattr(
-            self, token_embedder
-        )  # TODO: use self.embed_tokens or sthg
         self.attention_mask_type = attention_mask_type
         self.require_seq_pos = require_seq_pos
         self.tokenizer = tokenizer
@@ -106,6 +101,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self.pass_sequence_position_ids_for_global_index = (
             pass_sequence_position_ids_for_global_index
         )
+        super().__init__(config)
+        # TODO: avoid re-tracking - does this happen automatically?
+        self.token_embedder = nested_getattr(
+            self, token_embedder
+        )  # TODO: use self.embed_tokens or sthg
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
                 self.num_atoms * 3, embedding_dim, bias=False
@@ -417,7 +417,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.embed_sequence_index:
             if past_key_values is not None:
                 assert isinstance(past_key_values, InputAwareDynamicCache)
-                print(past_key_values.input_ids_cache)
             start_sequence_index = self.compute_start_sequence_index(past_key_values)
         else:
             start_sequence_index = None

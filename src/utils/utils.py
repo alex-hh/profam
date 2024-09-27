@@ -154,9 +154,6 @@ def nested_getattr(obj, attr_path, default=None):
     The value of the nested attribute or the default value if not found.
     """
     attributes = attr_path.split(".")
-    try:
-        for attr in attributes:
-            obj = getattr(obj, attr)
-        return obj
-    except AttributeError:
-        return default
+    for attr in attributes:
+        obj = getattr(obj, attr)
+    return obj
