@@ -4,7 +4,6 @@ num_warmup_steps: 1000
 lr: 1e-3
 embed_coords: false
 embed_sequence_index: false
-attention_mask_type: null
 config:
   _target_: transformers.LlamaConfig
   vocab_size: ${constants.vocab_size}
@@ -15,3 +14,4 @@ config:
   rope_theta: 500000
   max_position_embeddings: 8192  # used in llama rope implementation
   scoring_max_tokens: 10240
+  attention_mask_type: null

@@ -17,7 +17,9 @@ from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 
-class WrappedLlamaModel(WrappedHFModelWithPositionEmbeddingsMixin, LlamaModel):
+class WrappedLlamaModel(LlamaModel):
+    """LlamaForCausalLM doesn't have _update_causal_mask, so we also need to wrap LlamaModel."""
+
     def _update_causal_mask(
         self,
         attention_mask: torch.Tensor,
@@ -45,7 +47,7 @@ class WrappedLlamaModel(WrappedHFModelWithPositionEmbeddingsMixin, LlamaModel):
         Going for 1 as simplest and fairly reasonable anyway.
         """
         if self.config._attn_implementation == "flash_attention_2":
-            if self.attention_mask_type != "causal":
+            if self.config.attention_mask_type != "causal":
                 raise ValueError("Flash attention doesn't support custom masks")
             if attention_mask is not None and 0.0 in attention_mask:
                 return attention_mask
@@ -85,8 +87,8 @@ class WrappedLlamaModel(WrappedHFModelWithPositionEmbeddingsMixin, LlamaModel):
             cache_position=cache_position,
             batch_size=input_tensor.shape[0],
             past_key_values=past_key_values,
-            seq_struct_sep_token_id=self.tokenizer.seq_struct_sep_token_id,
-            sep_token_id=self.tokenizer.sep_token_id,
+            seq_struct_sep_token_id=self.config.seq_struct_sep_token_id,
+            sep_token_id=self.config.sep_token_id,
         ).int()
 
         print(f"{self.attention_mask_type} attention_mask", attention_mask)
@@ -132,6 +134,12 @@ class WrappedLlamaForCausalLM(LlamaForCausalLM):
         self.post_init()
 
 
+class DoubleWrappedLlama(
+    WrappedHFModelWithPositionEmbeddingsMixin, WrappedLlamaForCausalLM
+):
+    pass
+
+
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
     def __init__(
         self,
@@ -174,7 +182,6 @@ class LlamaLitModule(BaseFamilyLitModule):
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
-        attention_mask_type: Optional[str] = None,
     ) -> None:
         """
         From the paper:
@@ -183,14 +190,17 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        should_wrap = tokenizer.use_seq_pos or embed_coords
-        should_wrap = should_wrap = attention_mask_type is not None
+        should_wrap = tokenizer.use_seq_pos or embed_coords or embed_sequence_index
+        should_wrap = should_wrap or config.attention_mask_type is not None
         if (
             should_wrap
         ):  # commenting out to check computation of inputs embeds is working
-            model = WrappedLlamaForCausalLM(
+            # TODO: move to yaml file...
+            config.seq_struct_sep_token_id = tokenizer.seq_struct_sep_token_id
+            config.sep_token_id = tokenizer.sep_token_id
+            model = DoubleWrappedLlama(
                 config,
-                token_embedder="embed_tokens",
+                token_embedder="model.embed_tokens",
                 tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,
@@ -198,7 +208,6 @@ class LlamaLitModule(BaseFamilyLitModule):
                 max_sequence_index=max_sequence_index,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
                 pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
-                attention_mask_type=attention_mask_type,
             )
         else:
             model = LlamaForCausalLM(config)

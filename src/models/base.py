@@ -448,10 +448,6 @@ class BaseFamilyLitModule(BaseLitModule):
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
         self.embed_coords = embed_coords
-        if self.use_seq_pos:
-            self.embed_sequence_index = self.model.embed_sequence_index
-        else:
-            self.embed_sequence_index = False
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}

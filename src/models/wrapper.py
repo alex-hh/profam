@@ -82,12 +82,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
-        attention_mask_type: str = "causal",
     ):
         self.tokenizer = tokenizer
         self.use_seq_pos = tokenizer.use_seq_pos
         self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent
-        self.attention_mask_type = attention_mask_type
         self.require_seq_pos = require_seq_pos
         self.tokenizer = tokenizer
         self.embed_coords = embed_coords
