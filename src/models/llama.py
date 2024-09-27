@@ -17,6 +17,7 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 64000,
+        optimizer: str = "adamw",
     ) -> None:
         model = LlamaForCausalLM(config)
         super().__init__(
@@ -54,6 +55,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
+        optimizer: str = "adamw",
     ) -> None:
         """
         From the paper:

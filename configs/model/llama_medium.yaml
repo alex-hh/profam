@@ -4,6 +4,8 @@ num_warmup_steps: 1000
 lr: 1e-4
 embed_coords: false
 embed_sequence_index: false
+optimizer: adamw
+use_kv_cache_for_scoring: true
 config:
   _target_: transformers.LlamaConfig
   vocab_size: 66
