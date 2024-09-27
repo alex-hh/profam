@@ -115,7 +115,7 @@ class ParquetOverlapCounter(BaseOverlapCounter):
                 print(f"row 0 up id col: {df.iloc[0][self.up_id_col]}")
                 for i, row in df.iterrows():
                     fam_id = row[self.fam_id_col]
-                    up_ids = row[self.up_id_col].apply(lambda x: [upid.split("/"[0]) for upid in x])
+                    up_ids = [upid.split("/"[0]) for upid in row[self.up_id_col]]
                     if fam_id not in fam_id_up_ids:
                         fam_id_up_ids[fam_id] = up_ids
                     else:
