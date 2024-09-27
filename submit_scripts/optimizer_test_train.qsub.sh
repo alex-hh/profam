@@ -67,6 +67,6 @@ model.optimizer=$OPTIMIZER \
 trainer.val_check_interval=1.0 \
 data.num_workers=8 \
 data.max_tokens=10000 \
-paths.data_dir=$SCRATCH_DIR \
+paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data" 
 
 date
