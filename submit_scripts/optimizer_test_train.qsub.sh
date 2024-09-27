@@ -51,7 +51,8 @@ else
     echo "Error: Invalid SGE_TASK_ID. Must be 1 or 2."
     exit 1
 fi
-
+tree -d $SCRATCH_DIR
+echo "Optimizer: $OPTIMIZER"
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
 data.batch_size=2 \
