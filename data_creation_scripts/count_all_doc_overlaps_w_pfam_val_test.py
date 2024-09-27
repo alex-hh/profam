@@ -107,18 +107,15 @@ class ParquetOverlapCounter(BaseOverlapCounter):
         self.up_id_col = up_id_col
 
     def get_fam_id_up_ids(self):
-        fam_id_up_ids = {}
+        fam_id_up_ids = defaultdict(set)
         for filename in os.listdir(self.parquet_dir):
             if filename.endswith(".parquet"):
                 df = pd.read_parquet(os.path.join(self.parquet_dir, filename))
-                for i, row in df.iterrows():
+                for _, row in df.iterrows():
                     fam_id = row[self.fam_id_col]
-                    up_ids = [upid.split("/"[0]) for upid in row[self.up_id_col]]
-                    if fam_id not in fam_id_up_ids:
-                        fam_id_up_ids[fam_id] = up_ids
-                    else:
-                        fam_id_up_ids[fam_id].extend(up_ids)
-        return fam_id_up_ids
+                    up_ids = set(upid.split("/")[0] for upid in row[self.up_id_col])
+                    fam_id_up_ids[fam_id].update(up_ids)
+        return dict(fam_id_up_ids)
 
 
 def process_dataset(counter_class, **kwargs):
