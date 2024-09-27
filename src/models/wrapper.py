@@ -83,6 +83,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         pass_sequence_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
     ):
+        # TODO: move all this to config? or wrapper part of config?
         self.tokenizer = tokenizer
         self.use_seq_pos = tokenizer.use_seq_pos
         self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent

@@ -46,8 +46,9 @@ class WrappedLlamaModel(LlamaModel):
             and pass it to model.forward
         Going for 1 as simplest and fairly reasonable anyway.
         """
+        attention_mask_type = self.config.attention_mask_type or "causal"
         if self.config._attn_implementation == "flash_attention_2":
-            if self.config.attention_mask_type != "causal":
+            if attention_mask_type != "causal":
                 raise ValueError("Flash attention doesn't support custom masks")
             if attention_mask is not None and 0.0 in attention_mask:
                 return attention_mask
@@ -66,7 +67,7 @@ class WrappedLlamaModel(LlamaModel):
             self.config._attn_implementation == "sdpa"
             and not using_static_cache
             and not output_attentions
-            and self.attention_mask_type == "causal"
+            and attention_mask_type == "causal"
         ):
             if AttentionMaskConverter._ignore_causal_mask_sdpa(
                 attention_mask,
@@ -80,7 +81,7 @@ class WrappedLlamaModel(LlamaModel):
         sequence_length = input_tensor.shape[1]
 
         attention_mask = attention_masking.prepare_binary_attention_mask(
-            self.attention_mask_type,
+            attention_mask_type,
             attention_mask_2d=attention_mask,
             new_sequence_length=sequence_length,
             device=device,
@@ -91,7 +92,7 @@ class WrappedLlamaModel(LlamaModel):
             sep_token_id=self.config.sep_token_id,
         ).int()
 
-        print(f"{self.attention_mask_type} attention_mask", attention_mask)
+        print(f"{attention_mask_type} attention_mask", attention_mask)
 
         min_dtype = torch.finfo(dtype).min
         # convert the binary attentino mask to a bias to add to raw attention logits
