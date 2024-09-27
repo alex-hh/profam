@@ -92,6 +92,7 @@ class BaseLitModule(LightningModule):
             )
         elif optimizer_name == "lion":
             from bitsandbytes.optim import Lion
+
             optimizer = Lion(
                 self.parameters(),
                 lr=self.lr,
@@ -100,6 +101,7 @@ class BaseLitModule(LightningModule):
             )
         elif optimizer_name == "lion8bit":
             from bitsandbytes.optim import Lion8bit
+
             optimizer = Lion8bit(
                 self.parameters(),
                 lr=self.lr,
