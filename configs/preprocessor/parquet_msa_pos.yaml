@@ -1,7 +1,7 @@
 _target_: src.data.preprocessing.ParquetSequencePreprocessorConfig
+keep_gaps: false
 keep_insertions: true
 to_upper: true
-keep_gaps: false  # we may prefer to keep gaps to allow deletion generation
 document_token: "[RAW-WITH-MSA-POS]"
 truncate_after_n_sequences: null
 use_msa_pos: true

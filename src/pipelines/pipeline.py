@@ -40,6 +40,9 @@ class BaseEvaluatorPipeline:
     def instance_ids(self):
         raise NotImplementedError()
 
+    def reset(self):
+        self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
+
     def load_results(self) -> pd.DataFrame:
         """Load results dataframe from local disk location."""
         results_path = os.path.join(self.pipeline_directory, "results.csv")
@@ -256,6 +259,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             return
 
         # TODO format to limit decimal places
+        # print(self.results_df["sampler"].unique())
         combo_results = self.results_df.loc[(evaluator.name, sampler.name)]
         avg_metrics = combo_results.mean()
         avg_metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in avg_metrics.items()])

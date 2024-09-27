@@ -8,7 +8,7 @@ import hydra
 import pandas as pd
 import pytest
 import rootutils
-from hydra import compose, initialize
+from hydra import compose, initialize, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
 
@@ -23,7 +23,7 @@ from src.data.utils import (
 from src.utils.tokenizers import ProFamTokenizer
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def profam_tokenizer():
     tokenizer = ProFamTokenizer(
         tokenizer_file=os.path.join(
@@ -41,7 +41,7 @@ def profam_tokenizer():
     return tokenizer
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def profam_tokenizer_noseqpos():
     tokenizer = ProFamTokenizer(
         tokenizer_file=os.path.join(
@@ -59,7 +59,7 @@ def profam_tokenizer_noseqpos():
     return tokenizer
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def default_model_noseqpos(profam_tokenizer_noseqpos):
     # otherwise could do this via overrides...
     with initialize(config_path="../configs", version_base="1.3"):
@@ -70,7 +70,7 @@ def default_model_noseqpos(profam_tokenizer_noseqpos):
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def default_model(profam_tokenizer):
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
@@ -80,7 +80,18 @@ def default_model(profam_tokenizer):
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
+def model_seq_index(profam_tokenizer):
+    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
+        cfg = compose(
+            config_name="train.yaml",
+            return_hydra_config=True,
+            overrides=["model.embed_sequence_index=True"],
+        )
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
+
+
+@pytest.fixture(scope="package")
 def parquet_raw_sequence_processor():
     return preprocessing.ParquetSequencePreprocessorConfig(
         keep_insertions=True,
@@ -90,7 +101,7 @@ def parquet_raw_sequence_processor():
     )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def parquet_3di_processor():
     return preprocessing.ParquetStructureTokensPreprocessorConfig(
         structure_tokens_col="msta_3di",
@@ -98,7 +109,6 @@ def parquet_3di_processor():
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        is_aligned=False,
         transforms=[partial(transforms.interleave_structure_sequence, max_tokens=2048)],
         keep_columns=["plddts"],
     )
@@ -130,7 +140,6 @@ def foldseek_interleaved_structure_sequence_batch(
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        is_aligned=False,
         transforms=[
             partial(transforms.interleave_structure_sequence, max_tokens=max_tokens)
         ],

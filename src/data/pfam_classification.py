@@ -21,6 +21,7 @@ all seqs against one msa at a time
 """
 import copy
 import glob
+import os
 from functools import partial
 from typing import List
 
@@ -85,6 +86,11 @@ def load_pfam_classification_dataset(
     max_eval_per_fam: int = 4,
     use_msa_pos: bool = True,
 ):
+    if not os.path.exists(pfam_dir):
+        zip_path = f"{pfam_dir}/../../pfam_val_test_fastas.zip"
+        raise FileNotFoundError(
+            f"Decompress the following file to get the Pfam fastas: {zip_path}"
+        )  # todo decompress automatically
     eval_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_test.fasta"))
     prompt_seq_paths = sorted(glob.glob(f"{pfam_dir}/*_train.fasta"))
     assert len(eval_seq_paths) == len(prompt_seq_paths)

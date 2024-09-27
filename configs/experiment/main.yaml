@@ -9,7 +9,8 @@ defaults:
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
 
-tags: ["foldseek"]
+experiment_group: "foldseek"
+tags: ["${.experiment_group}"]
 
 seed: 12345
 

@@ -8,9 +8,10 @@ defaults:
   - override /preprocessor@extra_callbacks.esmfold.preprocessor: parquet_3di
   - override /callbacks: default_with_shuffle
   - override /data: foldseek
-  - override /model: llama_tiny
+  - override /model: llama_small
 
-tags: ["pfam"]
+experiment_group: "foldseek"
+tags: ["${.experiment_group}"]
 
 seed: 12345
 
@@ -33,7 +34,7 @@ model:
   scoring_max_tokens: 10240
 
 data:
-  batch_size: 2
+  batch_size: 5
   num_workers: 12
   evaluate_gym: True
   evaluate_ec_class: True

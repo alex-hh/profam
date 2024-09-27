@@ -25,15 +25,22 @@ class MistralLitModule(BaseFamilyLitModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         embed_coords: bool = False,
+        embed_sequence_index: bool = False,
+        pass_constant_position_ids_for_global_index: bool = False,
+        pass_sequence_position_ids_for_global_index: bool = False,
+        max_sequence_index: int = 1024,
     ) -> None:
         if tokenizer.use_seq_pos or embed_coords:
             model = WrappedMistralForCausalLM(
                 config,
                 "model.embed_tokens",
+                tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
-                use_seq_pos=tokenizer.use_seq_pos,
-                max_seq_pos=tokenizer.max_seq_pos,
                 embed_coords=embed_coords,
+                embed_sequence_index=embed_sequence_index,
+                max_sequence_index=max_sequence_index,
+                pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
+                pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
             )
         else:
             model = MistralForCausalLM(config)

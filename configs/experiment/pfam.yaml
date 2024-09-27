@@ -7,7 +7,8 @@ defaults:
   - _self_
 
 
-tags: ["pfam", "llama_tiny"]
+experiment_group: "pfam"
+tags: ["${.experiment_group}", "llama_tiny"]
 
 seed: 12345
 
