@@ -20,6 +20,7 @@ class BaseOverlapCounter:
         fam_id_up_ids = self.get_fam_id_up_ids()
         overlap_counts = {}
         total_fams = len(fam_id_up_ids)
+        print(f"founds {total_fams} families")
         for i, (fam_id, up_ids) in enumerate(fam_id_up_ids.items()):
             if i % (total_fams // 20) == 0:
                 print(f"Processed {i+1}/{total_fams} families")
@@ -51,13 +52,15 @@ class FastaOverlapCounter(BaseOverlapCounter):
 
     def get_fam_id_up_ids(self):
         fam_id_up_ids = {}
-        for filename in os.listdir(self.fasta_dir):
-            if filename.endswith(".fasta"):
-                fam_id = self.get_fam_id_from_docpath(filename)
-                with open(os.path.join(self.fasta_dir, filename), 'r') as f:
-                    fasta_lines = f.readlines()
-                up_ids = self.get_up_ids_from_fasta_lines(fasta_lines)
-                fam_id_up_ids[fam_id] = up_ids
+        print("Processing fasta files in", self.fasta_dir)
+        fasta_files = [f for f in os.listdir(self.fasta_dir) if f.endswith(".fasta")]
+        print(f"Found {len(fasta_files)} fasta files")
+        for filename in fasta_files:
+            fam_id = self.get_fam_id_from_docpath(filename)
+            with open(os.path.join(self.fasta_dir, filename), 'r') as f:
+                fasta_lines = f.readlines()
+            up_ids = self.get_up_ids_from_fasta_lines(fasta_lines)
+            fam_id_up_ids[fam_id] = up_ids
         return fam_id_up_ids
 
 class ECOverlapCounter(FastaOverlapCounter):
