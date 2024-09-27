@@ -27,6 +27,7 @@ cd $ROOT_DIR
 conda activate venvPF
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 SCRATCH_DIR="/scratch0/${USER}/data"
+export HF_HOME="/scratch0/${USER}/hf"
 # Function to clean up temporary files
 cleanup() {
     echo "[$(date)] Cleaning up temporary files..."
