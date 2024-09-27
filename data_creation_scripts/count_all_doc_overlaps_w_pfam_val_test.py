@@ -20,7 +20,7 @@ class BaseOverlapCounter:
         fam_id_up_ids = self.get_fam_id_up_ids()
         overlap_counts = {}
         total_fams = len(fam_id_up_ids)
-        print(f"founds {total_fams} families")
+        print(f"found {total_fams} families")
         for i, (fam_id, up_ids) in enumerate(fam_id_up_ids.items()):
             if i % (total_fams // 20) == 0:
                 print(f"Processed {i+1}/{total_fams} families")
@@ -38,7 +38,7 @@ class FastaOverlapCounter(BaseOverlapCounter):
         self.fasta_dir = data_dir
     
     def get_fam_id_from_docpath(self, doc_path):
-        return doc_path.split("/")[-1].split(".")[0]
+        return ".".join(doc_path.split("/")[-1].split(".")[:-1])
 
     def up_id_from_line(self, fasta_line):
         return fasta_line.split("|")[1]
@@ -73,6 +73,7 @@ class TEDOverlapCounter(FastaOverlapCounter):
 
     def up_id_from_line(self, fasta_line):
         return fasta_line.split("-")[1]
+
 
 class FoldseekOverlapCounter(BaseOverlapCounter):
     def __init__(self, foldseek_cluster_index_file):
