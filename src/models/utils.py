@@ -7,17 +7,29 @@ from hydra.utils import instantiate
 from transformers.cache_utils import DynamicCache
 
 from src.constants import BASEDIR, VOCAB_SIZE
+from src.utils.tokenizers import ProFamTokenizer
 
 
-def load_named_model(model_name, overrides=None):
+def load_named_model_config(model_name, overrides: Optional[List[str]] = None):
     with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
         model_overrides = [f"+constants.vocab_size={VOCAB_SIZE}"] + (overrides or [])
         model_cfg = compose(
             config_name=f"model/{model_name}", overrides=model_overrides
         )
-        tokenizer_cfg = compose(config_name=f"tokenizer/profam")
+    return model_cfg
 
-    tokenizer = instantiate(tokenizer_cfg.tokenizer)
+
+def load_named_model(model_name, overrides: Optional[List[str]] = None, tokenizer: Optional[ProFamTokenizer] = None):
+    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
+        model_overrides = [f"+constants.vocab_size={VOCAB_SIZE}"] + (overrides or [])
+        model_cfg = compose(
+            config_name=f"model/{model_name}", overrides=model_overrides
+        )
+        if tokenizer is None:
+            tokenizer_cfg = compose(config_name=f"tokenizer/profam")
+
+    if tokenizer is None:
+        tokenizer = instantiate(tokenizer_cfg.tokenizer)
     model = instantiate(model_cfg.model, tokenizer=tokenizer)
     return model
 

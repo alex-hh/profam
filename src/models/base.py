@@ -356,6 +356,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
 
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
+    @torch.no_grad()
     def score_seqs(
         self,
         input_ids,
@@ -606,6 +607,7 @@ class BaseFamilyLitModule(BaseLitModule):
 
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
+    @torch.no_grad()
     def score_seqs(
         self,
         input_ids,
