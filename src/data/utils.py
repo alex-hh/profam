@@ -179,7 +179,7 @@ def load_protein_dataset(
                 if isinstance(value[0], (list, np.ndarray)):
                     value_to_print = f"[{value[0][:10]},...]"
                 else:
-                    value_to_print = f"{value[:3]}..." if len(value) > 3 else value
+                    value_to_print = f"{[v[:100] for v in value[:3]]}..." if len(value) > 3 else value
             else:
                 value_to_print = value
             print(f"    {key}: {value_to_print}")
