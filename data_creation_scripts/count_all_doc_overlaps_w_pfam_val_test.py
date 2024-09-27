@@ -111,8 +111,6 @@ class ParquetOverlapCounter(BaseOverlapCounter):
         for filename in os.listdir(self.parquet_dir):
             if filename.endswith(".parquet"):
                 df = pd.read_parquet(os.path.join(self.parquet_dir, filename))
-                print(f"row 0 fam id col: {df.iloc[0][self.fam_id_col]}")
-                print(f"row 0 up id col: {df.iloc[0][self.up_id_col]}")
                 for i, row in df.iterrows():
                     fam_id = row[self.fam_id_col]
                     up_ids = [upid.split("/"[0]) for upid in row[self.up_id_col]]
