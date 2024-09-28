@@ -8,11 +8,11 @@
 #$ -l m_core=12
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N optz
+#$ -N optz2
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
-#$ -t 1-2
+#$ -t 2
 date
 hostname
 nvidia-smi
@@ -27,7 +27,9 @@ cd $ROOT_DIR
 conda activate venvPF
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 SCRATCH_DIR="/scratch0/${USER}/data"
+mkdir -p $SCRATCH_DIR
 export HF_HOME="/scratch0/${USER}/hf"
+mkdir -p $HF_HOME
 # Function to clean up temporary files
 cleanup() {
     echo "[$(date)] Cleaning up temporary files..."
@@ -40,6 +42,13 @@ trap cleanup EXIT ERR INT TERM
 PFAM_DIR="/SAN/orengolab/cath_plm/ProFam/data/pfam/train_test_split_parquets"
 GYM_DIR="/SAN/orengolab/cath_plm/ProFam/data/ProteinGym"
 mkdir -p $SCRATCH_DIR/pfam
+# check if scratch directory is created
+if [ -d $SCRATCH_DIR/pfam ]; then
+    echo "Scrat Pfam directory exists"
+else
+    echo "Directory does not exist"
+    exit 1
+fi
 rsync -av $PFAM_DIR $SCRATCH_DIR/pfam/
 rsync -av $GYM_DIR $SCRATCH_DIR/
 
@@ -55,14 +64,16 @@ else
     echo "Error: Invalid SGE_TASK_ID. Must be 1 or 2."
     exit 1
 fi
-echo "tree -d $SCRATCH_DIR:"
-tree -d $SCRATCH_DIR
+
+
+echo "ls $SCRATCH_DIR:"
+ls $SCRATCH_DIR
 echo "ls ${SCRATCH_DIR}/pfam:"
 ls ${SCRATCH_DIR}/pfam
 echo "Optimizer: $OPTIMIZER"
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
-data.batch_size=5 \
+data.batch_size=6 \
 trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
@@ -72,7 +83,8 @@ model.optimizer=$OPTIMIZER \
 trainer.val_check_interval=1.0 \
 data.num_workers=8 \
 data.max_tokens=10000 \
-ckpt_path-"${ROOT_DIR}/logs/train/train/runs/2024-09-27_23-51-42/checkpoints/last.ckpt" \
-paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data" 
+paths.data_dir=$SCRATCH_DIR  #"/SAN/orengolab/cath_plm/ProFam/data" \
+float32_matmul_precision=high \
+callbacks=default_with_shuffle \
 
 date
