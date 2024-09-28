@@ -5,7 +5,7 @@
 #$ -l hostname=clifford*
 #$ -l gpu=true
 #$ -pe gpu 2
-#$ -l m_core=7
+#$ -l m_core=12
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
 #$ -N optz
@@ -73,7 +73,7 @@ ls ${SCRATCH_DIR}/pfam
 echo "Optimizer: $OPTIMIZER"
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
-data.batch_size=12 \
+data.batch_size=7 \
 trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
