@@ -73,7 +73,7 @@ ls ${SCRATCH_DIR}/pfam
 echo "Optimizer: $OPTIMIZER"
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
-data.batch_size=6 \
+data.batch_size=12 \
 trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
@@ -84,6 +84,8 @@ trainer.val_check_interval=1.0 \
 data.num_workers=8 \
 data.max_tokens=10000 \
 ckpt_path="${ROOT_DIR}/logs/train/train/runs/2024-09-27_23-51-42/checkpoints/last.ckpt" \
-paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data" 
+paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data" \
+callbacks=default_no_shuffle \
+callbacks.throughput=null
 
 date
