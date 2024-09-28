@@ -66,8 +66,8 @@ else
 fi
 
 
-echo "tree -d $SCRATCH_DIR:"
-tree -d $SCRATCH_DIR
+echo "ls $SCRATCH_DIR:"
+ls $SCRATCH_DIR
 echo "ls ${SCRATCH_DIR}/pfam:"
 ls ${SCRATCH_DIR}/pfam
 echo "Optimizer: $OPTIMIZER"
@@ -83,7 +83,7 @@ model.optimizer=$OPTIMIZER \
 trainer.val_check_interval=1.0 \
 data.num_workers=8 \
 data.max_tokens=10000 \
-ckpt_path-"${ROOT_DIR}/logs/train/train/runs/2024-09-27_23-51-42/checkpoints/last.ckpt" \
+ckpt_path="${ROOT_DIR}/logs/train/train/runs/2024-09-27_23-51-42/checkpoints/last.ckpt" \
 paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data" 
 
 date
