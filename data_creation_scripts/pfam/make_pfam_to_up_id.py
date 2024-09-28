@@ -1,12 +1,16 @@
 import csv
 import json
 from collections import defaultdict
+"""
+Download file from pfam ftp site:
+https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/
+Pfam-A.regions.uniprot.tsv.gz
 
+This file reformats it into a json.
+"""
 
 def convert_pfam_uniprot_to_json(input_file, output_file):
     pfam_uniprot_dict = defaultdict(list)
-
-    # Process the input file line by line
     with open(input_file, 'r') as f:
         reader = csv.reader(f, delimiter='\t')
         next(reader)  # Skip header
@@ -18,7 +22,6 @@ def convert_pfam_uniprot_to_json(input_file, output_file):
             if (i + 1) % 1_000_000 == 0:
                 print(f"Processed {i + 1} lines")
 
-    # Write the JSON file
     with open(output_file, 'w') as out:
         json.dump(pfam_uniprot_dict, out, indent=2)
 
