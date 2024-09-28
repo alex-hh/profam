@@ -5,7 +5,7 @@
 #$ -l hostname=clifford*
 #$ -l gpu=true
 #$ -pe gpu 2
-#$ -l m_core=12
+#$ -l m_core=7
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
 #$ -N optz
