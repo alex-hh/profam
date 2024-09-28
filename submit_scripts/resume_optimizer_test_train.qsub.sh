@@ -84,7 +84,7 @@ trainer.val_check_interval=1.0 \
 data.num_workers=8 \
 data.max_tokens=10000 \
 ckpt_path="${ROOT_DIR}/logs/train/train/runs/2024-09-27_23-51-42/checkpoints/last.ckpt" \
-paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data" \
+paths.data_dir=$SCRATCH_DIR  #"/SAN/orengolab/cath_plm/ProFam/data" \
 float32_matmul_precision=high \
 callbacks=default_with_shuffle \
 
