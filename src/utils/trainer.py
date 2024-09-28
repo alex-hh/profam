@@ -43,7 +43,7 @@ class ProFamTrainer(Trainer):
             kwargs["strategy"] = DDPStrategy(
                 timeout=datetime.timedelta(seconds=timeout)
             )
-        if val_check_interval_divide_by_world_size:
+        if val_check_interval_divide_by_world_size and val_check_interval != 1.0:
             val_check_interval = kwargs.get("val_check_interval", 1)
             kwargs["val_check_interval"] = val_check_interval // devices
             print("Setting val_check_interval to", kwargs["val_check_interval"])
