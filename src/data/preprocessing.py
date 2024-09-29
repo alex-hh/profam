@@ -19,7 +19,7 @@ from src.utils.utils import np_random
 
 def load_named_preprocessor(preprocessor_name, overrides: Optional[List[str]] = None):
     with initialize_config_dir(
-        os.path.join(BASEDIR, "configs/data/dataset/preprocessor"), version_base="1.3"
+        os.path.join(BASEDIR, "configs/preprocessor"), version_base="1.3"
     ):
         preprocessor_cfg = compose(config_name=preprocessor_name, overrides=overrides)
     return instantiate(preprocessor_cfg, _convert_="partial")
