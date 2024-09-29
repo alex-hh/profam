@@ -5,7 +5,7 @@ import torch
 
 
 def has_coords_frac(coords_mask, structure_mask, **kwargs):
-    assert coords_mask.ndim == 4
+    assert coords_mask.ndim == 4  # b, l, 4, 3
     has_coords_mask = (
         coords_mask.flatten(start_dim=-2).any(-1) & structure_mask
     )  # and structure mask probably not necessary
@@ -18,7 +18,7 @@ def plddt_metrics(
     plddts, structure_mask: torch.Tensor, coords_mask: torch.Tensor, **kwargs
 ):
     metrics = {}
-    assert coords_mask.ndim == 4
+    assert coords_mask.ndim == 4  # b, l, 4, 3
     has_coords_mask = coords_mask.flatten(start_dim=-2).any(-1) & structure_mask
     mean_plddt_unmasked = (
         plddts * has_coords_mask.float()

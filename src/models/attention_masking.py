@@ -354,7 +354,6 @@ def prepare_binary_attention_mask(
             new_sequence_length,
             target_length,
             device,
-            cache_position,
             batch_size,
         )
     elif attention_mask_type == "sequence":
@@ -388,7 +387,7 @@ def prepare_binary_attention_mask(
     elif attention_mask_type == "prefix-lm":
         assert past_key_values is not None and isinstance(
             past_key_values, InputAwareDynamicCache
-        )
+        ), "past_key_values either None or wrong type. Try using use_cache=True or passing past_key_values."
         # need a prefix indicator
         assert seq_struct_sep_token_id is not None and sep_token_id is not None
         return _prepare_prefix_lm_4d_binary_mask(

@@ -1,4 +1,7 @@
+import os
+
 import numpy as np
+import pytest
 import torch
 from transformers.models.llama.modeling_llama import (
     _prepare_4d_causal_attention_mask_with_cache_position,
@@ -7,6 +10,10 @@ from transformers.models.llama.modeling_llama import (
 # from src.models.llama import (
 #     _prepare_4d_causal_attention_mask_with_cache_position as mod_prepare_4d_causal_attention_mask_with_cache_position,
 # )
+from src.constants import BASEDIR
+from src.data import preprocessing
+from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.utils import CustomDataCollator
 from src.models.llama import LlamaLitModule
 from src.models.utils import load_named_model
 
@@ -105,7 +112,7 @@ from src.models.utils import load_named_model
 def test_custom_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
     masked_model = load_named_model(
         "llama_tiny",
-        overrides=["model.attention_mask_type=causal"],
+        overrides=["model.config.attention_mask_type=causal"],
         tokenizer=profam_tokenizer_noseqpos,
     )
     masked_model.eval()
@@ -134,19 +141,80 @@ def test_custom_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
 
     assert np.isclose(masked_scores, scores).all()
 
-    print("PREFIX MASK")
+
+def test_bidirectional_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
     masked_model = load_named_model(
         "llama_tiny",
-        overrides=["model.attention_mask_type=prefix-lm"],
+        overrides=["model.config.attention_mask_type=bidirectional"],
         tokenizer=profam_tokenizer_noseqpos,
     )
     masked_model.eval()
-    scores = masked_model.score_seqs(
+    outputs = masked_model.forward(
         input_ids=proteingym_batch["input_ids"],
-        completion_ids=proteingym_batch["completion_ids"][:, :2],
-        use_cache=True,
-        batch_size=1,
-        input_seq_pos=None,
-        completion_seq_pos=None,
+        output_attentions=True,
     )
-    # assert 1 == 0
+    # The attention mask should be zeros everywhere if not using padding
+
+    assert not (outputs.attentions[-1] == 0).any()
+    # TODO: test padding-aware attention mask
+
+
+@pytest.fixture()
+def foldseek_interleaved_structure_sequence_batch(
+    profam_tokenizer,
+):
+    max_tokens = 2048
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
+        keep_insertions=True,
+        to_upper=True,
+        keep_gaps=False,
+        use_msa_pos=False,
+    )
+    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
+        config=preprocessing_cfg,
+        structure_tokens_col="msta_3di",
+        interleave_structure_sequence=True,
+    )
+    cfg = ProteinDatasetConfig(
+        name="foldseek",
+        preprocessor=parquet_3di_processor,
+        data_path_pattern="foldseek_struct/0.parquet",
+        is_parquet=True,
+    )
+    data = load_protein_dataset(
+        cfg,
+        tokenizer=profam_tokenizer,
+        max_tokens=max_tokens,
+        data_dir=os.path.join(BASEDIR, "data/example_data"),
+        shuffle=False,
+        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
+    )
+    datapoint = next(iter(data))
+    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    return collator([datapoint])
+
+
+def test_prefix_lm_attention_masking(
+    foldseek_interleaved_structure_sequence_batch, profam_tokenizer_noseqpos
+):
+    # This is a bit tricky - prefix requires interleaved batch
+    masked_model = load_named_model(
+        "llama_tiny",
+        overrides=["model.config.attention_mask_type=prefix-lm"],
+        tokenizer=profam_tokenizer_noseqpos,
+    )
+    masked_model.eval()
+    print(
+        foldseek_interleaved_structure_sequence_batch["input_ids"].shape,
+        torch.argwhere(
+            foldseek_interleaved_structure_sequence_batch["input_ids"]
+            == profam_tokenizer_noseqpos.seq_struct_sep_token_id
+        ),
+    )
+    outputs = masked_model.forward(
+        input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"],
+        output_attentions=True,
+        use_cache=True,
+    )
+    print(outputs.attentions[-1])
+    assert 1 == 0
