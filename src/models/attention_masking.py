@@ -262,13 +262,16 @@ def _prepare_prefix_lm_4d_binary_mask(
     sequence_index = (
         torch.cumsum(input_ids == item_separator_token_id, dim=-1) + 1
     )  # item sep gets assigned to next sequence
+
     is_prefix = prefix_index == sequence_index
     prefix_index = torch.where(is_prefix, prefix_index, 0)
     new_prefix_index = prefix_index[:, cache_position]
-    same_prefix_mask = new_prefix_index[:, :, None] == prefix_index[:, None, :]
-    causal_mask[..., : same_prefix_mask.shape[-1]].masked_fill(
-        same_prefix_mask, 1
-    )  # TODO be very careful about shapes
+    same_prefix_mask = (new_prefix_index[:, :, None] == prefix_index[:, None, :]) & (
+        new_prefix_index[:, :, None] > 0
+    )
+    # TODO: inplace
+    # causal_mask[..., : same_prefix_mask.shape[-1]] = causal_mask[..., : same_prefix_mask.shape[-1]].masked_fill(same_prefix_mask, 1)
+    causal_mask[..., : same_prefix_mask.shape[-1]].masked_fill_(same_prefix_mask, 1)
     return causal_mask
 
 

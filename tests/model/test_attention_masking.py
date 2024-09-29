@@ -17,7 +17,8 @@ from src.data.utils import CustomDataCollator
 from src.models.llama import LlamaLitModule
 from src.models.utils import load_named_model
 
-# TODO: rewrite this
+
+# TODO: rewrite this - test cached and uncached versions.
 # def test_prepare_4d_causal_attention_mask_with_cache_position():
 #     # PASSING NOTHING AS INPUT ATTENTION MASK
 #     sequence_length = 5
@@ -110,6 +111,7 @@ from src.models.utils import load_named_model
 
 
 def test_custom_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
+    print("CAUSAL LM MASK")
     masked_model = load_named_model(
         "llama_tiny",
         overrides=["model.config.attention_mask_type=causal"],
@@ -122,6 +124,8 @@ def test_custom_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
     model.eval()
     model.load_state_dict(sd, strict=False)  # token embedder causes mismatch
 
+    # TODO: UNDERSTAND WHETHER CACHED CAUSAL MASK IS REALLY OK -- IT DOESN'T
+    # SEEM TO BE FULLY CAUSAL - BUT MAYBE THIS IS BC RECTANGULAR!
     masked_scores = masked_model.score_seqs(
         input_ids=proteingym_batch["input_ids"],
         completion_ids=proteingym_batch["completion_ids"][:, :2],
@@ -140,6 +144,24 @@ def test_custom_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
     )
 
     assert np.isclose(masked_scores, scores).all()
+
+    print("PREFIX LM MASK")
+    masked_model = load_named_model(
+        "llama_tiny",
+        overrides=["model.config.attention_mask_type=prefix-lm"],
+        tokenizer=profam_tokenizer_noseqpos,
+    )
+    masked_model.eval()
+    masked_scores = masked_model.score_seqs(
+        input_ids=proteingym_batch["input_ids"],
+        completion_ids=proteingym_batch["completion_ids"][:, :2],
+        use_cache=True,
+        batch_size=1,
+        input_seq_pos=None,
+        completion_seq_pos=None,
+    )
+
+    assert 1 == 0
 
 
 def test_bidirectional_attention_masking(proteingym_batch, profam_tokenizer_noseqpos):
@@ -194,24 +216,73 @@ def foldseek_interleaved_structure_sequence_batch(
     return collator([datapoint])
 
 
-def test_prefix_lm_attention_masking(
+def test_attention_masks(
     foldseek_interleaved_structure_sequence_batch, profam_tokenizer_noseqpos
 ):
-    # This is a bit tricky - prefix requires interleaved batch
     masked_model = load_named_model(
         "llama_tiny",
         overrides=["model.config.attention_mask_type=prefix-lm"],
         tokenizer=profam_tokenizer_noseqpos,
     )
     masked_model.eval()
-    print(
-        foldseek_interleaved_structure_sequence_batch["input_ids"].shape,
-        torch.argwhere(
-            foldseek_interleaved_structure_sequence_batch["input_ids"]
-            == profam_tokenizer_noseqpos.seq_struct_sep_token_id
-        ),
-    )
     outputs = masked_model.forward(
+        input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"],
+        output_attentions=True,
+        use_cache=True,
+    )
+    # do this by manually concatenating bidirectional and causal masks,
+    # starting from the non-interleaved batch...
+    expected_attention_mask = 
+    print(outputs.attentions[-1].shape)
+
+    causal_model = load_named_model(
+        "llama_tiny",
+        overrides=["model.config.attention_mask_type=causal"],
+        tokenizer=profam_tokenizer_noseqpos,
+    )
+    causal_model.eval()
+    outputs = causal_model.forward(
+        input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"],
+        output_attentions=True,
+        use_cache=True,
+    )
+    print(outputs.attentions[-1])
+    assert 1 == 0
+
+
+def test_attention_masks_with_cache(
+    foldseek_interleaved_structure_sequence_batch, profam_tokenizer_noseqpos
+):
+    masked_model = load_named_model(
+        "llama_tiny",
+        overrides=["model.config.attention_mask_type=prefix-lm"],
+        tokenizer=profam_tokenizer_noseqpos,
+    )
+    masked_model.eval()
+    outputs = masked_model.forward(
+        input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"][:, :512],
+        output_attentions=True,
+        use_cache=True,
+    )
+    cache = outputs.past_key_values
+    print(cache)
+    # TODO: manually construct attention mask and compare
+    print(outputs.attentions[-1])
+    # TODO: also test causal mask on this batch
+    outputs = masked_model.forward(
+        input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"][:, 512:],
+        output_attentions=True,
+    )
+    print(outputs.attentions[-1])
+
+
+    causal_model = load_named_model(
+        "llama_tiny",
+        overrides=["model.config.attention_mask_type=causal"],
+        tokenizer=profam_tokenizer_noseqpos,
+    )
+    causal_model.eval()
+    outputs = causal_model.forward(
         input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"],
         output_attentions=True,
         use_cache=True,
