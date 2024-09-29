@@ -30,9 +30,11 @@ DEFAULT_FEATURE_NAMES = [
     "completion_ids",
     "DMS_scores",
     "coords",
+    "coords_mask",
     "aa_mask",
     "plddts",
     "family_id",
+    "structure_mask",
 ]
 
 
