@@ -11,7 +11,7 @@ time_window_24_hours = timedelta(hours=24)
 current_time = datetime.now()
 
 # Command to list details of train.log files in all folders
-ls_command = "ls -l */train.log"
+ls_command = "ls -l */wandb/**/*.wandb"
 
 # Run the command and capture the output
 output = subprocess.check_output(ls_command, shell=True).decode("utf-8")
@@ -19,37 +19,35 @@ output = subprocess.check_output(ls_command, shell=True).decode("utf-8")
 # Split the output by lines to process each file
 lines = output.strip().split("\n")
 
-# Iterate through each line
+
+# First loop: Process all files and store the most recent modification time for each folder
+folder_mod_times = {}
 for line in lines:
     parts = line.split()
-
-    # Example line: -rw-r--r-- 1 axh06-dxt03 dxt03 25380 Sep 15 02:16 2024-09-15_02-15-03/train.log
-    # File modification date is stored in parts[5:8]
-
-    # Reconstruct the modification time
-    month = parts[5]
-    day = parts[6]
-    time_or_year = parts[7]  # Could be the time or the year depending on the file's age
+    month, day, time_or_year = parts[5:8]
     file_path = parts[8]
 
-    # Combine date info to create a datetime object
     file_mod_time_str = f"{month} {day} {time_or_year}"
-    print("Inferred file modification time:", file_mod_time_str, line)
-
     try:
-        file_mod_time = datetime.strptime(
-            file_mod_time_str, "%b %d %H:%M"
-        )  # If time is given
-        file_mod_time = file_mod_time.replace(
-            year=current_time.year
-        )  # Ensure current year
+        file_mod_time = datetime.strptime(file_mod_time_str, "%b %d %H:%M")
+        file_mod_time = file_mod_time.replace(year=current_time.year)
     except ValueError:
-        file_mod_time = datetime.strptime(
-            file_mod_time_str, "%b %d %Y"
-        )  # If year is given
+        file_mod_time = datetime.strptime(file_mod_time_str, "%b %d %Y")
 
-    # Extract the folder name from the file path
-    folder_name = os.path.dirname(file_path)
+    folder_name = os.path.dirname(os.path.dirname(os.path.dirname(file_path)))
+
+    if (
+        folder_name not in folder_mod_times
+        or file_mod_time > folder_mod_times[folder_name]
+    ):
+        folder_mod_times[folder_name] = file_mod_time
+
+# Second loop: Process only the most recent file for each folder
+for folder_name, file_mod_time in folder_mod_times.items():
+    print(f"Processing folder: {folder_name}")
+    print(f"Last modified: {file_mod_time}")
+
+    # The rest of the processing for the most recent file in each folder will go here
 
     # Check if the file was modified within the last 5 hours
     if current_time - file_mod_time <= time_window_5_hours:
