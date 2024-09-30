@@ -1012,6 +1012,8 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        # uncomment for debugging ddp (train.py +experiment=ddp_test)
+        # print(f"Rank: {self.trainer.global_rank}", batch["identifier"].text, flush=True)
         forward_kwargs = self.get_forward_kwargs(batch)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
