@@ -72,7 +72,7 @@ def create_lmdb_database(input_files, output_path, map_size):
     env = lmdb.open(
         output_path,
         map_size=map_size,
-        subdir=False,
+        subdir=True,
         readonly=False,
         lock=True,
         readahead=True,
