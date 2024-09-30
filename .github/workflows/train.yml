@@ -29,19 +29,4 @@ jobs:
         pytest -k "not example"
     - name: Train model
       run: |
-        HYDRA_FULL_ERROR=1 python src/train.py \
-          model=llama_test \
-          trainer=cpu \
-          trainer.max_epochs=1 \
-          data=example_data \
-          data.batch_size=2 \
-          data.num_workers=1 \
-          data.max_tokens=2000 \
-          data.gym_data_dir="../tiny_data/ProteinGym" \
-          data.evaluate_gym=true \
-          data.evaluate_ec_class=false \
-          data.evaluate_ec_cluster_class=false \
-          logger=null_logger \
-          +trainer.num_sanity_val_steps=0 \
-          trainer.val_check_interval=1.0 \
-          trainer.target_tokens_per_batch=null
+        HYDRA_FULL_ERROR=1 python src/train.py +experiment=train_test
