@@ -830,9 +830,9 @@ class BaseFamilyLitModule(BaseLitModule):
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=1,
-            # batch_size=(self.scoring_max_tokens - L_prompt) // L
-            # if self.use_kv_cache_for_scoring
-            # else 1,
+            batch_size=(self.scoring_max_tokens - L_prompt) // L
+            if self.use_kv_cache_for_scoring
+            else 1,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
