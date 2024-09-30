@@ -29,4 +29,4 @@ jobs:
         pytest -k "not example"
     - name: Train model
       run: |
-        HYDRA_FULL_ERROR=1 python src/train.py +experiment=train_test
+        HYDRA_FULL_ERROR=1 python src/train.py experiment=train_test
