@@ -46,6 +46,7 @@ class ProFamTrainer(Trainer):
         if (
             val_check_interval_divide_by_world_size
             and kwargs.get("val_check_interval", 1.0) != 1.0
+            and kwargs.get("val_check_interval", 1.0) is not None
         ):
             val_check_interval = kwargs.get("val_check_interval", 1.0)
             kwargs["val_check_interval"] = val_check_interval // devices
