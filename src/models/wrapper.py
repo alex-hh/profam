@@ -71,13 +71,19 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         )
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
-                self.num_atoms * 3, embedding_dim, bias=False
+                self.num_atoms * 3,
+                embedding_dim,
+                bias=False,
             )
         if self.use_seq_pos:
-            self.seq_pos_embedding = nn.Embedding(self.max_seq_pos, embedding_dim)
+            self.seq_pos_embedding = nn.Embedding(
+                self.max_seq_pos,
+                embedding_dim,
+            )
         if self.embed_sequence_index:
             self.sequence_index_embedding = nn.Embedding(
-                self.max_sequence_index, embedding_dim
+                self.max_sequence_index,
+                embedding_dim,
             )
 
     def update_seq_pos_for_generation(self, input_ids, prompt_seq_pos):

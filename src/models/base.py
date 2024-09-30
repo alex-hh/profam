@@ -724,7 +724,10 @@ class BaseFamilyLitModule(BaseLitModule):
             # if self.use_kv_cache_for_scoring
             # else 1,
         )
-        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
+        spearman_corr, _ = spearmanr(
+            lls.astype(np.float32),
+            batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
+        )
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
