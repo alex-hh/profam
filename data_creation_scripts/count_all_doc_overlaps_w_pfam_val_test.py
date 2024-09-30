@@ -3,9 +3,10 @@ import json
 import pandas as pd
 from collections import defaultdict
 
+
 class BaseOverlapCounter:
-    def __init__(self):
-        self.pfam_val_test = self.load_pfam_val_test()
+    def __init__(self, pfam_val_test):
+        self.pfam_val_test = pfam_val_test
 
     def load_pfam_val_test(self):
         pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
@@ -118,16 +119,29 @@ class ParquetOverlapCounter(BaseOverlapCounter):
         return dict(fam_id_up_ids)
 
 
-def process_dataset(counter_class, **kwargs):
-    counter = counter_class(**kwargs)
+def process_dataset(counter_class, pfam_val_test, **kwargs):
+    counter = counter_class(pfam_val_test=pfam_val_test, **kwargs)
     print("counter initialised for", counter_class.__name__ )
     overlap_counts = counter.count_overlaps()
     return overlap_counts
+
+def load_pfam_val_test():
+    pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
+    df = pd.read_csv(pfam_val_test_csv)
+    print(f"Loaded pfam val test csv with {len(df)} rows")
+    fam_to_up = defaultdict(set)
+    for i, row in df.iterrows():
+        fam_to_up[row['fam_id']].add(row['Entry'])
+    return fam_to_up
+
 
 if __name__ == "__main__":
     base_data_dir = "../data"
     save_dir = "data/val_test/"
     os.makedirs(save_dir, exist_ok=True)
+
+    pfam_val_test = load_pfam_val_test()
+
     # Process Foldseek dataset
     save_path = os.path.join(save_dir, "foldseek_pfam_overlap_counts.json")
     if not os.path.exists(save_path):
