@@ -112,8 +112,22 @@ def process_file(input_path, output_dir, db_env, num_parquet):
     success_count = 0
     failure_count = 0
 
+    # Count total UniProt IDs
+    total_uniprot_ids = 0
     with gzip.open(input_path, 'rt') as f:
-        for line in tqdm(f, desc='Processing rows'):
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) == 3:
+                total_uniprot_ids += len(parts[2].split(','))
+
+    # Process file with progress bar
+    with gzip.open(input_path, 'rt') as f:
+        pbar = tqdm(total=total_uniprot_ids, desc='Processing UniProt IDs', 
+                    bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} '
+                               '[Successful: {postfix[0]}, Failed: {postfix[1]}]')
+        pbar.postfix = [0, 0]
+
+        for line in f:
             parts = line.strip().split('\t')
             if len(parts) != 3:
                 logging.warning(f"Skipping malformed line: {line.strip()}")
@@ -129,9 +143,12 @@ def process_file(input_path, output_dir, db_env, num_parquet):
                     sequences.append(seq)
                     accessions.append(uid)
                     success_count += 1
+                    pbar.postfix[0] += 1
                 else:
                     logging.error(f"Failed to fetch sequence for UniProt ID: {uid}")
                     failure_count += 1
+                    pbar.postfix[1] += 1
+                pbar.update(1)
 
             if sequences:
                 parquet_index = assign_parquet_file(fam_id, num_parquet)
@@ -145,6 +162,8 @@ def process_file(input_path, output_dir, db_env, num_parquet):
             if len(writers[parquet_index]) >= BATCH_SIZE:
                 write_parquet(writers, output_dir)
                 writers = {i: [] for i in range(num_parquet)}
+
+        pbar.close()
 
     # Write any remaining records
     write_parquet(writers, output_dir)
