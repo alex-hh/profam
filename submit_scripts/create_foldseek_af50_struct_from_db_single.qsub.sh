@@ -12,8 +12,7 @@
 date
 hostname
 file_prefix=$1
-source /share/apps/source_files/python/python-3.11.9.source
-source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
+source /SAN/orengolab/cath_plm/ProFam/pfenv.source
 export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
 output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_struct/${file_prefix}.parquet"
 echo "Checking for output file $output_file"
