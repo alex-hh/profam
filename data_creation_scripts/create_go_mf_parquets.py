@@ -8,6 +8,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import os
 import hashlib
+import csv
+from collections import defaultdict
 
 def fetch_sequence(uniprot_id, db_env):
     """
@@ -72,6 +74,23 @@ def write_parquet(writers, output_dir):
             except Exception as e:
                 logging.error(f"Failed to write to {parquet_path}: {e}")
 
+def create_go_term_mapping_csv(mapping, output_dir):
+    """
+    Creates a CSV file mapping GO terms to their corresponding parquet files.
+
+    Args:
+        mapping (dict): A dictionary mapping parquet file indices to lists of GO terms.
+        output_dir (str): Directory to store the output CSV file.
+    """
+    csv_path = os.path.join(output_dir, 'go_term_parquet_mapping.csv')
+    with open(csv_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['GO_Term', 'Parquet_File'])
+        for parquet_index, go_terms in mapping.items():
+            for go_term in go_terms:
+                writer.writerow([go_term, f'output_{parquet_index}.parquet'])
+    logging.info(f"Created GO term to parquet file mapping: {csv_path}")
+
 def process_file(input_path, output_dir, db_env, num_parquet):
     """
     Processes the input TSV file and writes the data into parquet files.
@@ -82,9 +101,10 @@ def process_file(input_path, output_dir, db_env, num_parquet):
         db_env (lmdb.Environment): The LMDB environment.
         num_parquet (int): Number of parquet files to generate.
     """
-    # Initialize writers dictionary
+    # Initialize writers dictionary and GO term mapping
     BATCH_SIZE = 10000  # Adjust based on available memory
     writers = {i: [] for i in range(num_parquet)}
+    go_term_mapping = defaultdict(set)
 
     success_count = 0
     failure_count = 0
@@ -117,6 +137,7 @@ def process_file(input_path, output_dir, db_env, num_parquet):
                     'sequences': sequences,
                     'accessions': accessions
                 })
+                go_term_mapping[parquet_index].add(fam_id)
 
             if len(writers[parquet_index]) >= BATCH_SIZE:
                 write_parquet(writers, output_dir)
@@ -131,6 +152,9 @@ def process_file(input_path, output_dir, db_env, num_parquet):
     logging.info(f"Successfully fetched {success_count} sequences.")
     logging.info(f"Failed to fetch {failure_count} sequences.")
 
+    # Create the GO term to parquet file mapping CSV
+    create_go_term_mapping_csv(go_term_mapping, output_dir)
+
 def parse_arguments():
     """
     Parses command-line arguments.
@@ -140,7 +164,7 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description='Process GO term data and generate parquet files.')
     parser.add_argument('--input', required=True, help='Path to input gzipped TSV file.')
-    parser.add_argument('--output_dir', default='/SAN/orengolab/cath_plm/ProFam/data/GO_MF', help='Directory to store output parquet files.')
+    parser.add_argument('--output_dir', default='/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mf_parquets', help='Directory to store output parquet files.')
     parser.add_argument('--lmdb_path', default='/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences_dict.lmdb', help='Path to LMDB database.')
     parser.add_argument('--num_parquet', type=int, default=100, help='Number of parquet files to generate.')
     return parser.parse_args()
