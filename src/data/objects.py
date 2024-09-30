@@ -129,6 +129,8 @@ class Protein:
         for res_ix, (aa, res_coords) in enumerate(
             zip(self.sequence, self.backbone_coords)
         ):
+            if aa in ["?", "|"]:
+                aa = "X"
             res_name = ProteinSequence.convert_letter_1to3(aa)
             for atom_ix, atom_name in enumerate(BACKBONE_ATOMS):
                 annots = (
