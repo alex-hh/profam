@@ -32,7 +32,7 @@ conda activate venvPF
 pip install -r requirements.txt
 ```
 
-## Loading environment on UCL cs cluster
+#### Loading environment on UCL cs cluster
 
 ```bash
 source /SAN/orengolab/cath_plm/ProFam/pfenv.source
