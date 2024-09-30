@@ -65,6 +65,7 @@ class BaseLitModule(LightningModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
+        torch_dtype: torch.dtype = torch.float32,
     ) -> None:
         super().__init__()
         self.model = model
@@ -359,6 +360,7 @@ class BaseFamilyLitModule(BaseLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
+        torch_dtype: torch.dtype = torch.float32,
     ):
         super().__init__(
             model,
@@ -369,6 +371,7 @@ class BaseFamilyLitModule(BaseLitModule):
             num_warmup_steps=num_warmup_steps,
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
+            torch_dtype=torch_dtype,
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
@@ -724,7 +727,10 @@ class BaseFamilyLitModule(BaseLitModule):
             # if self.use_kv_cache_for_scoring
             # else 1,
         )
-        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
+        spearman_corr, _ = spearmanr(
+            lls.astype(np.float32),
+            batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
+        )
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False

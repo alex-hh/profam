@@ -1,5 +1,6 @@
 from typing import Optional
 
+import torch
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 from transformers.models.llama.modeling_llama import LLAMA_ATTENTION_CLASSES
 
@@ -20,6 +21,7 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         scoring_max_tokens: int = 64000,
     ) -> None:
         model = LlamaForCausalLM(config)
+
         super().__init__(
             model,
             tokenizer,
@@ -80,6 +82,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             )
         else:
             model = LlamaForCausalLM(config)
+
         super().__init__(
             model,
             tokenizer,
@@ -90,4 +93,5 @@ class LlamaLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
+            torch_dtype=config.torch_dtype,
         )
