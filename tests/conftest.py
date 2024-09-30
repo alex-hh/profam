@@ -140,7 +140,6 @@ def proteingym_batch(profam_tokenizer):
 @pytest.fixture()
 def pfam_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
-        name="pfam",
         keep_gaps=False,
         data_path_pattern="pfam/Domain_60429258_61033370.parquet",
         keep_insertions=True,
@@ -150,6 +149,7 @@ def pfam_batch(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
+        dataset_name="pfam",
         max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
@@ -162,7 +162,6 @@ def pfam_batch(profam_tokenizer):
 @pytest.fixture()
 def foldseek_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         keep_gaps=False,
         data_path_pattern="foldseek_struct/3.parquet",
         keep_insertions=True,
@@ -172,6 +171,7 @@ def foldseek_batch(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
+        dataset_name="foldseek",
         max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         use_seq_pos=True,

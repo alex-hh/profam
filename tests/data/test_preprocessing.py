@@ -18,6 +18,7 @@ def foldseek_datapoint(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
+        dataset_name="foldseek",
         max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
@@ -61,6 +62,7 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
+        dataset_name="foldseek",
         max_tokens_per_example=None,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
