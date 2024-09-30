@@ -32,6 +32,15 @@ conda activate venvPF
 pip install -r requirements.txt
 ```
 
+## Loading environment on UCL cs cluster
+
+```bash
+source /SAN/orengolab/cath_plm/ProFam/pfenv.source
+export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
+```
+
+(The former file is at scripts/pfenv.source)
+
 ## How to run
 
 
