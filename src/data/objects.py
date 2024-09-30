@@ -12,7 +12,7 @@ from biotite.structure import io as strucio
 from biotite.structure.residues import get_residue_starts, get_residues
 
 from src.constants import BACKBONE_ATOMS
-from src.sequence.fasta import read_fasta_lines
+from src.sequence.fasta import read_fasta, read_fasta_lines
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.tools.foldseek import convert_pdbs_to_3di
 
@@ -376,6 +376,23 @@ class ProteinDocument:
             **attr_dict,
             **kwargs,
         )
+
+    @classmethod
+    def from_msa_file(
+        cls,
+        msa_file: str,
+        identifier: str,
+        keep_gaps: bool = False,
+        keep_insertions: bool = True,
+        to_upper: bool = True,
+    ):
+        labels, sequences = read_fasta(
+            msa_file,
+            keep_gaps=keep_gaps,
+            keep_insertions=keep_insertions,
+            to_upper=to_upper,
+        )
+        return cls(identifier, sequences, labels)
 
     @classmethod
     def from_json(cls, json_file, strict: bool = False):

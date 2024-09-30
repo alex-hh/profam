@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional
 
 import pandas as pd
+from scipy.stats import spearmanr
 
 from src.data.objects import ProteinDocument
 
@@ -88,3 +89,16 @@ class ScoringEvaluator(BaseEvaluator):
         return self.evaluate_scored_mutants(
             prompt=prompt, scored_mutants_df=scored_mutants_df, device=device
         )
+
+
+class FitnessPredictionEvaluator(ScoringEvaluator):
+    # TODO: add other metrics e.g. auc
+    def evaluate_scored_sequences(self, mutation_df, scores):
+        assert len(scores) == len(mutation_df)
+        mutation_df["predicted_score"] = scores
+        spearman_corr, _ = spearmanr(
+            mutation_df["DMS_score"], mutation_df["predicted_score"]
+        )
+        if "DMS_score_bin" in mutation_df.columns:
+            pass
+        return {"spearman": spearman_corr}
