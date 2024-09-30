@@ -4,6 +4,7 @@ import os
 import logging
 import argparse
 import lmdb
+import gzip
 from tqdm import tqdm
 from Bio import SeqIO
 
@@ -11,22 +12,29 @@ from Bio import SeqIO
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int = 100000):
-    logger.info(f"Starting LMDB creation from FASTA file: {fasta_file}")
+def create_lmdb_from_fasta(fasta_files, lmdb_path: str, batch_size: int = 100000, total_records: int = None):
+    if isinstance(fasta_files, str):
+        fasta_files = [fasta_files]
+    
+    logger.info(f"Starting LMDB creation from FASTA file(s): {', '.join(fasta_files)}")
     env = lmdb.open(lmdb_path, map_size=300 * 1024 * 1024 * 1024)  # 300GB map size
 
-    total_records = 214683829  # Hard-coded AFDB total records
     batch = []
 
     try:
         with env.begin(write=True) as txn:
             cursor = txn.cursor()
-            for record in tqdm(SeqIO.parse(fasta_file, "fasta"), total=total_records, desc="Processing records"):
-                batch.append((record.id.encode(), str(record.seq).encode()))
-                
-                if len(batch) >= batch_size:
-                    cursor.putmulti(batch)
-                    batch.clear()
+            for fasta_file in fasta_files:
+                open_func = gzip.open if fasta_file.endswith('.gz') else open
+                with open_func(fasta_file, "rt") as handle:
+                    for record in tqdm(SeqIO.parse(handle, "fasta"), 
+                                       desc=f"Processing {fasta_file}", 
+                                       total=total_records if len(fasta_files) == 1 else None):
+                        batch.append((record.id.encode(), str(record.seq).encode()))
+                        
+                        if len(batch) >= batch_size:
+                            cursor.putmulti(batch)
+                            batch.clear()
             
             if batch:
                 cursor.putmulti(batch)
@@ -43,12 +51,13 @@ def create_lmdb_from_fasta(fasta_file: str, lmdb_path: str, batch_size: int = 10
     logger.info(f"LMDB database created/updated successfully at {lmdb_path}")
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Create LMDB from FASTA file")
-    parser.add_argument("--fasta", required=True, help="Path to input FASTA file")
+    parser = argparse.ArgumentParser(description="Create LMDB from FASTA file(s)")
+    parser.add_argument("--fasta", required=True, nargs='+', help="Path to input FASTA file(s)")
     parser.add_argument("--lmdb", required=True, help="Path to output LMDB file")
     parser.add_argument("--batch-size", type=int, default=100000, help="Batch size for processing")
+    parser.add_argument("--total-records", type=int, default = 245324902, help="Total number of records (optional, for progress bar)")
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_arguments()
-    create_lmdb_from_fasta(args.fasta, args.lmdb, args.batch_size)
+    create_lmdb_from_fasta(args.fasta, args.lmdb, args.batch_size, args.total_records)
