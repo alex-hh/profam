@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 
+from src.data.objects import ProteinDocument
 from src.data.parquet import build_representative_df
 from src.pipelines.mixins import ParquetGenerationsPipeline
 
@@ -59,7 +60,9 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
             )
             print(f"Filtered to {max_instances} proteins")
 
-    def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
+    def get_instance_summary(
+        self, instance_id: str, protein_document: Optional[ProteinDocument] = None
+    ) -> Dict[str, float]:
         summary = super().get_instance_summary(instance_id)
         summary["target_plddt"] = self.evaluation_df.loc[instance_id, "mean_plddt"]
         summary["target_length"] = self.evaluation_df.loc[instance_id, "length"]

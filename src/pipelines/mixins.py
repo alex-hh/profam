@@ -2,6 +2,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
+from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 
@@ -91,5 +92,7 @@ class ParquetGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
     def instance_ids(self):
         return self.evaluation_accessions
 
-    def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
+    def get_instance_summary(
+        self, instance_id: str, protein_document: Optional[ProteinDocument] = None
+    ) -> Dict[str, float]:
         return {}

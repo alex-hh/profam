@@ -90,6 +90,7 @@ def load_msa_for_row(
     keep_wt=True,
     drop_wt=False,
     keep_gaps=False,
+    shuffle: bool = True,
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
     use_msa_pos: bool = True,
@@ -120,6 +121,7 @@ def load_msa_for_row(
         seed=seed,
         drop_first=drop_wt,
         keep_first=keep_wt,
+        shuffle=shuffle,
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
     )
@@ -254,6 +256,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
                 use_filtered_msa=self.use_filtered_msa,
                 extra_tokens_per_document=self.extra_tokens_per_document,
                 use_msa_pos=self.use_msa_pos,
+                shuffle=shuffle_proteins_in_document,
             ),
             batched=False,
             num_proc=self.num_proc,

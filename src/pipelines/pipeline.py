@@ -1,7 +1,7 @@
 import os
 import shutil
 from collections import defaultdict
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import tqdm
@@ -9,7 +9,12 @@ import tqdm
 from src import constants
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import BasePreprocessor
-from src.evaluators.base import SamplingEvaluator
+from src.evaluators.base import BaseEvaluator, SamplingEvaluator, ScoringEvaluator
+from src.evaluators.models import (
+    BaseModelForEvaluation,
+    SamplingModelForEvaluation,
+    ScoringModelForEvaluation,
+)
 from src.sequence import fasta
 from src.utils.utils import maybe_print
 
@@ -102,6 +107,28 @@ class BaseEvaluatorPipeline:
             ]
         )
 
+    def save_prompt(self, instance_id, model_name, prompt: str) -> None:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "prompts", instance_id, model_name
+            )
+            os.makedirs(outputs_dir, exist_ok=True)
+            prompt.to_json(os.path.join(outputs_dir, "prompt.json"))
+        else:
+            self.prompts[model_name][instance_id] = prompt
+
+    def load_prompt(self, instance_id: str, model_name: str) -> ProteinDocument:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "prompts", instance_id, model_name
+            )
+            prompt_file = os.path.join(outputs_dir, "prompt.json")
+            prompt = ProteinDocument.from_json(prompt_file)
+            return prompt
+        else:
+            prompt = self.prompts[model_name][instance_id]
+            return prompt
+
     def save_results(self) -> None:
         """Save results dataframe to local disk location."""
         if self.save_results_to_file:
@@ -120,8 +147,49 @@ class BaseEvaluatorPipeline:
             summaries.append(summary)
         return pd.DataFrame.from_records(summaries)
 
-    def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
+    def get_instance_summary(
+        self, instance_id: str, protein_document: Optional[ProteinDocument] = None
+    ) -> Dict[str, float]:
         raise NotImplementedError()
+
+    def aggregate_results(
+        self,
+        evaluators: List[BaseEvaluator],
+        model: BaseModelForEvaluation,
+        verbose: bool = False,
+    ):
+        # TODO format to limit decimal places
+        outputs = {}
+        for evaluator in evaluators:
+            model_results = self.results_dfs[evaluator.name].loc[
+                (evaluator.name, model.name)
+            ]
+            avg_metrics = model_results.mean()
+            avg_metrics_str = ", ".join(
+                [f"{k}: {v:.3f}" for k, v in avg_metrics.items()]
+            )
+            maybe_print(
+                f"Validation `{evaluator.name}` model {model.name} average metrics: "
+                f"{avg_metrics_str} ({len(model_results)} instances)",
+                verbose=verbose,
+            )
+            outputs[evaluator.name] = model_results
+
+        return outputs
+
+    def validate_configs(self, sampler_config, evaluator_config):
+        # save configs to appropriate directory.
+        # if rerunning, we check that the configs match, otherwise we raise
+        # an exception. (TODO: allow overriding with an ignore_config_mismatch flag).
+        raise NotImplementedError()
+
+    def get_protein_example(self, instance_id):
+        """Load a protein example (a dict to be parsed by preprocessor)."""
+        raise NotImplementedError()
+
+    def load_protein_document(self, instance_id):
+        example = self.get_protein_example(instance_id)
+        return self.preprocessor.build_document(example, max_tokens=None, shuffle=False)
 
 
 class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
@@ -178,24 +246,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             ]
         )
 
-    def validate_configs(self, sampler_config, evaluator_config):
-        # save configs to appropriate directory.
-        # if rerunning, we check that the configs match, otherwise we raise
-        # an exception. (TODO: allow overriding with an ignore_config_mismatch flag).
-        raise NotImplementedError()
-
-    def get_protein_example(self, instance_id):
-        """Load a protein example (a dict to be parsed by preprocessor)."""
-        raise NotImplementedError()
-
-    def load_protein_document(self, instance_id):
-        example = self.get_protein_example(instance_id)
-        return self.preprocessor.build_document(example, max_tokens=None, shuffle=False)
-
     def run_evaluator_on_instance(
         self,
-        sampler_name: str,
         instance_id: str,
+        sampler_name: str,
+        generated_sequences: List[str],
         evaluator: SamplingEvaluator,
         prompt: ProteinDocument,
         protein_document: ProteinDocument,
@@ -203,7 +258,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         device: Optional[str] = None,
         verbose: bool = False,
     ) -> None:
-        generated_sequences = self.load_generations(instance_id, sampler_name)
         if rerun_evaluator or not self.has_result(
             evaluator.name, instance_id, sampler_name
         ):
@@ -246,16 +300,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         else:
             self.generations[model_name][instance_id] = sequences
 
-    def save_prompt(self, instance_id, model_name, prompt: str) -> None:
-        if self.save_results_to_file:
-            outputs_dir = os.path.join(
-                self.pipeline_directory, "prompts", instance_id, model_name
-            )
-            os.makedirs(outputs_dir, exist_ok=True)
-            prompt.to_json(os.path.join(outputs_dir, "prompt.json"))
-        else:
-            self.prompts[model_name][instance_id] = prompt
-
     def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
         if self.save_results_to_file:
             outputs_dir = os.path.join(
@@ -268,21 +312,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             sequences = self.generations[sampler_name][instance_id]
             return sequences
 
-    def load_prompt(self, instance_id: str, sampler_name: str) -> ProteinDocument:
-        if self.save_results_to_file:
-            outputs_dir = os.path.join(
-                self.pipeline_directory, "prompts", instance_id, sampler_name
-            )
-            prompt_file = os.path.join(outputs_dir, "prompt.json")
-            prompt = ProteinDocument.from_json(prompt_file)
-            return prompt
-        else:
-            prompt = self.prompts[sampler_name][instance_id]
-            return prompt
-
     def run(
         self,
-        sampler,
+        sampler: SamplingModelForEvaluation,
         evaluators: Union[List[SamplingEvaluator], SamplingEvaluator],
         verbose: bool = True,
         rerun_sampler: bool = False,
@@ -313,8 +345,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     verbose=verbose,
                     flush=True,
                 )
-                # TODO: it's a bit awkward that this is a method on evaluator...
-                # it should produce the same output regardless of the evaluator
                 generations, prompt = sampler.sample_seqs(
                     protein_document, self.num_generations
                 )
@@ -336,8 +366,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 for evaluator in evaluators:
                     try:
                         self.run_evaluator_on_instance(
-                            sampler.name,
                             instance_id=instance_id,
+                            sampler_name=sampler.name,
+                            generated_sequences=generations,
                             evaluator=evaluator,
                             prompt=prompt,
                             protein_document=protein_document,
@@ -353,22 +384,230 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         if sampling_only:
             return
 
-        # TODO format to limit decimal places
-        outputs = {}
-        for evaluator in evaluators:
-            sampler_results = self.results_dfs[evaluator.name].loc[
-                (evaluator.name, sampler.name)
+        self.save_results()
+        outputs = self.aggregate_results(evaluators, sampler, verbose=verbose)
+
+        return outputs
+
+
+class ResiduePredictionsEvaluatorPipeline(BaseEvaluatorPipeline):
+    """Pipeline for evaluating amino acid predictions over documents (perplexity, accuracy etc).
+
+    Evaluators are initially expected to take a HF model outputs object.
+        - if we find this useful, we can figure out exactly which outputs are required,
+        and extend to work with equivalent outputs from non-HF baselines.
+
+        (probably would need to be something like predicted probs for 20 standard aas)
+
+    TODO: might be easier to just use validation_step.
+    """
+
+    pass
+
+
+class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
+    """Pipeline for scoring completions (e.g. ProteinGym mutants) given documents."""
+
+    def __init__(
+        self,
+        pipeline_id: str,
+        preprocessor: BasePreprocessor,
+        benchmark_directory: str = None,
+        save_results_to_file: bool = True,
+    ):
+        self.scored_completions = defaultdict(dict)
+        self.prompts = defaultdict(dict)
+        print(f"Initialised pipeline ID {pipeline_id}")
+        super().__init__(
+            pipeline_id,
+            preprocessor=preprocessor,
+            benchmark_directory=benchmark_directory,
+            save_results_to_file=save_results_to_file,
+        )
+
+    def has_scored_completions(self, instance_id: str, model_id: str) -> bool:
+        # TODO: check prompt as well
+        if not self.save_results_to_file:
+            return (
+                model_id in self.scored_completions
+                and instance_id in self.scored_completions[model_id]
+            )
+        else:
+            output_path = os.path.join(
+                self.pipeline_directory,
+                "scored_completions",
+                instance_id,
+                model_id,
+                "scored_completions.csv",
+            )
+            prompt_output_path = os.path.join(
+                self.pipeline_directory, "prompts", instance_id, model_id, "prompt.json"
+            )
+            retval = os.path.isfile(output_path) and prompt_output_path
+            return retval
+
+    def has_all_scored_completions(self, model_id: str) -> None:
+        return all(
+            [
+                self.has_scored_completions(instance_id, model_id)
+                for instance_id in self.instance_ids()
             ]
-            avg_metrics = sampler_results.mean()
-            avg_metrics_str = ", ".join(
-                [f"{k}: {v:.3f}" for k, v in avg_metrics.items()]
+        )
+
+    def run_evaluator_on_instance(
+        self,
+        scorer_name: str,
+        instance_id: str,
+        scored_completions_df: pd.DataFrame,
+        evaluator: ScoringEvaluator,
+        prompt: ProteinDocument,
+        protein_document: ProteinDocument,
+        rerun_evaluator: bool = False,
+        device: Optional[str] = None,
+        verbose: bool = False,
+    ) -> None:
+        if rerun_evaluator or not self.has_result(
+            evaluator.name, instance_id, scorer_name
+        ):
+            output_dir = os.path.join(
+                self.pipeline_directory, evaluator.name, instance_id, scorer_name
             )
+            if rerun_evaluator:
+                if os.path.isdir(output_dir):
+                    shutil.rmtree(output_dir)
+
+            metrics = evaluator.evaluate_scored_completions(
+                prompt=prompt,
+                scored_completions_df=scored_completions_df,
+                device=device,
+            )
+
+            metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
+            if verbose:
+                print(f"Instance {instance_id} {evaluator.name} metrics: {metrics_str}")
+
+            metrics.update(
+                self.get_instance_summary(
+                    instance_id, protein_document=protein_document
+                )
+            )
+            metrics["scorer"] = scorer_name
+            metrics["instance"] = instance_id
+            metrics["evaluator"] = evaluator.name
+            self.add_result(evaluator.name, instance_id, scorer_name, metrics)
+
+    def save_scored_completions(
+        self, instance_id, model_name, scored_completions_df: pd.DataFrame
+    ) -> None:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "scored_completions", instance_id, model_name
+            )
+            os.makedirs(outputs_dir, exist_ok=True)
+            scored_completions_df.to_csv(
+                os.path.join(outputs_dir, "scored_completions.csv"), index=False
+            )
+        else:
+            self.scored_completions[model_name][instance_id] = scored_completions_df
+
+    def load_scored_completions(
+        self, instance_id: str, scorer_name: str
+    ) -> pd.DataFrame:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "scored_completions", instance_id, scorer_name
+            )
+            return pd.read_csv(os.path.join(outputs_dir, "scored_completions.csv"))
+        else:
+            scored_completions_df = self.scored_completions[scorer_name][instance_id]
+            return scored_completions_df
+
+    def load_completions(
+        self, instance_id: str
+    ) -> Tuple[pd.DataFrame, ProteinDocument]:
+        raise NotImplementedError()
+
+    def run(
+        self,
+        scorer,
+        evaluators: Union[List[SamplingEvaluator], SamplingEvaluator],
+        verbose: bool = True,
+        rerun_scorer: bool = False,
+        rerun_evaluator: bool = True,
+        scoring_only: bool = False,
+        offload_scorer: bool = False,
+        device: Optional[str] = None,
+        disable_tqdm: bool = False,
+    ):
+        if not isinstance(evaluators, List):
+            assert isinstance(evaluators, ScoringEvaluator)
+            evaluators = [evaluators]
+        for evaluator in evaluators:
+            self.load_results(evaluator.name)
+
+        instance_ids = self.instance_ids()
+        if rerun_scorer:
+            rerun_evaluator = True
+
+        for instance_id in tqdm.tqdm(instance_ids, disable=verbose or disable_tqdm):
             maybe_print(
-                f"Validation `{evaluator.name}` model {sampler.name} average metrics: "
-                f"{avg_metrics_str} ({len(sampler_results)} instances)",
-                verbose=verbose,
+                "Running evaluation pipeline for instance", instance_id, verbose=verbose
             )
-            outputs[evaluator.name] = sampler_results
+            protein_document = self.load_protein_document(instance_id)
+            completions_df, completions = self.load_completions(instance_id)
+            if rerun_scorer or not self.has_scored_completions(
+                instance_id, scorer.name
+            ):
+                maybe_print(
+                    f"Running generations for instance: {instance_id}",
+                    verbose=verbose,
+                    flush=True,
+                )
+                scored_completions, prompt = scorer.score_completions(
+                    protein_document, completions
+                )
+                scored_completions_df = completions_df.copy()
+                scored_completions_df["score"] = scored_completions
+                self.save_scored_completions(
+                    instance_id, scorer.name, scored_completions_df
+                )
+                self.save_prompt(instance_id, scorer.name, prompt)
+            else:
+                maybe_print(
+                    f"Loading generations for instance: {instance_id}",
+                )
+                scored_completions_df = self.load_scored_completions(
+                    instance_id, scorer.name
+                )
+                prompt = self.load_prompt(instance_id, scorer.name)
+
+            scorer_device = scorer.device
+            if not scoring_only:
+                if offload_scorer:
+                    scorer.to(
+                        "cpu"
+                    )  # offload memory to CPU. TODO: consider avoiding all this device switching
+                for evaluator in evaluators:
+                    try:
+                        self.run_evaluator_on_instance(
+                            scorer_name=scorer.name,
+                            instance_id=instance_id,
+                            scored_completions_df=scored_completions_df,
+                            evaluator=evaluator,
+                            prompt=prompt,
+                            protein_document=protein_document,
+                            rerun_evaluator=rerun_evaluator,
+                            device=device,
+                        )
+                    except Exception as e:
+                        print("Failed to run validation on instance", instance_id)
+                        raise e
+                if offload_scorer:
+                    scorer.to(scorer_device)  # move back to original device
+
+        if scoring_only:
+            return
 
         self.save_results()
+        outputs = self.aggregate_results(evaluators, scorer, verbose=verbose)
         return outputs

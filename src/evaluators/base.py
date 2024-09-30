@@ -1,15 +1,25 @@
 from typing import Dict, List, Optional
 
+import pandas as pd
+
 from src.data.objects import ProteinDocument
 
 
-class SamplingEvaluator:
+class BaseEvaluator:
+    def __init__(self, name: str):
+        self.name = name
+
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError("should be implemented on child class")
+
+
+class SamplingEvaluator(BaseEvaluator):
     def __init__(
         self,
         name: str,
         num_samples: Optional[int] = None,
     ):
-        self.name = name
+        super().__init__(name)
         self.num_samples = num_samples
 
     def evaluate_samples(
@@ -47,5 +57,34 @@ class SamplingEvaluator:
         device: Optional[str] = None,
     ):
         sampler.to(device)
-        samples, prompt = self.run_sampling(sampler, protein_document, num_samples)
+        samples, prompt = sampler.sample_seqs(protein_document, num_samples)
         return self.evaluate_samples(prompt, samples, device=device)
+
+
+class ScoringEvaluator(BaseEvaluator):
+    def __init__(
+        self,
+        name: str,
+    ):
+        super().__init__(name)
+
+    def evaluate_scored_mutants(
+        self,
+        prompt: ProteinDocument,
+        scored_mutants_df: pd.DataFrame,
+        device: Optional[str] = None,
+    ):
+        raise NotImplementedError("should be implemented on child class")
+
+    def __call__(
+        self,
+        scorer,
+        protein_document: ProteinDocument,
+        mutants_df: pd.DataFrame,
+        device: Optional[str] = None,
+    ):
+        scorer.to(device)
+        scored_mutants_df, prompt = scorer.score_mutants(protein_document, mutants_df)
+        return self.evaluate_scored_mutants(
+            prompt=prompt, scored_mutants_df=scored_mutants_df, device=device
+        )

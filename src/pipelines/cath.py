@@ -50,7 +50,9 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
             [protein], representative_accession=protein.accession
         )
 
-    def get_instance_summary(self, instance_id):
+    def get_instance_summary(
+        self, instance_id, protein_document: Optional[ProteinDocument] = None
+    ):
         return {
             "target_length": len(self.instance_dicts[instance_id]["seq"]),
             "target_has_coords_frac": (

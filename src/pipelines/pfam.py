@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from src.data.objects import ProteinDocument
 from src.pipelines.mixins import ParquetMixin
@@ -29,5 +29,7 @@ class PfamGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
     def instance_ids(self):
         return self.evaluation_accessions
 
-    def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
+    def get_instance_summary(
+        self, instance_id: str, protein_document: Optional[ProteinDocument] = None
+    ) -> Dict[str, float]:
         return {}

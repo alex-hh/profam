@@ -604,6 +604,7 @@ class BaseFamilyLitModule(BaseLitModule):
         input_seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
     ):
+        # TODO: accept attention (padding) mask?
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -806,10 +807,9 @@ class BaseFamilyLitModule(BaseLitModule):
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=1,
-            # batch_size=(self.scoring_max_tokens - L_prompt) // L
-            # if self.use_kv_cache_for_scoring
-            # else 1,
+            batch_size=(self.scoring_max_tokens - L_prompt) // L
+            if self.use_kv_cache_for_scoring
+            else 1,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name

@@ -1,5 +1,4 @@
-import copy
-from typing import Dict, Optional
+from typing import Optional
 
 import torch
 
@@ -89,28 +88,24 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         return representative_doc
 
 
-class ProFamSampler:
+class ProFamInferenceModel:
     def __init__(
         self,
         name: str,
         model: BaseFamilyLitModule,
         prompt_builder: PromptBuilder,
         document_token: str = "[RAW]",
-        sampling_kwargs: Optional[Dict] = None,
         checkpoint_path: Optional[str] = None,
-        match_representative_length: bool = False,
     ):
-        self.name = name
+        super().__init__(name)
         self.model = model
         self.prompt_builder = prompt_builder
         assert prompt_builder is not None
-        self.sampling_kwargs = sampling_kwargs
         self.checkpoint_path = checkpoint_path
         self.document_token = document_token
-        self.match_representative_length = match_representative_length
         if self.checkpoint_path is not None:
             print(
-                f"Initialising ProFam sampler, loading checkpoint {self.checkpoint_path}"
+                f"Initialising ProFam inference model, loading checkpoint {self.checkpoint_path}"
             )
             checkpoint = torch.load(
                 self.checkpoint_path, map_location=self.model.device
@@ -125,53 +120,13 @@ class ProFamSampler:
     def to(self, device):
         self.model.to(device)
 
-    def sample_seqs(
-        self,
-        protein_document: ProteinDocument,
-        num_samples: int,
-        document_is_prompt=False,
-    ):
-        sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
-        if self.match_representative_length:
-            sampling_kwargs["fixed_length"] = len(
-                protein_document.representative.sequence
-            )
-
-        if document_is_prompt:
-            raise NotImplementedError("We need to infer original sequence length...")
-        else:
-            prompt = self.prompt_builder(protein_document, self.model.tokenizer)
-        encoded = self.model.tokenizer.encode(
-            prompt,
-            document_token=self.document_token,
-            padding="longest",
-            add_final_sep=False,
-        )
-
-        with torch.no_grad():  # prob unnecessary
-            tokens = self.model._sample_seqs(
-                encoded["input_ids"].unsqueeze(0).to(self.model.device),
-                max_tokens=self.prompt_builder.max_tokens,
-                num_samples=num_samples,
-                input_seq_pos=encoded["seq_pos"].unsqueeze(0).to(self.model.device),
-                input_coords=encoded["coords"]
-                .unsqueeze(0)
-                .to(self.model.device)
-                .float()
-                if self.model.embed_coords
-                else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
-                **sampling_kwargs,
-            )
-            sequences = self.model.tokenizer.decode_tokens(tokens)
-        return sequences, prompt
-
     @classmethod
     def from_checkpoint_dir(
         cls,
         checkpoint_dir: str,
         prompt_builder: PromptBuilder,
-        sampling_kwargs: Optional[Dict] = None,
         name_suffix: str = "",
+        **kwargs,
     ):
         # automatically load checkpoint path and, if possible, wandb run name
         raise NotImplementedError("Not implemented yet")

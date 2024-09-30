@@ -113,7 +113,8 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
         dataset = load_dataset(path="json", data_files=self.jsonl_file, split="train")
         dataset = dataset.filter(
-            lambda x: x["name"].replace(".", "") in self.split_ids, num_proc=self.num_proc
+            lambda x: x["name"].replace(".", "") in self.split_ids,
+            num_proc=self.num_proc,
         )
         return dataset
 
@@ -172,7 +173,10 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             num_proc=self.num_proc,
             batch_size=100,
             writer_batch_size=100,
-            fn_kwargs={"tokenizer": tokenizer, "max_tokens_per_example": max_tokens_per_example},
+            fn_kwargs={
+                "tokenizer": tokenizer,
+                "max_tokens_per_example": max_tokens_per_example,
+            },
         )
         # processed_dataset = []
         # for example in dataset:
