@@ -128,6 +128,7 @@ class BaseLitModule(LightningModule):
         self._t0 = time.time()
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int):
+        # TODO: handle ddp.
         self._t1 = time.time()
         self.log(
             "train/batch_time",
