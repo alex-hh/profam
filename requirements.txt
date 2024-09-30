@@ -108,7 +108,6 @@ tmtools==0.2.0
 tomli==2.0.1
 torch==2.4.0  # on ucl cluster --index-url https://download.pytorch.org/whl/cu121
 torchmetrics==1.4.0
-torchvision==0.18.0
 tqdm==4.66.4
 traitlets==5.14.3
 transformers==4.44.2
