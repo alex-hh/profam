@@ -25,7 +25,6 @@ export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
 conda activate venvPF
-pip install flash-attn==2.6.3
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 SCRATCH_DIR="/scratch0/${USER}/data"
 mkdir -p $SCRATCH_DIR
