@@ -50,3 +50,10 @@ ckpt_path: null
 # seed for random number generators in pytorch, numpy and python.random
 seed: 1234
 float32_matmul_precision: null  # good idea to use high
+attention_mechanism: ${
+  oc.select:trainer.accelerator,
+  gpu:flash_attention_2,
+  ddp:flash_attention_2,
+  cpu:eager,
+  mps:eager
+  }

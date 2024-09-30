@@ -8,6 +8,6 @@ config:
   n_embd: 256
   n_head: 4
   n_layer: 5
-  _attn_implementation: flash_attention_2  # eager/flash_attention_2/sdpa
+  _attn_implementation: ${attention_mechanism}  # eager/flash_attention_2/sdpa
 embed_coords: false
 embed_sequence_index: false
