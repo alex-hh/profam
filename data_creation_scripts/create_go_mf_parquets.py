@@ -24,8 +24,11 @@ def fetch_sequence(uniprot_id, db_env):
     """
     try:
         with db_env.begin() as txn:
-            seq = txn.get(uniprot_id.encode('utf-8'))
+            # Construct the key in the correct format
+            key = f'AFDB:AF-{uniprot_id}-F1'.encode('utf-8')
+            seq = txn.get(key)
             if seq is not None:
+                # The value is already in bytes, so we just need to decode it
                 return seq.decode('utf-8')
             else:
                 return None
