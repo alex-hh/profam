@@ -1,0 +1,170 @@
+import argparse
+import gzip
+import lmdb
+import logging
+from tqdm import tqdm
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import os
+import hashlib
+
+def fetch_sequence(uniprot_id, db_env):
+    """
+    Fetches the protein sequence for a given UniProt ID from the LMDB database.
+
+    Args:
+        uniprot_id (str): The UniProt ID.
+        db_env (lmdb.Environment): The LMDB environment.
+
+    Returns:
+        str or None: The protein sequence if found, else None.
+    """
+    try:
+        with db_env.begin() as txn:
+            seq = txn.get(uniprot_id.encode('utf-8'))
+            if seq is not None:
+                return seq.decode('utf-8')
+            else:
+                return None
+    except lmdb.Error as e:
+        logging.error(f"LMDB error while fetching {uniprot_id}: {e}")
+        return None
+
+def setup_logging():
+    """
+    Sets up the logging configuration.
+    """
+    logging.basicConfig(
+        filename='processing.log',
+        filemode='w',
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+
+def assign_parquet_file(fam_id, num_parquet):
+    """
+    Assigns a fam_id to a parquet file based on its hash.
+
+    Args:
+        fam_id (str): The GO MF functional annotation ID.
+        num_parquet (int): Total number of parquet files.
+
+    Returns:
+        int: The index of the parquet file.
+    """
+    return int(hashlib.md5(fam_id.encode('utf-8')).hexdigest(), 16) % num_parquet
+
+def write_parquet(writers, output_dir):
+    for i, records in writers.items():
+        if records:
+            df = pd.DataFrame(records)
+            table = pa.Table.from_pandas(df)
+            parquet_path = os.path.join(output_dir, f'output_{i}.parquet')
+            try:
+                pq.write_table(table, parquet_path, append=True)
+                logging.info(f"Wrote {len(records)} records to {parquet_path}")
+            except Exception as e:
+                logging.error(f"Failed to write to {parquet_path}: {e}")
+
+def process_file(input_path, output_dir, db_env, num_parquet):
+    """
+    Processes the input TSV file and writes the data into parquet files.
+
+    Args:
+        input_path (str): Path to the input gzipped TSV file.
+        output_dir (str): Directory to store output parquet files.
+        db_env (lmdb.Environment): The LMDB environment.
+        num_parquet (int): Number of parquet files to generate.
+    """
+    # Initialize writers dictionary
+    BATCH_SIZE = 10000  # Adjust based on available memory
+    writers = {i: [] for i in range(num_parquet)}
+
+    success_count = 0
+    failure_count = 0
+
+    with gzip.open(input_path, 'rt') as f:
+        for line in tqdm(f, desc='Processing rows'):
+            parts = line.strip().split('\t')
+            if len(parts) != 3:
+                logging.warning(f"Skipping malformed line: {line.strip()}")
+                continue
+            fam_id, info_content, uniprot_ids = parts
+            uniprot_ids_list = [uid.strip() for uid in uniprot_ids.split(',') if uid.strip()]
+
+            sequences = []
+            accessions = []
+            for uid in uniprot_ids_list:
+                seq = fetch_sequence(uid, db_env)
+                if seq:
+                    sequences.append(seq)
+                    accessions.append(uid)
+                    success_count += 1
+                else:
+                    logging.error(f"Failed to fetch sequence for UniProt ID: {uid}")
+                    failure_count += 1
+
+            if sequences:
+                parquet_index = assign_parquet_file(fam_id, num_parquet)
+                writers[parquet_index].append({
+                    'fam_id': fam_id,
+                    'sequences': sequences,
+                    'accessions': accessions
+                })
+
+            if len(writers[parquet_index]) >= BATCH_SIZE:
+                write_parquet(writers, output_dir)
+                writers = {i: [] for i in range(num_parquet)}
+
+    # Write any remaining records
+    write_parquet(writers, output_dir)
+
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    logging.info(f"Successfully fetched {success_count} sequences.")
+    logging.info(f"Failed to fetch {failure_count} sequences.")
+
+def parse_arguments():
+    """
+    Parses command-line arguments.
+
+    Returns:
+        argparse.Namespace: The parsed arguments.
+    """
+    parser = argparse.ArgumentParser(description='Process GO term data and generate parquet files.')
+    parser.add_argument('--input', required=True, help='Path to input gzipped TSV file.')
+    parser.add_argument('--output_dir', default='/SAN/orengolab/cath_plm/ProFam/data/GO_MF', help='Directory to store output parquet files.')
+    parser.add_argument('--lmdb_path', default='/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences_dict.lmdb', help='Path to LMDB database.')
+    parser.add_argument('--num_parquet', type=int, default=100, help='Number of parquet files to generate.')
+    return parser.parse_args()
+
+def main():
+    """
+    The main function orchestrating the processing of the TSV file.
+    """
+    args = parse_arguments()
+    setup_logging()
+
+    try:
+        db_env = lmdb.open(args.lmdb_path, readonly=True, lock=False, readahead=False, meminit=False)
+    except Exception as e:
+        logging.error(f"Failed to open LMDB database at {args.lmdb_path}: {e}")
+        return
+
+    try:
+        process_file(args.input, args.output_dir, db_env, args.num_parquet)
+    except Exception as e:
+        logging.error(f"An error occurred during processing: {e}")
+    finally:
+        db_env.close()
+        logging.info("Processing completed.")
+
+if __name__ == "__main__":
+    main()
