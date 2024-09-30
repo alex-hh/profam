@@ -50,6 +50,7 @@ jobs:
           'model.config.num_attention_heads=1' \
           'model.config.num_hidden_layers=1' \
           'model.config.num_key_value_heads=1' \
+          'model.config._attn_implementation=eager' \
           'data.dataset_cfgs.interpro.data_path_pattern="tiny_data/interpro/protein-matching-*.fasta"' \
           'data.dataset_cfgs.openfold_aligned.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
           'data.dataset_cfgs.openfold_raw.data_path_pattern="tiny_data/openfold/uniclust30_filtered/*/a3m/*.a3m"' \
