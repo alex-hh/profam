@@ -4,15 +4,15 @@
 #$ -l tscratch=200G
 #$ -l hostname=clifford*
 #$ -l gpu=true
-#$ -pe gpu 2
+#$ -pe gpu 1
 #$ -l m_core=12
-#$ -l h_rt=47:55:30
+#$ -l h_rt=72:55:30
 #$ -S /bin/bash
-#$ -N optz2
+#$ -N optz3
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
-#$ -t 2
+#$ -t 1
 date
 hostname
 nvidia-smi
@@ -78,7 +78,7 @@ trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
 model=llama_medium \
-model.lr=1e-3 \
+model.lr=4e-3 \
 model.optimizer=$OPTIMIZER \
 trainer.val_check_interval=1.0 \
 data.num_workers=8 \
