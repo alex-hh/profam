@@ -198,18 +198,15 @@ def main():
     args = parse_arguments()
     setup_logging()
 
+    db_env = None
     try:
         db_env = lmdb.open(args.lmdb_path, readonly=True, lock=False, readahead=False, meminit=False)
-    except Exception as e:
-        logging.error(f"Failed to open LMDB database at {args.lmdb_path}: {e}")
-        return
-
-    try:
         process_file(args.input, args.output_dir, db_env, args.num_parquet)
     except Exception as e:
         logging.error(f"An error occurred during processing: {e}")
     finally:
-        db_env.close()
+        if db_env:
+            db_env.close()
         logging.info("Processing completed.")
 
 if __name__ == "__main__":
