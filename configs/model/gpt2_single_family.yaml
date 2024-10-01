@@ -7,6 +7,6 @@ config:
   n_embd: 256
   n_head: 4
   n_layer: 5
-  _attn_implementation: null  # eager/flash_attention_2/sdpa
+  attn_implementation: null  # eager/flash_attention_2/sdpa
 embed_coords: false
 embed_sequence_index: false
