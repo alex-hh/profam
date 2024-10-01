@@ -1,0 +1,15 @@
+# @package _global_
+
+# TODO: decide whether we do want pretrained_model to be separately configurable
+defaults:
+  - _self_
+  - scorer: null  # needs to be set
+  - pipeline: gym_val_inverse_folding
+  # - evaluator@evaluators.hmm_profile: pfam_profile_hmm   to be set like this in experiment yaml
+  - paths: benchmark  # TODO: handle hydra path?
+  - extras: default
+  - constants: profam
+
+rerun_scorer: false
+rerun_evaluator: false
+device: cuda:0
