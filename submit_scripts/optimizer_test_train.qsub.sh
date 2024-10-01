@@ -8,7 +8,7 @@
 #$ -l m_core=32
 #$ -l h_rt=72:55:30
 #$ -S /bin/bash
-#$ -N optz4
+#$ -N optzScrt
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -39,22 +39,22 @@ cleanup() {
 # Trap to ensure cleanup on exit
 trap cleanup EXIT ERR INT TERM
 
-#PFAM_DIR="/SAN/orengolab/cath_plm/ProFam/data/pfam/train_test_split_parquets"
-#GYM_DIR="/SAN/orengolab/cath_plm/ProFam/data/ProteinGym"
-#mkdir -p $SCRATCH_DIR/pfam
-## check if scratch directory is created
-#if [ -d $SCRATCH_DIR/pfam ]; then
-#    echo "Scrat Pfam directory exists"
-#else
-#    echo "Directory does not exist"
-#    exit 1
-#fi
-#rsync -av $PFAM_DIR $SCRATCH_DIR/pfam/
-#rsync -av $GYM_DIR $SCRATCH_DIR/
-#echo "ls $SCRATCH_DIR:"
-#ls $SCRATCH_DIR
-#echo "ls ${SCRATCH_DIR}/pfam:"
-#ls ${SCRATCH_DIR}/pfam
+PFAM_DIR="/SAN/orengolab/cath_plm/ProFam/data/pfam/train_test_split_parquets"
+GYM_DIR="/SAN/orengolab/cath_plm/ProFam/data/ProteinGym"
+mkdir -p $SCRATCH_DIR/pfam
+# check if scratch directory is created
+if [ -d $SCRATCH_DIR/pfam ]; then
+    echo "Scrat Pfam directory exists"
+else
+    echo "Directory does not exist"
+    exit 1
+fi
+rsync -av $PFAM_DIR $SCRATCH_DIR/pfam/
+rsync -av $GYM_DIR $SCRATCH_DIR/
+echo "ls $SCRATCH_DIR:"
+ls $SCRATCH_DIR
+echo "ls ${SCRATCH_DIR}/pfam:"
+ls ${SCRATCH_DIR}/pfam
 
 # Set optimizer based on SGE_TASK_ID
 if [ "$SGE_TASK_ID" -eq 1 ]; then
@@ -81,9 +81,9 @@ model=llama_medium \
 model.lr=1e-3 \
 model.optimizer=$OPTIMIZER \
 trainer.val_check_interval=1.0 \
-data.num_workers=30 \
+data.num_workers=10 \
 data.max_tokens=10000 \
-paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data" # $SCRATCH_DIR  \
+paths.data_dir=$SCRATCH_DIR  # "/SAN/orengolab/cath_plm/ProFam/data"  \
 float32_matmul_precision=high \
 callbacks=default_with_shuffle \
 
