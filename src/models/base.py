@@ -829,7 +829,6 @@ class BaseFamilyLitModule(BaseLitModule):
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=1,
             batch_size=(self.scoring_max_tokens - L_prompt) // L
             if self.use_kv_cache_for_scoring
             else 1,

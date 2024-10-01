@@ -87,7 +87,10 @@ def model_seq_index(profam_tokenizer):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
-            overrides=["model.embed_sequence_index=True"],
+            overrides=[
+                "model.embed_sequence_index=True",
+                "model.config.attn_implementation=null",
+            ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 

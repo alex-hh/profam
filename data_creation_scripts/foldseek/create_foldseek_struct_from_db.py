@@ -75,13 +75,13 @@ def save_pdbs_to_parquet(
                 all_coords[atom_name].append(coords[:, ix, :].flatten().astype("float16"))
             
         # Run FoldMason on the cluster
+        has_foldmason_results = False
         if run_foldmason:
             if (
                     (max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason)
                     or len(cluster_filelist) < 3
             ):
                 print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
-                has_foldmason_results = False
             else:
                 foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
                 os.makedirs(foldmason_outdir)
