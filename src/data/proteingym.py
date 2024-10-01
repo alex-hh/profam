@@ -115,17 +115,7 @@ def load_msa_for_row(
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
 
-    proteins = load_msa_document(
-        msa_file,
-        seed=seed,
-        keep_wt=keep_wt,
-        drop_wt=drop_wt,
-        keep_gaps=keep_gaps,
-        use_msa_pos=use_msa_pos,
-        shuffle=shuffle,
-        max_tokens=max_tokens,
-        extra_tokens_per_document=extra_tokens_per_document,
-    )
+    proteins = load_msa_document(msa_file)
     max_tokens_for_msa = max_tokens - max([len(s) for s in proteins.sequences]) - 2
     proteins = sample_to_max_tokens(
         proteins,
@@ -289,8 +279,6 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
             functools.partial(
                 load_completions_for_row,
                 seed=self.seed,
-                use_msa_pos=self.use_msa_pos,
-                keep_gaps=self.keep_gaps,
                 max_mutated_sequences=self.max_mutated_sequences,
             ),
             batched=False,
