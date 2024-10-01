@@ -6,9 +6,11 @@ import pandas as pd
 
 from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
 from src.data.objects import Protein, ProteinDocument
-from src.data.preprocessing import BasePreprocessor, backbone_coords_from_example
+from src.data.preprocessing import (
+    ProteinDocumentPreprocessor,
+    backbone_coords_from_example,
+)
 from src.data.utils import random_subsample
-from src.sequence.fasta import convert_sequence_with_positions
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -122,7 +124,7 @@ class ParquetDatasetBuilder(StreamedProteinDatasetBuilder):
         self,
         name: str,
         cfg: ProteinDatasetConfig,
-        preprocessor: Optional[BasePreprocessor] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
         identifier_col: str = "fam_id",
@@ -195,7 +197,7 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
         self,
         name: str,
         cfg: ProteinDatasetConfig,
-        preprocessor: Optional[BasePreprocessor] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
         identifier_col: str = "fam_id",
@@ -274,7 +276,7 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
         self,
         name: str,
         cfg: ProteinDatasetConfig,
-        preprocessor: Optional[BasePreprocessor] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
         sequence_col: str = "sequences",

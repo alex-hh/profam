@@ -6,7 +6,7 @@ import torch
 
 from src.constants import BASEDIR
 from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
-from src.data.preprocessing import FastaPreprocessor, PreprocessingConfig
+from src.data.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -21,13 +21,13 @@ def test_non_interleaved_shuffle():
     )
     cfg = ProteinDatasetConfig(
         data_path_pattern="expasy_ec/*.fasta",
-        preprocessor=FastaPreprocessor(PreprocessingConfig()),
+        preprocessor=ProteinDocumentPreprocessor(PreprocessingConfig()),
         file_type="text",
         shuffle=False,
         stream=True,
     )
 
-    builder = ProteinDatasetBuilder(
+    builder = StreamedProteinDatasetBuilder(
         name="ec_example",
         cfg=cfg,
         tokenizer=tokenizer,
@@ -66,11 +66,11 @@ def test_interleaved_shuffle():
     )
     cfg = ProteinDatasetConfig(
         data_path_pattern="expasy_ec/*.fasta",
-        preprocessor=FastaPreprocessor(PreprocessingConfig()),
+        preprocessor=ProteinDocumentPreprocessor(PreprocessingConfig()),
         shuffle=False,
         stream=True,
     )
-    builder = ProteinDatasetBuilder(
+    builder = StreamedProteinDatasetBuilder(
         name="ec_example",
         cfg=cfg,
         tokenizer=tokenizer,
@@ -81,11 +81,7 @@ def test_interleaved_shuffle():
         data1, max_tokens_per_example=1000, shuffle_proteins_in_document=False
     )
     data1 = data1.shuffle()
-    data1 = load_protein_dataset(
-        cfg,
-        tokenizer=tokenizer,
-        max_tokens_per_item=1000,
-    )
+    data1 = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data2 = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data2 = builder.process(
         data2, max_tokens_per_example=1000, shuffle_proteins_in_document=False

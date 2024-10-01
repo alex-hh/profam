@@ -6,7 +6,7 @@ import torch
 from src.data import transforms
 from src.data.objects import ProteinDocument
 from src.data.preprocessing import (
-    BasePreprocessor,
+    ProteinDocumentPreprocessor,
     default_transforms,
     preprocess_protein_sequences,
 )
@@ -17,7 +17,7 @@ from src.utils.tokenizers import ProFamTokenizer
 class PromptBuilder:
     def __init__(
         self,
-        preprocessor: BasePreprocessor,
+        preprocessor: ProteinDocumentPreprocessor,
         max_tokens: int,
         seed: Optional[int] = None,
     ):
@@ -54,7 +54,7 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
 
     def __init__(
         self,
-        preprocessor: BasePreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
+        preprocessor: ProteinDocumentPreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
         max_tokens: int,
         seed: Optional[int] = None,
     ):
