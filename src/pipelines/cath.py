@@ -1,13 +1,10 @@
 """CATH pipeline for backbones from the CATH splits used in the inverse folding literature."""
-import copy
-import json
-import os
 import time
 
 import numpy as np
 
-from src import constants
 from src.data import cath
+from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 
@@ -45,7 +42,7 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         elif instance_id == "3j7yK":
             instance_id = "3j7yKK"
         entry = self.instance_dicts[instance_id]
-        protein = protein_from_coords_dict(entry)
+        protein = cath.protein_from_coords_dict(entry)
         return ProteinDocument.from_proteins(
             [protein], representative_accession=protein.accession
         )
