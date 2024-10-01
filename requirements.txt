@@ -28,7 +28,6 @@ docker-pycreds==0.4.0
 exceptiongroup==1.2.1
 executing==2.0.1
 filelock==3.14.0
-flash-attn==2.6.3
 frozenlist==1.4.1
 fsspec==2024.3.1
 gitdb==4.0.11
@@ -122,3 +121,5 @@ xxhash==3.4.1
 yarl==1.9.4
 zipp==3.18.1
 pysqlite3==0.5.2
+# optional packages for gpu optimizations
+flash-attn==2.6.3[gpu]
