@@ -1,6 +1,8 @@
 from typing import Optional
 
+import torch
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
+from transformers.models.llama.modeling_llama import LLAMA_ATTENTION_CLASSES
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
@@ -19,6 +21,7 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         scoring_max_tokens: int = 64000,
     ) -> None:
         model = LlamaForCausalLM(config)
+
         super().__init__(
             model,
             tokenizer,
@@ -62,6 +65,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
+        assert config._attn_implementation in LLAMA_ATTENTION_CLASSES
         if (
             tokenizer.use_seq_pos or embed_coords,
         ):  # commenting out to check computation of inputs embeds is working
@@ -78,6 +82,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             )
         else:
             model = LlamaForCausalLM(config)
+
         super().__init__(
             model,
             tokenizer,
