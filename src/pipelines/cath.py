@@ -1,13 +1,11 @@
 """CATH pipeline for backbones from the CATH splits used in the inverse folding literature."""
-import copy
-import json
-import os
 import time
 
 import numpy as np
 
 from src import constants
 from src.data import cath
+from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 

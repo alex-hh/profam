@@ -38,7 +38,7 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
         )
         L = encoded_completions.input_ids.shape[-1]
         batch_size = (self.scoring_max_tokens - encoded.input_ids.shape[-1]) // L
-        # TODO: check this works with variable length completionsß
+        # TODO: check this works with variable length completions
         scores = self.model.score_seqs(
             input_ids=encoded.input_ids,
             completion_ids=encoded_completions.input_ids,
