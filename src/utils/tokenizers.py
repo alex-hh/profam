@@ -306,6 +306,8 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         self,
         sequences,
         positions: Optional[List[int]] = None,
+        backbone_coords: Optional[np.ndarray] = None,
+        backbone_coords_masks: Optional[np.ndarray] = None,
         bos_token="[SEP]",
         eos_token="[SEP]",
     ):
@@ -337,6 +339,34 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     )
                 )
             tokenized.data["seq_pos"] = np.stack(all_positions)
+
+        if backbone_coords is not None:
+            # target output shape is num_completions, L, 4, 3
+            assert backbone_coords_masks is not None
+            tokenized.data["coords"] = np.stack(
+                [
+                    concatenate_pad_array(
+                        [coords],
+                        fill_value=0.0,
+                        num_start_tokens=1 if bos_token else 0,
+                        num_end_tokens=1 if eos_token else 0,
+                        pad_to_length=tokenized.input_ids.shape[-1],
+                    )
+                    for coords in backbone_coords
+                ]
+            )
+            tokenized.data["coords_mask"] = np.stack(
+                [
+                    concatenate_pad_array(
+                        [coords_mask],
+                        fill_value=0,
+                        num_start_tokens=1 if bos_token else 0,
+                        num_end_tokens=1 if eos_token else 0,
+                        pad_to_length=tokenized.input_ids.shape[-1],
+                    )
+                    for coords_mask in backbone_coords_masks
+                ]
+            )
 
         return tokenized
 

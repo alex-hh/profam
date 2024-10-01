@@ -30,11 +30,12 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
         )
         # TODO: check this supports variable length completions
         # TODO: make sure we have correct bos token for interleaved scoring
-        # TODO: handle coords etc.
         encoded_completions = self.model.tokenizer.encode_completions(
             completions=completions.sequences,
             positions=completions.positions,
             bos_token=self.bos_token,
+            backbone_coords=completions.backbone_coords,
+            backbone_coords_masks=completions.backbone_coords_masks,
         )
         L = encoded_completions.input_ids.shape[-1]
         batch_size = (self.scoring_max_tokens - encoded.input_ids.shape[-1]) // L
@@ -47,5 +48,6 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
             coords=encoded.data.get("coords", None),
             input_seq_pos=encoded.data.get("seq_pos", None),
             completion_seq_pos=encoded_completions.data.get("seq_pos", None),
+            completion_coords=encoded_completions.data.get("coords", None),
         )
         return scores, prompt

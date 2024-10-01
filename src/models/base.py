@@ -468,6 +468,7 @@ class BaseFamilyLitModule(BaseLitModule):
         seq_pos: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
+        completion_coords: Optional[torch.FloatTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
     ):
@@ -506,13 +507,13 @@ class BaseFamilyLitModule(BaseLitModule):
             if self.use_seq_pos:
                 this_seq_pos = completion_seq_pos[
                     :, batch_start : batch_start + batch_size
-                ].reshape(
-                    -1, L
-                )  # TODO: does cache affect seq pos in any way? doesnt seem like it should
+                ].flatten(end_dim=1)
                 forward_kwargs["seq_pos"] = this_seq_pos
             if self.embed_coords:
-                assert coords is not None
-                raise NotImplementedError("Coords not yet supported for mutant scoring")
+                assert completion_coords is not None
+                forward_kwargs["coords"] = completion_coords[
+                    :, batch_start : batch_start + batch_size
+                ].flatten(end_dim=1)
             if self.embed_sequence_index:
                 forward_kwargs["start_sequence_index"] = start_sequence_index
 
@@ -546,6 +547,7 @@ class BaseFamilyLitModule(BaseLitModule):
         seq_pos: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
+        completion_coords: Optional[torch.FloatTensor] = None,
         verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
@@ -581,7 +583,11 @@ class BaseFamilyLitModule(BaseLitModule):
                 forward_kwargs["seq_pos"] = this_seq_pos
             if self.embed_coords:
                 assert coords is not None
-                raise NotImplementedError("Coords not yet supported for mutant scoring")
+                this_coords = torch.cat(
+                    [coords, completion_coords[:, completion_ix]],
+                    dim=1,
+                )
+                forward_kwargs["coords"] = this_coords
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
@@ -603,6 +609,7 @@ class BaseFamilyLitModule(BaseLitModule):
         coords: Optional[torch.FloatTensor] = None,
         input_seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
+        completion_coords: Optional[torch.FloatTensor] = None,
     ):
         # TODO: accept attention (padding) mask?
         assert (
@@ -619,6 +626,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 coords=coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
+                completion_coords=completion_coords,
             )
         else:
             return self._score_seqs_no_cache(
@@ -628,6 +636,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 coords=coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
+                completion_coords=completion_coords,
             )
 
     def _sample_seqs(
