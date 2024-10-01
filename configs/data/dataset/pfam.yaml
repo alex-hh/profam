@@ -1,4 +1,4 @@
-_target_: src.data.datasets.StreamedStreamedProteinDatasetBuilder
+_target_: src.data.datasets.StreamedProteinDatasetBuilder
 name: pfam_msa_pos
 defaults:
   - /preprocessor: "parquet_msa_pos"

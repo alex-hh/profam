@@ -1,4 +1,4 @@
-_target_: src.data.datasets.StreamedStreamedProteinDatasetBuilder
+_target_: src.data.datasets.StreamedProteinDatasetBuilder
 name: ec
 defaults:
   - /preprocessor: "fasta_raw"

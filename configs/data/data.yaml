@@ -19,13 +19,7 @@ data_weights:
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
-val_dataset_names:
-  - interpro
-gym_dms_ids: ${constants.gym_val_assay_list}
-evaluate_gym: false # not implemented yet
-evaluate_ec_class: false # not implemented yet
-evaluate_ec_cluster_class: false # not implemented yet
+val_dataset_batch_sizes:
+  interpro: ${data.batch_size}
 num_workers: null # None means use all available CPU cores
-gym_data_dir: ProteinGym
 ignore_gaps: false
-use_filtered_gym_msas: true
