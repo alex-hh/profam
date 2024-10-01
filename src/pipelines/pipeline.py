@@ -188,6 +188,11 @@ class BaseEvaluatorPipeline:
         raise NotImplementedError()
 
     def load_protein_document(self, instance_id):
+        """Load a protein document for a given instance.
+
+        The document should be raw: no subsampling or positional encoding.
+        i.e. the output of preprocessor.build_document with max_tokens=None, shuffle=False.
+        """
         example = self.get_protein_example(instance_id)
         return self.preprocessor.build_document(example, max_tokens=None, shuffle=False)
 

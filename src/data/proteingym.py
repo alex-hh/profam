@@ -85,14 +85,6 @@ def tokenize(
 
 def load_msa_document(
     msa_filename: str,
-    seed: Optional[int] = None,
-    keep_wt: bool = True,
-    drop_wt: bool = False,
-    keep_gaps: bool = False,
-    use_msa_pos: bool = True,
-    max_tokens: int = 2048,
-    extra_tokens_per_document: int = 2,
-    shuffle: bool = True,
 ):
     labels, seqs = fasta.read_fasta(
         msa_filename,
@@ -104,25 +96,7 @@ def load_msa_document(
         sequences=seqs,
         accessions=labels,
     )
-    max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
-    proteins = sample_to_max_tokens(
-        proteins,
-        seed=seed,
-        drop_first=drop_wt,
-        keep_first=keep_wt,
-        shuffle=shuffle,
-        max_tokens=max_tokens_for_msa,
-        extra_tokens_per_document=extra_tokens_per_document,
-    )
-    proteins = transforms.convert_sequences_adding_positions(
-        proteins,
-        keep_gaps=keep_gaps,
-        keep_insertions=True,  # Gym-specific: Gym MSAs use lower case for non-focus cols not insertions
-        to_upper=True,
-        use_msa_pos=use_msa_pos,
-        truncate_after_n_sequences=None,
-    )
-    return proteins
+    return msa
 
 
 def load_msa_for_row(
@@ -152,6 +126,24 @@ def load_msa_for_row(
         max_tokens=max_tokens,
         extra_tokens_per_document=extra_tokens_per_document,
     )
+    max_tokens_for_msa = max_tokens - max([len(s) for s in proteins.sequences]) - 2
+    proteins = sample_to_max_tokens(
+        proteins,
+        seed=seed,
+        drop_first=drop_wt,
+        keep_first=keep_wt,
+        shuffle=shuffle,
+        max_tokens=max_tokens_for_msa,
+        extra_tokens_per_document=extra_tokens_per_document,
+    )
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=keep_gaps,
+        keep_insertions=True,  # Gym-specific: Gym MSAs use lower case for non-focus cols not insertions
+        to_upper=True,
+        use_msa_pos=use_msa_pos,
+        truncate_after_n_sequences=None,
+    )
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
@@ -180,17 +172,6 @@ def load_completions(
     assert has_no_indels(
         completions.sequences
     ), "Comp seq indel handling not implemented"
-    # TODO: figure out how to handle msa pos etc.
-    # for substitutions, use_msa_pos True and False should be the same
-    # TODO: this step might not be necessary? We can just trivially add positions...maybe do this within convert_sequences_adding_positions?
-    completions = transforms.convert_sequences_adding_positions(
-        completions,
-        keep_gaps=False,  # no gaps in DMS sequences
-        keep_insertions=True,  # no insertions in DMS sequences
-        to_upper=True,
-        use_msa_pos=False,
-        truncate_after_n_sequences=None,
-    )
     return completions, dms_df
 
 
@@ -203,6 +184,17 @@ def load_completions_for_row(
         row["DMS_filename"],
         max_mutated_sequences=max_mutated_sequences,
         seed=seed,
+    )
+    # TODO: figure out how to handle msa pos etc.
+    # for substitutions, use_msa_pos True and False should be the same
+    # TODO: this step might not be necessary? We can just trivially add positions...maybe do this within convert_sequences_adding_positions?
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=False,  # no gaps in DMS sequences
+        keep_insertions=True,  # no insertions in DMS sequences
+        to_upper=True,
+        use_msa_pos=False,
+        truncate_after_n_sequences=None,
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
@@ -295,7 +287,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         )
         dataset = dataset.map(
             functools.partial(
-                load_comp_seq_dms_for_row,
+                load_completions_for_row,
                 seed=self.seed,
                 use_msa_pos=self.use_msa_pos,
                 keep_gaps=self.keep_gaps,
