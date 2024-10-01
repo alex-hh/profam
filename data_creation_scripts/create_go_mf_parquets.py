@@ -15,8 +15,15 @@ def fetch_sequence(uniprot_id, db_env):
     """Fetches the protein sequence for a given UniProt ID from the LMDB database."""
     try:
         with db_env.begin() as txn:
-            seq = txn.get(uniprot_id.encode('utf-8'))
-            return seq.decode('utf-8') if seq else None
+            cursor = txn.cursor()
+            # Check for both SwissProt (sp) and TrEMBL (tr) prefixes
+            prefixes = [f'sp|{uniprot_id}|'.encode('utf-8'), f'tr|{uniprot_id}|'.encode('utf-8')]
+            for prefix in prefixes:
+                cursor.set_range(prefix)
+                for key, value in cursor:
+                    if key.startswith(prefix):
+                        return value.decode('utf-8')
+            return None
     except lmdb.Error as e:
         logging.error(f"LMDB error while fetching {uniprot_id}: {e}")
         return None
