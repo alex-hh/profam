@@ -121,5 +121,3 @@ xxhash==3.4.1
 yarl==1.9.4
 zipp==3.18.1
 pysqlite3==0.5.2
-# optional packages for gpu optimizations
-flash-attn[gpu]==2.6.3; extra == 'gpu'
