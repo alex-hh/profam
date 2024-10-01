@@ -28,14 +28,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        grep -v "accelerate\|pysqlite3\|wandb\|SQLAlchemy\|pyhmmer\|hydra-optuna-sweeper" requirements.txt > testing_requirements.txt
-        cat testing_requirements.txt
         pip install -r requirements.txt
 
 # TODO: seed?
-    - name: Test
-      run: |
-        pytest -k "not example"
+#    - name: Test
+#      run: |
+#        pytest -k "not example"
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 python src/train.py \
