@@ -87,9 +87,6 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
     writers = {i: [] for i in range(num_parquet)}
     go_term_mapping = defaultdict(set)
 
-    success_count = 0
-    failure_count = 0
-
     with gzip.open(input_path, 'rt') as f:
         pbar = tqdm(total=total_uniprot_ids, desc='Processing UniProt IDs', 
                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} '
@@ -103,7 +100,7 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
                 continue
             fam_id, info_content, uniprot_ids = parts
             
-            # Skip GO terms with too many UniProt IDs
+            # Skip GO terms with Information Content below the threshold
             if fam_id in filtered_go_terms:
                 continue
 
@@ -168,7 +165,6 @@ def parse_arguments():
     parser.add_argument('--output_dir', default='/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mf_parquets', help='Directory to store output parquet files.')
     parser.add_argument('--lmdb_path', default='/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences_dict.lmdb', help='Path to LMDB database.')
     parser.add_argument('--num_parquet', type=int, default=100, help='Number of parquet files to generate.')
-    parser.add_argument('--log_level', type=str, default='INFO', help='Logging level (e.g., INFO, DEBUG).')
     parser.add_argument('--min_ic', type=float, default=11, help='Minimum Information Content (IC) threshold for GO terms.')
     parser.add_argument('--batch_size', type=int, default=10000, help='Batch size for writing records to parquet files.')
     return parser.parse_args()
