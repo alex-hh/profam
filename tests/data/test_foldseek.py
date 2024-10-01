@@ -21,6 +21,7 @@ def foldseek_df():
     return df
 
 
+# TODO: fix
 def test_foldseek_backbone_loading(foldseek_df):
     for _, row in foldseek_df.iterrows():
         foldseek_example = row.to_dict()
