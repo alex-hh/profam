@@ -106,6 +106,9 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
 
     try:
         with gzip.open(input_path, 'rt') as f:
+            # Create a progress bar
+            pbar = tqdm(total=total_uniprot_ids, desc="Processing UniProt IDs", unit="ID")
+            
             for line in f:
                 parts = line.strip().split('\t')
                 if len(parts) != 3:
@@ -131,6 +134,7 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
                     else:
                         logging.error(f"Failed to fetch sequence for UniProt ID: {uid}")
                         counts['failure'] += 1
+                    pbar.update(1)  # Update progress bar for each processed UniProt ID
 
                 if sequences:
                     parquet_index = assign_parquet_file(fam_id, num_parquet)
@@ -150,6 +154,8 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
                 if len(writers[parquet_index]) >= batch_size:
                     write_parquet(writers, output_dir)
                     writers = {i: [] for i in range(num_parquet)}
+
+            pbar.close()  # Close the progress bar when done
 
     except Exception as e:
         logging.error(f"An error occurred while processing the file: {e}")
