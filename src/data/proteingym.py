@@ -11,7 +11,7 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data import transforms
 from src.data.datasets import BaseProteinDatasetBuilder
-from src.data.objects import ProteinDocument
+from src.data.objects import Protein, ProteinDocument
 from src.data.transforms import sample_to_max_tokens
 from src.sequence import fasta
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
@@ -146,6 +146,30 @@ def load_msa_for_row(
     return row
 
 
+def load_representative_document(row, gym_data_dir: str):
+    pdb_file = os.path.join(
+        gym_data_dir, "ProteinGym_AF2_structures", f"{row['UniProt_ID']}.pdb"
+    )
+    protein = Protein.from_pdb(pdb_file, chain="A", bfactor_is_plddt=True)
+    proteins = ProteinDocument.from_proteins(
+        [protein], representative_accession=protein.accession
+    )
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=False,  # no gaps in DMS sequences
+        keep_insertions=True,  # no insertions in DMS sequences
+        to_upper=True,
+        use_msa_pos=False,
+        truncate_after_n_sequences=None,
+    )
+    # TODO: run a max tokens check?
+    row["MSA"] = proteins.sequences
+    row["seq_pos"] = proteins.positions
+    row["backbone_coords"] = proteins.backbone_coords
+    row["plddt"] = proteins.plddts
+    return row
+
+
 def load_completions(
     dms_filename: str,
     max_mutated_sequences: Optional[int] = None,
@@ -240,68 +264,22 @@ def build_gym_df(dms_ids, gym_data_dir: str):
     ]
 
 
-class GymDatasetBuilder(BaseProteinDatasetBuilder):
-    def __init__(
-        self,
-        name: str,
-        dms_ids: List[str],
-        seed: Optional[int] = 42,  # for msa sampling
-        max_mutated_sequences: Optional[int] = None,
-        mutant_bos_token: str = "sep",
-        keep_gaps: bool = False,
-        use_filtered_msa: bool = False,
-        extra_tokens_per_document: int = 2,
-        use_msa_pos: bool = True,
-        num_proc: Optional[int] = None,
-    ):
-        """Thing that's a bit different about Gym (and family classification)
-        is that we have this prompt/completions structure.
-
-        We can still use a preprocessor to build the prompt, but we need
-        to additionally handle preprocessing of completions.
-
-        We can still train on these datasets - just by setting seed None and
-        not setting val dataset name. In this case, model will ignore completions.
-        """
+class BaseGymDatasetBuilder(BaseProteinDatasetBuilder):
+    def __init__(self, name: str, dms_ids: List[str]):
         super().__init__(name=name, preprocessor=None)
         self.dms_ids = dms_ids
-        self.seed = seed
-        self.max_mutated_sequences = max_mutated_sequences
-        self.mutant_bos_token = mutant_bos_token
-        self.keep_gaps = keep_gaps
-        self.use_filtered_msa = use_filtered_msa
-        self.extra_tokens_per_document = extra_tokens_per_document
-        self.use_msa_pos = use_msa_pos
-        self.num_proc = num_proc
 
-    def process(
-        self,
-        dataset: Dataset,
-        tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
-        shuffle_proteins_in_document: bool = True,
-        feature_names: Optional[List[str]] = None,
-    ):
-        """mutant_bos_token should almost always be sep.
-
-        when using a BaseSingleSequenceLitModule, however, we want it
-        to be bos, since no context sequences are passed during scoring.
-        """
-        print(f"Processing gym dataset for evaluation, keeping gaps: {self.keep_gaps}")
-        dataset = dataset.map(
-            functools.partial(
-                load_msa_for_row,
-                seed=self.seed,  # For what?
-                max_tokens=max_tokens_per_example,
-                keep_gaps=self.keep_gaps,
-                use_filtered_msa=self.use_filtered_msa,
-                extra_tokens_per_document=self.extra_tokens_per_document,
-                use_msa_pos=self.use_msa_pos,
-                shuffle=shuffle_proteins_in_document,
-            ),
-            batched=False,
-            num_proc=self.num_proc,
+    def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
+        df = build_gym_df(
+            self.dms_ids,
+            gym_data_dir=os.path.join(data_dir, "ProteinGym"),
         )
+        # n.b. this isn't streamed
+        dataset = Dataset.from_pandas(df, preserve_index=False)
+        return dataset
+
+    def _process_completions(self, dataset: Dataset, tokenizer: ProFamTokenizer):
+        # expects 'MSA' document to have been added to row already
         dataset = dataset.map(
             functools.partial(
                 load_completions_for_row,
@@ -340,11 +318,91 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         )
         return dataset
 
-    def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
-        df = build_gym_df(
-            self.dms_ids,
-            gym_data_dir=os.path.join(data_dir, "ProteinGym"),
+
+class GymDatasetBuilder(BaseGymDatasetBuilder):
+    def __init__(
+        self,
+        name: str,
+        dms_ids: List[str],
+        seed: Optional[int] = 42,  # for msa sampling
+        max_mutated_sequences: Optional[int] = None,
+        mutant_bos_token: str = "sep",
+        keep_gaps: bool = False,
+        use_filtered_msa: bool = False,
+        extra_tokens_per_document: int = 2,
+        use_msa_pos: bool = True,
+        num_proc: Optional[int] = None,
+    ):
+        """Thing that's a bit different about Gym (and family classification)
+        is that we have this prompt/completions structure.
+
+        We can still use a preprocessor to build the prompt, but we need
+        to additionally handle preprocessing of completions.
+
+        We can still train on these datasets - just by setting seed None and
+        not setting val dataset name. In this case, model will ignore completions.
+        """
+        super().__init__(name=name, dms_ids=dms_ids)
+        self.seed = seed
+        self.max_mutated_sequences = max_mutated_sequences
+        self.mutant_bos_token = mutant_bos_token
+        self.keep_gaps = keep_gaps
+        self.use_filtered_msa = use_filtered_msa
+        self.extra_tokens_per_document = extra_tokens_per_document
+        self.use_msa_pos = use_msa_pos
+        self.num_proc = num_proc
+
+    def process(
+        self,
+        dataset: Dataset,
+        tokenizer: ProFamTokenizer,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+        feature_names: Optional[List[str]] = None,
+    ):
+        """mutant_bos_token should almost always be sep.
+
+        when using a BaseSingleSequenceLitModule, however, we want it
+        to be bos, since no context sequences are passed during scoring.
+        """
+        print(f"Processing gym dataset for evaluation, keeping gaps: {self.keep_gaps}")
+        dataset = dataset.map(
+            functools.partial(
+                load_msa_for_row,
+                seed=self.seed,  # For what?
+                max_tokens=max_tokens_per_example,
+                keep_gaps=self.keep_gaps,
+                use_filtered_msa=self.use_filtered_msa,
+                extra_tokens_per_document=self.extra_tokens_per_document,
+                use_msa_pos=self.use_msa_pos,
+                shuffle=shuffle_proteins_in_document,
+            ),
+            batched=False,
+            num_proc=self.num_proc,
         )
-        # n.b. this isn't streamed
-        dataset = Dataset.from_pandas(df, preserve_index=False)
+        dataset = self._process_completions(dataset, tokenizer)
+        return dataset
+
+
+class GymInverseFoldingDatasetBuilder(BaseGymDatasetBuilder):
+    def __init__(self, name: str, dms_ids: List[str]):
+        super().__init__(name=name, dms_ids=dms_ids)
+
+    def process(
+        self,
+        dataset: Dataset,
+        tokenizer: ProFamTokenizer,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+        feature_names: Optional[List[str]] = None,
+    ):
+        print(f"Processing gym dataset for evaluation, keeping gaps: {self.keep_gaps}")
+        dataset = dataset.map(
+            functools.partial(
+                load_representative_document, gym_data_dir=self.gym_data_dir
+            ),
+            batched=False,
+            num_proc=self.num_proc,
+        )
+        dataset = self._process_completions(dataset, tokenizer)
         return dataset
