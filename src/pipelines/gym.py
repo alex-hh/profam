@@ -1,15 +1,15 @@
 import functools
 import os
 from typing import Callable, Dict, List, Optional, Tuple
+
 import pandas as pd
-from src.data.objects import ProteinDocument, Protein
-from src.data.proteingym import load_msa_document, load_completions
+
+from src.data.objects import Protein, ProteinDocument
+from src.data.proteingym import load_completions, load_msa_document
 from src.pipelines.pipeline import CompletionScoringEvaluatorPipeline
 
 
-def default_proteingym_msa(
-    dms_id, meta_df, gym_data_dir, use_filtered_msa=False
-):
+def default_proteingym_msa(dms_id, meta_df, gym_data_dir, use_filtered_msa=False):
     msa_file = os.path.join(gym_data_dir, meta_df.loc[dms_id]["MSA_filename"])
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
@@ -55,7 +55,9 @@ class ProteinGymPipeline(CompletionScoringEvaluatorPipeline):
     def load_completions(
         self, instance_id: str
     ) -> Tuple[pd.DataFrame, ProteinDocument]:
-        dms_file = os.path.join(self.gym_data_dir, self.meta_df.loc[instance_id]["DMS_filename"])
+        dms_file = os.path.join(
+            self.gym_data_dir, self.meta_df.loc[instance_id]["DMS_filename"]
+        )
         return load_completions(dms_file, seed=None, max_mutated_sequences=None)
 
     def get_instance_summary(
@@ -67,6 +69,10 @@ class ProteinGymPipeline(CompletionScoringEvaluatorPipeline):
 class ProteinGymInverseFoldingPipeline(ProteinGymPipeline):
     def load_protein_document(self, instance_id: str):
         uniprot_id = self.meta_df.loc[instance_id]["UniProt_ID"]
-        pdb_file = os.path.join(self.gym_data_dir, "ProteinGym_AF2_structures", f"{uniprot_id}.pdb")
+        pdb_file = os.path.join(
+            self.gym_data_dir, "ProteinGym_AF2_structures", f"{uniprot_id}.pdb"
+        )
         protein = Protein.from_pdb(pdb_file, bfactor_is_plddt=True)
-        return ProteinDocument.from_proteins([protein], representative_accession=uniprot_id)
+        return ProteinDocument.from_proteins(
+            [protein], representative_accession=uniprot_id
+        )

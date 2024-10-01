@@ -3,7 +3,9 @@ import os
 import re
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
+from biotite.structure.residues import get_residue_starts
 from datasets import Dataset
 from transformers import PreTrainedTokenizerFast
 
@@ -12,6 +14,7 @@ from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
 from src.sequence import fasta
+from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -147,17 +150,40 @@ def load_completions(
     dms_filename: str,
     max_mutated_sequences: Optional[int] = None,
     seed: Optional[int] = None,
+    include_backbone_coords: bool = False,
 ):
     dms_df = pd.read_csv(dms_filename)
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
+    if include_backbone_coords:
+        uniprot_id = "_".join(os.path.basename(dms_filename).split("_")[:-2])
+        pdb_file = os.path.join(
+            os.path.dirname(os.path.dirname(dms_filename)),
+            "ProteinGym_AF2_structures",
+            f"{uniprot_id}.pdb",
+        )
+        structure = load_structure(
+            pdb_file,
+            chain="A",
+            extra_fields=["b_factor"],
+        )
+        coords = get_atom_coords_residuewise(
+            ["N", "CA", "C", "O"], structure
+        )  # residues, atoms, xyz
+        plddt = np.array(structure.b_factor[get_residue_starts(structure)])
+        # TODO: assert wt sequence matches up
+        backbone_coords = [coords] * len(dms_df)
+        plddts = [plddt] * len(dms_df)
+    else:
+        backbone_coords = None
+        plddts = None
     completions = ProteinDocument(
         sequences=dms_df["mutated_sequence"].tolist(),
         accessions=dms_df["mutant"].tolist(),
         identifier=None,
         positions=None,
-        plddts=None,
-        backbone_coords=None,
+        plddts=plddts,
+        backbone_coords=backbone_coords,
         structure_tokens=None,
     )
     assert has_no_indels(

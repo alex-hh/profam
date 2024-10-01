@@ -600,13 +600,14 @@ class BaseFamilyLitModule(BaseLitModule):
 
     # TODO: make this part of a mixin so that it can be reused across models
     # c.f. GenerationsMixin
+    @torch.no_grad()
     def score_seqs(
         self,
         input_ids,
         completion_ids,
         use_cache: bool = True,
         batch_size: int = 1,
-        coords: Optional[torch.FloatTensor] = None,
+        input_coords: Optional[torch.FloatTensor] = None,
         input_seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         completion_coords: Optional[torch.FloatTensor] = None,
@@ -623,7 +624,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids,
                 completion_ids,
                 batch_size=batch_size,
-                coords=coords,
+                coords=input_coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
                 completion_coords=completion_coords,
@@ -633,7 +634,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids,
                 completion_ids,
                 batch_size=batch_size,
-                coords=coords,
+                coords=input_coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
                 completion_coords=completion_coords,

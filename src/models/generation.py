@@ -52,19 +52,21 @@ class ProFamSampler(ProFamInferenceModel, SamplingModelForEvaluation):
             padding="longest",
             add_final_sep=False,
         )
+        if self.model.tokenizer.use_seq_pos:
+            sampling_kwargs["input_seq_pos"] = torch.from_numpy(
+                encoded["seq_pos"][None]
+            ).to(device)
+        if self.model.embed_coords:
+            sampling_kwargs["input_coords"] = (
+                torch.from_numpy(encoded["coords"][None]).to(device).float()
+            )
 
+        device = self.model.device
         with torch.no_grad():  # prob unnecessary
             tokens = self.model._sample_seqs(
-                encoded["input_ids"].unsqueeze(0).to(self.model.device),
+                torch.from_numpy(encoded["input_ids"][None]).to(device),
                 max_tokens=self.prompt_builder.max_tokens,
                 num_samples=num_samples,
-                input_seq_pos=encoded["seq_pos"].unsqueeze(0).to(self.model.device),
-                input_coords=encoded["coords"]
-                .unsqueeze(0)
-                .to(self.model.device)
-                .float()
-                if self.model.embed_coords
-                else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
                 **sampling_kwargs,
             )
             sequences = self.model.tokenizer.decode_tokens(tokens)

@@ -1,3 +1,5 @@
+import torch
+
 from src.data.objects import ProteinDocument
 from src.evaluators.models import ScoringModelForEvaluation
 from src.models.inference import ProFamInferenceModel
@@ -5,7 +7,7 @@ from src.models.inference import ProFamInferenceModel
 
 class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
     def __init__(
-        self, *args, bos_token: str = "[SEP]", scoring_max_tokens: int = 2048, **kwargs
+        self, *args, bos_token: str = "", scoring_max_tokens: int = 2048, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.scoring_max_tokens = scoring_max_tokens
@@ -30,8 +32,9 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
         )
         # TODO: check this supports variable length completions
         # TODO: make sure we have correct bos token for interleaved scoring
+        print("Encoding completions", len(completions.sequences))
         encoded_completions = self.model.tokenizer.encode_completions(
-            completions=completions.sequences,
+            sequences=completions.sequences,
             positions=completions.positions,
             bos_token=self.bos_token,
             backbone_coords=completions.backbone_coords,
@@ -40,14 +43,33 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
         L = encoded_completions.input_ids.shape[-1]
         batch_size = (self.scoring_max_tokens - encoded.input_ids.shape[-1]) // L
         # TODO: check this works with variable length completions
+        device = self.model.device
+        kwargs = {}
+        if self.model.embed_coords:
+            kwargs["input_coords"] = (
+                torch.from_numpy(encoded.data["coords"][None]).to(device).float()
+            )
+            kwargs["completion_coords"] = (
+                torch.from_numpy(encoded_completions.data["coords"][None])
+                .to(device)
+                .float()
+            )
+        if self.model.tokenizer.use_seq_pos:
+            kwargs["input_seq_pos"] = torch.from_numpy(
+                encoded.data["seq_pos"][None]
+            ).to(device)
+            kwargs["completion_seq_pos"] = torch.from_numpy(
+                encoded_completions.data["seq_pos"][None]
+            ).to(device)
+
+        print("Scoring", flush=True)
         scores = self.model.score_seqs(
-            input_ids=encoded.input_ids,
-            completion_ids=encoded_completions.input_ids,
+            input_ids=torch.from_numpy(encoded.input_ids[None]).to(device),
+            completion_ids=torch.from_numpy(encoded_completions.input_ids[None]).to(
+                device
+            ),
             use_cache=True,
             batch_size=batch_size,  # TODO: infer based on completion length?
-            coords=encoded.data.get("coords", None),
-            input_seq_pos=encoded.data.get("seq_pos", None),
-            completion_seq_pos=encoded_completions.data.get("seq_pos", None),
-            completion_coords=encoded_completions.data.get("coords", None),
+            **kwargs,
         )
         return scores, prompt

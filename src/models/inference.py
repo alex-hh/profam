@@ -97,7 +97,7 @@ class ProFamInferenceModel:
         document_token: str = "[RAW]",
         checkpoint_path: Optional[str] = None,
     ):
-        super().__init__(name)
+        self.name = name
         self.model = model
         self.prompt_builder = prompt_builder
         assert prompt_builder is not None

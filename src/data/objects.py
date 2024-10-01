@@ -328,6 +328,10 @@ class ProteinDocument:
             self.backbone_coords_masks = [
                 np.ones_like(xyz) for xyz in self.backbone_coords
             ]
+        if self.representative_accession is not None:
+            assert (
+                self.representative_accession in self.accessions
+            ), f"{self.representative_accession} not in {self.accessions}"
 
     def __len__(self):
         return len(self.sequences)
