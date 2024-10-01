@@ -31,7 +31,7 @@ def setup_logging():
     )
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     console.setFormatter(formatter)
     logging.getLogger('').addHandler(console)
 
@@ -67,6 +67,7 @@ def filter_go_terms(input_path, min_ic):
     """Filters GO terms with Information Content (IC) below the specified threshold."""
     filtered_go_terms = set()
     total_uniprot_ids = 0
+    total_go_terms = 0
     with gzip.open(input_path, 'rt') as f:
         for line in f:
             parts = line.strip().split('\t')
@@ -74,68 +75,78 @@ def filter_go_terms(input_path, min_ic):
                 fam_id, info_content, uniprot_ids = parts
                 ic = float(info_content)
                 uniprot_count = len(uniprot_ids.split(','))
+                total_go_terms += 1
                 if ic < min_ic:
                     filtered_go_terms.add(fam_id)
                 else:
                     total_uniprot_ids += uniprot_count
     filtered_count = len(filtered_go_terms)
+    logging.info(f"Total GO terms: {total_go_terms}")
     logging.info(f"Filtered out {filtered_count} GO terms with Information Content below {min_ic}.")
+    logging.info(f"Remaining GO terms: {total_go_terms - filtered_count}")
     return filtered_go_terms, total_uniprot_ids
 
 def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms, total_uniprot_ids, batch_size):
     """Processes the input TSV file and writes the data into parquet files."""
     writers = {i: [] for i in range(num_parquet)}
     go_term_mapping = defaultdict(set)
+    processed_go_terms = 0
+    total_sequences = 0
+    counts = Counter()
 
-    with gzip.open(input_path, 'rt') as f:
-        pbar = tqdm(total=total_uniprot_ids, desc='Processing UniProt IDs', 
-                    bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} '
-                               '[Successful: {postfix[0]}, Failed: {postfix[1]}]')
-        pbar.postfix = [0, 0]
+    logging.info(f"Starting to process file: {input_path}")
+    logging.info(f"Total UniProt IDs to process: {total_uniprot_ids}")
 
-        for line in f:
-            parts = line.strip().split('\t')
-            if len(parts) != 3:
-                logging.warning(f"Skipping malformed line: {line.strip()}")
-                continue
-            fam_id, info_content, uniprot_ids = parts
-            
-            # Skip GO terms with Information Content below the threshold
-            if fam_id in filtered_go_terms:
-                continue
+    try:
+        with gzip.open(input_path, 'rt') as f:
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) != 3:
+                    logging.warning(f"Skipping malformed line: {line.strip()}")
+                    continue
+                fam_id, info_content, uniprot_ids = parts
+                
+                # Skip GO terms with Information Content below the threshold
+                if fam_id in filtered_go_terms:
+                    continue
 
-            uniprot_ids_list = [uid.strip() for uid in uniprot_ids.split(',') if uid.strip()]
+                processed_go_terms += 1
+                uniprot_ids_list = [uid.strip() for uid in uniprot_ids.split(',') if uid.strip()]
 
-            sequences = []
-            accessions = []
-            counts = Counter()
-            for uid in uniprot_ids_list:
-                seq = fetch_sequence(uid, db_env)
-                if seq:
-                    sequences.append(seq)
-                    accessions.append(uid)
-                    counts['success'] += 1
-                    pbar.postfix[0] = counts['success']
-                else:
-                    logging.error(f"Failed to fetch sequence for UniProt ID: {uid}")
-                    counts['failure'] += 1
-                    pbar.postfix[1] = counts['failure']
-                pbar.update(1)
+                sequences = []
+                accessions = []
+                for uid in uniprot_ids_list:
+                    seq = fetch_sequence(uid, db_env)
+                    if seq:
+                        sequences.append(seq)
+                        accessions.append(uid)
+                        counts['success'] += 1
+                    else:
+                        logging.error(f"Failed to fetch sequence for UniProt ID: {uid}")
+                        counts['failure'] += 1
 
-            if sequences:
-                parquet_index = assign_parquet_file(fam_id, num_parquet)
-                writers[parquet_index].append({
-                    'fam_id': fam_id,
-                    'sequences': sequences,
-                    'accessions': accessions
-                })
-                go_term_mapping[parquet_index].add(fam_id)
+                if sequences:
+                    parquet_index = assign_parquet_file(fam_id, num_parquet)
+                    writers[parquet_index].append({
+                        'fam_id': fam_id,
+                        'sequences': sequences,
+                        'accessions': accessions
+                    })
+                    go_term_mapping[parquet_index].add(fam_id)
+                    total_sequences += len(sequences)
 
-            if len(writers[parquet_index]) >= batch_size:
-                write_parquet(writers, output_dir)
-                writers = {i: [] for i in range(num_parquet)}
+                if processed_go_terms % 1000 == 0:
+                    logging.info(f"Processed {processed_go_terms} GO terms. "
+                                 f"Successful sequences: {counts['success']}, "
+                                 f"Failed sequences: {counts['failure']}")
 
-        pbar.close()
+                if len(writers[parquet_index]) >= batch_size:
+                    write_parquet(writers, output_dir)
+                    writers = {i: [] for i in range(num_parquet)}
+
+    except Exception as e:
+        logging.error(f"An error occurred while processing the file: {e}")
+        raise
 
     # Write any remaining records
     write_parquet(writers, output_dir)
@@ -145,6 +156,8 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
 
     logging.info(f"Successfully fetched {counts['success']} sequences.")
     logging.info(f"Failed to fetch {counts['failure']} sequences.")
+    logging.info(f"Processed {processed_go_terms} GO terms.")
+    logging.info(f"Total sequences written: {total_sequences}")
 
     # Create the GO term to parquet file mapping CSV
     create_go_term_mapping_csv(go_term_mapping, output_dir)
@@ -163,7 +176,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Process GO term data and generate parquet files.')
     parser.add_argument('--input', required=True, help='Path to input gzipped TSV file.')
     parser.add_argument('--output_dir', default='/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mf_parquets', help='Directory to store output parquet files.')
-    parser.add_argument('--lmdb_path', default='/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences_dict.lmdb', help='Path to LMDB database.')
+    parser.add_argument('--lmdb_path', default='/SAN/orengolab/cath_plm/ProFam/data/uniprot/uniprot_dict.lmdb', help='Path to LMDB database.')
     parser.add_argument('--num_parquet', type=int, default=100, help='Number of parquet files to generate.')
     parser.add_argument('--min_ic', type=float, default=11, help='Minimum Information Content (IC) threshold for GO terms.')
     parser.add_argument('--batch_size', type=int, default=10000, help='Batch size for writing records to parquet files.')
@@ -174,10 +187,21 @@ def main():
     args = parse_arguments()
     setup_logging()
 
+    logging.info("Starting GO term data processing and parquet file generation.")
+    logging.info(f"Input file: {args.input}")
+    logging.info(f"Output directory: {args.output_dir}")
+    logging.info(f"LMDB path: {args.lmdb_path}")
+    logging.info(f"Number of parquet files: {args.num_parquet}")
+    logging.info(f"Minimum Information Content threshold: {args.min_ic}")
+    logging.info(f"Batch size: {args.batch_size}")
+
     os.makedirs(args.output_dir, exist_ok=True)
     
     with lmdb.open(args.lmdb_path, readonly=True, lock=False, readahead=False, meminit=False) as db_env:
+        logging.info("Filtering GO terms based on Information Content...")
         filtered_go_terms, total_uniprot_ids = filter_go_terms(args.input, args.min_ic)
+        
+        logging.info("Processing input file and generating parquet files...")
         process_file(args.input, args.output_dir, db_env, args.num_parquet, filtered_go_terms, total_uniprot_ids, args.batch_size)
     
     logging.info("Processing completed.")
