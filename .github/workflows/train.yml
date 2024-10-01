@@ -46,4 +46,3 @@ jobs:
           trainer.val_check_interval=1.0 \
           trainer.target_tokens_per_batch=null \
           +trainer.num_sanity_val_steps=0
-

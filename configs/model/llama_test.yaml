@@ -15,4 +15,4 @@ config:
   rope_theta: 500000
   max_position_embeddings: 2048  # used in llama rope implementation
   scoring_max_tokens: 10240
-  attn_implementation: eager
+  attn_implementation: null
