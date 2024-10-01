@@ -92,7 +92,7 @@ class ScoringEvaluator(BaseEvaluator):
 
 
 class FitnessPredictionEvaluator(ScoringEvaluator):
-    # TODO: add other metrics e.g. auc
+    # TODO: add other metrics e.g. auc, ndcg
     def evaluate_scored_sequences(self, mutation_df, scores):
         assert len(scores) == len(mutation_df)
         mutation_df["predicted_score"] = scores

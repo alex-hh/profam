@@ -1,5 +1,5 @@
 
 _target_: src.pipelines.gym.ProteinGymInverseFoldingPipeline
-keep_gaps: false
-dms_ids: ${constants.profam.gym_val_assay_list}
+dms_ids: ${constants.gym_val_assay_list}
 pipeline_id: gym_val_inverse_folding
+gym_data_dir: ${paths.data_dir}/ProteinGym

@@ -56,7 +56,9 @@ class ProteinGymPipeline(CompletionScoringEvaluatorPipeline):
         self, instance_id: str
     ) -> Tuple[pd.DataFrame, ProteinDocument]:
         dms_file = os.path.join(
-            self.gym_data_dir, self.meta_df.loc[instance_id]["DMS_filename"]
+            self.gym_data_dir,
+            "DMS_ProteinGym_substitutions",
+            self.meta_df.loc[instance_id]["DMS_filename"],
         )
         return load_completions(dms_file, seed=None, max_mutated_sequences=None)
 

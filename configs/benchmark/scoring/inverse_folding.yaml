@@ -4,4 +4,3 @@ defaults:
   - /evaluator@evaluators.fitness: fitness
   - override /scorer: neat-thunder_if
   - override /pipeline: gym_val_inverse_folding
-

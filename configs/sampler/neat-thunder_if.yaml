@@ -1,6 +1,6 @@
 # N.B. this model requires COORDS TO BE DUPLICATED ON THE SEQUENCE SIDE
 # A llama small model trained on foldseek representatives
-_target_: src.models.inference.ProFamSampler
+_target_: src.models.generation.ProFamSampler
 defaults:
   - /model: llama_small
   - /tokenizer@model.tokenizer: profam

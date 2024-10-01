@@ -35,7 +35,9 @@ class BaseEvaluatorPipeline:
     def __init__(
         self,
         pipeline_id: str,
-        preprocessor: BasePreprocessor,  # we only use the build_document method
+        preprocessor: Optional[
+            BasePreprocessor
+        ] = None,  # we only use the build_document method
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
     ):
@@ -205,7 +207,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         self,
         num_generations: int,
         pipeline_id: str,
-        preprocessor: BasePreprocessor,
+        preprocessor: Optional[BasePreprocessor] = None,
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
     ):
@@ -416,7 +418,7 @@ class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
     def __init__(
         self,
         pipeline_id: str,
-        preprocessor: BasePreprocessor,
+        preprocessor: Optional[BasePreprocessor] = None,
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
     ):
