@@ -95,6 +95,7 @@ def load_msa_document(
     msa = ProteinDocument(
         sequences=seqs,
         accessions=labels,
+        representative_accession=labels[0],
     )
     return msa
 

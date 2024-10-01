@@ -9,7 +9,7 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
     ):
         super().__init__(*args, **kwargs)
         self.scoring_max_tokens = scoring_max_tokens
-        self.bos_token = bos_token
+        self.bos_token = bos_token  # n.b. inverse folding prompt builder will add separator so empty string in that case
 
     def score_completions(
         self,
