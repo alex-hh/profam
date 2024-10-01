@@ -1,6 +1,0 @@
-_target_: src.data.preprocessing.ParquetSequencePreprocessor
-defaults:
-  - config: raw
-  - transform_fns: replace_nans
-sequence_col: "sequences"
-infer_representative_from_identifier: true

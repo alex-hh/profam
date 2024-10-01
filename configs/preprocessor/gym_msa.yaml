@@ -1,4 +1,0 @@
-_target_: src.data.preprocessing.FastaPreprocessor
-defaults:
-  - config: msa
-  - transform_fns: replace_nans

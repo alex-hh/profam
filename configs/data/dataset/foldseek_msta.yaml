@@ -1,20 +1,21 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
-name: foldseek_msta
-defaults:
-  - /preprocessor: parquet_3di_msa
+# _target_: src.data.datasets.ParquetStructureDatasetBuilder
+# name: foldseek_msta
+# defaults:
+#   - /preprocessor: parquet_3di_msa
 
-cfg:
-  _target_: src.data.datasets.ProteinDatasetConfig
-  data_path_pattern: foldseek_struct/*.parquet
-  holdout_data_files: null
-  holdout_identifiers: null
-  identifier_col: fam_id
-  file_type: parquet
-  shuffle: true
+# cfg:
+#   _target_: src.data.datasets.ProteinDatasetConfig
+#   data_path_pattern: foldseek_struct/*.parquet
+#   holdout_data_files: null
+#   holdout_identifiers: null
+#   identifier_col: fam_id
+#   file_type: parquet
+#   shuffle: true
 
 
-preprocessor:
-  structure_tokens_col: null
-  length_filter: max_seq_pos
-  config:
-    document_token: "[AFDB]"
+
+#   structure_tokens_col: null
+#   length_filter: max_seq_pos
+#   infer_representative_from_identifier: true
+#   config:
+#     document_token: "[AFDB]"

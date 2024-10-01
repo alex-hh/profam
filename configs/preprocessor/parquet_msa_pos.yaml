@@ -1,5 +1,0 @@
-_target_: src.data.preprocessing.ParquetSequencePreprocessor
-defaults:
-  - config: msa_pos
-  - transform_fns: replace_nans
-infer_representative_from_identifier: true

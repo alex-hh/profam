@@ -1,7 +1,7 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.datasets.FastaProteinDatasetBuilder
 name: ec
 defaults:
-  - /preprocessor: "fasta_raw"
+  - /preprocessor: raw
 
 cfg:
   _target_: src.data.datasets.ProteinDatasetConfig

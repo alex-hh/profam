@@ -1,7 +1,7 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.datasets.FastaProteinDatasetBuilder
 name: openfold_raw
 defaults:
-  - /preprocessor: "parquet_raw"
+  - /preprocessor: raw
 
 cfg:
   _target_: src.data.datasets.ProteinDatasetConfig

@@ -1,7 +1,7 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.datasets.FastaProteinDatasetBuilder
 name: openfold_aligned
 defaults:
-  - /preprocessor: "parquet_msa"
+  - /preprocessor: msa
 
 cfg:
   _target_: src.data.datasets.ProteinDatasetConfig

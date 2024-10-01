@@ -115,6 +115,7 @@ class ProteinDocumentPreprocessor:
                     structure_first_prob=structure_first_prob,
                 )
             )
+        self.transform_fns = transform_fns
         self.interleave_structure_sequence = (
             interleave_structure_sequence  # should this be part of config?
         )

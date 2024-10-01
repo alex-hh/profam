@@ -1,7 +1,7 @@
-_target_: src.data.datasets.StreamedProteinDatasetBuilder
+_target_: src.data.parquet.ParquetStructureDatasetBuilder
 name: foldseek_interleaved
 defaults:
-  - /preprocessor: parquet_structure_noisy
+  - /preprocessor: noisy_interleaved_coords
 
 cfg:
   _target_: src.data.datasets.ProteinDatasetConfig
@@ -13,7 +13,7 @@ cfg:
   minimum_sequences: null
   shuffle: true
 
-preprocessor:
-  interleave_structure_sequence: true
-  structure_tokens_col: null
-  length_filter: max_seq_pos
+interleave_structure_sequence: true
+structure_tokens_col: null
+length_filter: max_seq_pos
+infer_representative_from_identifier: true
