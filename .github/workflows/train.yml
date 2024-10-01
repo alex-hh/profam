@@ -45,5 +45,4 @@ jobs:
           logger=null_logger \
           +trainer.num_sanity_val_steps=0 \
           trainer.val_check_interval=1.0 \
-          trainer.target_tokens_per_batch=null
           trainer.target_tokens_per_batch=null \
