@@ -63,22 +63,23 @@ def create_go_term_mapping_csv(mapping, output_dir):
                 writer.writerow({'GO_Term': go_term, 'Parquet_File': f'go_mf_{parquet_index}.parquet'})
     logging.info(f"Created GO term to parquet file mapping: {csv_path}")
 
-def filter_go_terms(input_path, max_uniprot_ids=100000):
-    """Filters GO terms with more than max_uniprot_ids UniProt IDs."""
+def filter_go_terms(input_path, min_ic):
+    """Filters GO terms with Information Content (IC) below the specified threshold."""
     filtered_go_terms = set()
     total_uniprot_ids = 0
     with gzip.open(input_path, 'rt') as f:
         for line in f:
             parts = line.strip().split('\t')
             if len(parts) == 3:
-                fam_id, _, uniprot_ids = parts
+                fam_id, info_content, uniprot_ids = parts
+                ic = float(info_content)
                 uniprot_count = len(uniprot_ids.split(','))
-                if uniprot_count > max_uniprot_ids:
+                if ic < min_ic:
                     filtered_go_terms.add(fam_id)
                 else:
                     total_uniprot_ids += uniprot_count
     filtered_count = len(filtered_go_terms)
-    logging.info(f"Filtered out {filtered_count} GO terms with more than {max_uniprot_ids} UniProt IDs.")
+    logging.info(f"Filtered out {filtered_count} GO terms with Information Content below {min_ic}.")
     return filtered_go_terms, total_uniprot_ids
 
 def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms, total_uniprot_ids, batch_size):
@@ -168,7 +169,7 @@ def parse_arguments():
     parser.add_argument('--lmdb_path', default='/SAN/orengolab/cath_plm/ProFam/data/afdb/sequences_dict.lmdb', help='Path to LMDB database.')
     parser.add_argument('--num_parquet', type=int, default=100, help='Number of parquet files to generate.')
     parser.add_argument('--log_level', type=str, default='INFO', help='Logging level (e.g., INFO, DEBUG).')
-    parser.add_argument('--max_uniprot_ids', type=int, default=100000, help='Maximum number of UniProt IDs per GO term.')
+    parser.add_argument('--min_ic', type=float, default=11, help='Minimum Information Content (IC) threshold for GO terms.')
     parser.add_argument('--batch_size', type=int, default=10000, help='Batch size for writing records to parquet files.')
     return parser.parse_args()
 
@@ -180,7 +181,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     
     with lmdb.open(args.lmdb_path, readonly=True, lock=False, readahead=False, meminit=False) as db_env:
-        filtered_go_terms, total_uniprot_ids = filter_go_terms(args.input, args.max_uniprot_ids)
+        filtered_go_terms, total_uniprot_ids = filter_go_terms(args.input, args.min_ic)
         process_file(args.input, args.output_dir, db_env, args.num_parquet, filtered_go_terms, total_uniprot_ids, args.batch_size)
     
     logging.info("Processing completed.")
