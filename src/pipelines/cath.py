@@ -42,10 +42,7 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         elif instance_id == "3j7yK":
             instance_id = "3j7yKK"
         entry = self.instance_dicts[instance_id]
-        protein = cath.protein_from_coords_dict(entry)
-        return ProteinDocument.from_proteins(
-            [protein], representative_accession=protein.accession
-        )
+        return cath.CATHDatasetBuilder.build_document(entry)
 
     def get_instance_summary(self, instance_id):
         return {

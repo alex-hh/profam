@@ -1,12 +1,12 @@
 from typing import Dict, Optional
 
 from src.data.parquet import build_representative_df
-from src.pipelines.mixins import ParquetGenerationsPipeline
+from src.pipelines.mixins import ParquetStructureMixin
 
 
 # TODO: perhaps this should actually be a generic parquet representatives
 # pipeline - if we manage to standardise data enough
-class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
+class FoldseekRepresentativesPipeline(ParquetStructureMixin):
     def __init__(
         self,
         *args,

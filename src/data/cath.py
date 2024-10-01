@@ -117,17 +117,22 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         )
         return dataset
 
+    @staticmethod
+    def build_document(example):
+        example["name"] = example["name"].replace(".", "")
+        protein = protein_from_coords_dict(example)
+        proteins = ProteinDocument.from_proteins(
+            [protein], representative_accession=protein.accession
+        )
+        return proteins
+
     def preprocess_example(
         self,
         example,
         tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
     ):
-        example["name"] = example["name"].replace(".", "")
-        protein = protein_from_coords_dict(example)
-        proteins = ProteinDocument.from_proteins(
-            [protein], representative_accession=protein.accession
-        )
+        proteins = self.build_document(example)
         proteins = transforms.fill_missing_fields(proteins, tokenizer=tokenizer)
         proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
         preprocessing_cfg = PreprocessingConfig(

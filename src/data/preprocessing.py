@@ -1,11 +1,9 @@
 import functools
 import os
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
-import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 
@@ -95,7 +93,11 @@ def backbone_coords_from_example(example, sequence_col="sequences"):
     return coords
 
 
-class BasePreprocessor:
+class ProteinDocumentPreprocessor:
+    """
+    Preprocesses protein documents by applying a set of transforms to protein data.
+    """
+
     def __init__(
         self,
         config: PreprocessingConfig,  # configures preprocessing of individual proteins

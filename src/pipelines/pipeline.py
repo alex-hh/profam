@@ -8,7 +8,6 @@ import tqdm
 
 from src import constants
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import BasePreprocessor
 from src.evaluators.base import SamplingEvaluator
 from src.sequence import fasta
 from src.utils.utils import maybe_print
@@ -30,16 +29,11 @@ class BaseEvaluatorPipeline:
     def __init__(
         self,
         pipeline_id: str,
-        preprocessor: BasePreprocessor,  # we only use the build_document method
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
     ):
         """preprocessor: a bare preprocessor (no transform_fns), to build document from raw data."""
         self.pipeline_id = pipeline_id
-        self.preprocessor = preprocessor
-        # assert (
-        #     self.preprocessor.transform_fns is None
-        # ), "Pipeline preprocessor should not have transforms"  # doesnt matter: they dont get called
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
@@ -123,6 +117,9 @@ class BaseEvaluatorPipeline:
     def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
         raise NotImplementedError()
 
+    def load_protein_document(self, instance_id: str) -> ProteinDocument:
+        raise NotImplementedError()
+
 
 class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
@@ -132,7 +129,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         self,
         num_generations: int,
         pipeline_id: str,
-        preprocessor: BasePreprocessor,
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
     ):
@@ -144,7 +140,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         )
         super().__init__(
             pipeline_id,
-            preprocessor=preprocessor,
             benchmark_directory=benchmark_directory,
             save_results_to_file=save_results_to_file,
         )
@@ -183,14 +178,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         # if rerunning, we check that the configs match, otherwise we raise
         # an exception. (TODO: allow overriding with an ignore_config_mismatch flag).
         raise NotImplementedError()
-
-    def get_protein_example(self, instance_id):
-        """Load a protein example (a dict to be parsed by preprocessor)."""
-        raise NotImplementedError()
-
-    def load_protein_document(self, instance_id):
-        example = self.get_protein_example(instance_id)
-        return self.preprocessor.build_document(example, max_tokens=None, shuffle=False)
 
     def run_evaluator_on_instance(
         self,

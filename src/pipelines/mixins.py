@@ -1,7 +1,12 @@
-from typing import Dict, Optional
+from typing import List, Optional
 
 import pandas as pd
 
+from src.data.objects import ProteinDocument
+from src.data.parquet import (
+    ParquetSequenceDatasetBuilder,
+    ParquetStructureDatasetBuilder,
+)
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 
@@ -12,20 +17,19 @@ class ParquetMixin:
         self,
         *args,
         instance_id_col="fam_id",
-        evaluation_parquet: str = None,
-        evaluation_accessions_file: str = None,
-        parquet_index: str = None,
-        evaluation_accessions: list = None,
+        evaluation_parquet: Optional[str] = None,
+        evaluation_accessions_file: Optional[str] = None,
+        parquet_index: Optional[str] = None,
+        evaluation_accessions: Optional[List[str]] = None,
+        sequence_col: str = "sequences",
         max_instances: Optional[int] = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.instance_id_col = instance_id_col
+        self.sequence_col = sequence_col
         self.max_instances = max_instances
-        # TODO: standardise parquet index - i.e. create in former case
-
         if evaluation_parquet is not None:
-            assert evaluation_accessions_file is None
             self.evaluation_df = pd.read_parquet(evaluation_parquet).set_index(
                 self.instance_id_col, drop=False
             )
@@ -33,6 +37,9 @@ class ParquetMixin:
                 self.evaluation_df = self.evaluation_df.loc[evaluation_accessions]
             self.parquet_index = None
             self.evaluation_accessions = list(self.evaluation_df.index.values)
+            assert (
+                evaluation_accessions_file is None
+            ), "Cannot specify both parquet and accessions file"
         else:
             assert self.max_sequence_length is None
             assert (
@@ -66,8 +73,23 @@ class ParquetMixin:
         dict = evaluation_df.loc[instance_id].to_dict()
         return dict
 
+    def load_protein_document(self, instance_id: str) -> ProteinDocument:
+        example = self.get_protein_example(instance_id)
+        return ParquetSequenceDatasetBuilder.build_document(
+            example,
+            sequence_col=self.sequence_col,
+            max_tokens=None,
+            max_sequences=None,
+            sample_uniformly_from_col=None,
+            identifier_col=self.instance_id_col,
+            infer_representative_from_identifier=True,
+        )
 
-class ParquetGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
+    def instance_ids(self):
+        return self.evaluation_accessions
+
+
+class ParquetStructureMixin(ParquetMixin):
     def __init__(
         self,
         *args,
@@ -76,6 +98,8 @@ class ParquetGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
         evaluation_accessions_file: str = None,
         parquet_index: str = None,
         evaluation_accessions: list = None,
+        sequence_col: str = "sequences",
+        structure_tokens_col: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(
@@ -85,11 +109,20 @@ class ParquetGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
             evaluation_accessions_file=evaluation_accessions_file,
             evaluation_accessions=evaluation_accessions,
             parquet_index=parquet_index,
+            sequence_col=sequence_col,
             **kwargs,
         )
+        self.structure_tokens_col = structure_tokens_col
 
-    def instance_ids(self):
-        return self.evaluation_accessions
-
-    def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
-        return {}
+    def load_protein_document(self, instance_id: str) -> ProteinDocument:
+        example = self.get_protein_example(instance_id)
+        return ParquetStructureDatasetBuilder.build_document(
+            example,
+            sequence_col=self.sequence_col,
+            structure_tokens_col=self.structure_tokens_col,
+            max_tokens=None,
+            max_sequences=None,
+            sample_uniformly_from_col=None,
+            identifier_col=self.instance_id_col,
+            infer_representative_from_identifier=True,
+        )

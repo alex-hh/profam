@@ -221,14 +221,19 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
         self.infer_representative_from_identifier = infer_representative_from_identifier
         self.sample_uniformly_from_col = sample_uniformly_from_col
 
+    @staticmethod
     def build_document(
-        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
+        example,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+        sequence_col: str = "sequences",
+        identifier_col: str = "fam_id",
+        max_sequences: Optional[int] = None,
+        infer_representative_from_identifier: bool = False,
     ):
-        sequence_iterator = example[self.sequence_col]
+        sequence_iterator = example[sequence_col]
         max_sequences_to_preprocess = (
-            (max_tokens // 40)
-            if self.max_sequences_per_document is None
-            else self.max_sequences_per_document
+            (max_tokens // 40) if max_sequences is None else max_sequences
         )
         # n.b. this also shuffles
         if shuffle:
@@ -241,10 +246,26 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
 
         return ProteinDocument(
             sequences=sequences,
-            representative_accession=example[self.identifier_col]
-            if self.infer_representative_from_identifier
+            representative_accession=example[identifier_col]
+            if infer_representative_from_identifier
             else None,
             original_size=len(sequence_iterator),
+        )
+
+    def _build_document(
+        self,
+        example,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ):
+        return self.build_document(
+            example,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            max_sequences=self.max_sequences_per_document,
+            sequence_col=self.sequence_col,
+            identifier_col=self.identifier_col,
+            infer_representative_from_identifier=self.infer_representative_from_identifier,
         )
 
 
@@ -284,59 +305,54 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
         self.minimum_mean_plddt = minimum_mean_plddt
         self.length_filter = length_filter
 
+    @staticmethod
     def build_document(
-        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
+        example,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+        max_sequences: Optional[int] = None,
+        sample_uniformly_from_col: Optional[str] = None,
+        structure_tokens_col: Optional[str] = None,
+        sequence_col: str = "sequences",
+        identifier_col: str = "fam_id",
+        infer_representative_from_identifier: bool = False,
     ):
         # TODO: configure whether or not to use alignments, structure tokens col, etc.
         max_sequences_to_preprocess = (
-            (max_tokens or 1e8) // 40
-            if self.max_sequences is None
-            else self.max_sequences
+            (max_tokens or 1e8) // 40 if max_sequences is None else max_sequences
         )
-        if self.sample_uniformly_from_col is not None:
+        if sample_uniformly_from_col is not None:
             assert shuffle
             sequence_ids = uniformly_sample_clusters(
-                example["sequences"],
-                example[self.sample_uniformly_from_col],
+                example[sequence_col],
+                example[sample_uniformly_from_col],
                 max_tokens - 3,
             )
         elif shuffle:
             sequence_ids = random_subsample(
-                np.arange(len(example["sequences"])),
+                np.arange(len(example[sequence_col])),
                 max_sequences_to_preprocess,
             )
         else:
             sequence_ids = np.arange(
-                min(max_sequences_to_preprocess, len(example["sequences"]))
+                min(max_sequences_to_preprocess, len(example[sequence_col]))
             )
-        sequences = [example["sequences"][i] for i in sequence_ids]
+        sequences = [example[sequence_col][i] for i in sequence_ids]
         accessions = [example["accessions"][i] for i in sequence_ids]
         # we assume sequence processing and structure token processing are consistent.
         # later we will check that everything ends up the same length - which is important
         # because otherwise incorrect config could easily lead to misalignment
-        if self.structure_tokens_col is not None:
-            structure_tokens_iterator = example[self.structure_tokens_col]
-            # TODO: handle some other way that with this function
-            # e.g. just replace gaps with ""
-            structure_tokens = [
-                convert_sequence_with_positions(
-                    structure_tokens_iterator[i],
-                    keep_gaps=self.cfg.keep_gaps,
-                    keep_insertions=self.cfg.keep_insertions,
-                    to_upper=self.cfg.to_upper,
-                )[0].lower()
-                for i in sequence_ids
-            ]
+        if structure_tokens_col is not None:
+            structure_tokens_iterator = example[structure_tokens_col]
+            structure_tokens = [structure_tokens_iterator[i] for i in sequence_ids]
         else:
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
-        if "N" in example and not self.cfg.keep_gaps:
+        if "N" in example:
             assert not any(["-" in seq for seq in sequences])
             if structure_tokens is not None:
                 assert not any(["-" in seq for seq in structure_tokens])
-            coords = backbone_coords_from_example(
-                example, sequence_col=self.sequence_col
-            )
+            coords = backbone_coords_from_example(example, sequence_col=sequence_col)
             coords = [coords[i] for i in sequence_ids]
             plddts = example["plddts"]
             plddts = [plddts[i] for i in sequence_ids]
@@ -351,10 +367,28 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
             plddts=plddts,
             backbone_coords=coords,
             structure_tokens=structure_tokens,
-            representative_accession=example[self.identifier_col]
-            if self.infer_representative_from_identifier
+            representative_accession=example[identifier_col]
+            if infer_representative_from_identifier
             else None,
             original_size=len(example["sequences"]),
+        )
+
+    def _build_document(
+        self,
+        example,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ):
+        return self.build_document(
+            example,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+            max_sequences=self.max_sequences_per_document,
+            sample_uniformly_from_col=self.sample_uniformly_from_col,
+            structure_tokens_col=self.structure_tokens_col,
+            sequence_col=self.sequence_col,
+            identifier_col=self.identifier_col,
+            infer_representative_from_identifier=self.infer_representative_from_identifier,
         )
 
     # TODO: write a test for this

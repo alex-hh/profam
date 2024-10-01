@@ -8,7 +8,7 @@ from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import BasePreprocessor
+from src.data.preprocessing import ProteinDocumentPreprocessor
 from src.data.utils import examples_to_list_of_dicts
 from src.sequence.fasta import read_fasta_sequences
 from src.utils.tokenizers import ProFamTokenizer
@@ -95,7 +95,7 @@ class BaseProteinDatasetBuilder:
     def __init__(
         self,
         name: str,
-        preprocessor: Optional[BasePreprocessor] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
     ):
         self.name = name
@@ -114,7 +114,7 @@ class BaseProteinDatasetBuilder:
     def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
         raise NotImplementedError("Must implement load method")
 
-    def build_documents(
+    def _build_documents(
         self,
         examples,
         max_tokens: Optional[int] = None,
@@ -126,7 +126,7 @@ class BaseProteinDatasetBuilder:
         """
         example_dicts = examples_to_list_of_dicts(examples)
         proteins_list = [
-            self.build_document(example_dict, max_tokens=max_tokens, shuffle=shuffle)
+            self._build_document(example_dict, max_tokens=max_tokens, shuffle=shuffle)
             for example_dict in example_dicts
         ]
         document_lengths = [
@@ -153,9 +153,10 @@ class BaseProteinDatasetBuilder:
 
         return merged_documents
 
-    def build_document(
+    def _build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
+        # private method has fixed signature; static methods can have variable signature
         raise NotImplementedError(
             "Must implement build_document method on child dataset builder"
         )
@@ -167,12 +168,14 @@ class BaseProteinDatasetBuilder:
                     return False
 
 
+# TODO: consider breaking out document building into a separate class
+# for re-use in pipelines
 class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(
         self,
         name: str,
         cfg: ProteinDatasetConfig,
-        preprocessor: Optional[BasePreprocessor] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
         max_sequences_per_document: Optional[int] = None,
@@ -201,7 +204,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
         """
 
         if self.batched_map:
-            proteins_list = self.build_documents(
+            proteins_list = self._build_documents(
                 examples,
                 max_tokens=max_tokens_per_example,
                 shuffle=shuffle_proteins_in_document,
@@ -220,7 +223,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
             return examples
         else:
             # examples is a single row dict in this case
-            proteins = self.build_document(
+            proteins = self._build_document(
                 examples,
                 max_tokens=max_tokens_per_example,
                 shuffle=shuffle_proteins_in_document,
@@ -349,7 +352,7 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
         self,
         name: str,
         cfg: ProteinDatasetConfig,
-        preprocessor: Optional[BasePreprocessor] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
     ):
@@ -382,17 +385,19 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
             return filter_num_seqs
         return False
 
-    def build_document_from_text(
-        self, text, max_tokens: Optional[int] = None, shuffle: bool = True
+    @staticmethod
+    def build_document(
+        text,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+        max_sequences: Optional[int] = None,
     ):
         lines = text.split("\n")
         if not len(lines[-1]):
             lines = lines[:-1]
         # rough upper bound: min 2 lines per seq, assume at least 10 tks per line
         max_fasta_lines_to_preprocess = (
-            (max_tokens or 1e8) // 5
-            if self.max_sequences_per_document is None
-            else self.max_sequences_per_document * 50
+            (max_tokens or 1e8) // 5 if max_sequences is None else max_sequences * 50
         )
         if len(lines) > max_fasta_lines_to_preprocess:
             lines = subsample_fasta_lines(
@@ -416,10 +421,20 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
             sequences=sequences, original_size=len(lines) // 2
         )  # upper bound estimate of number of sequences
 
-    def build_document(
+    def _build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         if isinstance(example, str):
-            return self.build_document_from_text(example, max_tokens, shuffle)
+            return self.build_document_from_text(
+                example,
+                max_tokens,
+                shuffle,
+                max_sequences=self.max_sequences_per_document,
+            )
         else:
-            return self.build_document_from_text(example["text"], max_tokens, shuffle)
+            return self.build_document_from_text(
+                example["text"],
+                max_tokens,
+                shuffle,
+                max_sequences=self.max_sequences_per_document,
+            )
