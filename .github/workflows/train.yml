@@ -23,9 +23,9 @@ jobs:
         pip install -r requirements.txt
 
 # TODO: seed?
-#    - name: Test
-#      run: |
-#        pytest -k "not example"
+    - name: Test
+      run: |
+        pytest -k "not example"
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 python src/train.py \
