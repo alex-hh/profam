@@ -1,5 +1,6 @@
 from typing import Optional
 
+import torch
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
@@ -19,6 +20,7 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         scoring_max_tokens: int = 64000,
     ) -> None:
         model = LlamaForCausalLM(config)
+
         super().__init__(
             model,
             tokenizer,
@@ -78,6 +80,13 @@ class LlamaLitModule(BaseFamilyLitModule):
             )
         else:
             model = LlamaForCausalLM(config)
+        # n.b. attention implementation gets set here (in from_pretrained, _from_config, __init__):
+        # https://github.com/huggingface/transformers/blob/1dba608df93ffb10a9c268ef35191adf2424c5ca/src/transformers/modeling_utils.py#L1542
+        # c.f. https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-2
+        print(
+            "Initialised Llama model, attention implementation: ",
+            model.config._attn_implementation,
+        )
         super().__init__(
             model,
             tokenizer,

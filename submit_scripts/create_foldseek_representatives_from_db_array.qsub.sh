@@ -23,7 +23,7 @@ if [ ! -f $output_file ]; then
     mkdir -p ${SCRATCH_DIR}/data
     echo "Created scratch dir"
     ls /scratch0/$USER/$JOB_ID
-    export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
+    export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:/SAN/orengolab/cath_plm/ProFam/foldseek/bin/:$PATH
     python3 -m data_creation_scripts.foldseek.create_foldseek_struct_from_db ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --representative_only
     rm -rf ${SCRATCH_DIR}/data
 fi

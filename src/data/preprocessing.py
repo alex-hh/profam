@@ -402,6 +402,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         self,
         config: PreprocessingConfig,
         sequence_col: str = "sequences",
+        identifier_col: str = "fam_id",
         transform_fns: Optional[List[Callable]] = None,
         infer_representative_from_identifier: bool = False,
         batched_map: bool = False,  # should map be called with batched=True
@@ -420,6 +421,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
             sample_uniformly_from_col=sample_uniformly_from_col,
         )
         self.sequence_col = sequence_col
+        self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
 
     @property
