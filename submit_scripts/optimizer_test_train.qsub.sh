@@ -1,11 +1,11 @@
 #!/bin/bash
 #$ -P cath
-#$ -l tmem=32G
+#$ -l tmem=64G
 #$ -l tscratch=200G
 #$ -l hostname=clifford*
 #$ -l gpu=true
 #$ -pe gpu 1
-#$ -l m_core=12
+#$ -l m_core=32
 #$ -l h_rt=72:55:30
 #$ -S /bin/bash
 #$ -N optz3
@@ -73,7 +73,7 @@ ls ${SCRATCH_DIR}/pfam
 echo "Optimizer: $OPTIMIZER"
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
-data.batch_size=8 \
+data.batch_size=10 \
 trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
@@ -81,7 +81,7 @@ model=llama_medium \
 model.lr=4e-3 \
 model.optimizer=$OPTIMIZER \
 trainer.val_check_interval=1.0 \
-data.num_workers=10 \
+data.num_workers=30 \
 data.max_tokens=10000 \
 paths.data_dir=$SCRATCH_DIR  #"/SAN/orengolab/cath_plm/ProFam/data" \
 float32_matmul_precision=high \
