@@ -3,7 +3,7 @@ scheduler_name: "inverse_sqrt"
 num_warmup_steps: 1000
 lr: 1e-4
 config:
-  _target_: transformers.MistralConfig
+  _target_: transformers.MistralCaconfig
   vocab_size: 66
   hidden_size: 512
   intermediate_size: 2048
