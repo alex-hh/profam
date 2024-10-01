@@ -25,7 +25,12 @@ class PromptBuilder:
         self.seed = seed
         self.max_tokens = max_tokens
 
-    def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+    def __call__(
+        self,
+        proteins: ProteinDocument,
+        tokenizer: ProFamTokenizer,
+        completions: Optional[ProteinDocument] = None,
+    ):
         max_length = max(len(seq) for seq in proteins.sequences)
         transform_fns = default_transforms(
             max_tokens=self.max_tokens - max_length, shuffle=True, seed=self.seed
@@ -36,6 +41,17 @@ class PromptBuilder:
         proteins = transforms.apply_transforms(
             transform_fns, proteins, tokenizer, max_tokens=self.max_tokens - max_length
         )
+        if completions is not None:
+            completions = preprocess_protein_sequences(
+                completions, self.preprocessor.cfg, tokenizer
+            )
+            completions = transforms.apply_transforms(
+                transform_fns,
+                completions,
+                tokenizer,
+                max_tokens=self.max_tokens - max_length,
+            )
+            return proteins, completions
         return proteins
 
 
@@ -62,7 +78,12 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
 
     # we need to exclude token space for length seed*2 from preprocessing
     # TODO: write tests for this
-    def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
+    def __call__(
+        self,
+        proteins: ProteinDocument,
+        tokenizer: ProFamTokenizer,
+        completions: Optional[ProteinDocument] = None,
+    ):
         proteins = proteins.clone()
         representative = proteins.representative
 
@@ -85,6 +106,19 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         representative_doc = representative_doc.slice_arrays(
             [slice(0, len(representative.sequence) + 1)]
         )
+        if completions is not None:
+            # apply interleaved transforms to completions and slice out the completion part.
+            # TODO: decide if this is a robust way to do this
+            completions = preprocess_protein_sequences(
+                completions, self.preprocessor.cfg, tokenizer
+            )
+            completions = transforms.apply_transforms(
+                transform_fns, completions, tokenizer, max_tokens=None
+            )
+            completions = completions.slice_arrays(
+                [slice(len(representative.sequence) + 1, None)] * len(completions)
+            )
+            return representative_doc, completions
         return representative_doc
 
 

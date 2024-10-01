@@ -52,6 +52,7 @@ class ProFamSampler(ProFamInferenceModel, SamplingModelForEvaluation):
             padding="longest",
             add_final_sep=False,
         )
+        device = self.model.device
         if self.model.tokenizer.use_seq_pos:
             sampling_kwargs["input_seq_pos"] = torch.from_numpy(
                 encoded["seq_pos"][None]
@@ -61,7 +62,6 @@ class ProFamSampler(ProFamInferenceModel, SamplingModelForEvaluation):
                 torch.from_numpy(encoded["coords"][None]).to(device).float()
             )
 
-        device = self.model.device
         with torch.no_grad():  # prob unnecessary
             tokens = self.model._sample_seqs(
                 torch.from_numpy(encoded["input_ids"][None]).to(device),

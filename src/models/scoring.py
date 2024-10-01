@@ -1,5 +1,6 @@
 import torch
 
+from src.data import transforms
 from src.data.objects import ProteinDocument
 from src.evaluators.models import ScoringModelForEvaluation
 from src.models.inference import ProFamInferenceModel
@@ -7,10 +8,16 @@ from src.models.inference import ProFamInferenceModel
 
 class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
     def __init__(
-        self, *args, bos_token: str = "", scoring_max_tokens: int = 2048, **kwargs
+        self,
+        *args,
+        bos_token: str = "",
+        scoring_max_tokens: int = 2048,
+        mask_completion_coords: bool = False,
+        **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.scoring_max_tokens = scoring_max_tokens
+        self.mask_completion_coords = mask_completion_coords
         self.bos_token = bos_token  # n.b. inverse folding prompt builder will add separator so empty string in that case
 
     def score_completions(
@@ -22,7 +29,9 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
         if document_is_prompt:
             raise NotImplementedError("We need to infer original sequence length...")
         else:
-            prompt = self.prompt_builder(protein_document, self.model.tokenizer)
+            prompt, completions = self.prompt_builder(
+                protein_document, self.model.tokenizer, completions=completions
+            )
         # encode prompt, then encode completions
         encoded = self.model.tokenizer.encode(
             prompt,
@@ -30,9 +39,6 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
             padding="longest",
             add_final_sep=False,
         )
-        # TODO: check this supports variable length completions
-        # TODO: make sure we have correct bos token for interleaved scoring
-        print("Encoding completions", len(completions.sequences))
         encoded_completions = self.model.tokenizer.encode_completions(
             sequences=completions.sequences,
             positions=completions.positions,
