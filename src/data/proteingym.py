@@ -83,6 +83,48 @@ def tokenize(
     return sample
 
 
+def load_msa_document(
+    msa_filename: str,
+    seed: Optional[int] = None,
+    keep_wt: bool = True,
+    drop_wt: bool = False,
+    keep_gaps: bool = False,
+    use_msa_pos: bool = True,
+    max_tokens: int = 2048,
+    extra_tokens_per_document: int = 2,
+    shuffle: bool = True,
+):
+    labels, seqs = fasta.read_fasta(
+        msa_filename,
+        keep_insertions=True,
+        to_upper=True,
+        keep_gaps=True,
+    )
+    msa = ProteinDocument(
+        sequences=seqs,
+        accessions=labels,
+    )
+    max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
+    proteins = sample_to_max_tokens(
+        proteins,
+        seed=seed,
+        drop_first=drop_wt,
+        keep_first=keep_wt,
+        shuffle=shuffle,
+        max_tokens=max_tokens_for_msa,
+        extra_tokens_per_document=extra_tokens_per_document,
+    )
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=keep_gaps,
+        keep_insertions=True,  # Gym-specific: Gym MSAs use lower case for non-focus cols not insertions
+        to_upper=True,
+        use_msa_pos=use_msa_pos,
+        truncate_after_n_sequences=None,
+    )
+    return proteins
+
+
 def load_msa_for_row(
     row,
     seed,
@@ -98,41 +140,17 @@ def load_msa_for_row(
     msa_file = row["MSA_filename"]
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
-    _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
-        msa_file,
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=True if use_msa_pos else keep_gaps,
-    )
-    proteins = ProteinDocument(
-        sequences=seqs,
-        accessions=None,
-        identifier=None,
-        positions=None,
-        plddts=None,
-        backbone_coords=None,
-        structure_tokens=None,
-    )
-    # need to allow room for the completion
-    # todo should be max completion length (once we handle indels)
-    max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
-    proteins = sample_to_max_tokens(
-        proteins,
-        seed=seed,
-        drop_first=drop_wt,
-        keep_first=keep_wt,
-        shuffle=shuffle,
-        max_tokens=max_tokens_for_msa,
-        extra_tokens_per_document=extra_tokens_per_document,
-    )
 
-    proteins = transforms.convert_sequences_adding_positions(
-        proteins,
+    proteins = load_msa_document(
+        msa_file,
+        seed=seed,
+        keep_wt=keep_wt,
+        drop_wt=drop_wt,
         keep_gaps=keep_gaps,
-        keep_insertions=True,
-        to_upper=True,
         use_msa_pos=use_msa_pos,
-        truncate_after_n_sequences=None,
+        shuffle=shuffle,
+        max_tokens=max_tokens,
+        extra_tokens_per_document=extra_tokens_per_document,
     )
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
@@ -142,35 +160,49 @@ def load_msa_for_row(
     return row
 
 
-def load_comp_seq_dms_for_row(
-    row,
-    seed,
-    max_mutated_sequences,
-    use_msa_pos: bool = True,
-    keep_gaps: bool = False,
+def load_completions(
+    dms_filename: str,
+    max_mutated_sequences: Optional[int] = None,
+    seed: Optional[int] = None,
 ):
-
-    dms_df = pd.read_csv(row["DMS_filename"])
+    dms_df = pd.read_csv(dms_filename)
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
-    completion_seqs = dms_df["mutated_sequence"].tolist()
-    assert has_no_indels(completion_seqs), "Comp seq indel handling not implemented"
-    proteins = ProteinDocument(
-        sequences=completion_seqs,
-        accessions=None,
+    completions = ProteinDocument(
+        sequences=dms_df["mutated_sequence"].tolist(),
+        accessions=dms_df["mutant"].tolist(),
         identifier=None,
         positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
     )
-    proteins = transforms.convert_sequences_adding_positions(
-        proteins,
-        keep_gaps=keep_gaps,  # no gaps in DMS sequences
+    assert has_no_indels(
+        completions.sequences
+    ), "Comp seq indel handling not implemented"
+    # TODO: figure out how to handle msa pos etc.
+    # for substitutions, use_msa_pos True and False should be the same
+    # TODO: this step might not be necessary? We can just trivially add positions...maybe do this within convert_sequences_adding_positions?
+    completions = transforms.convert_sequences_adding_positions(
+        completions,
+        keep_gaps=False,  # no gaps in DMS sequences
         keep_insertions=True,  # no insertions in DMS sequences
         to_upper=True,
-        use_msa_pos=use_msa_pos,
+        use_msa_pos=False,
         truncate_after_n_sequences=None,
+    )
+    return completions, dms_df
+
+
+def load_completions_for_row(
+    row,
+    seed,
+    max_mutated_sequences,
+):
+    proteins, dms_df = load_completions(
+        row["DMS_filename"],
+        max_mutated_sequences=max_mutated_sequences,
+        seed=seed,
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences

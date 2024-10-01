@@ -30,6 +30,7 @@ class ProFamScorer(ProFamInferenceModel, ScoringModelForEvaluation):
         )
         # TODO: check this supports variable length completions
         # TODO: make sure we have correct bos token for interleaved scoring
+        # TODO: handle coords etc.
         encoded_completions = self.model.tokenizer.encode_completions(
             completions=completions.sequences,
             positions=completions.positions,

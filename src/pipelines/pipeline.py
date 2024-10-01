@@ -529,8 +529,8 @@ class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
 
     def run(
         self,
-        scorer,
-        evaluators: Union[List[SamplingEvaluator], SamplingEvaluator],
+        scorer: ScoringModelForEvaluation,
+        evaluators: Union[List[ScoringEvaluator], ScoringEvaluator],
         verbose: bool = True,
         rerun_scorer: bool = False,
         rerun_evaluator: bool = True,
