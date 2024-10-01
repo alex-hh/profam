@@ -1,15 +1,16 @@
 import glob
 import os
-import random
 from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-import torch
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 
+from src.data.objects import ProteinDocument
 from src.data.preprocessing import BasePreprocessor
+from src.data.utils import examples_to_list_of_dicts
+from src.sequence.fasta import read_fasta_sequences
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -95,9 +96,11 @@ class BaseProteinDatasetBuilder:
         self,
         name: str,
         preprocessor: Optional[BasePreprocessor] = None,
+        required_keys: Optional[List[str]] = None,
     ):
         self.name = name
         self.preprocessor = preprocessor
+        self.required_keys = required_keys
 
     def process(
         self,
@@ -111,6 +114,58 @@ class BaseProteinDatasetBuilder:
     def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
         raise NotImplementedError("Must implement load method")
 
+    def build_documents(
+        self,
+        examples,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+    ):
+        """We assume that documents should be concatenated up to max_tokens.
+
+        TODO: implement document-aware attention masking
+        """
+        example_dicts = examples_to_list_of_dicts(examples)
+        proteins_list = [
+            self.build_document(example_dict, max_tokens=max_tokens, shuffle=shuffle)
+            for example_dict in example_dicts
+        ]
+        document_lengths = [
+            sum(proteins.sequence_lengths) for proteins in proteins_list
+        ]
+        merged_documents = []
+        current_document = None
+        total_sequence_length = 0
+        for proteins, length in zip(proteins_list, document_lengths):
+            if current_document is None:
+                current_document = proteins.clone()
+            else:
+                if sum(current_document.sequence_lengths) + length <= (
+                    max_tokens or 1e8
+                ):
+                    current_document = current_document.extend(proteins)
+                    total_sequence_length += sum(proteins.sequence_lengths)
+                else:
+                    merged_documents.append(current_document)
+                    current_document = proteins.clone()
+                    total_sequence_length = sum(current_document.sequence_lengths)
+        if current_document is not None:
+            merged_documents.append(current_document)
+
+        return merged_documents
+
+    def build_document(
+        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
+    ):
+        raise NotImplementedError(
+            "Must implement build_document method on child dataset builder"
+        )
+
+    def filter(self, example, **kwargs):
+        if self.required_keys is not None:
+            for k in self.required_keys:
+                if k not in example or not example[k]:
+                    return False
+
 
 class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(
@@ -120,11 +175,13 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
         preprocessor: Optional[BasePreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
+        max_sequences_per_document: Optional[int] = None,
     ):
         super().__init__(name, preprocessor)
         self.cfg = cfg
         self.batched_map = batched_map
         self.map_batch_size = map_batch_size
+        self.max_sequences_per_document = max_sequences_per_document
 
     def preprocess_examples(
         self,
@@ -144,8 +201,13 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
         """
 
         if self.batched_map:
-            examples = self.preprocessor.batched_preprocess_protein_data(
+            proteins_list = self.build_documents(
                 examples,
+                max_tokens=max_tokens_per_example,
+                shuffle=shuffle_proteins_in_document,
+            )
+            examples = self.preprocessor.batched_preprocess_protein_data(
+                proteins_list,
                 tokenizer,
                 max_tokens=max_tokens_per_example,
                 shuffle=shuffle_proteins_in_document,
@@ -158,8 +220,13 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
             return examples
         else:
             # examples is a single row dict in this case
-            examples = self.preprocessor.preprocess_protein_data(
+            proteins = self.build_document(
                 examples,
+                max_tokens=max_tokens_per_example,
+                shuffle=shuffle_proteins_in_document,
+            )
+            examples = self.preprocessor.preprocess_protein_data(
+                proteins,
                 tokenizer,
                 max_tokens=max_tokens_per_example,
                 shuffle=shuffle_proteins_in_document,
@@ -193,7 +260,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
                 remove_columns = None
 
             dataset = dataset.filter(
-                self.preprocessor.filter,
+                self.filter,
                 fn_kwargs={
                     "min_sequences": self.cfg.minimum_sequences,
                     "holdout_identifiers": self.cfg.holdout_identifiers,
@@ -256,3 +323,103 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
                 print()
 
         return dataset
+
+
+def subsample_fasta_lines(lines, n_lines, shuffle=True):
+    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
+    end_ix = start_ix[1:]
+    end_ix = np.append(end_ix, len(lines))
+    lines_per_seq = len(lines) // len(start_ix)
+    n_samples = min(n_lines // lines_per_seq, len(start_ix))
+    if shuffle:
+        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+    else:
+        sample_indices = np.arange(n_samples)
+    starts = start_ix[sample_indices]
+    ends = end_ix[sample_indices]
+    sampled_lines = []
+    for start, end in zip(starts, ends):
+        assert lines[end - 1][0] != ">"
+        sampled_lines.extend(lines[start:end])
+    return sampled_lines
+
+
+class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
+    def __init__(
+        self,
+        name: str,
+        cfg: ProteinDatasetConfig,
+        preprocessor: Optional[BasePreprocessor] = None,
+        batched_map: bool = False,
+        map_batch_size: int = 100,
+    ):
+        super().__init__(
+            name=name,
+            cfg=cfg,
+            preprocessor=preprocessor,
+            batched_map=batched_map,
+            map_batch_size=map_batch_size,
+            required_keys=["text"],
+        )
+
+    def filter(
+        self,
+        example,
+        min_sequences: Optional[int] = None,
+        holdout_identifiers: Optional[List[str]] = None,
+        tokenizer: ProFamTokenizer = None,
+    ):
+        super_filter = super().filter(
+            example, min_sequences, holdout_identifiers, tokenizer
+        )
+        if super_filter:
+            assert (
+                holdout_identifiers is None
+            ), "Holdout identifiers not supported for fasta"
+            filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
+                min_sequences or 1
+            )
+            return filter_num_seqs
+        return False
+
+    def build_document_from_text(
+        self, text, max_tokens: Optional[int] = None, shuffle: bool = True
+    ):
+        lines = text.split("\n")
+        if not len(lines[-1]):
+            lines = lines[:-1]
+        # rough upper bound: min 2 lines per seq, assume at least 10 tks per line
+        max_fasta_lines_to_preprocess = (
+            (max_tokens or 1e8) // 5
+            if self.max_sequences_per_document is None
+            else self.max_sequences_per_document * 50
+        )
+        if len(lines) > max_fasta_lines_to_preprocess:
+            lines = subsample_fasta_lines(
+                lines,
+                max_fasta_lines_to_preprocess,
+                shuffle=shuffle,
+            )
+
+        sequences = [
+            seq
+            for seq in read_fasta_sequences(
+                lines,
+                # preserve original sequences before further preprocessing
+                keep_gaps=True,
+                keep_insertions=True,
+                to_upper=False,
+            )
+        ]
+
+        return ProteinDocument(
+            sequences=sequences, original_size=len(lines) // 2
+        )  # upper bound estimate of number of sequences
+
+    def build_document(
+        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
+    ):
+        if isinstance(example, str):
+            return self.build_document_from_text(example, max_tokens, shuffle)
+        else:
+            return self.build_document_from_text(example["text"], max_tokens, shuffle)

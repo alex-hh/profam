@@ -12,7 +12,6 @@ from src.data import transforms
 from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import Protein, ProteinDocument
 from src.data.preprocessing import PreprocessingConfig, preprocess_protein_sequences
-from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 from src.utils.tokenizers import ProFamTokenizer
 
 CATH_43_JSONL_FILE = os.path.join(

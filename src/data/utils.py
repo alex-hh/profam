@@ -4,6 +4,7 @@ import numpy as np
 from transformers import DataCollatorForLanguageModeling
 
 from src.data.objects import StringObject
+from src.utils.utils import np_random
 
 # TODO: add things like sequence col, structure col, etc.
 # TODO: be careful around loading coords if using alignment - how can we test for this?
@@ -92,3 +93,8 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
         assert lines[end - 1][0] != ">"
         sampled_lines.extend(lines[start:end])
     return sampled_lines
+
+
+def random_subsample(arr, n, seed: Optional[int] = None):
+    rnd = np_random(seed)
+    return rnd.choice(arr, min(n, len(arr)), replace=False)
