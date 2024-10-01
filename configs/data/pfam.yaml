@@ -13,6 +13,6 @@ dataset_builders:
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
-val_dataset_names:
-  - pfam_val
+val_dataset_batch_sizes:
+  pfam_val: ${data.batch_size}
 num_workers: null # None means use all available CPU cores

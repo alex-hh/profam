@@ -303,7 +303,6 @@ class BasePreprocessor:
                 max_tokens,
             )
         if "coords" in example:
-            print("EXAMPLE COORDS", example["coords"])
             # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
             example["coords"] = example["coords"].tolist()
             example["coords_mask"] = example["coords_mask"].tolist()

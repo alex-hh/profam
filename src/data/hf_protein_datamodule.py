@@ -36,7 +36,7 @@ class ProteinDataMixture(LightningDataModule):
         data_weights: Dict[str, float],
         tokenizer: ProFamTokenizer,
         data_dir: str,
-        val_dataset_names: List[str],
+        val_dataset_batch_sizes: Dict[str, int],
         batch_size: int = 8,
         max_tokens: int = 8192,
         num_workers: Optional[int] = None,
@@ -49,7 +49,8 @@ class ProteinDataMixture(LightningDataModule):
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.data_dir = data_dir
-        self.val_dataset_names = val_dataset_names
+        self.val_dataset_batch_sizes = val_dataset_batch_sizes
+        print("Val dataset batch sizes", self.val_dataset_batch_sizes)
         self.num_workers = num_workers
         self.max_tokens = max_tokens
         self.shuffle = shuffle
@@ -75,7 +76,7 @@ class ProteinDataMixture(LightningDataModule):
                 assert (
                     dataset_builder.name == data_key
                 ), f"Dataset builder name {dataset_builder.name} must match data key {data_key}"
-                if data_key not in self.val_dataset_names:
+                if data_key not in self.val_dataset_batch_sizes:
                     dataset = dataset_builder.load(
                         data_dir=self.data_dir,
                         world_size=world_size,
@@ -147,7 +148,12 @@ class ProteinDataMixture(LightningDataModule):
                     world_size=world_size,
                 )
             self.val_datasets = []
-            for v_ds_name in self.val_dataset_names:
+            self.val_dataset_names = []
+            for v_ds_name, val_batch_size in self.val_dataset_batch_sizes.items():
+                if int(val_batch_size) > 1:
+                    print(
+                        "Warning: val_batch_size > 1 will not work for scoring validations (fine for standard val datasets)"
+                    )
                 dataset_builder = self.dataset_builders[v_ds_name]
                 assert (
                     dataset_builder.name == v_ds_name
@@ -180,6 +186,7 @@ class ProteinDataMixture(LightningDataModule):
                         world_size=world_size,
                     )
                 self.val_datasets.append(dataset)
+                self.val_dataset_names.append(v_ds_name)
 
             self._is_setup = True
 
@@ -195,12 +202,12 @@ class ProteinDataMixture(LightningDataModule):
         loaders = [
             DataLoader(
                 val_ds,
-                batch_size=self.batch_size,
+                batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
                 collate_fn=self.collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )
-            for val_ds in self.val_datasets
+            for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
         ]
         return loaders
 

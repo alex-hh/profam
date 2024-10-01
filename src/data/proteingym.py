@@ -291,6 +291,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         if tokenizer.use_seq_pos:
             columns += ["seq_pos", "completion_seq_pos"]
 
+        # TODO: what is right here?
         dataset.set_format(
             type="torch",
             columns=columns,

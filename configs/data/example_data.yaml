@@ -20,8 +20,8 @@ dataset_builders:
 batch_size: 2
 max_tokens: 3000
 data_dir: data/example_data # example data is in repo main dir
-val_dataset_names:
-  - ec
-  - proteingym
+val_dataset_batch_sizes:
+  ec: ${data.batch_size}
+  proteingym: 1
 num_workers: 0  # None means use all available CPU cores
 feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "original_size", "aa_mask"]
