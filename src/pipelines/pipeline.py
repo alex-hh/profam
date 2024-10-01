@@ -73,10 +73,10 @@ class BaseEvaluatorPipeline:
             self.results_dfs[evaluator_name] = pd.read_csv(results_path)
         else:
             self.results_dfs[evaluator_name] = pd.DataFrame(
-                columns=["evaluator", "sampler", "instance"]
+                columns=["evaluator", self.model_col, "instance"]
             )
         self.results_dfs[evaluator_name].set_index(
-            ["evaluator", "sampler", "instance"], inplace=True
+            ["evaluator", self.model_col, "instance"], inplace=True
         )
 
     def has_result(self, evaluator_name: str, instance_id: str, model_id: str) -> bool:
@@ -97,15 +97,17 @@ class BaseEvaluatorPipeline:
         # then concatenate a new row to the df
         if evaluator_name not in self.results_dfs:
             self.results_dfs[evaluator_name] = pd.DataFrame(
-                columns=["evaluator", "sampler", "instance"]
-            ).set_index(["evaluator", "sampler", "instance"], inplace=True)
+                columns=["evaluator", self.model_col, "instance"]
+            ).set_index(["evaluator", self.model_col, "instance"], inplace=True)
         self.results_dfs[evaluator_name].drop(
             index=(evaluator_name, model_id, instance_id), inplace=True, errors="ignore"
         )
         self.results_dfs[evaluator_name] = pd.concat(
             [
                 self.results_dfs[evaluator_name],
-                pd.DataFrame([result]).set_index(["evaluator", "sampler", "instance"]),
+                pd.DataFrame([result]).set_index(
+                    ["evaluator", self.model_col, "instance"]
+                ),
             ]
         )
 
@@ -148,11 +150,6 @@ class BaseEvaluatorPipeline:
             summary["instance_id"] = instance_id
             summaries.append(summary)
         return pd.DataFrame.from_records(summaries)
-
-    def get_instance_summary(
-        self, instance_id: str, protein_document: Optional[ProteinDocument] = None
-    ) -> Dict[str, float]:
-        raise NotImplementedError()
 
     def aggregate_results(
         self,
@@ -203,6 +200,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
 
     """Validation that computes metrics given a set of generated sequences."""
 
+    model_col = "sampler"
+
     def __init__(
         self,
         num_generations: int,
@@ -223,6 +222,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             benchmark_directory=benchmark_directory,
             save_results_to_file=save_results_to_file,
         )
+
+    def get_instance_summary(
+        self, instance_id: str, protein_document: Optional[ProteinDocument] = None
+    ) -> Dict[str, float]:
+        raise NotImplementedError()
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:
         # TODO: check prompt as well
@@ -415,6 +419,8 @@ class ResiduePredictionsEvaluatorPipeline(BaseEvaluatorPipeline):
 class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
     """Pipeline for scoring completions (e.g. ProteinGym mutants) given documents."""
 
+    model_col = "scorer"
+
     def __init__(
         self,
         pipeline_id: str,
@@ -431,6 +437,14 @@ class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
             benchmark_directory=benchmark_directory,
             save_results_to_file=save_results_to_file,
         )
+
+    def get_instance_summary(
+        self,
+        instance_id: str,
+        protein_document: Optional[ProteinDocument] = None,
+        completions_df: Optional[pd.DataFrame] = None,
+    ) -> Dict[str, float]:
+        raise NotImplementedError()
 
     def has_scored_completions(self, instance_id: str, model_id: str) -> bool:
         # TODO: check prompt as well
@@ -531,7 +545,7 @@ class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
 
     def load_completions(
         self, instance_id: str
-    ) -> Tuple[pd.DataFrame, ProteinDocument]:
+    ) -> Tuple[ProteinDocument, pd.DataFrame]:
         raise NotImplementedError()
 
     def run(
@@ -561,7 +575,7 @@ class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
                 "Running evaluation pipeline for instance", instance_id, verbose=verbose
             )
             protein_document = self.load_protein_document(instance_id)
-            completions_df, completions = self.load_completions(instance_id)
+            completions, completions_df = self.load_completions(instance_id)
             if rerun_scorer or not self.has_scored_completions(
                 instance_id, scorer.name
             ):
@@ -570,11 +584,11 @@ class CompletionScoringEvaluatorPipeline(BaseEvaluatorPipeline):
                     verbose=verbose,
                     flush=True,
                 )
-                scored_completions, prompt = scorer.score_completions(
+                completion_scores, prompt = scorer.score_completions(
                     protein_document, completions
                 )
                 scored_completions_df = completions_df.copy()
-                scored_completions_df["score"] = scored_completions
+                scored_completions_df["predicted_score"] = completion_scores
                 self.save_scored_completions(
                     instance_id, scorer.name, scored_completions_df
                 )

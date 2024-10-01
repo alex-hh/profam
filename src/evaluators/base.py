@@ -69,7 +69,7 @@ class ScoringEvaluator(BaseEvaluator):
     ):
         super().__init__(name)
 
-    def evaluate_scored_mutants(
+    def evaluate_scored_completions(
         self,
         prompt: ProteinDocument,
         scored_mutants_df: pd.DataFrame,
@@ -81,24 +81,29 @@ class ScoringEvaluator(BaseEvaluator):
         self,
         scorer,
         protein_document: ProteinDocument,
-        mutants_df: pd.DataFrame,
+        completions_df: pd.DataFrame,
         device: Optional[str] = None,
     ):
         scorer.to(device)
-        scored_mutants_df, prompt = scorer.score_mutants(protein_document, mutants_df)
-        return self.evaluate_scored_mutants(
-            prompt=prompt, scored_mutants_df=scored_mutants_df, device=device
+        scored_completions_df, prompt = scorer.score_completions(
+            protein_document, completions_df
+        )
+        return self.evaluate_scored_completions(
+            scored_completions_df=scored_completions_df, device=device
         )
 
 
 class FitnessPredictionEvaluator(ScoringEvaluator):
     # TODO: add other metrics e.g. auc, ndcg
-    def evaluate_scored_sequences(self, mutation_df, scores):
-        assert len(scores) == len(mutation_df)
-        mutation_df["predicted_score"] = scores
+    def evaluate_scored_completions(
+        self,
+        prompt: ProteinDocument,
+        scored_completions_df: pd.DataFrame,
+        device: Optional[str] = None,
+    ):
         spearman_corr, _ = spearmanr(
-            mutation_df["DMS_score"], mutation_df["predicted_score"]
+            scored_completions_df["DMS_score"], scored_completions_df["predicted_score"]
         )
-        if "DMS_score_bin" in mutation_df.columns:
+        if "DMS_score_bin" in scored_completions_df.columns:
             pass
         return {"spearman": spearman_corr}

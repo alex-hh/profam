@@ -63,7 +63,10 @@ class ProteinGymPipeline(CompletionScoringEvaluatorPipeline):
         return load_completions(dms_file, seed=None, max_mutated_sequences=None)
 
     def get_instance_summary(
-        self, protein_document: ProteinDocument, mutation_df: pd.DataFrame
+        self,
+        instance_id: str,
+        protein_document: Optional[ProteinDocument] = None,
+        completions_df: Optional[pd.DataFrame] = None,
     ) -> Dict[str, float]:
         return {}
 
