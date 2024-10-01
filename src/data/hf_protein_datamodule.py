@@ -6,12 +6,7 @@ from datasets.distributed import split_dataset_by_node
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
-from src.data.family_classification import (
-    load_classifier_dataset,
-    load_ec_cluster_classifier_dataset,
-)
-from src.data.proteingym import load_gym_dataset
+from src.data.datasets import ProteinDatasetConfig
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -37,7 +32,7 @@ class ProteinDataMixture(LightningDataModule):
 
     def __init__(
         self,
-        dataset_cfgs: Dict[str, ProteinDatasetConfig],
+        dataset_builders: Dict[str, ProteinDatasetConfig],
         data_weights: Dict[str, float],
         tokenizer: ProFamTokenizer,
         data_dir: str,
@@ -50,7 +45,7 @@ class ProteinDataMixture(LightningDataModule):
         feature_names: Optional[List[str]] = None,
     ):
         super().__init__()
-        self.dataset_cfgs = dataset_cfgs
+        self.dataset_builders = dataset_builders
         self.data_weights = data_weights
         self.batch_size = batch_size
         self.data_dir = data_dir
@@ -79,7 +74,7 @@ class ProteinDataMixture(LightningDataModule):
             for data_key, dataset_builder in self.dataset_builders.items():
                 assert (
                     dataset_builder.name == data_key
-                ), "Dataset builder name must match data key"
+                ), f"Dataset builder name {dataset_builder.name} must match data key {data_key}"
                 if data_key not in self.val_dataset_names:
                     dataset = dataset_builder.load(
                         data_dir=self.data_dir,
@@ -88,6 +83,7 @@ class ProteinDataMixture(LightningDataModule):
                     )
                     dataset = dataset_builder.process(
                         dataset,
+                        tokenizer=self.tokenizer,
                         max_tokens_per_example=self.max_tokens,
                         shuffle_proteins_in_document=self.shuffle,
                         feature_names=self.feature_names,
@@ -152,15 +148,21 @@ class ProteinDataMixture(LightningDataModule):
                 )
             self.val_datasets = []
             for v_ds_name in self.val_dataset_names:
-                val_dataset_cfg = self.dataset_cfgs[v_ds_name]
-                assert not val_dataset_cfg.shuffle
-                val_dataset = load_protein_dataset(
-                    self.dataset_cfgs[v_ds_name],
-                    self.tokenizer,
-                    dataset_name=v_ds_name,
+                dataset_builder = self.dataset_builders[v_ds_name]
+                assert (
+                    dataset_builder.name == v_ds_name
+                ), f"Dataset builder name {dataset_builder.name} must match data key {v_ds_name}"
+                dataset = dataset_builder.load(
                     data_dir=self.data_dir,
+                    world_size=world_size,
+                    verbose=False,
+                )
+                dataset = dataset_builder.process(
+                    dataset,
+                    tokenizer=self.tokenizer,
                     max_tokens_per_example=self.max_tokens,
-                    world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
+                    shuffle_proteins_in_document=self.shuffle,
+                    feature_names=self.feature_names,
                 )
                 if world_size > 1:
                     # https://github.com/huggingface/datasets/issues/6623
@@ -170,15 +172,14 @@ class ProteinDataMixture(LightningDataModule):
                         f"This will produce consistent val datasets for world sizes that are factors of 8."
                     )
                     assert (
-                        val_dataset.n_shards % world_size == 0
-                        and val_dataset.n_shards % 8 == 0
+                        dataset.n_shards % world_size == 0 and dataset.n_shards % 8 == 0
                     )
-                    val_dataset = split_dataset_by_node(
-                        val_dataset,
+                    dataset = split_dataset_by_node(
+                        dataset,
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
-                self.val_datasets.append(val_dataset)
+                self.val_datasets.append(dataset)
 
             self._is_setup = True
 
@@ -201,35 +202,6 @@ class ProteinDataMixture(LightningDataModule):
             )
             for val_ds in self.val_datasets
         ]
-        if self.evaluate_gym:
-            loaders.append(
-                [
-                    DataLoader(
-                        self.gym_dataset,
-                        batch_size=1,  # gym needs batch size 1
-                        shuffle=False,
-                    ),  # n.b. in this case we do standard collation
-                ]
-            )
-        if self.evaluate_ec_class:
-            loaders.append(
-                DataLoader(
-                    self.ec_class_dataset,
-                    batch_size=1,
-                    collate_fn=self.collator,
-                    shuffle=False,
-                )
-            )
-
-        if self.evaluate_ec_cluster_class:
-            loaders.append(
-                DataLoader(
-                    self.ec_cluster_class_dataset,
-                    batch_size=1,
-                    collate_fn=self.collator,
-                    shuffle=False,
-                )
-            )
         return loaders
 
     def test_dataloader(self) -> List[DataLoader]:
@@ -242,23 +214,4 @@ class ProteinDataMixture(LightningDataModule):
                 num_workers=self.num_workers,
             )
         ]
-        if self.evaluate_gym:
-            loaders.append(
-                [
-                    DataLoader(
-                        self.gym_dataset,
-                        batch_size=1,  # gym needs batch size 1
-                        shuffle=False,
-                    )  # n.b. in this case we do standard collation
-                ]
-            )
-        if self.evaluate_ec_class:
-            loaders.append(
-                DataLoader(
-                    self.ec_class_dataset,
-                    batch_size=1,
-                    collate_fn=self.collator,
-                    shuffle=False,
-                )
-            )
         return loaders

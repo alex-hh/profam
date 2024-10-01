@@ -105,16 +105,6 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         log.info("Logging hyperparameters!")
         log_hyperparameters(object_dict)
 
-    if datamodule.evaluate_gym and cfg.get("pre_evaluate_gym"):
-        datamodule.setup()
-        log.info("Evaluating on proteingym")
-        trainer.validate(model=model, dataloaders=datamodule.gym_dataloader())
-
-    if datamodule.evaluate_ec_class and cfg.get("pre_evaluate_ec_class"):
-        datamodule.setup()
-        log.info("Evaluating on ec class")
-        trainer.validate(model=model, dataloaders=datamodule.ec_dataloader())
-
     if cfg.get("train"):
         log.info("Starting training!", cfg.get("ckpt_path"))
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))

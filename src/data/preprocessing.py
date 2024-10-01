@@ -251,7 +251,7 @@ class BasePreprocessor:
                 transform_fns, proteins, tokenizer, max_tokens=max_tokens
             )
             processed_proteins_list.append(proteins)
-        return tokenizer.batched_encode(
+        examples = tokenizer.batched_encode(
             processed_proteins_list,
             document_token=self.cfg.document_token,
             padding="max_length",
@@ -259,6 +259,15 @@ class BasePreprocessor:
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),
         )
+        if "coords" in examples:
+            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+            examples["coords"] = [c.tolist() for c in examples["coords"]]
+            examples["coords_mask"] = [m.tolist() for m in examples["coords_mask"]]
+            if "interleaved_coords_mask" in examples:
+                examples["interleaved_coords_mask"] = [
+                    m.tolist() for m in examples["interleaved_coords_mask"]
+                ]
+        return examples
 
     def preprocess_protein_data(
         self,
@@ -280,20 +289,29 @@ class BasePreprocessor:
         proteins = transforms.apply_transforms(
             transform_fns, proteins, tokenizer, max_tokens=max_tokens
         )
-        tokenized = tokenizer.encode(
+        example = tokenizer.encode(
             proteins,
             document_token=self.cfg.document_token,
             padding="max_length",
             max_length=max_tokens,
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),
-        )
+        ).data
         if max_tokens is not None:
-            assert tokenized.input_ids.shape[-1] <= max_tokens, (
-                tokenized.input_ids.shape[-1],
+            assert example["input_ids"].shape[-1] <= max_tokens, (
+                example["input_ids"].shape[-1],
                 max_tokens,
             )
-        return tokenized.data
+        if "coords" in example:
+            print("EXAMPLE COORDS", example["coords"])
+            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
+            example["coords"] = example["coords"].tolist()
+            example["coords_mask"] = example["coords_mask"].tolist()
+            if "interleaved_coords_mask" in example:
+                example["interleaved_coords_mask"] = example[
+                    "interleaved_coords_mask"
+                ].tolist()
+        return example
 
     def build_documents(
         self,
@@ -640,43 +658,3 @@ class ParquetStructurePreprocessor(ParquetPreprocessor):
             return super_filter and filter_plddt
         else:
             return super_filter
-
-    def batched_preprocess_protein_data(
-        self,
-        examples: Dict[str, List[Any]],
-        tokenizer: ProFamTokenizer,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
-    ) -> Dict[str, Any]:
-        examples = super().batched_preprocess_protein_data(
-            examples, tokenizer, max_tokens, shuffle
-        )
-        if "coords" in examples:
-            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-            examples["coords"] = [c.tolist() for c in examples["coords"]]
-            examples["coords_mask"] = [m.tolist() for m in examples["coords_mask"]]
-            if "interleaved_coords_mask" in examples:
-                examples["interleaved_coords_mask"] = [
-                    m.tolist() for m in examples["interleaved_coords_mask"]
-                ]
-        return examples
-
-    def preprocess_protein_data(
-        self,
-        example: Dict[str, Any],
-        tokenizer: ProFamTokenizer,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
-    ) -> Dict[str, Any]:
-        example = super().preprocess_protein_data(
-            example, tokenizer, max_tokens, shuffle=shuffle
-        )
-        if "coords" in example:
-            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-            example["coords"] = example["coords"].tolist()
-            example["coords_mask"] = example["coords_mask"].tolist()
-            if "interleaved_coords_mask" in example:
-                example["interleaved_coords_mask"] = example[
-                    "interleaved_coords_mask"
-                ].tolist()
-        return example
