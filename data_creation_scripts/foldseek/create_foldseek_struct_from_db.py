@@ -102,7 +102,7 @@ def save_pdbs_to_parquet(
                 os.remove(pdb)
 
         if convert_to_3di:
-            sequences_3di = convert_pdbs_to_3di(cluster_filelist)
+            sequences_3di = convert_pdbs_to_3di(cluster_filelist, os.path.join(pdbs_dir, f"{cluster_id}_3di.tsv"))
 
         # TODO: save representative?
         res = {
