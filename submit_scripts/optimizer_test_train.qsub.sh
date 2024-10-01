@@ -73,7 +73,7 @@ fi
 echo "Optimizer: $OPTIMIZER"
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
-data.batch_size=10 \
+data.batch_size=9 \
 trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
