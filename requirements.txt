@@ -122,4 +122,4 @@ yarl==1.9.4
 zipp==3.18.1
 pysqlite3==0.5.2
 # optional packages for gpu optimizations
-flash-attn==2.6.3[gpu]
+flash-attn[gpu]==2.6.3
