@@ -28,13 +28,11 @@ from typing import List
 import torch
 from datasets import Dataset
 
-from src.data.fasta import read_fasta
+import src.data.utils as data_utils
+from src.data.family_classification import family_columns
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import (
-    FastaPreprocessorConfig,
-    preprocess_fasta_data,
-    preprocess_protein_sequences,
-)
+from src.data.preprocessing import PreprocessingConfig, preprocess_protein_sequences
+from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -42,10 +40,11 @@ def pfam_sample_from_msa_path(
     msa_path: str,
     tokenized_eval_seqs,
     eval_names: List[str],
-    tokenizer,
+    tokenizer: ProFamTokenizer,
     max_tokens: int,
-    cfg: FastaPreprocessorConfig,
+    cfg: PreprocessingConfig,
 ):
+    raise NotImplementedError("Was originally using FastaPreprocessorConfig")
     msa_cfg = copy.deepcopy(cfg)
     msa_cfg.add_final_sep = False
     with open(msa_path["msa_paths"], "r") as file:
@@ -86,6 +85,7 @@ def load_pfam_classification_dataset(
     max_eval_per_fam: int = 4,
     use_msa_pos: bool = True,
 ):
+    raise NotImplementedError("need updating")
     if not os.path.exists(pfam_dir):
         zip_path = f"{pfam_dir}/../../pfam_val_test_fastas.zip"
         raise FileNotFoundError(
@@ -100,7 +100,7 @@ def load_pfam_classification_dataset(
     assert train_names == test_names, "Pfam prompt and completion files do not match."
 
     seq_load_func = partial(
-        read_fasta,
+        fasta.read_fasta,
         keep_insertions=True,
         keep_gaps=True,
         to_upper=False,

@@ -1,16 +1,23 @@
 _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
 defaults:
-  - /pipeline: foldseek
+  - /pipeline: parquet
   - /evaluator: esmfold
-  - /preprocessor: null  # n.b. must be set
+  - /prompt_builder: default
+  - /preprocessor@prompt_builder.preprocessor: null  # must be set
+prompt_builder:
+  max_tokens: ${data.max_tokens}
+  seed: 42
 evaluator:
   num_samples: null
 sampling_kwargs:
   batch_size: 3
+  max_generated_length: ${extra_callbacks.esmfold.evaluator.max_length}
+  temperature: 0.3
 pipeline:
   num_generations: 3
-  save_to_file: false
+  save_results_to_file: false
   evaluation_parquet: null
   evaluation_accessions_file: null
-  max_instances: 50
-seed: 42  # for prompt builder
+  max_instances: null
+  pipeline_id: foldseek_n3  # for callback this doesnt matter
+  preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}

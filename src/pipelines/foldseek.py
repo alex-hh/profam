@@ -1,47 +1,66 @@
-from typing import Dict
+from typing import Dict, Optional
 
-from src.data.objects import ProteinDocument
-from src.data.preprocessing import backbone_coords_from_example
-from src.pipelines.mixins import ParquetMixin
-from src.pipelines.pipeline import GenerationsEvaluatorPipeline
+from src.data.parquet import build_representative_df
+from src.pipelines.mixins import ParquetGenerationsPipeline
 
 
-class FoldseekGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
+# TODO: perhaps this should actually be a generic parquet representatives
+# pipeline - if we manage to standardise data enough
+class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
     def __init__(
         self,
         *args,
-        cluster_id_col: str = "fam_id",
-        evaluation_parquet: str = None,
-        evaluation_accessions_file: str = None,
-        parquet_index: str = None,
-        evaluation_accessions: list = None,
-        **kwargs
+        max_instances: Optional[int] = None,
+        max_protein_length: Optional[int] = None,
+        min_plddt: Optional[float] = None,
+        **kwargs,
     ):
-        super().__init__(
-            *args,
-            instance_id_col=cluster_id_col,
-            evaluation_parquet=evaluation_parquet,
-            evaluation_accessions_file=evaluation_accessions_file,
-            evaluation_accessions=evaluation_accessions,
-            parquet_index=parquet_index,
-            **kwargs,
-        )
+        # TODO: make this cooperate better with the base class
+        super().__init__(*args, **kwargs)
+        self.max_protein_length = max_protein_length
+        self.min_plddt = min_plddt
+        assert self.evaluation_df is not None
+        if self.max_protein_length is not None or self.min_plddt is not None:
+            orig_len = len(self.evaluation_df)
+            rep_df = build_representative_df(
+                self.evaluation_df, has_structure=True
+            ).set_index(self.instance_id_col, drop=False)
+            if self.max_protein_length is not None:
+                rep_df = rep_df[rep_df["length"] <= self.max_protein_length]
+            if self.min_plddt is not None:
+                rep_df = rep_df[rep_df["mean_plddt"] >= self.min_plddt]
 
-    def instance_ids(self):
-        return self.evaluation_accessions
+            self.evaluation_df = self.evaluation_df[
+                self.evaluation_df[self.instance_id_col].isin(
+                    rep_df[self.instance_id_col].values
+                )
+            ]
+            self.evaluation_df["mean_plddt"] = rep_df["mean_plddt"]
+            self.evaluation_df["length"] = rep_df["length"]
+            self.evaluation_accessions = list(
+                self.evaluation_df[self.instance_id_col].values
+            )
+            length_msg = (
+                f"with length <={self.max_protein_length}"
+                if self.max_protein_length is not None
+                else ""
+            )
+            plddt_msg = (
+                f"; with pLDDT >={self.min_plddt}" if self.min_plddt is not None else ""
+            )
+            print(
+                f"Filtered {orig_len} to {len(self.evaluation_df)} proteins"
+                f"{length_msg}{plddt_msg}"
+            )
+        if max_instances is not None:
+            self.evaluation_df = self.evaluation_df.head(max_instances)
+            self.evaluation_accessions = list(
+                self.evaluation_df[self.instance_id_col].values
+            )
+            print(f"Filtered to {max_instances} proteins")
 
     def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
-        return {}
-
-    def load_protein_document(self, instance_id: str):
-        protein_example = self.get_protein_example(instance_id)
-        return ProteinDocument(
-            identifier=instance_id,
-            sequences=protein_example["sequences"],
-            accessions=protein_example["accessions"],
-            backbone_coords=backbone_coords_from_example(protein_example),
-            plddts=protein_example["plddts"],
-            structure_tokens=[
-                s.replace("-", "").lower() for s in protein_example["msta_3di"]
-            ],
-        )
+        summary = super().get_instance_summary(instance_id)
+        summary["target_plddt"] = self.evaluation_df.loc[instance_id, "mean_plddt"]
+        summary["target_length"] = self.evaluation_df.loc[instance_id, "length"]
+        return summary

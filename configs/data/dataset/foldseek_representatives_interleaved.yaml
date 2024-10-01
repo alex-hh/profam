@@ -1,0 +1,15 @@
+defaults:
+  - /preprocessor: parquet_structure_noisy
+_target_: src.data.datasets.ProteinDatasetConfig
+name: foldseek_representatives
+data_path_pattern: foldseek_representatives/*.parquet
+holdout_data_files: null
+holdout_identifiers: null
+identifier_col: fam_id
+is_parquet: true
+length_filter: max_tokens
+preprocessor:
+  structure_tokens_col: null
+  interleave_structure_sequence: true
+  config:
+    document_token: "[AFDB]"

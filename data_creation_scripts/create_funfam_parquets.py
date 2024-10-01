@@ -8,7 +8,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.data.fasta import read_fasta
+from src.sequence.fasta import read_fasta
 import sys
 
 

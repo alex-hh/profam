@@ -7,6 +7,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from src.constants import BASEDIR
+from src.evaluators.base import SamplingEvaluator
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
@@ -41,19 +42,31 @@ def run(cfg: DictConfig) -> None:
     Run a single model + validation combination. To run multiple validations, use multirun.
     """
     print(OmegaConf.to_yaml(cfg))  # useful for spotting any possible errors
+
+    evaluators = hydra.utils.instantiate(cfg.evaluators)
+    if isinstance(evaluators, dict) or isinstance(evaluators, DictConfig):
+        evaluator_names = list(evaluators.keys())
+        evaluators = list(evaluators.values())
+    else:
+        assert isinstance(evaluators, SamplingEvaluator)
+        evaluator_names = [evaluators.name]
+        evaluators = [evaluators]
+
     print(
-        f"Running validation {cfg.evaluator.name} on generator {cfg.pretrained_model.name}"
+        f"Running validation {evaluator_names} on generator {cfg.sampler.name}"
         f" on data from pipeline {cfg.pipeline.pipeline_id}"
     )
-    evaluator = hydra.utils.instantiate(cfg.evaluator)
+
     pipeline = hydra.utils.instantiate(cfg.pipeline)
-    sampler = hydra.utils.instantiate(cfg.sampler)
+    sampler = hydra.utils.instantiate(cfg.sampler, _convert_="partial")
+    sampler.to(cfg.device)
     # TODO: save sampler config to results directory and verify that it matches on rerun.
     pipeline.run(
         sampler,
-        evaluator=evaluator,
+        evaluators=evaluators,
         rerun_sampler=cfg.rerun_sampler,
         rerun_evaluator=cfg.rerun_evaluator,
+        device=cfg.device,
     )
     # for hydra multirun memory management issues:
     gc.collect()
