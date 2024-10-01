@@ -84,6 +84,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             model = LlamaForCausalLM(config)
         # n.b. attention implementation gets set here (in from_pretrained, _from_config, __init__):
         # https://github.com/huggingface/transformers/blob/1dba608df93ffb10a9c268ef35191adf2424c5ca/src/transformers/modeling_utils.py#L1542
+        # c.f. https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-2
         print(
             "Initialised Llama model, attention implementation: ",
             model.config._attn_implementation,

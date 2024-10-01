@@ -29,6 +29,9 @@ source pfenv/bin/activate
 
 # install requirements
 pip install -r requirements.txt
+
+# if using flash attention, install separately
+pip install flash-attn --no-build-isolation
 ```
 
 #### Loading environment on UCL cs cluster
