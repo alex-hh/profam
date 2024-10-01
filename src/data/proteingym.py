@@ -264,6 +264,7 @@ def build_gym_df(dms_ids, gym_data_dir: str):
     ]
 
 
+# TODO: we need to use preprocessor.
 class BaseGymDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(self, name: str, dms_ids: List[str]):
         super().__init__(name=name, preprocessor=None)
