@@ -66,7 +66,7 @@ model:
 logger:
   wandb:
     tags: ${tags}
-    group: "foldseek"
+    group: "inverse_folding"
 
 float32_matmul_precision: high
 pre_evaluate_gym: false  # use to run evaluation first to check for issues
