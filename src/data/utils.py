@@ -58,7 +58,7 @@ class CustomDataCollator:
             batch = self.base_collator(non_string_data)
         except Exception as e:
             print("Error in collator")
-            print(string_data)
+            # print(string_data)
             # print(non_string_data)
             raise e
         if self.ignore_gaps:

@@ -111,6 +111,11 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         self.preprocessor = preprocessor
         if preprocessor is not None:
             self.preprocessor.single_protein_documents = True
+            self.interleave_structure_sequence = (
+                self.preprocessor.interleave_structure_sequence
+            )
+        else:
+            self.interleave_structure_sequence = False
         self.document_token = document_token
 
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
@@ -142,7 +147,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         example = self.preprocessor.preprocess_protein_data(
             proteins,
             tokenizer,
-            max_tokens=None,
+            max_tokens=max_tokens_per_example,  # handles padding
             shuffle=False,
         )
         example["ds_name"] = self.name
@@ -159,7 +164,14 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         # commented out due to issues. TODO: make minimal example and report
         # https://github.com/huggingface/datasets/issues/6319
         # https://discuss.huggingface.co/t/progress-bar-of-dataset-map-with-num-proc-1-hangs/64776/2
-        return dataset.map(
+        return dataset.filter(
+            lambda x: len(x["seq"])
+            <= (
+                max_tokens_per_example // 2
+                if self.interleave_structure_sequence
+                else max_tokens_per_example
+            )
+        ).map(
             self.preprocess_example,
             batched=False,
             num_proc=self.num_proc,
@@ -169,6 +181,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
                 "tokenizer": tokenizer,
                 "max_tokens_per_example": max_tokens_per_example,
             },
+            remove_columns=["seq", "name"],
         )
         # processed_dataset = []
         # for example in dataset:

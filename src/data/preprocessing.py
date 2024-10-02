@@ -213,6 +213,7 @@ class ProteinDocumentPreprocessor:
         shuffle: bool = True,
     ) -> Dict[str, Any]:
         if self.single_protein_documents:
+            # maybe handle padding differently? probably not
             transform_fns = default_transforms_single_protein()
         else:
             transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
