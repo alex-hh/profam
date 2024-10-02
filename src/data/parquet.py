@@ -156,8 +156,6 @@ class ParquetDatasetBuilder(StreamedProteinDatasetBuilder):
         self, examples, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         examples = super().build_documents(examples, max_tokens, shuffle)
-        if self.identifier_col is not None:
-            examples["identifier"] = examples[self.identifier_col]
         return examples
 
     def filter(
@@ -252,6 +250,7 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
             if infer_representative_from_identifier
             else None,
             original_size=len(sequence_iterator),
+            identifier=example[identifier_col],
         )
 
     def _build_document(
@@ -381,6 +380,7 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
             if infer_representative_from_identifier
             else None,
             original_size=len(example["sequences"]),
+            identifier=example[identifier_col],
         )
 
     def _build_document(

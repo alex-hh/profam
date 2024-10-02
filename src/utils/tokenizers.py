@@ -271,6 +271,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         if proteins.original_size is not None:
             tokenized.data["original_size"] = proteins.original_size
 
+        if proteins.identifier is not None:
+            tokenized.data["identifier"] = proteins.identifier
+
         # TODO: handle nans
         # TODO: return sequence start and end positions?
         return tokenized

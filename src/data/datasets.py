@@ -359,6 +359,7 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
     return sampled_lines
 
 
+# TODO: infer identifier from different column
 class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
     def __init__(
         self,
@@ -367,6 +368,7 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
+        identifier_col: str = "fam_id",
     ):
         super().__init__(
             name=name,
@@ -376,6 +378,7 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
             map_batch_size=map_batch_size,
             required_keys=["text"],
         )
+        self.identifier_col = identifier_col
 
     def filter(
         self,
@@ -401,6 +404,7 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
         max_sequences: Optional[int] = None,
+        identifier: Optional[str] = None,
     ):
         lines = text.split("\n")
         if not len(lines[-1]):
@@ -447,4 +451,5 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
                 max_tokens,
                 shuffle,
                 max_sequences=self.max_sequences_per_document,
+                identifier=example[self.identifier_col],
             )

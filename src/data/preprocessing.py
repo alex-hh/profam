@@ -51,6 +51,13 @@ def default_transforms(
     ]
 
 
+def default_transforms_single_protein():
+    return [
+        transforms.fill_missing_fields,
+        transforms.replace_selenocysteine_pyrrolysine,
+    ]
+
+
 def preprocess_protein_sequences(
     proteins: ProteinDocument,
     cfg: PreprocessingConfig,
