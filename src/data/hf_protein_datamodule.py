@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 
 from datasets import interleave_datasets
 from datasets.distributed import split_dataset_by_node
+from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
@@ -163,20 +164,22 @@ class ProteinDataMixture(LightningDataModule):
             # split dataset by node sets distributed config.
             # https://github.com/huggingface/datasets/blob/2eb4edb97e1a6af2ea62738ec58afbd3812fc66e/src/datasets/iterable_dataset.py#L1707
             self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
-            if world_size > 1:
-                assert (
-                    self.train_dataset.n_shards % world_size == 0
-                )  # handled in load_protein_dataset
-                # If the dataset has a number of shards that is a factor of world_size (i.e. if
-                # dataset.n_shards % world_size == 0), then the shards are evenly assigned across
-                # the nodes, which is the most optimized. Otherwise, each node keeps 1 example out of
-                # world_size, skipping the other examples.
-                # https://huggingface.co/docs/datasets/en/package_reference/main_classes#datasets.distributed.split_dataset_by_node
-                self.train_dataset = split_dataset_by_node(
-                    self.train_dataset,
-                    rank=self.trainer.global_rank,
-                    world_size=world_size,
-                )
+            if isinstance(self.train_dataset, IterableDataset):
+                # TODO: verify that non-iterable datasets are split automatically (e.g. by lightning...)
+                if world_size > 1:
+                    assert (
+                        self.train_dataset.n_shards % world_size == 0
+                    )  # handled in load_protein_dataset
+                    # If the dataset has a number of shards that is a factor of world_size (i.e. if
+                    # dataset.n_shards % world_size == 0), then the shards are evenly assigned across
+                    # the nodes, which is the most optimized. Otherwise, each node keeps 1 example out of
+                    # world_size, skipping the other examples.
+                    # https://huggingface.co/docs/datasets/en/package_reference/main_classes#datasets.distributed.split_dataset_by_node
+                    self.train_dataset = split_dataset_by_node(
+                        self.train_dataset,
+                        rank=self.trainer.global_rank,
+                        world_size=world_size,
+                    )
             self.val_datasets = []
             for v_ds_name in self.val_dataset_names:
                 val_dataset_cfg = self.dataset_cfgs[v_ds_name]
