@@ -10,6 +10,8 @@ from src.data.datasets import ProteinDatasetConfig
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
 
+# N.B. feature names only needs to be applied for training
+# i.e. to standardise features across interleaved datasets
 DEFAULT_FEATURE_NAMES = [
     "input_ids",
     "attention_mask",
@@ -20,6 +22,7 @@ DEFAULT_FEATURE_NAMES = [
     "identifier",
     "coords",
     "coords_mask",
+    "interleaved_coords_mask",
     "aa_mask",
     "plddts",
     "structure_mask",
@@ -61,11 +64,17 @@ class ProteinDataMixture(LightningDataModule):
         self.shuffle = shuffle
         self.tokenizer = tokenizer
         self.feature_names = feature_names or DEFAULT_FEATURE_NAMES
-        self.collator = CustomDataCollator(
+        self.train_collator = CustomDataCollator(
             self.tokenizer,
             mlm=False,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
+        )
+        self.val_collator = CustomDataCollator(
+            self.tokenizer,
+            mlm=False,
+            ignore_gaps=ignore_gaps,
+            feature_names=None,
         )
         self._is_setup = False
 
@@ -199,7 +208,7 @@ class ProteinDataMixture(LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            collate_fn=self.collator,
+            collate_fn=self.train_collator,
             num_workers=self.num_workers,
         )
 
@@ -208,7 +217,7 @@ class ProteinDataMixture(LightningDataModule):
             DataLoader(
                 val_ds,
                 batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
-                collate_fn=self.collator,
+                collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )
@@ -221,7 +230,7 @@ class ProteinDataMixture(LightningDataModule):
             DataLoader(
                 self.test_dataset,
                 batch_size=self.batch_size,
-                collate_fn=self.collator,
+                collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )

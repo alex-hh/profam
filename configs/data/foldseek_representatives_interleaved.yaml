@@ -26,4 +26,4 @@ data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   foldseek_val: ${data.batch_size}
 num_workers: null # None means use all available CPU cores
-feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "original_size", "aa_mask", "coords", "coords_mask", "interleaved_coords_mask", "structure_mask", "plddts", "high_plddt_mask"]
+feature_names: ${constants.all_feature_names}

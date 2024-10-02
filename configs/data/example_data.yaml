@@ -24,4 +24,4 @@ val_dataset_batch_sizes:
   ec: ${data.batch_size}
   proteingym: 1
 num_workers: 0  # None means use all available CPU cores
-feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "original_size", "aa_mask"]
+feature_names: ${constants.sequence_feature_names}

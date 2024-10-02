@@ -30,3 +30,4 @@ val_dataset_batch_sizes:
   foldseek_val: ${data.batch_size}
 num_workers: null # None means use all available CPU cores
 use_filtered_gym_msas: true
+feature_names: ${constants.all_feature_names}
