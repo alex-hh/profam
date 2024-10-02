@@ -141,6 +141,7 @@ class ProteinDocumentPreprocessor:
         transform_fns: Optional[List[Callable]] = None,
         interleave_structure_sequence: bool = False,
         structure_first_prob: float = 1.0,
+        single_protein_documents: bool = False,
     ):
         self.cfg = config
         if interleave_structure_sequence:
@@ -156,6 +157,7 @@ class ProteinDocumentPreprocessor:
         self.interleave_structure_sequence = (
             interleave_structure_sequence  # should this be part of config?
         )
+        self.single_protein_documents = single_protein_documents
 
     def batched_preprocess_protein_data(
         self,
@@ -169,7 +171,10 @@ class ProteinDocumentPreprocessor:
         new set of examples (not necessarily of the same size). it should return a dict whose
         values are lists, where the length of the lists determines the size of the new set of examples.
         """
-        transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+        if self.single_protein_documents:
+            transform_fns = default_transforms_single_protein()
+        else:
+            transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
         transform_fns += self.transform_fns or []
         processed_proteins_list = []
         for proteins in proteins_list:
@@ -207,9 +212,10 @@ class ProteinDocumentPreprocessor:
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ) -> Dict[str, Any]:
-        # N.B. for stockholm format we need to check that sequences aren't split over
-        # multiple lines
-        transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+        if self.single_protein_documents:
+            transform_fns = default_transforms_single_protein()
+        else:
+            transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
         transform_fns += self.transform_fns or []
         proteins = preprocess_protein_sequences(
             proteins,

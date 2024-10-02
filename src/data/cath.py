@@ -11,7 +11,7 @@ from src import constants
 from src.data import transforms
 from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import Protein, ProteinDocument
-from src.data.preprocessing import PreprocessingConfig, preprocess_protein_sequences
+from src.data.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
 CATH_43_JSONL_FILE = os.path.join(
@@ -95,6 +95,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         split_name: str = "validation",
         use_cath_43: bool = False,
         num_proc: Optional[int] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
     ):
         super().__init__(name)
         self.use_cath_43 = use_cath_43
@@ -107,6 +108,9 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         self.split_ids = [pdb_id.replace(".", "") for pdb_id in self.split_ids]
         self.jsonl_file = CATH_43_JSONL_FILE if use_cath_43 else CATH_42_JSONL_FILE
         self.num_proc = num_proc
+        self.preprocessor = preprocessor
+        if preprocessor is not None:
+            self.preprocessor.single_protein_documents = True
         self.document_token = document_token
 
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
@@ -122,7 +126,9 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         example["name"] = example["name"].replace(".", "")
         protein = protein_from_coords_dict(example)
         proteins = ProteinDocument.from_proteins(
-            [protein], representative_accession=protein.accession
+            [protein],
+            representative_accession=protein.accession,
+            identifier=protein.accession,
         )
         return proteins
 
@@ -133,32 +139,15 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         max_tokens_per_example: Optional[int] = None,
     ):
         proteins = self.build_document(example)
-        proteins = transforms.fill_missing_fields(proteins, tokenizer=tokenizer)
-        proteins = transforms.replace_selenocysteine_pyrrolysine(proteins)
-        preprocessing_cfg = PreprocessingConfig(
-            keep_gaps=False,
-            keep_insertions=False,
-            use_msa_pos=False,
-            to_upper=True,
-            document_token=self.document_token,
-        )
-        proteins = preprocess_protein_sequences(
-            proteins, cfg=preprocessing_cfg, tokenizer=tokenizer
-        )
-        tokenized = tokenizer.encode(
+        example = self.preprocessor.preprocess_protein_data(
             proteins,
-            document_token=self.document_token,
-            padding="max_length",  # todo consider this  / longest
-            max_length=max_tokens_per_example,
-            add_final_sep=True,
-            allow_unk=False,
+            tokenizer,
+            max_tokens=None,
+            shuffle=False,
         )
-        if max_tokens_per_example is not None:
-            assert tokenized.input_ids.shape[-1] <= max_tokens_per_example, (
-                tokenized.input_ids.shape[-1],
-                max_tokens_per_example,
-            )
-        return tokenized.data
+        example["ds_name"] = self.name
+        example["identifier"] = self.name + "/" + example["identifier"]
+        return example
 
     def process(
         self,
