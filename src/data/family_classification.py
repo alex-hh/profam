@@ -13,7 +13,7 @@ import pandas as pd
 from datasets import Dataset
 
 from src.data import utils as data_utils
-from src.data.proteingym import tokenize
+from src.data.proteingym import tokenize_seqs_for_scoring
 from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -31,7 +31,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
     dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
         partial(
-            tokenize,
+            tokenize_seqs_for_scoring,
             tokenizer=tokenizer,
             mutant_bos_token="sep",  # todo check this
             document_token="[RAW]",
@@ -41,7 +41,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
     )
     columns = family_columns
     if tokenizer.embed_res_pos_in_seq:
-        columns += ["res_pos", "completion_res_pos"]
+        columns += ["res_pos_in_seq", "completion_residue_index"]
 
     dataset.set_format(
         type="torch",

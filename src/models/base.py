@@ -363,6 +363,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         completion_ids,
         batch_size: int = 1,
     ):
+        assert batch_size > 0
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -401,10 +402,11 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
+        batch_size = max(1, self.scoring_max_tokens // L)
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            batch_size=self.scoring_max_tokens // L,
+            batch_size=batch_size,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
@@ -456,8 +458,8 @@ class BaseFamilyLitModule(BaseLitModule):
             assert batch["coords"] is not None
             forward_kwargs["coords"] = batch["coords"]
         if self.embed_res_pos_in_seq:
-            assert batch["res_pos_in_seq"] is not None
-            forward_kwargs["res_pos_in_seq"] = batch["res_pos_in_seq"]
+            assert batch["residue_index"] is not None
+            forward_kwargs["residue_index"] = batch["residue_index"]
         return forward_kwargs
 
     def trim_eval_batch(self, seqs_ids):
@@ -479,9 +481,9 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         input_ids,
         completion_ids,
-        res_pos_in_seq: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
-        completion_res_pos_in_seq: Optional[torch.LongTensor] = None,
+        completion_residue_index: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
     ):
@@ -490,7 +492,9 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        forward_kwargs = self.get_forward_kwargs({"res_pos_in_seq": res_pos_in_seq, "coords": coords})
+        forward_kwargs = self.get_forward_kwargs(
+            {"residue_index": input_residue_index, "coords": coords}
+        )
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -522,11 +526,11 @@ class BaseFamilyLitModule(BaseLitModule):
             forward_kwargs = {}
             if self.embed_res_pos_in_seq:
                 # fmt: off
-                this_res_pos = completion_res_pos_in_seq[
+                this_res_pos = completion_residue_index[
                     :, batch_start: batch_start + batch_size, :L_mini_batch
-                ].reshape(-1, L_mini_batch)
+                               ].reshape(-1, L_mini_batch)
                 # fmt: on
-                forward_kwargs["res_pos_in_seq"] = this_res_pos
+                forward_kwargs["residue_index"] = this_res_pos
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
@@ -561,9 +565,9 @@ class BaseFamilyLitModule(BaseLitModule):
         input_ids,
         completion_ids,
         batch_size: int = 1,
-        res_pos_in_seq: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
-        completion_res_pos_in_seq: Optional[torch.LongTensor] = None,
+        completion_residue_index: Optional[torch.LongTensor] = None,
         verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
@@ -595,10 +599,10 @@ class BaseFamilyLitModule(BaseLitModule):
             )  # SEP token which signals end of last prompt seq
             if self.embed_res_pos_in_seq:
                 this_res_pos = torch.cat(
-                    [res_pos_in_seq, completion_res_pos_in_seq[:, completion_ix]],
+                    [input_residue_index, completion_residue_index[:, completion_ix]],
                     dim=1,
                 )[..., :L_mini_batch]
-                forward_kwargs["res_pos_in_seq"] = this_res_pos
+                forward_kwargs["residue_index"] = this_res_pos
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
@@ -621,8 +625,8 @@ class BaseFamilyLitModule(BaseLitModule):
         use_cache: bool = True,
         batch_size: int = 1,
         coords: Optional[torch.FloatTensor] = None,
-        input_res_pos_in_seq: Optional[torch.LongTensor] = None,
-        completion_res_pos_in_seq: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
+        completion_residue_index: Optional[torch.LongTensor] = None,
     ):
         assert (
             input_ids.shape[0] == 1
@@ -636,8 +640,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 completion_ids,
                 batch_size=batch_size,
                 coords=coords,
-                res_pos_in_seq=input_res_pos_in_seq,
-                completion_res_pos_in_seq=completion_res_pos_in_seq,
+                input_residue_index=input_residue_index,
+                completion_residue_index=completion_residue_index,
             )
         else:
             return self._score_seqs_no_cache(
@@ -645,8 +649,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 completion_ids,
                 batch_size=batch_size,
                 coords=coords,
-                res_pos_in_seq=input_res_pos_in_seq,
-                completion_res_pos_in_seq=completion_res_pos_in_seq,
+                input_residue_index=input_residue_index,
+                completion_residue_index=completion_residue_index,
             )
 
     def _sample_seqs(
@@ -739,7 +743,7 @@ class BaseFamilyLitModule(BaseLitModule):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
             forward_kwargs = self.get_forward_kwargs(
-                {"res_pos_in_seq": input_res_pos_in_seq, "coords": input_coords}
+                {"residue_index": input_res_pos_in_seq, "coords": input_coords}
             )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
@@ -789,8 +793,8 @@ class BaseFamilyLitModule(BaseLitModule):
     # tokenized = self.tokenizer.encode_sequences(
     #     sequence_prompt, positions=position_indices, document_token=document_token
     # )
-    # if "res_pos_in_seq" in tokenized.data:
-    #     res_pos_in_seq = tokenized.data["res_pos_in_seq"].unsqueeze(0).to(self.device)
+    # if "residue_index" in tokenized.data:
+    #     res_pos_in_seq = tokenized.data["residue_index"].unsqueeze(0).to(self.device)
     # else:
     #     res_pos_in_seq = None
     # encoded = self._sample_seqs(
@@ -823,10 +827,10 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            input_res_pos_in_seq=batch.get("res_pos_in_seq", None),
-            completion_res_pos_in_seq=batch.get("completion_res_pos_in_seq", None),
+            input_residue_index=batch.get("residue_index", None),
+            completion_residue_index=batch.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=(self.scoring_max_tokens - L_prompt) // L
+            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -865,8 +869,8 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            input_seq_pos=batch.get("seq_pos", None),
-            completion_seq_pos=batch.get("completion_seq_pos", None),
+            input_residue_index=batch.get("residue_index", None),
+            completion_residue_index=batch.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=1,
             # (self.scoring_max_tokens - L_prompt) // L

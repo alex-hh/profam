@@ -38,12 +38,12 @@ PROFAM_DATA_DIR = os.environ.get("PROFAM_DATA_DIR", os.path.join(BASEDIR, "data"
 RESIDUE_LEVEL_FEATURES = [
     "input_ids",
     "attention_mask",
-    "res_pos",
+    "res_pos_in_seq",
     "coords",
     "coords_mask",
     "plddts",
     "plddt_mask",
     "aa_mask",
-    "res_pos",
+    "res_pos_in_seq",
     "token_type_ids",
 ]

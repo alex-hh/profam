@@ -270,7 +270,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     def embed_inputs(
         self,
         input_ids: Optional[torch.LongTensor],
-        res_pos_in_seq: Optional[torch.LongTensor] = None,
+        residue_index: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
         start_sequence_index: int = 0,
     ):
@@ -282,10 +282,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         inputs_embeds = self.token_embedder(input_ids)
         if self.tokenizer.embed_res_pos_in_seq:
             if self.require_res_pos_in_seq:
-                assert res_pos_in_seq is not None
-            if res_pos_in_seq is not None:
-                pos_embeds = self.res_pos_in_seq_embedding(res_pos_in_seq)
-                inputs_embeds = inputs_embeds + pos_embeds
+                assert residue_index is not None
+            if residue_index is not None:
+                res_ix_embeds = self.res_pos_in_seq_embedding(residue_index)
+                inputs_embeds = inputs_embeds + res_ix_embeds
 
         # TODO: might want to embed coords mask to allow for masked coords
         if self.embed_coords:
@@ -322,7 +322,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.Tensor] = None,
-        res_pos_in_seq: Optional[torch.LongTensor] = None,  # added this line for PFLM
+        residue_index: Optional[torch.LongTensor] = None,  # added this line for PFLM
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -349,12 +349,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         inputs_embeds = self.embed_inputs(
             input_ids,
-            res_pos_in_seq=res_pos_in_seq,
+            residue_index=residue_index,
             coords=coords,
             start_sequence_index=start_sequence_index,
         )
         position_ids = self.get_position_ids_for_model_forward(
-            input_ids, res_pos_in_seq, position_ids
+            input_ids, residue_index, position_ids
         )
         return super().forward(
             input_ids=None,

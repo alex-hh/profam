@@ -214,7 +214,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_start_tokens=self.num_start_tokens,
                 num_end_tokens=num_end_tokens,
             )
-            tokenized.data["res_pos_in_seq"] = res_pos_in_seq
+            tokenized.data["residue_index"] = res_pos_in_seq
             assert res_pos_in_seq.shape[0] == tokenized.input_ids.shape[0]
 
         if proteins.backbone_coords is not None:
@@ -377,7 +377,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )
-            tokenized.data["res_pos_in_seq"] = stack(all_positions)
+            tokenized.data["residue_index"] = stack(all_positions)
 
         return tokenized
 
