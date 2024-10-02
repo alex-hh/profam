@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 
 from datasets import interleave_datasets
 from datasets.distributed import split_dataset_by_node
-from datasets.iterable_dataset import IterableDataset
+from datasets.iterable_dataset import Dataset, IterableDataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
@@ -169,7 +169,9 @@ class ProteinDataMixture(LightningDataModule):
             else:
                 if self.num_workers is None:
                     self.num_workers = os.cpu_count()
-                self.train_dataset = self.train_dataset.shuffle(seed=42)
+                self.train_dataset = self.train_dataset.shuffle(
+                    seed=42
+                )  # maybe unnecessary since we are shuffling in the dataloader in this case
             self.val_datasets = []
             self.val_dataset_names = []
             for v_ds_name, val_batch_size in self.val_dataset_batch_sizes.items():
@@ -219,6 +221,7 @@ class ProteinDataMixture(LightningDataModule):
             batch_size=self.batch_size,
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
+            shuffle=isinstance(self.train_dataset, Dataset),
         )
 
     def val_dataloader(self) -> List[DataLoader]:
