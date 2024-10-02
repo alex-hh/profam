@@ -1,4 +1,4 @@
-_target_: src.pipelines.foldseek.FoldseekGenerationsPipeline
+_target_: src.pipelines.mixins.ParquetGenerationsPipeline
 evaluation_parquet: data/example_data/foldseek_struct/3.parquet
 evaluation_accessions_file: null
 parquet_index: null

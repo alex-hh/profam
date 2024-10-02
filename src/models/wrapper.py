@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from torch import nn
@@ -20,9 +20,9 @@ def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
 class WrappedHFModelWithPositionEmbeddingsMixin:
     """Wrap a pre-trained model to add sequence-relative position embeddings.
 
-    This wrapper is PARTIALLY agnostic to the underlying model. However the underlying
-    model must be able to handle a DynamicCache object as past_key_values, and must
-    accept a 4d attention (bias) mask.
+    have position_ids argument in .forward() method
+    use modeling_attn_mask_utils.py::_prepare_4d_attention_mask() function for 4d mask generation
+
 
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 
@@ -41,9 +41,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         token_embedder: str,
         embedding_dim: int,
         tokenizer: ProFamTokenizer,
-        start_seq_pos: int = 2,
         require_seq_pos: bool = True,
         embed_coords: bool = False,
+        start_seq_pos: int = 2,
         embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
@@ -58,8 +58,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             self, token_embedder
         )  # TODO: use self.embed_tokens or sthg
         self.require_seq_pos = require_seq_pos
-        self.max_seq_pos = tokenizer.max_seq_pos
+        self.tokenizer = tokenizer
         self.embed_coords = embed_coords
+        self.start_seq_pos = start_seq_pos
         self.num_atoms = 4
         self.embed_sequence_index = embed_sequence_index
         self.max_sequence_index = max_sequence_index
@@ -75,10 +76,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 embedding_dim,
                 bias=False,
             )
-        if self.use_seq_pos:
+        if self.tokenizer.use_seq_pos:
             self.seq_pos_embedding = nn.Embedding(
-                self.max_seq_pos,
-                embedding_dim,
+                self.tokenizer.max_seq_pos, embedding_dim
             )
         if self.embed_sequence_index:
             self.sequence_index_embedding = nn.Embedding(
@@ -200,7 +200,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs["start_sequence_index"] = full_sequence_index[:, -1]
 
         if self.embed_coords:
-            assert input_ids.shape[-1] == kwargs["coords"].shape[1]
+            # updated in _update_model_kwargs_for_generation
+            assert input_ids.shape[-1] == coords.shape[1]
             inputs["coords"] = (
                 coords[:, cache_position] if past_key_values is not None else coords
             )
@@ -214,7 +215,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         is_encoder_decoder: bool = False,
         num_new_tokens: int = 1,
     ):
-        """
+        """Update model kwargs for next step in generation, given model outputs and current model kwargs.
+
         model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
         next_tokens = ....
         input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
@@ -239,7 +241,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if "coords" in model_kwargs:
             bsz, _, n_atoms, _ = model_kwargs["coords"].shape
             model_kwargs["coords"] = torch.cat(
-                [model_kwargs["coords"], torch.zeros(bsz, num_new_tokens, n_atoms, 3)],
+                [
+                    model_kwargs["coords"],
+                    torch.zeros(bsz, num_new_tokens, n_atoms, 3).to(
+                        model_kwargs["coords"]
+                    ),
+                ],
                 dim=1,
             )
 
@@ -271,7 +278,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
-        if self.use_seq_pos:
+        if self.tokenizer.use_seq_pos:
             if self.require_seq_pos:
                 assert seq_pos is not None
             if seq_pos is not None:
@@ -280,7 +287,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # TODO: might want to embed coords mask to allow for masked coords
         if self.embed_coords:
-            coords_embeds = self.coords_embedding(coords)
+            assert coords.ndim == 4, coords.shape  # b, l, n, 3
+            coords_embeds = self.coords_embedding(coords.flatten(start_dim=-2))
             inputs_embeds += coords_embeds
 
         if self.embed_sequence_index:
@@ -322,7 +330,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return_dict: Optional[bool] = None,
         coords: Optional[torch.FloatTensor] = None,
         start_sequence_index: Optional[
-            torch.Tensor | int
+            Union[torch.Tensor, int]
         ] = None,  # index of sequence within document. modify when using cache.
         **kwargs,  # e.g. labels
     ):

@@ -9,14 +9,12 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
-from src.data import fasta, transforms
+from src.data import transforms
+from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
-from src.data.utils import (
-    CustomDataCollator,
-    ProteinDatasetConfig,
-    load_protein_dataset,
-)
+from src.data.utils import CustomDataCollator
+from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -121,7 +119,6 @@ def load_msa_for_row(
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
-        validate_shapes=True,
     )
     proteins = sample_to_max_tokens(
         proteins,
@@ -172,7 +169,6 @@ def load_comp_seq_dms_for_row(
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
-        validate_shapes=True,
     )
     proteins = transforms.convert_sequences_adding_positions(
         proteins,
@@ -186,6 +182,10 @@ def load_comp_seq_dms_for_row(
     row["completion_seqs"] = proteins.sequences
     row["completion_seq_pos"] = proteins.positions
     return row
+
+
+def build_gym_structure_prompt_df():
+    pass
 
 
 def build_gym_df(

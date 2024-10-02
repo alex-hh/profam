@@ -6,6 +6,7 @@ from torch import stack
 from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
+from src.data.utils import examples_list_to_dict
 from src.utils import RankedLogger
 
 log = RankedLogger(__name__, rank_zero_only=True)
@@ -94,6 +95,23 @@ def concatenate_pad_array(
     return full_array
 
 
+def get_sequence_of_sequences(
+    proteins: ProteinDocument,
+    sep_token: str = "[SEP]",
+    bos_token: Optional[str] = None,
+    add_final_sep: bool = True,
+    document_token: Optional[str] = "[RAW]",
+):
+    concatenated_seqs = sep_token.join(proteins.sequences)
+    if add_final_sep:
+        concatenated_seqs += sep_token
+    if bos_token is not None:
+        concatenated_seqs = bos_token + concatenated_seqs
+    if document_token is not None:
+        concatenated_seqs = document_token + concatenated_seqs
+    return concatenated_seqs
+
+
 class ProFamTokenizer(PreTrainedTokenizerFast):
     """TODO: handle position encoding on here as well.
     (to make this really efficient we'd have to hack underlying rust code i think...)
@@ -107,20 +125,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         add_document_token: bool = True,
         use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
-        max_tokens: Optional[int] = 5000,
-        seq_struct_sep_token="[SEQ-STRUCT-SEP]",
-        mask_below_plddt: Optional[float] = None,
+        seq_struct_sep_token="|",
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
         self.add_document_token = add_document_token
-        self.num_start_tokens = int(self.add_bos_token) + int(self.add_document_token)
         self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
-        self.max_tokens = max_tokens
         self.seq_struct_sep_token = seq_struct_sep_token
-        self.mask_below_plddt = mask_below_plddt
 
         if not self.additional_special_tokens:
             additional_special_tokens = [
@@ -140,10 +153,14 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     def aa_tokens(self):
         return self.convert_tokens_to_ids(list("ACDEFGHIKLMNPQRSTVWY"))
 
+    @property
+    def num_start_tokens(self):
+        return int(self.add_bos_token) + int(self.add_document_token)
+
     def encode(
         self,
         proteins: ProteinDocument,
-        document_token="[RAW]",
+        document_token: Optional[str] = "[RAW]",
         padding="longest",
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
@@ -152,17 +169,15 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
         # TODO: add MSA / RAW document type token...
-        concatenated_seqs = self.sep_token.join(proteins.sequences)
-        if add_final_sep:
-            concatenated_seqs += self.sep_token
-        if self.add_bos_token:
-            concatenated_seqs = self.bos_token + concatenated_seqs
-        if document_token is not None:
-            concatenated_seqs = document_token + concatenated_seqs
-        else:
-            assert (
-                not self.add_document_token
-            ), "Document type token expected but not provided"
+        if self.add_document_token:
+            assert document_token is not None, "Document type token expected"
+        concatenated_seqs = get_sequence_of_sequences(
+            proteins,
+            sep_token=self.sep_token,
+            bos_token=self.bos_token if self.add_bos_token else None,
+            add_final_sep=add_final_sep,
+            document_token=document_token,
+        )
         num_end_tokens = int(add_final_sep)
         tokenized = self(
             concatenated_seqs,
@@ -173,11 +188,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             add_special_tokens=False,
             max_length=max_length,
         )
-        if self.max_tokens is not None:
-            assert tokenized.input_ids.shape[1] <= self.max_tokens, (
-                tokenized.input_ids.shape[1],
-                self.max_tokens,
-            )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
 
@@ -210,19 +220,53 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["coords"] = torch.from_numpy(
                 concatenate_pad_array(
                     proteins.backbone_coords,
-                    fill_value=np.nan,
+                    fill_value=0.0,
                     num_start_tokens=self.num_start_tokens,
                     num_end_tokens=num_end_tokens,
                     pad_to_length=tokenized.input_ids.shape[-1],
                 )
+            ).float()
+            tokenized.data["coords_mask"] = torch.from_numpy(
+                concatenate_pad_array(
+                    proteins.backbone_coords_masks,
+                    fill_value=0,
+                    num_start_tokens=self.num_start_tokens,
+                    num_end_tokens=num_end_tokens,
+                    pad_to_length=max_length if padding == "max_length" else None,
+                )
             )
+
             assert (
                 tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
+            assert tokenized.data["coords_mask"].shape == tokenized.data["coords"].shape
 
-        tokenized.data["aa_mask"] = torch.isin(
-            tokenized.input_ids, torch.tensor(self.aa_tokens)
+        is_interleaved = (
+            tokenized.data["input_ids"] == self.seq_struct_sep_token_id
+        ).any()
+        if is_interleaved and proteins.backbone_coords is not None:
+            tokenized.data["interleaved_coords_mask"] = torch.from_numpy(
+                concatenate_pad_array(
+                    proteins.interleaved_coords_masks,
+                    fill_value=0,
+                    num_start_tokens=self.num_start_tokens,
+                    num_end_tokens=num_end_tokens,
+                    pad_to_length=max_length if padding == "max_length" else None,
+                )
+            )
+
+        modality_mask = torch.from_numpy(
+            concatenate_pad_array(
+                proteins.modality_masks,
+                fill_value=False,
+                num_start_tokens=self.num_start_tokens,
+                num_end_tokens=num_end_tokens,
+                pad_to_length=max_length if padding == "max_length" else None,
+            )
         )
+        # these really denote where you're PREDICTING the modality. because you could have fixed residue identities in structure regions.
+        tokenized.data["aa_mask"] = modality_mask[:, 0]
+        tokenized.data["structure_mask"] = modality_mask[:, 1]
         if proteins.plddts is not None:
             tokenized.data["plddts"] = torch.from_numpy(
                 concatenate_pad_array(
@@ -232,22 +276,71 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     num_end_tokens=num_end_tokens,
                     pad_to_length=tokenized.input_ids.shape[-1],
                 )
-            )
+            ).float()
             assert (
                 tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
             ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
-            if self.mask_below_plddt is not None:
-                # only mask structure tokens
-                plddt_mask = (tokenized.data["plddts"] < self.mask_below_plddt) & ~(
-                    tokenized.data["aa_mask"]
-                )
-                tokenized.data["plddt_mask"] = plddt_mask
-                tokenized.data["input_ids"][plddt_mask] = self.mask_token_id
-                tokenized.data["coords"][plddt_mask] = np.nan
+
+        if proteins.original_size is not None:
+            tokenized.data["original_size"] = torch.tensor(proteins.original_size)
 
         # TODO: handle nans
         # TODO: return sequence start and end positions?
         return tokenized
+
+    def batched_encode(
+        self,
+        proteins_list: List[ProteinDocument],
+        document_token="[RAW]",
+        padding="longest",
+        max_length: Optional[int] = None,
+        add_final_sep: bool = True,
+        allow_unk: bool = False,
+        actually_batched: bool = False,
+    ):
+        if actually_batched:
+            raise NotImplementedError("Actually batched encoding not implemented yet")
+
+        return examples_list_to_dict(
+            [
+                self.encode(
+                    proteins,
+                    document_token=document_token,
+                    padding=padding,
+                    max_length=max_length,
+                    add_final_sep=add_final_sep,
+                    allow_unk=allow_unk,
+                )
+                for proteins in proteins_list
+            ]
+        )
+
+        # if self.add_document_token:
+        # assert document_token is not None, "Document type token expected"
+        # concatenated_seqs = [
+        #     get_sequence_of_sequences(
+        #         proteins,
+        #         sep_token=self.sep_token,
+        #         bos_token=self.bos_token if self.add_bos_token else None,
+        #         add_final_sep=add_final_sep,
+        #         document_token=document_token,
+        #     ) for proteins in proteins_list
+        # ]
+        # num_end_tokens = int(add_final_sep)
+        # tokenized = self(
+        #     concatenated_seqs,
+        #     truncation=False,  # shouldnt be necessary: bisection should handle
+        #     return_tensors="pt",
+        #     # padding="longest",
+        #     padding=padding,
+        #     add_special_tokens=False,
+        #     max_length=max_length,
+        # )
+        # if self.max_tokens is not None:
+        #     assert tokenized.input_ids.shape[1] <= self.max_tokens, (
+        #         tokenized.input_ids.shape[1],
+        #         self.max_tokens,
+        #     )
 
     def encode_completions(
         self,

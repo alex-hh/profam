@@ -7,7 +7,7 @@ embed_sequence_index: false
 use_kv_cache_for_scoring: true
 config:
   _target_: transformers.LlamaConfig
-  vocab_size: 66
+  vocab_size: ${constants.vocab_size}
   hidden_size: 1024
   intermediate_size: 4096
   num_attention_heads: 16

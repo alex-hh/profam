@@ -5,17 +5,14 @@ from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
+from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.family_classification import (
     load_classifier_dataset,
     load_ec_cluster_classifier_dataset,
 )
 from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import (
-    CustomDataCollator,
-    ProteinDatasetConfig,
-    load_protein_dataset,
-)
+from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
 
 DEFAULT_FEATURE_NAMES = [
@@ -23,6 +20,7 @@ DEFAULT_FEATURE_NAMES = [
     "attention_mask",
     "labels",
     "ds_name",
+    "original_size",
     "seq_pos",
     "identifier",
     "family_labels",
@@ -31,13 +29,23 @@ DEFAULT_FEATURE_NAMES = [
     "completion_ids",
     "DMS_scores",
     "coords",
+    "coords_mask",
     "aa_mask",
     "plddts",
     "family_id",
+    "structure_mask",
 ]
 
 
 class ProteinDataModule(LightningDataModule):
+    """Data module for single dataset training."""
+
+    pass
+
+
+class ProteinDataMixture(LightningDataModule):
+    """Data module for training on mixture of datasets."""
+
     def __init__(
         self,
         dataset_cfgs: Dict[str, ProteinDatasetConfig],

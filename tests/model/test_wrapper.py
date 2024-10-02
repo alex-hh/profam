@@ -3,12 +3,31 @@ import torch
 from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
 
+# def test_generate():
+#     from transformers import LlamaForCausalLM, LlamaConfig
+#     config = LlamaConfig(hidden_dim=64, num_attention_heads=4, num_hidden_layers=1, vocab_size=20, intermediate_size=128)
+#     model = LlamaForCausalLM(config)
 
-def test_compute_sequence_index(default_model, profam_tokenizer):
+#     model.eval()
+#     input_ids = torch.ones(1, 10).long()
+#     attention_mask = torch.zeros((
+#         1, 1, 10, 10
+#     ))
+#     # attention_mask = torch.ones(1, 10)
+#     model.generate(
+#         input_ids=input_ids,
+#         max_new_tokens=2,
+#         do_sample=True,
+#         num_return_sequences=2,
+#         attention_mask=attention_mask,
+#     )
+
+
+def test_compute_sequence_index(test_model, profam_tokenizer):
     sequences = ["ARC", "MKLLL", "MKPP"]
     document = ProteinDocument(sequences=sequences)
     tokenized = profam_tokenizer.encode(document)
-    sequence_indices = default_model.model.compute_sequence_index(
+    sequence_indices = test_model.model.compute_sequence_index(
         tokenized.input_ids[None]
     )
     expected_sequence_indices = torch.tensor(

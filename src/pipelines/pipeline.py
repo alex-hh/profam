@@ -1,15 +1,27 @@
 import os
 import shutil
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
+import tqdm
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
 
 from src import constants
-from src.data import fasta
 from src.data.objects import ProteinDocument
+from src.data.preprocessing import BasePreprocessor
 from src.evaluators.base import SamplingEvaluator
+from src.sequence import fasta
 from src.utils.utils import maybe_print
+
+
+def load_named_pipeline(pipeline_name: str, overrides: Optional[List[str]] = None):
+    with initialize_config_dir(
+        os.path.join(constants.BASEDIR, "configs/pipeline"), version_base="1.3"
+    ):
+        pipeline_cfg = compose(config_name=pipeline_name, overrides=overrides)
+    return instantiate(pipeline_cfg)
 
 
 class BaseEvaluatorPipeline:
@@ -21,44 +33,61 @@ class BaseEvaluatorPipeline:
 
     If multiple sets of metrics should be run on a single set of generations, the evaluator needs
     to be written appropriately.
+
+    # TODO: separate results df for each evaluator - store in dict maybe?
     """
 
     def __init__(
         self,
         pipeline_id: str,
         benchmark_directory: str = None,
-        save_to_file: bool = True,
+        save_results_to_file: bool = True,
     ):
         self.pipeline_id = pipeline_id
+        # assert (
+        #     self.preprocessor.transform_fns is None
+        # ), "Pipeline preprocessor should not have transforms"  # doesnt matter: they dont get called
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
         )
-        self.save_to_file = save_to_file
-        self.load_results()
+        self.save_results_to_file = save_results_to_file
+        self.reset()
 
     def instance_ids(self):
         raise NotImplementedError()
 
     def reset(self):
-        self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
+        self.results_dfs = {}
 
-    def load_results(self) -> pd.DataFrame:
-        """Load results dataframe from local disk location."""
-        results_path = os.path.join(self.pipeline_directory, "results.csv")
-        if self.save_to_file and os.path.exists(results_path):
-            self.results_df = pd.read_csv(results_path)
+    def load_results(self, evaluator_name) -> pd.DataFrame:
+        """Load results dataframe from local disk location.
+
+        TODO: we really want different results files for different evaluators,
+        so this should happen somewhere else.
+        """
+        results_path = os.path.join(
+            self.pipeline_directory, evaluator_name, "results.csv"
+        )
+        if self.save_results_to_file and os.path.exists(results_path):
+            self.results_dfs[evaluator_name] = pd.read_csv(results_path)
         else:
-            self.results_df = pd.DataFrame(columns=["evaluator", "sampler", "instance"])
-        self.results_df.set_index(["evaluator", "sampler", "instance"], inplace=True)
+            self.results_dfs[evaluator_name] = pd.DataFrame(
+                columns=["evaluator", "sampler", "instance"]
+            )
+        self.results_dfs[evaluator_name].set_index(
+            ["evaluator", "sampler", "instance"], inplace=True
+        )
 
-    def has_result(self, validation_id: str, instance_id: str, model_id: str) -> bool:
+    def has_result(self, evaluator_name: str, instance_id: str, model_id: str) -> bool:
         """Check if validation, instance, model combo is present in results df index."""
-        return (validation_id, model_id, instance_id) in self.results_df.index
+        return (evaluator_name, model_id, instance_id) in self.results_dfs[
+            evaluator_name
+        ].index
 
     def add_result(
         self,
-        validation_id: str,
+        evaluator_name: str,
         instance_id: str,
         model_id: str,
         result: Dict[str, float],
@@ -66,21 +95,29 @@ class BaseEvaluatorPipeline:
         """Add a result to the results dataframe."""
         # drop any existing result for this instance, validation, model combo
         # then concatenate a new row to the df
-        self.results_df.drop(
-            index=(validation_id, model_id, instance_id), inplace=True, errors="ignore"
+        if evaluator_name not in self.results_dfs:
+            self.results_dfs[evaluator_name] = pd.DataFrame(
+                columns=["evaluator", "sampler", "instance"]
+            ).set_index(["evaluator", "sampler", "instance"], inplace=True)
+        self.results_dfs[evaluator_name].drop(
+            index=(evaluator_name, model_id, instance_id), inplace=True, errors="ignore"
         )
-        self.results_df = pd.concat(
+        self.results_dfs[evaluator_name] = pd.concat(
             [
-                self.results_df,
+                self.results_dfs[evaluator_name],
                 pd.DataFrame([result]).set_index(["evaluator", "sampler", "instance"]),
             ]
         )
 
     def save_results(self) -> None:
         """Save results dataframe to local disk location."""
-        if self.save_to_file:
-            results_path = os.path.join(self.pipeline_directory, "results.csv")
-            self.results_df.to_csv(results_path, index=True)
+        if self.save_results_to_file:
+            for evaluator_name, results_df in self.results_dfs.items():
+                results_path = os.path.join(
+                    self.pipeline_directory, evaluator_name, "results.csv"
+                )
+                os.makedirs(os.path.dirname(results_path), exist_ok=True)
+                results_df.to_csv(results_path, index=True)
 
     def make_summary(self):
         summaries = []
@@ -93,12 +130,7 @@ class BaseEvaluatorPipeline:
     def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
         raise NotImplementedError()
 
-    def run(
-        self,
-        model,
-        rerun_model: bool = False,
-        rerun_evaluator: bool = False,
-    ):
+    def load_protein_document(self, instance_id: str) -> ProteinDocument:
         raise NotImplementedError()
 
 
@@ -111,30 +143,39 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         num_generations: int,
         pipeline_id: str,
         benchmark_directory: str = None,
-        save_to_file: bool = True,
+        save_results_to_file: bool = True,
     ):
         self.num_generations = num_generations
         self.generations = defaultdict(dict)
+        self.prompts = defaultdict(dict)
         print(
             f"Initialised pipeline ID {pipeline_id} num generations {num_generations}"
         )
         super().__init__(
             pipeline_id,
             benchmark_directory=benchmark_directory,
-            save_to_file=save_to_file,
+            save_results_to_file=save_results_to_file,
         )
 
     def has_generations(self, instance_id: str, model_id: str) -> bool:
-        if not self.save_to_file:
+        # TODO: check prompt as well
+        if not self.save_results_to_file:
             return (
                 model_id in self.generations
                 and instance_id in self.generations[model_id]
             )
         else:
             output_path = os.path.join(
-                self.pipeline_directory, instance_id, model_id, "sequences.fa"
+                self.pipeline_directory,
+                "generations",
+                instance_id,
+                model_id,
+                "sequences.fa",
             )
-            retval = os.path.isfile(output_path)
+            prompt_output_path = os.path.join(
+                self.pipeline_directory, "prompts", instance_id, model_id, "prompt.json"
+            )
+            retval = os.path.isfile(output_path) and prompt_output_path
             return retval
 
     def has_all_generations(self, model_id: str) -> None:
@@ -151,7 +192,8 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         # an exception. (TODO: allow overriding with an ignore_config_mismatch flag).
         raise NotImplementedError()
 
-    def load_protein_document(self, instance_id):
+    def get_protein_example(self, instance_id):
+        """Load a protein example (a dict to be parsed by preprocessor)."""
         raise NotImplementedError()
 
     def run_evaluator_on_instance(
@@ -159,26 +201,35 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         sampler_name: str,
         instance_id: str,
         evaluator: SamplingEvaluator,
+        prompt: ProteinDocument,
         protein_document: ProteinDocument,
         rerun_evaluator: bool = False,
+        device: Optional[str] = None,
+        verbose: bool = False,
     ) -> None:
         generated_sequences = self.load_generations(instance_id, sampler_name)
         if rerun_evaluator or not self.has_result(
             evaluator.name, instance_id, sampler_name
         ):
             output_dir = os.path.join(
-                self.pipeline_directory, instance_id, sampler_name, evaluator.name
+                self.pipeline_directory, evaluator.name, instance_id, sampler_name
             )
             if rerun_evaluator:
                 if os.path.isdir(output_dir):
                     shutil.rmtree(output_dir)
+
             metrics = evaluator.evaluate_samples(
-                protein_document,
-                generated_sequences,
+                prompt=prompt,
+                protein_document=protein_document,
+                samples=generated_sequences,
                 output_dir=output_dir,
+                device=device,
             )
+
             metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in metrics.items()])
-            print(f"Instance {instance_id} metrics: {metrics_str}")
+            if verbose:
+                print(f"Instance {instance_id} {evaluator.name} metrics: {metrics_str}")
+
             metrics.update(self.get_instance_summary(instance_id))
             metrics["sampler"] = sampler_name
             metrics["instance"] = instance_id
@@ -186,8 +237,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             self.add_result(evaluator.name, instance_id, sampler_name, metrics)
 
     def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
-        if self.save_to_file:
-            outputs_dir = os.path.join(self.pipeline_directory, instance_id, model_name)
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "generations", instance_id, model_name
+            )
             os.makedirs(outputs_dir, exist_ok=True)
             fasta.output_fasta(
                 [f"seq{i}" for i in range(len(sequences))],
@@ -197,10 +250,20 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         else:
             self.generations[model_name][instance_id] = sequences
 
-    def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
-        if self.save_to_file:
+    def save_prompt(self, instance_id, model_name, prompt: str) -> None:
+        if self.save_results_to_file:
             outputs_dir = os.path.join(
-                self.pipeline_directory, instance_id, sampler_name
+                self.pipeline_directory, "prompts", instance_id, model_name
+            )
+            os.makedirs(outputs_dir, exist_ok=True)
+            prompt.to_json(os.path.join(outputs_dir, "prompt.json"))
+        else:
+            self.prompts[model_name][instance_id] = prompt
+
+    def load_generations(self, instance_id: str, sampler_name: str) -> List[str]:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "generations", instance_id, sampler_name
             )
             fasta_file = os.path.join(outputs_dir, "sequences.fa")
             _, sequences = fasta.read_fasta(fasta_file)
@@ -209,17 +272,41 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             sequences = self.generations[sampler_name][instance_id]
             return sequences
 
+    def load_prompt(self, instance_id: str, sampler_name: str) -> ProteinDocument:
+        if self.save_results_to_file:
+            outputs_dir = os.path.join(
+                self.pipeline_directory, "prompts", instance_id, sampler_name
+            )
+            prompt_file = os.path.join(outputs_dir, "prompt.json")
+            prompt = ProteinDocument.from_json(prompt_file)
+            return prompt
+        else:
+            prompt = self.prompts[sampler_name][instance_id]
+            return prompt
+
     def run(
         self,
         sampler,
-        evaluator,
+        evaluators: Union[List[SamplingEvaluator], SamplingEvaluator],
         verbose: bool = True,
         rerun_sampler: bool = False,
         rerun_evaluator: bool = True,
         sampling_only: bool = False,
+        offload_sampler: bool = False,
+        device: Optional[str] = None,
+        disable_tqdm: bool = False,
     ):
+        if not isinstance(evaluators, List):
+            assert isinstance(evaluators, SamplingEvaluator)
+            evaluators = [evaluators]
+        for evaluator in evaluators:
+            self.load_results(evaluator.name)
+
         instance_ids = self.instance_ids()
-        for instance_id in instance_ids:
+        if rerun_sampler:
+            rerun_evaluator = True
+
+        for instance_id in tqdm.tqdm(instance_ids, disable=verbose or disable_tqdm):
             maybe_print(
                 "Running evaluation pipeline for instance", instance_id, verbose=verbose
             )
@@ -232,42 +319,60 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
-                generated_sequences = evaluator.run_sampling(
-                    sampler,
-                    protein_document,
-                    self.num_generations,
+                generations, prompt = sampler.sample_seqs(
+                    protein_document, self.num_generations
                 )
-                sampler.to("cpu")
-                self.save_generations(instance_id, sampler.name, generated_sequences)
+                self.save_generations(instance_id, sampler.name, generations)
+                self.save_prompt(instance_id, sampler.name, prompt)
             else:
-                generated_sequences = self.load_generations(instance_id, sampler.name)
+                maybe_print(
+                    f"Loading generations for instance: {instance_id}",
+                )
+                generations = self.load_generations(instance_id, sampler.name)
+                prompt = self.load_prompt(instance_id, sampler.name)
 
+            sampler_device = sampler.device
             if not sampling_only:
-                try:
-                    self.run_evaluator_on_instance(
-                        sampler.name,
-                        instance_id=instance_id,
-                        evaluator=evaluator,
-                        protein_document=protein_document,
-                        rerun_evaluator=rerun_evaluator,
-                    )
-                except Exception as e:
-                    print("Failed to run validation on instance", instance_id)
-                    raise e
+                if offload_sampler:
+                    sampler.to(
+                        "cpu"
+                    )  # offload memory to CPU. TODO: consider avoiding all this device switching
+                for evaluator in evaluators:
+                    try:
+                        self.run_evaluator_on_instance(
+                            sampler.name,
+                            instance_id=instance_id,
+                            evaluator=evaluator,
+                            prompt=prompt,
+                            protein_document=protein_document,
+                            rerun_evaluator=rerun_evaluator,
+                            device=device,
+                        )
+                    except Exception as e:
+                        print("Failed to run validation on instance", instance_id)
+                        raise e
+                if offload_sampler:
+                    sampler.to(sampler_device)  # move back to original device
 
         if sampling_only:
             return
 
         # TODO format to limit decimal places
-        # print(self.results_df["sampler"].unique())
-        combo_results = self.results_df.loc[(evaluator.name, sampler.name)]
-        avg_metrics = combo_results.mean()
-        avg_metrics_str = ", ".join([f"{k}: {v:.3f}" for k, v in avg_metrics.items()])
-        maybe_print(
-            f"Validation `{evaluator.name}` model {sampler.name} average metrics: "
-            f"{avg_metrics_str} ({len(combo_results)} instances)",
-            verbose=verbose,
-        )
+        outputs = {}
+        for evaluator in evaluators:
+            sampler_results = self.results_dfs[evaluator.name].loc[
+                (evaluator.name, sampler.name)
+            ]
+            avg_metrics = sampler_results.mean()
+            avg_metrics_str = ", ".join(
+                [f"{k}: {v:.3f}" for k, v in avg_metrics.items()]
+            )
+            maybe_print(
+                f"Validation `{evaluator.name}` model {sampler.name} average metrics: "
+                f"{avg_metrics_str} ({len(sampler_results)} instances)",
+                verbose=verbose,
+            )
+            outputs[evaluator.name] = sampler_results
 
         self.save_results()
-        return combo_results
+        return outputs

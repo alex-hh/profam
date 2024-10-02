@@ -18,7 +18,8 @@ from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
-from src.models.utils import accuracy_from_outputs, log_likelihood_from_outputs
+from src.models import metrics
+from src.models.utils import log_likelihood_from_outputs
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -69,7 +70,7 @@ class BaseLitModule(LightningModule):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
-        self.save_hyperparameters(logger=False)
+        self.save_hyperparameters(logger=False, ignore=["model"])
         self.lr = lr
         self.weight_decay = weight_decay
         self.eps = eps
@@ -127,12 +128,12 @@ class BaseLitModule(LightningModule):
         self._t0 = time.time()
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int):
+        # TODO: handle ddp.
         self._t1 = time.time()
         self.log(
             "train/batch_time",
             self._t1 - self._t0,
             on_step=True,
-            on_epoch=True,
             prog_bar=True,
         )
 
@@ -141,7 +142,7 @@ class BaseLitModule(LightningModule):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
 
-        dataset_accuracies = accuracy_from_outputs(
+        dataset_accuracies = metrics.accuracy_from_outputs(
             outputs,
             batch["labels"],
             ignore_index=-100,
@@ -153,6 +154,8 @@ class BaseLitModule(LightningModule):
                 + [aa.lower() for aa in aa_letters]
                 + self.tokenizer.all_special_tokens
             ),
+            sep_token_id=self.tokenizer.sep_token_id,
+            calc_full_no_context_accuracies=True,
         )
         has_3di = torch.isin(
             batch["input_ids"],
@@ -165,9 +168,51 @@ class BaseLitModule(LightningModule):
             "loss": loss,
             "ppl": torch.exp(loss),
             "aa_accuracy": dataset_accuracies.pop("global"),
+            "aa_accuracy_first_sequence": dataset_accuracies.pop("first_sequence"),
+            "aa_accuracy_last_sequence": dataset_accuracies.pop("last_sequence"),
         }
+        if "coords" in batch:
+            global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
+            if "plddts" in batch:
+                global_metrics.update(metrics.plddt_metrics(**batch))
+            is_interleaved = (
+                batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
+            ).any()
+            if is_interleaved:
+                # accuracy where coordinates are available
+                aa_has_coords_mask = batch["interleaved_coords_mask"].any((-1, -2))
+                has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
+                    outputs,
+                    batch["labels"],
+                    ignore_index=-100,
+                    dataset_names=batch[
+                        "ds_name"
+                    ].text,  # a list of dataset names (StringObject.text)
+                    ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                        ["-", "X", "x"]
+                        + [aa.lower() for aa in aa_letters]
+                        + self.tokenizer.all_special_tokens
+                    ),
+                    sep_token_id=self.tokenizer.sep_token_id,
+                    calc_full_no_context_accuracies=True,
+                    mask=(aa_has_coords_mask & batch["aa_mask"]),
+                )
+                global_metrics[
+                    "has_coords_aa_accuracy"
+                ] = has_coords_dataset_accuracies.pop("global")
+                global_metrics[
+                    "has_coords_aa_accuracy_first_sequence"
+                ] = has_coords_dataset_accuracies.pop("first_sequence")
+                global_metrics[
+                    "has_coords_aa_accuracy_last_sequence"
+                ] = has_coords_dataset_accuracies.pop("last_sequence")
+                global_metrics["aa_has_coords_frac"] = (
+                    aa_has_coords_mask & batch["aa_mask"]
+                ).float().sum() / batch["aa_mask"].float().sum()
+            global_metrics["aa_count"] = batch["aa_mask"].float().sum()
+
         if has_3di:
-            dataset_accuracies_3di = accuracy_from_outputs(
+            dataset_accuracies_3di = metrics.accuracy_from_outputs(
                 outputs,
                 batch["labels"],
                 ignore_index=-100,
@@ -175,16 +220,25 @@ class BaseLitModule(LightningModule):
                 ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                     ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
                 ),
+                sep_token_id=self.tokenizer.sep_token_id,
+                calc_full_no_context_accuracies=True,
             )
             global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
+            global_metrics["3di_accuracy_first_sequence"] = dataset_accuracies_3di.pop(
+                "first_sequence"
+            )
+            global_metrics["3di_accuracy_last_sequence"] = dataset_accuracies_3di.pop(
+                "last_sequence"
+            )
 
         if log_global:
             self.log_dict(
                 {f"{step_name}/{k}": v for k, v in global_metrics.items()},
                 on_step=step_name == "train",
-                on_epoch=True,
+                on_epoch=step_name != "train",
                 prog_bar=True,
                 add_dataloader_idx=False,
+                sync_dist=step_name != "train",
             )
 
         # n.b. this assumes a batch only contains a single dataset - only true during val!
@@ -193,8 +247,15 @@ class BaseLitModule(LightningModule):
         is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
         for ds_name in set(batch["ds_name"].text):
             ds_metrics = {
-                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name]
+                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name],
+                f"{step_name}/{ds_name}/aa_accuracy_first_sequence": dataset_accuracies[
+                    ds_name + "_first_sequence"
+                ],
+                f"{step_name}/{ds_name}/aa_accuracy_last_sequence": dataset_accuracies[
+                    ds_name + "_last_sequence"
+                ],
             }
+            # TODO: coords frac for each dataset
             if is_single_dataset_batch:
                 # global metrics are dataset specific
                 ds_metrics[f"{step_name}/{ds_name}/loss"] = loss
@@ -202,12 +263,23 @@ class BaseLitModule(LightningModule):
                 ds_metrics[
                     f"{step_name}/{ds_name}/3di_accuracy"
                 ] = dataset_accuracies_3di[ds_name]
+                ds_metrics[
+                    f"{step_name}/{ds_name}/3di_accuracy_first_sequence"
+                ] = dataset_accuracies_3di[ds_name + "_first_sequence"]
+                ds_metrics[
+                    f"{step_name}/{ds_name}/3di_accuracy_last_sequence"
+                ] = dataset_accuracies_3di[ds_name + "_last_sequence"]
+            if "coords" in batch and is_interleaved:
+                ds_metrics[
+                    f"{step_name}/{ds_name}/has_coords_aa_accuracy"
+                ] = has_coords_dataset_accuracies[ds_name]
             self.log_dict(
                 ds_metrics,
                 on_step=False,
                 on_epoch=True,
                 prog_bar=False,
                 add_dataloader_idx=False,
+                sync_dist=step_name != "train",  # Q: what happens if sync_dist is False
             )
 
     def training_step(
@@ -227,13 +299,12 @@ class BaseLitModule(LightningModule):
     def on_before_optimizer_step(self, optimizer):
         # https://github.com/Lightning-AI/pytorch-lightning/issues/1462
         self.log(
-            "grad_norm",
+            "train/grad_norm",
             calc_grad_norm(self.model.parameters()),
             on_step=True,
-            on_epoch=True,
             prog_bar=True,
         )
-        self.log("lr", optimizer.param_groups[0]["lr"])
+        self.log("train/lr", optimizer.param_groups[0]["lr"])
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
@@ -344,6 +415,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
             on_epoch=True,
             prog_bar=True,
             add_dataloader_idx=False,
+            sync_dist=True,
         )
 
 
@@ -359,6 +431,7 @@ class BaseFamilyLitModule(BaseLitModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
+        embed_coords: bool = False,
     ):
         super().__init__(
             model,
@@ -372,17 +445,23 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
-        self.dataset_sample_counts = {}
-        self.doc_id_counts = {}
         self.use_seq_pos = self.tokenizer.use_seq_pos
         self.max_seq_pos = self.tokenizer.max_seq_pos
+        self.embed_coords = embed_coords
         if self.use_seq_pos:
             self.embed_sequence_index = self.model.embed_sequence_index
         else:
             self.embed_sequence_index = False
 
     def get_forward_kwargs(self, batch):
-        return {"seq_pos": batch.get("seq_pos", None)} if self.use_seq_pos else {}
+        forward_kwargs = {}
+        if self.embed_coords:
+            assert batch["coords"] is not None
+            forward_kwargs["coords"] = batch["coords"]
+        if self.use_seq_pos:
+            assert batch["seq_pos"] is not None
+            forward_kwargs["seq_pos"] = batch["seq_pos"]
+        return forward_kwargs
 
     def trim_eval_batch(self, seqs_ids):
         """
@@ -404,6 +483,7 @@ class BaseFamilyLitModule(BaseLitModule):
         input_ids,
         completion_ids,
         seq_pos: Optional[torch.LongTensor] = None,
+        coords: Optional[torch.FloatTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
@@ -413,7 +493,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        forward_kwargs = {"seq_pos": seq_pos} if self.use_seq_pos else {}
+        forward_kwargs = self.get_forward_kwargs({"seq_pos": seq_pos, "coords": coords})
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -450,6 +530,9 @@ class BaseFamilyLitModule(BaseLitModule):
                 ].reshape(-1, L_mini_batch)
                 # fmt: on
                 forward_kwargs["seq_pos"] = this_seq_pos
+            if self.embed_coords:
+                assert coords is not None
+                raise NotImplementedError("Coords not yet supported for mutant scoring")
             if self.embed_sequence_index:
                 forward_kwargs["start_sequence_index"] = start_sequence_index
 
@@ -482,6 +565,7 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_ids,
         batch_size: int = 1,
         seq_pos: Optional[torch.LongTensor] = None,
+        coords: Optional[torch.FloatTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
         verbose: bool = False,
     ):
@@ -518,6 +602,9 @@ class BaseFamilyLitModule(BaseLitModule):
                     dim=1,
                 )[..., :L_mini_batch]
                 forward_kwargs["seq_pos"] = this_seq_pos
+            if self.embed_coords:
+                assert coords is not None
+                raise NotImplementedError("Coords not yet supported for mutant scoring")
             outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
             # remember likelihood at n predicts position n+1
             log_likelihood = log_likelihood_from_outputs(
@@ -536,6 +623,7 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_ids,
         use_cache: bool = True,
         batch_size: int = 1,
+        coords: Optional[torch.FloatTensor] = None,
         input_seq_pos: Optional[torch.LongTensor] = None,
         completion_seq_pos: Optional[torch.LongTensor] = None,
     ):
@@ -550,6 +638,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids,
                 completion_ids,
                 batch_size=batch_size,
+                coords=coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
             )
@@ -558,6 +647,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids,
                 completion_ids,
                 batch_size=batch_size,
+                coords=coords,
                 seq_pos=input_seq_pos,
                 completion_seq_pos=completion_seq_pos,
             )
@@ -566,9 +656,14 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         input_ids,
         num_samples,
+        max_tokens: int,
         batch_size: int = 1,
-        max_length: int = 8192,  # maximum length of inputs plus completions
+        max_generated_length: Optional[int] = None,
+        max_total_length: Optional[
+            int
+        ] = None,  # maximum length of inputs plus completions
         input_seq_pos: Optional[torch.LongTensor] = None,
+        input_coords: Optional[torch.FloatTensor] = None,
         include_prompt_in_output: bool = False,
         fixed_length: Optional[int] = None,
         greedy: bool = False,
@@ -587,17 +682,31 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add temperature kwarg
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
+        if max_total_length is None:
+            if self.use_seq_pos:
+                max_total_length = min(
+                    max_tokens,
+                    input_ids.shape[1] + self.tokenizer.max_seq_pos,
+                )
+            else:
+                max_total_length = max_tokens
+        if max_generated_length is not None:
+            assert max_generated_length <= max_total_length
         generation_kwargs = {}
         if fixed_length is not None:
-            if max_length is not None:
-                assert input_ids.shape[1] + fixed_length <= max_length
+            if max_total_length is not None:
+                assert input_ids.shape[1] + fixed_length <= max_total_length
             generation_kwargs["min_new_tokens"] = fixed_length
             generation_kwargs["max_new_tokens"] = fixed_length
             generation_kwargs["eos_token_id"] = None
+        elif max_generated_length is not None:
+            generation_kwargs["min_new_tokens"] = 3
+            generation_kwargs["max_new_tokens"] = max_generated_length
+            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
         else:
             generation_kwargs["min_new_tokens"] = 3  # for esmfold
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
-            generation_kwargs["max_length"] = max_length
+            generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
         bad_aas = ["X", "x"]
         if not sample_gaps:
@@ -608,32 +717,33 @@ class BaseFamilyLitModule(BaseLitModule):
             bad_aas = bad_aas + [aa.lower() for aa in aa_letters]
 
         # each 'word' is treated as a list of tokens
+        # TODO: write test for this with random model.
         generation_kwargs["bad_words_ids"] = [
-            [tok]
-            for tok in self.tokenizer.convert_tokens_to_ids(
-                [
-                    t
-                    for t in list(self.tokenizer.get_added_vocab().keys())
-                    if t != self.tokenizer.eos_token_id
-                    and t.startswith("[")
-                    and t.endswith("]")
-                ]
-                + bad_aas
-            )  # a bit of a nasty hack
+            [tok_id]
+            for tok_id in self.tokenizer.all_special_ids
+            if tok_id != self.tokenizer.eos_token_id
+        ]
+        generation_kwargs["bad_words_ids"] += [
+            [self.tokenizer.convert_tokens_to_ids(bad_aa)] for bad_aa in bad_aas
         ]
 
         assert (
-            input_ids.shape[0] == 1
+            input_ids.shape[0] == 1 and input_ids.ndim == 2
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
-        assert input_ids.ndim == 2  # b, L
-        assert (input_ids[:, -1] == self.tokenizer.sep_token_id).all()
+        # why is ending in sep token necessary? may not be...
+        assert input_ids[:, -1].item() in [
+            self.tokenizer.sep_token_id,
+            self.tokenizer.seq_struct_sep_token_id,
+        ]
         assert input_seq_pos.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
-            forward_kwargs = {"seq_pos": input_seq_pos} if self.use_seq_pos else {}
+            forward_kwargs = self.get_forward_kwargs(
+                {"seq_pos": input_seq_pos, "coords": input_coords}
+            )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
             # N.B. we need to be careful about generationconfig -- in particular eos token id
@@ -719,10 +829,9 @@ class BaseFamilyLitModule(BaseLitModule):
             input_seq_pos=batch.get("seq_pos", None),
             completion_seq_pos=batch.get("completion_seq_pos", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=1,
-            # batch_size=(self.scoring_max_tokens - L_prompt) // L
-            # if self.use_kv_cache_for_scoring
-            # else 1,
+            batch_size=(self.scoring_max_tokens - L_prompt) // L
+            if self.use_kv_cache_for_scoring
+            else 1,
         )
         spearman_corr, _ = spearmanr(
             lls.astype(np.float32),
@@ -730,7 +839,12 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         # TODO: log the specific landscape name
         self.log(
-            "gym/spearman", spearman_corr, on_step=False, on_epoch=True, prog_bar=False
+            "gym/spearman",
+            spearman_corr,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
         )
 
     def validation_step_family_classification(
@@ -794,6 +908,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 top_k_acc,
                 on_step=False,
                 on_epoch=True,
+                sync_dist=True,
                 add_dataloader_idx=False,
             )
         if batch["ds_name"].text[0] in ["pfam_fam_class"]:
@@ -899,6 +1014,8 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        # uncomment for debugging ddp (train.py +experiment=ddp_test)
+        # print(f"Rank: {self.trainer.global_rank}", batch["identifier"].text, flush=True)
         forward_kwargs = self.get_forward_kwargs(batch)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
@@ -919,12 +1036,30 @@ class BaseFamilyLitModule(BaseLitModule):
             .mean()
             .item(),
             on_step=True,
+            prog_bar=True,
             on_epoch=False,
         )
         self.log_ds_sample_counts(batch)
         return loss
 
+    def on_train_start(self):
+        self.dataset_sample_counts = {}
+        self.doc_id_counts = {}
+
+    def on_train_epoch_end(self):
+        self.log_dict(
+            {
+                f"{k}_max_sampled_doc": max(v.values())
+                for k, v in self.doc_id_counts.items()
+            },
+            sync_dist=True,
+        )
+
     def log_ds_sample_counts(self, batch):
+        """Log statistics about dataset usage.
+
+        N.B. in distributed setting, these will be device-specific.
+        """
         ds_name = batch["ds_name"].text
         for ds in ds_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
@@ -945,11 +1080,3 @@ class BaseFamilyLitModule(BaseLitModule):
                 self.doc_id_counts[dataset][doc_id] = (
                     self.doc_id_counts[dataset].get(doc_id, 0) + 1
                 )
-            self.log_dict(
-                {
-                    f"{k}_max_sampled_doc": max(v.values())
-                    for k, v in self.doc_id_counts.items()
-                },
-                on_step=False,
-                on_epoch=True,
-            )

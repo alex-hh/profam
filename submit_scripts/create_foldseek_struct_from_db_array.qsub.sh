@@ -15,8 +15,8 @@
 date
 hostname
 file_prefix=$((SGE_TASK_ID - 1))
-source /share/apps/source_files/python/python-3.11.9.source
-source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
+source /SAN/orengolab/cath_plm/ProFam/pfenv.source
+export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
 output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_struct/${file_prefix}.parquet"
 if [ ! -f $output_file ]; then
     echo "Output file not found: $output_file"

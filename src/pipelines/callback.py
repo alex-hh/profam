@@ -1,10 +1,11 @@
 import time
 from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
+from omegaconf import DictConfig
 
-from src.data.preprocessing import BasePreprocessorConfig
 from src.evaluators.base import SamplingEvaluator
 from src.models.inference import ProFamSampler, PromptBuilder
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
@@ -14,56 +15,64 @@ class SamplingEvaluationPipelineCallback(Callback):
     def __init__(
         self,
         pipeline: GenerationsEvaluatorPipeline,
-        evaluator: SamplingEvaluator,
-        preprocessor: BasePreprocessorConfig,
-        max_tokens: int = 8192,
-        seed: Optional[int] = None,
+        evaluators: Union[
+            List[SamplingEvaluator], Dict[str, SamplingEvaluator], SamplingEvaluator
+        ],
+        prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
+        match_representative_length: bool = False,
     ):
         self.pipeline = pipeline
         assert (
-            not self.pipeline.save_to_file
+            not self.pipeline.save_results_to_file
         ), "Pipeline should not save to file during callback"
-        self.evaluator = evaluator
+        self.evaluators = evaluators
         self.sampling_kwargs = sampling_kwargs or {}
-        self.preprocessor = preprocessor
-        assert self.preprocessor is not None
-        self.max_tokens = max_tokens
-        self.seed = seed
+        self.prompt_builder = prompt_builder
+        self.match_representative_length = match_representative_length
+        if isinstance(self.evaluators, Dict) or isinstance(self.evaluators, DictConfig):
+            self.evaluators = list(self.evaluators.values())
+        if not isinstance(self.evaluators, List):
+            assert isinstance(self.evaluators, SamplingEvaluator)
+            self.evaluators: List[SamplingEvaluator] = [self.evaluators]
 
+    @rank_zero_only
     def on_validation_epoch_end(self, trainer, model):
         # run on val epoch end rather than train to stay in sync with other validation metrics
         if trainer.sanity_checking:
             return
-        device = model.device
+
         sampler = ProFamSampler(
             "profam_sampler",
             model,
-            prompt_builder=PromptBuilder(
-                self.preprocessor,
-                max_tokens=self.max_tokens,
-                seed=self.seed,
-            ),
+            prompt_builder=self.prompt_builder,
             sampling_kwargs=self.sampling_kwargs,
+            match_representative_length=self.match_representative_length,
         )
-        if trainer.is_global_zero:
-            # https://lightning.ai/docs/pytorch/stable/visualize/logging_advanced.html#rank-zero-only
-            # Q: how does logging work across ranks? if i log only from rank 0, what happens?
-            all_metrics = defaultdict(list)
-            t0 = time.time()
-            # self.pipeline.reset()  # clear stale results (rerun sampler and rerun evaluator should suffice anyway but no harm)
-            results_df = self.pipeline.run(
-                sampler,
-                self.evaluator,
-                verbose=False,
-                rerun_evaluator=True,
-                rerun_sampler=True,
-            )
-            sampler.to(device)
-            mean_results = results_df.mean().to_dict()
+        # https://lightning.ai/docs/pytorch/stable/visualize/logging_advanced.html#rank-zero-only
+        # Q: how does logging work across ranks? if i log only from rank 0, what happens?
+        all_metrics = defaultdict(list)
+        t0 = time.time()
+        # self.pipeline.reset()  # clear stale results (rerun sampler and rerun evaluator should suffice anyway but no harm)
+        results_dfs = self.pipeline.run(
+            sampler,
+            self.evaluators,
+            verbose=False,
+            rerun_evaluator=True,
+            rerun_sampler=True,
+            device=model.device,
+            disable_tqdm=True,
+        )
+
+        all_metrics = {}
+        for evaluator_name, evaluator_results in results_dfs.items():
+            mean_results = evaluator_results.mean().to_dict()
             t1 = time.time()
-            all_metrics = {
-                f"{self.evaluator.name}/{k}": v for k, v in mean_results.items()
-            }
-            all_metrics[f"{self.evaluator.name}/time"] = t1 - t0
-            model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True)
+            all_metrics.update(
+                {
+                    f"{self.pipeline.pipeline_id}/{evaluator_name}/{k}": v
+                    for k, v in mean_results.items()
+                }
+            )
+            all_metrics[f"{self.pipeline.pipeline_id}/{evaluator_name}/time"] = t1 - t0
+        model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True, sync_dist=True)

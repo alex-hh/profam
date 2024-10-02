@@ -2,7 +2,6 @@ from typing import Optional
 
 import torch
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
-from transformers.models.llama.modeling_llama import LLAMA_ATTENTION_CLASSES
 
 from src.models.base import BaseFamilyLitModule, BaseSingleSequenceLitModule
 from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
@@ -65,7 +64,6 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        assert config._attn_implementation in LLAMA_ATTENTION_CLASSES
         if (
             tokenizer.use_seq_pos or embed_coords,
         ):  # commenting out to check computation of inputs embeds is working
@@ -82,7 +80,13 @@ class LlamaLitModule(BaseFamilyLitModule):
             )
         else:
             model = LlamaForCausalLM(config)
-
+        # n.b. attention implementation gets set here (in from_pretrained, _from_config, __init__):
+        # https://github.com/huggingface/transformers/blob/1dba608df93ffb10a9c268ef35191adf2424c5ca/src/transformers/modeling_utils.py#L1542
+        # c.f. https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-2
+        print(
+            "Initialised Llama model, attention implementation: ",
+            model.config._attn_implementation,
+        )
         super().__init__(
             model,
             tokenizer,
@@ -93,4 +97,5 @@ class LlamaLitModule(BaseFamilyLitModule):
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
+            embed_coords=embed_coords,
         )

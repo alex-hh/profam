@@ -1,4 +1,4 @@
-from src.data.fasta import convert_sequence_with_positions
+from src.sequence.fasta import convert_sequence_with_positions
 
 
 def test_convert_sequence_with_positions():
