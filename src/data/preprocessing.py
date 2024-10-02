@@ -121,7 +121,7 @@ def preprocess_protein_sequences(
     assert isinstance(proteins, ProteinDocument), type(proteins)
     transform_fns = transform_fns or []
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if tokenizer.use_seq_pos:
+    if tokenizer.embed_res_pos_in_seq:
         proteins = transforms.convert_sequences_adding_positions(
             proteins,
             keep_gaps=cfg.keep_gaps,

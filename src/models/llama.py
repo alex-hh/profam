@@ -52,10 +52,12 @@ class LlamaLitModule(BaseFamilyLitModule):
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
-        embed_sequence_index: bool = False,
+        embed_seq_pos_in_doc: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
-        max_sequence_index: int = 1024,
+        max_seq_pos_in_doc: int = 1024,
+        embed_res_pos_in_seq: bool = True,
+        max_res_pos_in_seq: int = 4096,
     ) -> None:
         """
         From the paper:
@@ -65,16 +67,18 @@ class LlamaLitModule(BaseFamilyLitModule):
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
         if (
-            tokenizer.use_seq_pos or embed_coords,
-        ):  # commenting out to check computation of inputs embeds is working
+            tokenizer.embed_res_pos_in_seq or embed_coords,
+        ):
+            assert embed_res_pos_in_seq == tokenizer.embed_res_pos_in_seq
+            assert max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
             model = WrappedLlamaForCausalLM(
                 config,
                 token_embedder="model.embed_tokens",
                 tokenizer=tokenizer,
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,
-                embed_sequence_index=embed_sequence_index,
-                max_sequence_index=max_sequence_index,
+                embed_seq_pos_in_doc=embed_seq_pos_in_doc,
+                max_seq_pos_in_doc=max_seq_pos_in_doc,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
                 pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
             )

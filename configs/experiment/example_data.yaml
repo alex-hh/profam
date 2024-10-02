@@ -37,7 +37,7 @@ data:
   batch_size: 4
   num_workers: 12
   evaluate_gym: false
-  use_seq_pos: false
+  embed_res_pos_in_seq: {model.embed_res_pos_in_seq}
   max_tokens: 2048
   dataset_cfgs:
     openfold_aligned:

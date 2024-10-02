@@ -32,14 +32,14 @@ def tokenize_msa(
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     proteins = ProteinDocument(
         sequences=sample["MSA"],
-        positions=sample["seq_pos"],
+        positions=sample["res_pos"],
     )
     tokenized = tokenizer.encode(
         proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
-    if tokenizer.use_seq_pos:
-        sample["seq_pos"] = tokenized.data["seq_pos"]
+    if tokenizer.embed_res_pos_in_seq:
+        sample["res_pos"] = tokenized.data["res_pos"]
     return sample
 
 
@@ -59,12 +59,12 @@ def tokenize_completions(
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
-        positions=sample["completion_seq_pos"],
+        positions=sample["completion_res_pos"],
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
-    if tokenizer.use_seq_pos:
-        sample["completion_seq_pos"] = tokenized.data["seq_pos"]
+    if tokenizer.embed_res_pos_in_seq:
+        sample["completion_res_pos"] = tokenized.data["res_pos"]
     return sample
 
 
@@ -141,7 +141,7 @@ def load_msa_for_row(
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
     row["MSA"] = proteins.sequences
-    row["seq_pos"] = proteins.positions
+    row["res_pos"] = proteins.positions
     return row
 
 
@@ -180,7 +180,7 @@ def load_comp_seq_dms_for_row(
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
-    row["completion_seq_pos"] = proteins.positions
+    row["completion_res_pos"] = proteins.positions
     return row
 
 
@@ -228,10 +228,10 @@ def build_gym_df(
         [
             "DMS_id",
             "MSA",
-            "seq_pos",
+            "res_pos",
             "DMS_scores",
             "completion_seqs",
-            "completion_seq_pos",
+            "completion_res_pos",
             "ds_name",
         ]
     ]
@@ -284,8 +284,8 @@ def load_gym_dataset(
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
-    if tokenizer.use_seq_pos:
-        columns += ["seq_pos", "completion_seq_pos"]
+    if tokenizer.embed_res_pos_in_seq:
+        columns += ["res_pos", "completion_res_pos"]
 
     dataset.set_format(
         type="torch",
@@ -351,7 +351,7 @@ class GymSingleMSADataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
         keep_gaps: bool = True,
-        use_seq_pos: bool = False,
+        embed_res_pos_in_seq: bool = False,
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
@@ -360,7 +360,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.gym_dms_id = gym_dms_id
         self.num_workers = num_workers
         self.keep_gaps = keep_gaps
-        self.use_seq_pos = use_seq_pos
+        self.embed_res_pos_in_seq = embed_res_pos_in_seq
         self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         # TODO: fix to avoid hardcoding

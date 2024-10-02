@@ -12,44 +12,44 @@ from src.utils import RankedLogger
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-def get_flat_seq_pos_from_positions(
+def get_flat_res_pos_in_seq_from_positions(
     positions,
-    max_seq_pos: int = 1024,
+    max_res_pos_in_seq: int = 1024,
     prepend_index=0,
     append_index=0,
     sep_index=0,
     num_start_tokens=1,
     num_end_tokens=1,
 ):
-    # TODO: maybe raise exception if max_seq_pos exceeded rather than duplicating...
+    # TODO: maybe raise exception if max_res_pos_in_seq exceeded rather than duplicating...
     if len(positions) > 0:
         flat_positions = [prepend_index] * num_start_tokens
         for sequence_positions in positions[:-1]:
             # add 1 so that sep doesnt have same position index
             # n.b. that convert_sequence_with_positions is also already 1-based
-            flat_positions += [min(p + 1, max_seq_pos - 1) for p in sequence_positions]
+            flat_positions += [min(p + 1, max_res_pos_in_seq - 1) for p in sequence_positions]
             flat_positions.append(sep_index)
-        flat_positions += [min(p + 1, max_seq_pos - 1) for p in positions[-1]]
+        flat_positions += [min(p + 1, max_res_pos_in_seq - 1) for p in positions[-1]]
         flat_positions += [append_index] * num_end_tokens  # no [SEP] at end of MSA
         return flat_positions
     else:
         return []
 
 
-def get_seq_pos_from_positions(
+def get_res_pos_in_seq_from_positions(
     input_ids,
     positions,
     pad_token_id,
-    max_seq_pos: int = 1024,
+    max_res_pos_in_seq: int = 1024,
     num_start_tokens=1,
     num_end_tokens=1,
 ):
     assert input_ids.ndim == 1
-    seq_pos = torch.zeros_like(input_ids)
+    res_pos_in_seq = torch.zeros_like(input_ids)
     # TODO: convert to array and use concatenate_pad_array instead
-    flat_pos = get_flat_seq_pos_from_positions(
+    flat_pos = get_flat_res_pos_in_seq_from_positions(
         positions,
-        max_seq_pos=max_seq_pos,
+        max_res_pos_in_seq=max_res_pos_in_seq,
         prepend_index=0,
         append_index=0,
         sep_index=0,
@@ -61,8 +61,8 @@ def get_seq_pos_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = torch.tensor(flat_pos)
-    return seq_pos
+    res_pos_in_seq[:pad_start] = torch.tensor(flat_pos)
+    return res_pos_in_seq
 
 
 def concatenate_pad_array(
@@ -123,16 +123,16 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         *args,
         add_bos_token: bool = True,
         add_document_token: bool = True,
-        use_seq_pos: bool = False,
-        max_seq_pos: int = 1024,
+        embed_res_pos_in_seq: bool = False,
+        max_res_pos_in_seq: int = 1024,
         seq_struct_sep_token="|",
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
         self.add_document_token = add_document_token
-        self.use_seq_pos = use_seq_pos
-        self.max_seq_pos = max_seq_pos
+        self.embed_res_pos_in_seq = embed_res_pos_in_seq
+        self.max_res_pos_in_seq = max_res_pos_in_seq
         self.seq_struct_sep_token = seq_struct_sep_token
 
         if not self.additional_special_tokens:
@@ -195,26 +195,27 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert not (
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
-        if self.use_seq_pos:
+        if self.embed_res_pos_in_seq:
             if proteins.positions is None:
                 log.warning(
-                    "Using seq_pos but positions not provided. Using default positions."
+                    "Using res_pos_in_seq but positions not provided. "
+                    "Using default positions."
                 )
                 # +1 to match convert_sequence_with_positions
-                # get_seq_pos_from_positions adds another offset
+                # get_res_pos_in_seq_from_positions adds another offset
                 positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
             else:
                 positions = proteins.positions
-            seq_pos = get_seq_pos_from_positions(
+            res_pos_in_seq = get_res_pos_in_seq_from_positions(
                 tokenized.input_ids,
                 positions,
                 pad_token_id=self.pad_token_id,
-                max_seq_pos=self.max_seq_pos,
+                max_res_pos_in_seq=self.max_res_pos_in_seq,
                 num_start_tokens=self.num_start_tokens,
                 num_end_tokens=num_end_tokens,
             )
-            tokenized.data["seq_pos"] = seq_pos
-            assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
+            tokenized.data["res_pos_in_seq"] = res_pos_in_seq
+            assert res_pos_in_seq.shape[0] == tokenized.input_ids.shape[0]
 
         if proteins.backbone_coords is not None:
             tokenized.data["coords"] = torch.from_numpy(
@@ -357,26 +358,26 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             truncation=False,
             add_special_tokens=False,
         )
-        if self.use_seq_pos:
+        if self.embed_res_pos_in_seq:
             all_positions = []
             for i, seq in enumerate(sequences):
                 if positions is None:
-                    seq_positions = [list(range(1, len(seq) + 1))]
+                    res_positions = [list(range(1, len(seq) + 1))]
                 else:
-                    seq_positions = [positions[i]]
+                    res_positions = [positions[i]]
                 all_positions.append(
-                    get_seq_pos_from_positions(
+                    get_res_pos_in_seq_from_positions(
                         tokenized.input_ids[i],
-                        seq_positions,
+                        res_positions,
                         pad_token_id=self.pad_token_id,
-                        max_seq_pos=self.max_seq_pos,
+                        max_res_pos_in_seq=self.max_res_pos_in_seq,
                         num_start_tokens=1
                         if bos_token
                         else 0,  # just bos_token no doc as now completing prompt
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )
-            tokenized.data["seq_pos"] = stack(all_positions)
+            tokenized.data["res_pos_in_seq"] = stack(all_positions)
 
         return tokenized
 

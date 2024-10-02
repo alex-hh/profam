@@ -70,7 +70,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         tokenizer=tokenizer,
         _convert_="partial",
     )
-
+    assert cfg.model.embed_res_pos_in_seq == tokenizer.embed_res_pos_in_seq
+    assert cfg.model.max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
 

@@ -60,8 +60,8 @@ def pfam_sample_from_msa_path(
         shuffle=True,
     )
     tokenized_msa["completion_ids"] = tokenized_eval_seqs.input_ids
-    if tokenizer.use_seq_pos:
-        tokenized_msa["completion_seq_pos"] = tokenized_eval_seqs.seq_pos
+    if tokenizer.embed_res_pos_in_seq:
+        tokenized_msa["completion_res_pos"] = tokenized_eval_seqs.res_pos
     fam_id = msa_path["msa_paths"].split("/")[-1].split("_")[0]
     tokenized_msa["family_id"] = fam_id
     eval_fam_names = [n.split("_")[-1] for n in eval_names]
@@ -140,7 +140,7 @@ def load_pfam_classification_dataset(
         allow_unk=False,
     )
 
-    # add seq_pos and transform raw seqs:
+    # add res_pos and transform raw seqs:
     eval_proteins = preprocess_protein_sequences(
         eval_proteins,
         cfg=cfg,
@@ -181,8 +181,8 @@ def load_pfam_classification_dataset(
         "ds_name",
         "eval_fam_ids",
     ]
-    if tokenizer.use_seq_pos:
-        columns += ["seq_pos", "completion_seq_pos"]
+    if tokenizer.embed_res_pos_in_seq:
+        columns += ["res_pos", "completion_res_pos"]
 
     dataset.set_format(
         type="torch",

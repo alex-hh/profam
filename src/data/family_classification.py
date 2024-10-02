@@ -40,8 +40,8 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
         remove_columns=["MSA", "completion_seqs"],
     )
     columns = family_columns
-    if tokenizer.use_seq_pos:
-        columns += ["seq_pos", "completion_seq_pos"]
+    if tokenizer.embed_res_pos_in_seq:
+        columns += ["res_pos", "completion_res_pos"]
 
     dataset.set_format(
         type="torch",

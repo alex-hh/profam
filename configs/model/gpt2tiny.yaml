@@ -3,7 +3,10 @@ scheduler_name: "inverse_sqrt"
 num_warmup_steps: 1000
 lr: 1e-4
 embed_coords: false
-embed_sequence_index: false
+embed_seq_pos_in_doc: false
+embed_res_pos_in_seq: true
+max_seq_pos_in_doc: 1024
+max_res_pos_in_seq: 4096
 config:
   _target_: transformers.GPT2Config
   vocab_size: ${constants.vocab_size}
