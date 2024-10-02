@@ -170,13 +170,15 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         # commented out due to issues. TODO: make minimal example and report
         # https://github.com/huggingface/datasets/issues/6319
         # https://discuss.huggingface.co/t/progress-bar-of-dataset-map-with-num-proc-1-hangs/64776/2
-        return dataset.filter(
-            lambda x: len(x["seq"])
-            <= (
+        def filter_fn(x):
+            return len(x["seq"]) <= (
                 max_tokens_per_example // 2
                 if self.interleave_structure_sequence
                 else max_tokens_per_example
             )
+
+        return dataset.filter(
+            filter_fn, num_proc=self.num_proc
         ).map(
             self.preprocess_example,
             batched=False,
