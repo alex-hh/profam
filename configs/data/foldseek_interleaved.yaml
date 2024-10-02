@@ -8,14 +8,16 @@ data_weights:
   foldseek: 1.0
 dataset_builders:
   foldseek:
-    holdout_data_files: foldseek_struct/0.parquet
-    minimum_mean_plddt: 0.6
+    cfg:
+      holdout_data_files: foldseek_struct/0.parquet
+      minimum_mean_plddt: 0.6
     name: foldseek
   foldseek_val:
-    data_path_pattern: foldseek_struct/0.parquet
-    minimum_mean_plddt: 0.6
+    cfg:
+      data_path_pattern: foldseek_struct/0.parquet
+      minimum_mean_plddt: 0.6
     shuffle: false
-    file_repeats: ${trainer.devices}  # for ddp
+    file_repeats: 8  # for ddp
     name: foldseek_val
 batch_size: 6
 max_tokens: 8192

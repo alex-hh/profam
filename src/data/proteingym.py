@@ -25,6 +25,7 @@ def tokenize_msa(
     tokenizer: ProFamTokenizer,
     document_token: Optional[str] = "[RAW]",
 ):
+    # todo replace with subsample_and_tokenize_protein_data
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     proteins = ProteinDocument(
         sequences=sample["MSA"],

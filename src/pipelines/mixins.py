@@ -16,6 +16,7 @@ class ParquetMixin:
     def __init__(
         self,
         *args,
+        preprocessor: BasePreprocessor,
         instance_id_col="fam_id",
         evaluation_parquet: Optional[str] = None,
         evaluation_accessions_file: Optional[str] = None,
@@ -25,6 +26,7 @@ class ParquetMixin:
         max_instances: Optional[int] = None,
         **kwargs,
     ):
+        """preprocessor: a bare preprocessor (no transform_fns), to build document from raw data."""
         super().__init__(*args, **kwargs)
         self.instance_id_col = instance_id_col
         self.sequence_col = sequence_col
@@ -63,6 +65,10 @@ class ParquetMixin:
             self.evaluation_accessions = self.evaluation_accessions[
                 : self.max_instances
             ]
+
+    def load_protein_document(self, instance_id):
+        example = self.get_protein_example(instance_id)
+        return self.preprocessor.build_document(example, max_tokens=None, shuffle=False)
 
     def get_protein_example(self, instance_id: str):
         if self.evaluation_df is not None:

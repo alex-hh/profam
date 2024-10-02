@@ -1,6 +1,6 @@
 #!/bin/bash
-#$ -l tmem=48G
-#$ -l h_vmem=48G
+#$ -l tmem=88G
+#$ -l h_vmem=88G
 #$ -l h_rt=128:55:30
 #$ -S /bin/bash
 #$ -N saveindex
@@ -10,8 +10,7 @@
 date
 hostname
 # conda activate venvPF
-source /share/apps/source_files/python/python-3.11.9.source
-source /SAN/orengolab/cath_plm/ProFam/pfenv/bin/activate
-# source /share/apps/source_files/python/python-3.11.9.source
+source /SAN/orengolab/cath_plm/ProFam/pfenv.source
+export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
 python3 data_creation_scripts/foldseek/save_accession_index.py $@
 date

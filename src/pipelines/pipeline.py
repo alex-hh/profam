@@ -5,12 +5,22 @@ from typing import Dict, List, Optional, Union
 
 import pandas as pd
 import tqdm
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
 
 from src import constants
 from src.data.objects import ProteinDocument
 from src.evaluators.base import SamplingEvaluator
 from src.sequence import fasta
 from src.utils.utils import maybe_print
+
+
+def load_named_pipeline(pipeline_name: str, overrides: Optional[List[str]] = None):
+    with initialize_config_dir(
+        os.path.join(constants.BASEDIR, "configs/pipeline"), version_base="1.3"
+    ):
+        pipeline_cfg = compose(config_name=pipeline_name, overrides=overrides)
+    return instantiate(pipeline_cfg)
 
 
 class BaseEvaluatorPipeline:
@@ -32,7 +42,6 @@ class BaseEvaluatorPipeline:
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
     ):
-        """preprocessor: a bare preprocessor (no transform_fns), to build document from raw data."""
         self.pipeline_id = pipeline_id
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,

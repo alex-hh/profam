@@ -16,13 +16,12 @@ dataset_builders:
     name: foldseek
   foldseek_val:
     cfg:
-      holdout_data_files: foldseek_representatives/0.parquet
+      data_path_pattern: foldseek_representatives/0.parquet
       minimum_mean_plddt: 0.6
       shuffle: false
-      file_repeats: ${trainer.devices}  # for ddp
+      file_repeats: 8  # for ddp
     batched_map: true
     map_batch_size: 250
-    name: foldseek_val
 batch_size: 6
 max_tokens: 8192
 data_dir: ${paths.data_dir}

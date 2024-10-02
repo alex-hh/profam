@@ -87,7 +87,10 @@ def model_seq_index(profam_tokenizer):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
-            overrides=["model.embed_sequence_index=True"],
+            overrides=[
+                "model.embed_sequence_index=True",
+                "model.config.attn_implementation=null",
+            ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
@@ -171,14 +174,13 @@ def pfam_batch(profam_tokenizer):
 @pytest.fixture()
 def foldseek_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         keep_gaps=False,
         data_path_pattern="foldseek_struct/3.parquet",
         keep_insertions=True,
         to_upper=True,
         is_parquet=True,
     )
-    builder = ProteinDatasetBuilder(
+    builder = StreamedProteinDatasetBuilder(
         name="foldseek",
         cfg=cfg,
         preprocessor=None,

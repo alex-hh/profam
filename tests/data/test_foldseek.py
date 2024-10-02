@@ -21,24 +21,26 @@ def foldseek_df():
     return df
 
 
+# TODO: Update pdb files and uncomment
 def test_foldseek_backbone_loading(foldseek_df):
-    for _, row in foldseek_df.iterrows():
+    for _, row in foldseek_df.head(3).iterrows():
         foldseek_example = row.to_dict()
         # Q. why does this successfully load the backbone coordinates as arrays?
-        backbone_coords = backbone_coords_from_example(foldseek_example)
+        backbone_coords, _ = backbone_coords_from_example(foldseek_example)
         for seq, acc, recons_coords in zip(
             foldseek_example["sequences"],
             foldseek_example["accessions"],
             backbone_coords,
         ):
             pdbfile = (
-                "data/example_data/foldseek_struct/0/AF-{}-F1-model_v4.pdb".format(
+                "data/example_data/foldseek_struct/0-0/AF-{}-F1-model_v4.pdb".format(
                     acc, acc
                 )
             )
             structure = load_structure(pdbfile, chain="A")
+            # This is loaded in full precision, whereas coords are saved in float16
             coords = get_atom_coords_residuewise(["N", "CA", "C", "O"], structure)
-            assert np.allclose(coords, recons_coords)
+            assert np.allclose(coords, recons_coords.astype(np.float32), atol=2e-2)
             assert len(coords) == len(seq)
 
 
@@ -85,6 +87,7 @@ def foldseek_interleaved_structure_sequence_batch(
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
+        dataset_name="foldseek",
         max_tokens_per_example=max_tokens,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -110,11 +113,15 @@ def foldseek_datapoint(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
+        dataset_name="foldseek",
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
-    return next(iter(data))
+    # bc preprocessor is none we have to filter out the datapoint manually
+    data = data.filter(lambda x: x["msta_3di"] is not None)
+    ds_iter = iter(data)
+    return next(ds_iter)
 
 
 # TODO: write full manual test for coords concatenation and padding etc.
@@ -129,7 +136,7 @@ def test_foldseek_interleaved_tokenization(
     ).sum()
 
     batch_seqs = foldseek_datapoint["sequences"][:num_sequences_in_batch]
-    batch_coords = backbone_coords_from_example(foldseek_datapoint)[
+    batch_coords, _ = backbone_coords_from_example(foldseek_datapoint)[
         :num_sequences_in_batch
     ]
     batch_plddts = foldseek_datapoint["plddts"][:num_sequences_in_batch]
@@ -249,6 +256,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
+        dataset_name="foldseek",
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
