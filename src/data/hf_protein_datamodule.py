@@ -221,6 +221,7 @@ class ProteinDataMixture(LightningDataModule):
             batch_size=self.batch_size,
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
+            persistent_workers=True,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
             shuffle=isinstance(self.train_dataset, Dataset),
         )
 
@@ -232,6 +233,7 @@ class ProteinDataMixture(LightningDataModule):
                 collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers,
+                persistent_workers=True,
             )
             for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
         ]
