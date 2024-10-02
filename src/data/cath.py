@@ -146,7 +146,6 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             shuffle=False,
         )
         example["ds_name"] = self.name
-        example["identifier"] = self.name + "/" + example["identifier"]
         return example
 
     def process(

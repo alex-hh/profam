@@ -432,7 +432,9 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
         ]
 
         return ProteinDocument(
-            sequences=sequences, original_size=len(lines) // 2
+            sequences=sequences,
+            original_size=len(lines) // 2,
+            identifier=identifier,
         )  # upper bound estimate of number of sequences
 
     def _build_document(
@@ -451,5 +453,5 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
                 max_tokens,
                 shuffle,
                 max_sequences=self.max_sequences_per_document,
-                identifier=example[self.identifier_col],
+                identifier=self.name + "/" + example[self.identifier_col],
             )

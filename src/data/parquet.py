@@ -259,7 +259,7 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ):
-        return self.build_document(
+        proteins = self.build_document(
             example,
             max_tokens=max_tokens,
             shuffle=shuffle,
@@ -268,6 +268,8 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
             identifier_col=self.identifier_col,
             infer_representative_from_identifier=self.infer_representative_from_identifier,
         )
+        proteins.identifier = self.name + "/" + proteins.identifier
+        return proteins
 
 
 class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
@@ -389,7 +391,7 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ):
-        return self.build_document(
+        proteins = self.build_document(
             example,
             max_tokens=max_tokens,
             shuffle=shuffle,
@@ -400,6 +402,8 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
             identifier_col=self.identifier_col,
             infer_representative_from_identifier=self.infer_representative_from_identifier,
         )
+        proteins.identifier = self.name + "/" + proteins.identifier
+        return proteins
 
     # TODO: write a test for this
     def filter(

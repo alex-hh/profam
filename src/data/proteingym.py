@@ -107,7 +107,7 @@ def load_msa_for_row(
     proteins = ProteinDocument(
         sequences=seqs,
         accessions=None,
-        identifier=None,
+        identifier=row["DMS_id"],
         positions=None,
         plddts=None,
         backbone_coords=None,
