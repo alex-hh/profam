@@ -193,24 +193,6 @@ class ProteinDataMixture(LightningDataModule):
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
 
-            if self.evaluate_pfam_class:
-                self.pfam_class_dataset = load_pfam_classification_dataset(
-                    tokenizer=self.tokenizer,
-                    keep_insertions=True,  # TODO: should be val config
-                    to_upper=True,  # TODO: should be val config
-                    keep_gaps=False,  # TODO: should be val config
-                    pfam_dir="data/val_test/pfam/val/clustered_split_fastas",
-                    max_tokens=self.max_tokens,
-                    num_workers=self.num_workers,
-                    max_eval_per_fam=4,
-                    use_msa_pos=False,
-                )
-                if world_size > 1:
-                    self.pfam_class_dataset = split_dataset_by_node(
-                        self.pfam_class_dataset,
-                        rank=self.trainer.global_rank,
-                        world_size=world_size,
-                    )
             self._is_setup = True
 
     def train_dataloader(self) -> List[DataLoader]:

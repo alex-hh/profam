@@ -211,6 +211,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         extra_tokens_per_document: int = 2,
         use_msa_pos: bool = True,
         num_proc: Optional[int] = None,
+        gym_data_dir: Optional[str] = None,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -231,6 +232,7 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
         self.extra_tokens_per_document = extra_tokens_per_document
         self.use_msa_pos = use_msa_pos
         self.num_proc = num_proc
+        self.gym_data_dir = gym_data_dir
 
     def process(
         self,
@@ -302,7 +304,9 @@ class GymDatasetBuilder(BaseProteinDatasetBuilder):
     def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
         df = build_gym_df(
             self.dms_ids,
-            gym_data_dir=os.path.join(data_dir, "ProteinGym"),
+            gym_data_dir=os.path.join(data_dir, "ProteinGym")
+            if self.gym_data_dir is None
+            else self.gym_data_dir,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)

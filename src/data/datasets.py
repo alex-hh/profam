@@ -384,9 +384,7 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
         holdout_identifiers: Optional[List[str]] = None,
         tokenizer: ProFamTokenizer = None,
     ):
-        super_filter = super().filter(
-            example, min_sequences, holdout_identifiers, tokenizer
-        )
+        super_filter = super().filter(example)
         if super_filter:
             assert (
                 holdout_identifiers is None
@@ -437,14 +435,14 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
     ):
         if isinstance(example, str):
-            return self.build_document_from_text(
+            return self.build_document(
                 example,
                 max_tokens,
                 shuffle,
                 max_sequences=self.max_sequences_per_document,
             )
         else:
-            return self.build_document_from_text(
+            return self.build_document(
                 example["text"],
                 max_tokens,
                 shuffle,

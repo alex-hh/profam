@@ -16,7 +16,7 @@ data:
   batch_size: 2
   num_workers: 1
   max_tokens: 2000
-  gym_data_dir: "../tiny_data/ProteinGym"
-  evaluate_gym: true
-  evaluate_ec_class: false
-  evaluate_ec_cluster_class: false
+
+dataset_builders:
+  proteingym:
+    gym_data_dir: "../tiny_data/ProteinGym"
