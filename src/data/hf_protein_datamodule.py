@@ -167,6 +167,8 @@ class ProteinDataMixture(LightningDataModule):
                         world_size=world_size,
                     )
             else:
+                if self.num_workers is None:
+                    self.num_workers = os.cpu_count()
                 self.train_dataset = self.train_dataset.shuffle(seed=42)
             self.val_datasets = []
             self.val_dataset_names = []
