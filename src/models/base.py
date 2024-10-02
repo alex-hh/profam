@@ -1050,7 +1050,9 @@ class BaseFamilyLitModule(BaseLitModule):
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
-        print("Train epoch end", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
+        print(
+            "Train epoch end", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True
+        )
         # self.log_dict(
         #     {
         #         f"{k}_max_sampled_doc": max(v.values())
