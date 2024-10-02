@@ -312,7 +312,6 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         batched_map=True,
         map_batch_size=30,
         structure_tokens_col=None,
-        identifier_col="fam_id",
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
