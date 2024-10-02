@@ -5,7 +5,6 @@ import os
 import pytest
 
 from src.constants import BASEDIR
-from src.data import preprocessing
 from src.data.datasets import ProteinDatasetConfig, build_documents_helper
 from src.data.parquet import ParquetStructureDatasetBuilder
 from src.data.utils import examples_list_to_dict
@@ -26,7 +25,6 @@ def foldseek_datapoint(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        dataset_name="foldseek",
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -69,7 +67,6 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        dataset_name="foldseek",
         max_tokens_per_example=None,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],

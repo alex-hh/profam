@@ -171,29 +171,6 @@ def pfam_batch(profam_tokenizer):
     return collator([datapoint])
 
 
-@pytest.fixture()
-def foldseek_batch(profam_tokenizer):
-    cfg = ProteinDatasetConfig(
-        keep_gaps=False,
-        data_path_pattern="foldseek_struct/3.parquet",
-        keep_insertions=True,
-        to_upper=True,
-        is_parquet=True,
-    )
-    builder = StreamedProteinDatasetBuilder(
-        name="foldseek",
-        cfg=cfg,
-        preprocessor=None,
-    )
-    data = builder.load(
-        max_tokens_per_example=2048,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-    )
-    datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
-    return collator([datapoint])
-
-
 @pytest.fixture
 def pfam_fasta_text():
     return pd.read_parquet(

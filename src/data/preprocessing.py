@@ -11,6 +11,7 @@ from src.constants import BASEDIR
 from src.data import transforms
 from src.data.objects import ProteinDocument
 from src.utils.tokenizers import ProFamTokenizer
+from src.utils.utils import np_random
 
 
 def load_named_preprocessor(preprocessor_name, overrides: Optional[List[str]] = None):

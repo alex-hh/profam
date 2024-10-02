@@ -357,7 +357,9 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
         if "N" in example:
-            coords = backbone_coords_from_example(example, sequence_col=sequence_col)
+            coords, is_pdb = backbone_coords_from_example(
+                example, sequence_col=sequence_col
+            )
             coords = [coords[i] for i in sequence_ids]
             plddts = example["plddts"]
             plddts = [plddts[i] for i in sequence_ids]
