@@ -27,6 +27,42 @@ class ProteinDatasetConfig:
     shuffle: bool = True
 
 
+def build_documents_helper(
+    examples,
+    document_builder,
+    max_tokens: Optional[int] = None,
+    shuffle: bool = True,
+):
+    """We assume that documents should be concatenated up to max_tokens.
+
+    TODO: implement document-aware attention masking
+    """
+    example_dicts = examples_to_list_of_dicts(examples)
+    proteins_list = [
+        document_builder(example_dict, max_tokens=max_tokens, shuffle=shuffle)
+        for example_dict in example_dicts
+    ]
+    document_lengths = [sum(proteins.sequence_lengths) for proteins in proteins_list]
+    merged_documents = []
+    current_document = None
+    total_sequence_length = 0
+    for proteins, length in zip(proteins_list, document_lengths):
+        if current_document is None:
+            current_document = proteins.clone()
+        else:
+            if sum(current_document.sequence_lengths) + length <= (max_tokens or 1e8):
+                current_document = current_document.extend(proteins)
+                total_sequence_length += sum(proteins.sequence_lengths)
+            else:
+                merged_documents.append(current_document)
+                current_document = proteins.clone()
+                total_sequence_length = sum(current_document.sequence_lengths)
+    if current_document is not None:
+        merged_documents.append(current_document)
+
+    return merged_documents
+
+
 def prepare_data_files(data_dir, cfg, world_size=1, stream: bool = True):
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
@@ -120,38 +156,12 @@ class BaseProteinDatasetBuilder:
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ):
-        """We assume that documents should be concatenated up to max_tokens.
-
-        TODO: implement document-aware attention masking
-        """
-        example_dicts = examples_to_list_of_dicts(examples)
-        proteins_list = [
-            self._build_document(example_dict, max_tokens=max_tokens, shuffle=shuffle)
-            for example_dict in example_dicts
-        ]
-        document_lengths = [
-            sum(proteins.sequence_lengths) for proteins in proteins_list
-        ]
-        merged_documents = []
-        current_document = None
-        total_sequence_length = 0
-        for proteins, length in zip(proteins_list, document_lengths):
-            if current_document is None:
-                current_document = proteins.clone()
-            else:
-                if sum(current_document.sequence_lengths) + length <= (
-                    max_tokens or 1e8
-                ):
-                    current_document = current_document.extend(proteins)
-                    total_sequence_length += sum(proteins.sequence_lengths)
-                else:
-                    merged_documents.append(current_document)
-                    current_document = proteins.clone()
-                    total_sequence_length = sum(current_document.sequence_lengths)
-        if current_document is not None:
-            merged_documents.append(current_document)
-
-        return merged_documents
+        return build_documents_helper(
+            examples,
+            self._build_document,
+            max_tokens=max_tokens,
+            shuffle=shuffle,
+        )
 
     def _build_document(
         self, example, max_tokens: Optional[int] = None, shuffle: bool = True
@@ -166,6 +176,7 @@ class BaseProteinDatasetBuilder:
             for k in self.required_keys:
                 if k not in example or not example[k]:
                     return False
+        return True
 
 
 # TODO: consider breaking out document building into a separate class
@@ -179,8 +190,9 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
         batched_map: bool = False,
         map_batch_size: int = 100,
         max_sequences_per_document: Optional[int] = None,
+        required_keys: Optional[List[str]] = None,
     ):
-        super().__init__(name, preprocessor)
+        super().__init__(name, preprocessor, required_keys=required_keys)
         self.cfg = cfg
         self.batched_map = batched_map
         self.map_batch_size = map_batch_size

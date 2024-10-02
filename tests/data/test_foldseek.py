@@ -8,7 +8,8 @@ import torch
 
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
-from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
+from src.data.datasets import ProteinDatasetConfig
+from src.data.parquet import ParquetStructureDatasetBuilder
 from src.data.preprocessing import backbone_coords_from_example
 from src.data.utils import CustomDataCollator
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
@@ -65,19 +66,20 @@ def foldseek_interleaved_structure_sequence_batch(
         keep_gaps=False,
         use_msa_pos=False,
     )
-    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
+    parquet_3di_processor = preprocessing.ProteinDocumentPreprocessor(
         config=preprocessing_cfg,
-        structure_tokens_col="msta_3di",
         interleave_structure_sequence=True,
     )
     cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = StreamedProteinDatasetBuilder(
+    builder = ParquetStructureDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
+        structure_tokens_col="msta_3di",
         preprocessor=parquet_3di_processor,
+        infer_representative_from_identifier=True,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
@@ -98,10 +100,11 @@ def foldseek_datapoint(profam_tokenizer):
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = StreamedProteinDatasetBuilder(
+    builder = ParquetStructureDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
+        infer_representative_from_identifier=True,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
@@ -222,9 +225,8 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         use_msa_pos=False,
     )
     plddt_cutoff = 80.0
-    preprocessor = preprocessing.ParquetStructurePreprocessor(
+    preprocessor = preprocessing.ProteinDocumentPreprocessor(
         config=preprocessing_cfg,
-        structure_tokens_col="msta_3di",
         transform_fns=[
             functools.partial(
                 transforms.apply_plddt_mask, threshold=plddt_cutoff, mask_plddts=True
@@ -236,10 +238,12 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = StreamedProteinDatasetBuilder(
+    builder = ParquetStructureDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=preprocessor,
+        structure_tokens_col="msta_3di",
+        infer_representative_from_identifier=True,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
@@ -287,23 +291,23 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         keep_gaps=False,
         use_msa_pos=False,
     )
-    parquet_3di_processor = preprocessing.ParquetStructurePreprocessor(
+    parquet_3di_processor = preprocessing.ProteinDocumentPreprocessor(
         config=preprocessing_cfg,
-        structure_tokens_col=None,
         interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
-        identifier_col="fam_id",  # switch when updating example data
     )
     cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
         shuffle=False,
     )
-    builder = StreamedProteinDatasetBuilder(
+    builder = ParquetStructureDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=parquet_3di_processor,
         batched_map=True,
         map_batch_size=30,
+        structure_tokens_col=None,
+        identifier_col="fam_id",
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(

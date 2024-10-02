@@ -1,3 +1,4 @@
+import functools
 import math
 import os
 
@@ -5,7 +6,8 @@ import pytest
 
 from src.constants import BASEDIR
 from src.data import preprocessing
-from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
+from src.data.datasets import ProteinDatasetConfig, build_documents_helper
+from src.data.parquet import ParquetStructureDatasetBuilder
 from src.data.utils import examples_list_to_dict
 
 
@@ -15,7 +17,7 @@ def foldseek_datapoint(profam_tokenizer):
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = StreamedProteinDatasetBuilder(
+    builder = ParquetStructureDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -38,18 +40,12 @@ def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
     examples = [foldseek_datapoint, foldseek_datapoint]
     examples = examples_list_to_dict(examples)
 
-    config = preprocessing.PreprocessingConfig(
-        keep_gaps=False,
-        to_upper=False,
-        keep_insertions=False,
-        use_msa_pos=False,
-    )
-    preprocessor = preprocessing.ParquetStructurePreprocessor(
-        config=config,
+    document_builder = functools.partial(
+        ParquetStructureDatasetBuilder.build_document,
         structure_tokens_col="msta_3di",
     )
-    proteins_list = preprocessor.build_documents(
-        examples, profam_tokenizer, max_tokens=None, shuffle=False
+    proteins_list = build_documents_helper(
+        examples, document_builder, max_tokens=None, shuffle=False
     )
     assert len(proteins_list) == 1  # we expect documents to be combined
     assert proteins_list[0].sequences == 2 * foldseek_datapoint["sequences"]
@@ -61,7 +57,7 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
     )
-    builder = StreamedProteinDatasetBuilder(
+    builder = ParquetStructureDatasetBuilder(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -83,23 +79,12 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
     examples = [example] * 20
     examples = examples_list_to_dict(examples)
 
-    config = preprocessing.PreprocessingConfig(
-        keep_gaps=False,
-        to_upper=False,
-        keep_insertions=False,
-        use_msa_pos=False,
-    )
-    preprocessor = preprocessing.ParquetStructurePreprocessor(
-        config=config,
-        structure_tokens_col=None,
-    )
-    proteins_list = preprocessor.build_documents(
+    proteins_list = build_documents_helper(
         examples,
-        profam_tokenizer,
+        ParquetStructureDatasetBuilder.build_document,
         max_tokens=protein_len * 4,
         shuffle=False,
     )
-    print(len(proteins_list))
     expected_num_documents = math.ceil(20 / 4)
     # we expect documents to be combined up to max_tokens
     assert (

@@ -346,14 +346,17 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
         # because otherwise incorrect config could easily lead to misalignment
         if structure_tokens_col is not None:
             structure_tokens_iterator = example[structure_tokens_col]
-            structure_tokens = [structure_tokens_iterator[i] for i in sequence_ids]
+            if structure_tokens_col == "msta_3di":
+                # TODO: fix this; Hardcoded for now until we support aligning all representations
+                structure_tokens = [
+                    structure_tokens_iterator[i].replace("-", "") for i in sequence_ids
+                ]
+            else:
+                structure_tokens = [structure_tokens_iterator[i] for i in sequence_ids]
         else:
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
         if "N" in example:
-            assert not any(["-" in seq for seq in sequences])
-            if structure_tokens is not None:
-                assert not any(["-" in seq for seq in structure_tokens])
             coords = backbone_coords_from_example(example, sequence_col=sequence_col)
             coords = [coords[i] for i in sequence_ids]
             plddts = example["plddts"]
