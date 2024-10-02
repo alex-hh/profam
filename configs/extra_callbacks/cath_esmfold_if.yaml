@@ -1,6 +1,6 @@
 _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
 defaults:
-  - /pipeline: foldseek_representatives
+  - /pipeline: cath43
   - /evaluator@evaluators.esmfold_if: esmfold_if
   - /evaluator@evaluators.recovery: sequence_recovery
   - /prompt_builder: interleaved_inverse_folding  # must be set
@@ -12,11 +12,7 @@ sampling_kwargs:
   batch_size: 48
   temperature: 0.3
 pipeline:
+  split_name: validation
   num_generations: 1
   save_results_to_file: false
-  evaluation_parquet: null
-  evaluation_accessions_file: null
-  max_instances: 15
-  pipeline_id: foldseek_representatives  # for callback just determines metric name
-  preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
 match_representative_length: true

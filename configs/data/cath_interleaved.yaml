@@ -7,7 +7,7 @@ data_weights:
   cath: 1.0
 dataset_builders:
   cath_val:
-    name: cath_43_val
+    name: cath43_val
     split_name: validation
 batch_size: 36
 max_tokens: 1536
@@ -15,5 +15,4 @@ data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   cath_val: ${data.batch_size}
 num_workers: null # None means use all available CPU cores
-use_filtered_gym_msas: true
 feature_names: ${constants.all_feature_names}

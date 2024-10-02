@@ -5,13 +5,12 @@
 # python train.py experiment=foldseek_small
 
 defaults:
-  - /extra_callbacks@extra_callbacks.esmfold_if: esmfold_if
-  - /extra_callbacks@extra_callbacks.esmfold_if_high_plddt: esmfold_if
+  - /extra_callbacks@extra_callbacks.esmfold_if: cath_esmfold_if
   - override /callbacks: default_with_shuffle
-  - override /data: foldseek_representatives_interleaved_batch
+  - override /data: cath_interleaved
   - override /model: llama_small
 
-tags: ["foldseek_if"]
+tags: ["cath_if"]
 
 seed: 12345
 
@@ -19,32 +18,11 @@ extra_callbacks:
   esmfold_if:
     prompt_builder:
       _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
-      preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
+      preprocessor: ${data.dataset_builders.cath.preprocessor}
       max_tokens: ${data.max_tokens}
       seed: 42
     pipeline:
       num_generations: 1
-      pipeline_id: foldseek_representatives
-      evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
-      max_instances: 15
-      max_protein_length: 512  # used to filter candidate target proteins
-    match_representative_length: true
-    sampling_kwargs:
-      temperature: 0.3
-
-  esmfold_if_high_plddt:
-    prompt_builder:
-      _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
-      preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
-      max_tokens: ${data.max_tokens}
-      seed: 42
-    pipeline:
-      num_generations: 1
-      pipeline_id: foldseek_representatives_high_plddt
-      evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
-      max_instances: 15
-      max_protein_length: 512  # used to filter candidate target proteins
-      min_plddt: 0.9
     match_representative_length: true
     sampling_kwargs:
       temperature: 0.3
