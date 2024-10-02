@@ -66,9 +66,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        if (
-            tokenizer.embed_res_pos_in_seq or embed_coords,
-        ):
+        if (tokenizer.embed_res_pos_in_seq or embed_coords,):
             assert embed_res_pos_in_seq == tokenizer.embed_res_pos_in_seq
             assert max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
             model = WrappedLlamaForCausalLM(

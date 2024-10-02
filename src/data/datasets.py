@@ -35,7 +35,9 @@ def filter_on_length(example, cfg, max_tokens, tokenizer):
     if cfg.length_filter is None:
         return True
     elif cfg.length_filter == "max_res_pos_in_seq":
-        return any([len(s) <= tokenizer.max_res_pos_in_seq - 1 for s in example["sequences"]])
+        return any(
+            [len(s) <= tokenizer.max_res_pos_in_seq - 1 for s in example["sequences"]]
+        )
     elif cfg.length_filter == "max_tokens":
         if max_tokens is None:
             return True

@@ -27,7 +27,9 @@ def get_flat_res_pos_in_seq_from_positions(
         for sequence_positions in positions[:-1]:
             # add 1 so that sep doesnt have same position index
             # n.b. that convert_sequence_with_positions is also already 1-based
-            flat_positions += [min(p + 1, max_res_pos_in_seq - 1) for p in sequence_positions]
+            flat_positions += [
+                min(p + 1, max_res_pos_in_seq - 1) for p in sequence_positions
+            ]
             flat_positions.append(sep_index)
         flat_positions += [min(p + 1, max_res_pos_in_seq - 1) for p in positions[-1]]
         flat_positions += [append_index] * num_end_tokens  # no [SEP] at end of MSA

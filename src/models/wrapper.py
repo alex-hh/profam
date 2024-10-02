@@ -52,7 +52,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         super().__init__(config)
         self.tokenizer = tokenizer
         self.embed_res_pos_in_seq = tokenizer.embed_res_pos_in_seq
-        self.start_res_pos_in_seq = start_res_pos_in_seq  # TODO: double-check this is consistent
+        self.start_res_pos_in_seq = (
+            start_res_pos_in_seq  # TODO: double-check this is consistent
+        )
         # TODO: avoid re-tracking - does this happen automatically?
         self.token_embedder = nested_getattr(
             self, token_embedder
@@ -78,8 +80,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             )
         if self.tokenizer.embed_res_pos_in_seq:
             self.res_pos_in_seq_embedding = nn.Embedding(
-                self.tokenizer.max_res_pos_in_seq,
-                embedding_dim
+                self.tokenizer.max_res_pos_in_seq, embedding_dim
             )
         if self.embed_seq_pos_in_doc:
             self.sequence_index_embedding = nn.Embedding(
@@ -117,7 +118,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 # we are starting new sequences
                 res_pos_in_seq = torch.full_like(
                     input_final_res_pos_in_seq,
-                    self.start_res_pos_in_seq + increment - 1
+                    self.start_res_pos_in_seq + increment - 1,
                 )
                 # res_pos_in_seq corresponds to position of previously generated token in the sequence
                 # when increment is 1, res_pos_in_seq is self.start_res_pos_in_seq
@@ -189,7 +190,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # inputs["input_ids"] is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
         if self.embed_res_pos_in_seq:
-            inputs["res_pos_in_seq"] = self.update_res_pos_in_seq_for_generation(input_ids, res_pos_in_seq)
+            inputs["res_pos_in_seq"] = self.update_res_pos_in_seq_for_generation(
+                input_ids, res_pos_in_seq
+            )
 
         if self.embed_seq_pos_in_doc:
             # model will automatically do compute_sequence_index on new tokens
@@ -301,7 +304,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         return inputs_embeds
 
-    def get_position_ids_for_model_forward(self, input_ids, res_pos_in_seq, position_ids):
+    def get_position_ids_for_model_forward(
+        self, input_ids, res_pos_in_seq, position_ids
+    ):
         # TODO: test these; make sure they get called during generation for example.
         if self.pass_constant_position_ids_for_global_index:
             assert position_ids is None
