@@ -134,21 +134,23 @@ class ProteinDataMixture(LightningDataModule):
             else:
                 self.train_dataset = train_datasets[0]
 
-            print("Num shards", self.train_dataset.n_shards)
-            if self.num_workers is None:
-                self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
-            print(f"Using {self.num_workers} workers for data loading")
-            # c.f. iterable dataset examples...
-            # will shuffle the shards order and use a shuffle buffer when you start iterating
-            # n.b. set_epoch is required in order for shuffling to be correctly randomised
-            # - this is handled by ShuffleCallback
-            # TODO: configure seed - although non-null seed prob important for ddp?
-            # or does split_dataset_by_node synchronise the state of the data?
-            # no - seeding is required. in face an error will be raised if not.
-            # split dataset by node sets distributed config.
-            # https://github.com/huggingface/datasets/blob/2eb4edb97e1a6af2ea62738ec58afbd3812fc66e/src/datasets/iterable_dataset.py#L1707
-            self.train_dataset = self.train_dataset.shuffle(buffer_size=1000, seed=42)
             if isinstance(self.train_dataset, IterableDataset):
+                # c.f. iterable dataset examples...
+                # will shuffle the shards order and use a shuffle buffer when you start iterating
+                # n.b. set_epoch is required in order for shuffling to be correctly randomised
+                # - this is handled by ShuffleCallback
+                # TODO: configure seed - although non-null seed prob important for ddp?
+                # or does split_dataset_by_node synchronise the state of the data?
+                # no - seeding is required. in face an error will be raised if not.
+                # split dataset by node sets distributed config.
+                # https://github.com/huggingface/datasets/blob/2eb4edb97e1a6af2ea62738ec58afbd3812fc66e/src/datasets/iterable_dataset.py#L1707
+                self.train_dataset = self.train_dataset.shuffle(
+                    buffer_size=1000, seed=42
+                )
+                print("Num shards", self.train_dataset.n_shards)
+                if self.num_workers is None:
+                    self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
+                    print(f"Using {self.num_workers} workers for data loading")
                 # TODO: verify that non-iterable datasets are split automatically (e.g. by lightning...)
                 if world_size > 1:
                     assert (
@@ -164,6 +166,8 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
+            else:
+                self.train_dataset = self.train_dataset.shuffle(seed=42)
             self.val_datasets = []
             self.val_dataset_names = []
             for v_ds_name, val_batch_size in self.val_dataset_batch_sizes.items():
