@@ -6,11 +6,16 @@ defaults:
 data_weights:
   cath: 1.0
 dataset_builders:
+  cath:
+    batched_map: true
+    map_batch_size: 250
   cath_val:
     name: cath_43_val
     split_name: validation
-batch_size: 36
-max_tokens: 1536
+    batched_map: true
+    map_batch_size: 250
+batch_size: 6
+max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   cath_val: ${data.batch_size}
