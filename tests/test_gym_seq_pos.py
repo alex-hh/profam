@@ -116,7 +116,7 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
             msa_tokenized.input_ids,
             msa_proteins.positions,
             pad_token_id=profam_tokenizer.pad_token_id,
-            max_seq_pos=profam_tokenizer.max_seq_pos,
+            max_res_pos_in_seq=profam_tokenizer.max_res_pos_in_seq,
             num_start_tokens=profam_tokenizer.num_start_tokens,
             num_end_tokens=0,  # No end tokens for MSA
         )
