@@ -1,7 +1,10 @@
 ### Map-style datasets
 
+[Notes based on colab notebook here](https://colab.research.google.com/drive/1OFLZnX9y5QUFNONuvFsxOizq4M-tFvk-#scrollTo=Jflo2-6zAf0K)
+
 Pytorch lightning will automatically apply distributed sampler to map-style datasets.
 (Q. Will HF datasets also do something automatically?)
+
 
 ### Iterable datasets
 
@@ -44,9 +47,11 @@ map-style datasets for validation data.
 
 ### Questions
 
-What exactly is the role of shards? In a non-distributed setting, 
+What exactly is the role of shards? In a non-distributed setting,
 What's the easiest way to test this stuff? Perhaps something like the example
 from the discussion thread?
+Does interleave datasets sample without replacement? How exactly does e.g.
+all exhausted work?
 
 ```python
 import torch
