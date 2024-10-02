@@ -8,7 +8,7 @@ cfg:
   data_path_pattern: funfams/full_alignments/*/*.fa
   holdout_data_files: null
   holdout_identifiers: null
-  identifier_col: null
+  identifier_col: fam_id
   file_type: text
   minimum_sequences: null
   shuffle: true

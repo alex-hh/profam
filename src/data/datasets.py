@@ -19,7 +19,7 @@ class ProteinDatasetConfig:
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
     holdout_identifiers: Optional[List[str]] = None
-    identifier_col: Optional[str] = None
+    identifier_col: Optional[str] = "fam_id"
     data_path_file: Optional[str] = None
     minimum_sequences: Optional[int] = None
     file_repeats: int = 1
@@ -368,7 +368,6 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
-        identifier_col: str = "fam_id",
     ):
         super().__init__(
             name=name,
@@ -378,7 +377,6 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
             map_batch_size=map_batch_size,
             required_keys=["text"],
         )
-        self.identifier_col = identifier_col
 
     def filter(
         self,
@@ -453,5 +451,7 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
                 max_tokens,
                 shuffle,
                 max_sequences=self.max_sequences_per_document,
-                identifier=self.name + "/" + example[self.identifier_col],
+                identifier=self.name + "/" + example[self.cfg.identifier_col]
+                if self.cfg.identifier_col is not None
+                else None,
             )

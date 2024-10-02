@@ -127,7 +127,6 @@ class ParquetDatasetBuilder(StreamedProteinDatasetBuilder):
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
-        identifier_col: str = "fam_id",
         sequence_col: str = "sequences",
         required_keys: Optional[List[str]] = None,
         max_sequences_per_document: Optional[int] = None,
@@ -148,7 +147,6 @@ class ParquetDatasetBuilder(StreamedProteinDatasetBuilder):
             )
         else:
             self.interleave_structure_sequence = False
-        self.identifier_col = identifier_col
         self.sequence_col = sequence_col
         self.length_filter = length_filter
 
@@ -176,7 +174,7 @@ class ParquetDatasetBuilder(StreamedProteinDatasetBuilder):
             # TODO: we need to be very careful with this!
             filter_identifier = (
                 holdout_identifiers is None
-                or example[self.identifier_col] not in holdout_identifiers
+                or example[self.cfg.identifier_col] not in holdout_identifiers
             )
             length_filter = filter_on_length(
                 example,
@@ -198,7 +196,6 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         batched_map: bool = False,
         map_batch_size: int = 100,
-        identifier_col: str = "fam_id",
         sequence_col: str = "sequences",
         length_filter: Optional[str] = None,  # max_tokens, max_seq_pos
         infer_representative_from_identifier: bool = False,
@@ -212,7 +209,6 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
             preprocessor=preprocessor,
             batched_map=batched_map,
             map_batch_size=map_batch_size,
-            identifier_col=identifier_col,
             sequence_col=sequence_col,
             required_keys=[sequence_col],
             length_filter=length_filter,
@@ -265,7 +261,7 @@ class ParquetSequenceDatasetBuilder(ParquetDatasetBuilder):
             shuffle=shuffle,
             max_sequences=self.max_sequences_per_document,
             sequence_col=self.sequence_col,
-            identifier_col=self.identifier_col,
+            identifier_col=self.cfg.identifier_col,
             infer_representative_from_identifier=self.infer_representative_from_identifier,
         )
         proteins.identifier = self.name + "/" + proteins.identifier
@@ -282,7 +278,6 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
         map_batch_size: int = 100,
         sequence_col: str = "sequences",
         structure_tokens_col: Optional[str] = None,
-        identifier_col: str = "fam_id",
         infer_representative_from_identifier: bool = False,
         minimum_mean_plddt: Optional[float] = None,
         length_filter: Optional[str] = None,  # max_tokens, max_seq_pos
@@ -302,7 +297,6 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
         )
         self.sequence_col = sequence_col
         self.structure_tokens_col = structure_tokens_col
-        self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
         self.sample_uniformly_from_col = sample_uniformly_from_col
         self.minimum_mean_plddt = minimum_mean_plddt
@@ -399,7 +393,7 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
             sample_uniformly_from_col=self.sample_uniformly_from_col,
             structure_tokens_col=self.structure_tokens_col,
             sequence_col=self.sequence_col,
-            identifier_col=self.identifier_col,
+            identifier_col=self.cfg.identifier_col,
             infer_representative_from_identifier=self.infer_representative_from_identifier,
         )
         proteins.identifier = self.name + "/" + proteins.identifier
