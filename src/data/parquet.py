@@ -410,6 +410,11 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
             holdout_identifiers=holdout_identifiers,
             tokenizer=tokenizer,
         )
+        if (
+            self.structure_tokens_col is not None
+            and example[self.structure_tokens_col] is None
+        ):
+            return False
         if super_filter and self.minimum_mean_plddt is not None:
             if "plddts" in example:
                 mean_plddt = np.mean([np.mean(plddt) for plddt in example["plddts"]])

@@ -18,16 +18,10 @@ DEFAULT_FEATURE_NAMES = [
     "original_size",
     "seq_pos",
     "identifier",
-    "family_labels",
-    "eval_fam_ids",
-    "completion_seq_pos",
-    "completion_ids",
-    "DMS_scores",
     "coords",
     "coords_mask",
     "aa_mask",
     "plddts",
-    "family_id",
     "structure_mask",
 ]
 

@@ -87,7 +87,6 @@ def foldseek_interleaved_structure_sequence_batch(
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        dataset_name="foldseek",
         max_tokens_per_example=max_tokens,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -113,7 +112,6 @@ def foldseek_datapoint(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        dataset_name="foldseek",
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -256,7 +254,6 @@ def test_foldseek_plddt_masking(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        dataset_name="foldseek",
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
