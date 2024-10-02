@@ -18,7 +18,7 @@ extra_callbacks:
   esmfold_if:
     prompt_builder:
       _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
-      preprocessor: ${data.dataset_builders.cath.preprocessor}
+      preprocessor: ${data.dataset_builders.cath43.preprocessor}
       max_tokens: ${data.max_tokens}
       seed: 42
     pipeline:
