@@ -62,8 +62,8 @@ def test_kv_cache_no_seqpos(test_model_noseqpos, proteingym_batch):
     #         completion_ids=proteingym_batch["completion_ids"],
     #         use_cache=True,
     #         batch_size=1,
-    #         input_seq_pos=proteingym_batch.get("input_seq_pos", None),
-    #         completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
+    #         input_residue_index=proteingym_batch.get("input_residue_index", None),
+    #         completion_residue_index=proteingym_batch.get("completion_residue_index", None),
     #     )
 
 
@@ -77,13 +77,18 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
         proteingym_batch["input_ids"].shape[1] + 1
     )  # skip the SEP token
     assert full_input_ids[..., completion_start_ix - 1] == model.tokenizer.sep_token_id
-    full_seq_pos = torch.cat(
-        [proteingym_batch["seq_pos"], proteingym_batch["completion_seq_pos"][:, 0]],
+    full_residue_index = torch.cat(
+        [proteingym_batch["residue_index"], proteingym_batch["completion_residue_index"][:, 0]],
         dim=1,
     )
     past_key_values = None
     with torch.no_grad():
-        outputs = model(full_input_ids, seq_pos=full_seq_pos, use_cache=False)
+        outputs = model(
+            full_input_ids,
+            residue_index=full_residue_index,
+            use_cache=False,
+            start_sequence_index=0
+        )
         logits_v1 = outputs.logits
         log_likelihood_v1 = log_likelihood_from_outputs(
             outputs, full_input_ids, start_ix=completion_start_ix - 1
@@ -92,12 +97,16 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
     # next run forward pass, caching the kv states
     # input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
     past_key_values = None
+    n_seps = int(
+        (proteingym_batch.data["input_ids"] == model.tokenizer.sep_token_id).sum()
+    )
     with torch.no_grad():
         outputs = model(
             proteingym_batch["input_ids"],
-            seq_pos=proteingym_batch["seq_pos"],
+            residue_index=proteingym_batch["residue_index"],
             past_key_values=past_key_values,
             use_cache=True,
+            start_sequence_index=0,
         )
         past_key_values = outputs.past_key_values
 
@@ -106,15 +115,15 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
     with torch.no_grad():
         outputs = model(
             proteingym_batch["completion_ids"][:, 0],
-            seq_pos=proteingym_batch["completion_seq_pos"][:, 0],
+            residue_index=proteingym_batch["completion_residue_index"][:, 0],
             past_key_values=past_key_values,
             use_cache=True,
+            start_sequence_index=n_seps,
         )
     logits_v2 = outputs.logits
     log_likelihood_v2 = log_likelihood_from_outputs(
         outputs, proteingym_batch["completion_ids"][:, 0]
     )
-
     assert torch.isclose(log_likelihood_v1, log_likelihood_v2).all()
 
 
@@ -126,8 +135,8 @@ def test_seq_scoring(test_model, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :2],
             use_cache=True,
             batch_size=1,
-            input_seq_pos=proteingym_batch.get("seq_pos", None),
-            completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
+            input_residue_index=proteingym_batch.get("residue_index", None),
+            completion_residue_index=proteingym_batch.get("completion_residue_index", None),
         )
 
         scores = model.score_seqs(
@@ -135,8 +144,8 @@ def test_seq_scoring(test_model, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :2],
             use_cache=False,
             batch_size=1,
-            input_seq_pos=proteingym_batch.get("seq_pos", None),
-            completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
+            input_residue_index=proteingym_batch.get("residue_index", None),
+            completion_residue_index=proteingym_batch.get("completion_residue_index", None),
         )
         assert np.isclose(kv_scores, scores).all(), f"{kv_scores} {scores}"
 
@@ -149,8 +158,8 @@ def test_seq_scoring_embed_seq_index(model_seq_index, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :2],
             use_cache=True,
             batch_size=1,
-            input_seq_pos=proteingym_batch.get("seq_pos", None),
-            completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
+            input_residue_index=proteingym_batch.get("residue_index", None),
+            completion_residue_index=proteingym_batch.get("completion_residue_index", None),
         )
 
         scores = model.score_seqs(
@@ -158,8 +167,8 @@ def test_seq_scoring_embed_seq_index(model_seq_index, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :2],
             use_cache=False,
             batch_size=1,
-            input_seq_pos=proteingym_batch.get("seq_pos", None),
-            completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
+            input_residue_index=proteingym_batch.get("residue_index", None),
+            completion_residue_index=proteingym_batch.get("completion_residue_index", None),
         )
         assert np.isclose(kv_scores, scores).all(), f"{kv_scores} {scores}"
 
@@ -172,8 +181,8 @@ def test_seq_scoring_batched(test_model, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=True,
             batch_size=2,
-            input_seq_pos=proteingym_batch.get("seq_pos", None),
-            completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
+            input_residue_index=proteingym_batch.get("residue_index", None),
+            completion_residue_index=proteingym_batch.get("completion_residue_index", None),
         )
 
         scores = model.score_seqs(
@@ -181,8 +190,8 @@ def test_seq_scoring_batched(test_model, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=False,
             batch_size=1,
-            input_seq_pos=proteingym_batch.get("seq_pos", None),
-            completion_seq_pos=proteingym_batch.get("completion_seq_pos", None),
+            input_residue_index=proteingym_batch.get("residue_index", None),
+            completion_residue_index=proteingym_batch.get("completion_residue_index", None),
         )
         assert np.isclose(kv_scores, scores).all(), f"{kv_scores} {scores}"
 
@@ -195,8 +204,8 @@ def test_seq_scoring_noseqpos(test_model_noseqpos, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=True,
             batch_size=1,
-            input_seq_pos=None,
-            completion_seq_pos=None,
+            input_residue_index=None,
+            completion_residue_index=None,
         )
 
         scores = model.score_seqs(
@@ -204,7 +213,7 @@ def test_seq_scoring_noseqpos(test_model_noseqpos, proteingym_batch):
             completion_ids=proteingym_batch["completion_ids"][:, :4],
             use_cache=False,
             batch_size=1,
-            input_seq_pos=None,
-            completion_seq_pos=None,
+            input_residue_index=None,
+            completion_residue_index=None,
         )
         assert np.isclose(kv_scores, scores).all(), f"{kv_scores} {scores}"

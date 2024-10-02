@@ -65,7 +65,10 @@ def test_model_noseqpos(profam_tokenizer_noseqpos):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
-            overrides=["model=llama_test"],
+            overrides=[
+                "model=llama_test",
+                "model.embed_seq_pos_in_doc=False",
+            ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
 
@@ -76,7 +79,10 @@ def test_model(profam_tokenizer):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
-            overrides=["model=llama_test"],
+            overrides=[
+                "model=llama_test",
+                "model.embed_seq_pos_in_doc=True",
+            ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
@@ -88,7 +94,7 @@ def model_seq_index(profam_tokenizer):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
-                "model.embed_sequence_index=True",
+                "model.embed_seq_pos_in_doc=True",
                 "model.config.attn_implementation=null",
             ],
         )
