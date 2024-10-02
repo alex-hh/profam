@@ -349,10 +349,13 @@ class ParquetStructureDatasetBuilder(StreamedProteinDatasetBuilder):
             if structure_tokens_col == "msta_3di":
                 # TODO: fix this; Hardcoded for now until we support aligning all representations
                 structure_tokens = [
-                    structure_tokens_iterator[i].replace("-", "") for i in sequence_ids
+                    structure_tokens_iterator[i].replace("-", "").lower()
+                    for i in sequence_ids
                 ]
             else:
-                structure_tokens = [structure_tokens_iterator[i] for i in sequence_ids]
+                structure_tokens = [
+                    structure_tokens_iterator[i].lower() for i in sequence_ids
+                ]
         else:
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
