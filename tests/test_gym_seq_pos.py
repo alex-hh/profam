@@ -130,9 +130,9 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
 
         for i, comp in enumerate(case["completion_pos"]):
             assert (
-                completion_tokenized.seq_pos[i] == torch.tensor(comp)
-            ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos[i]} != {comp}"
+                completion_tokenized.residue_index[i] == torch.tensor(comp)
+            ).all(), f"Completion positions mismatch: {completion_tokenized.residue_index[i]} != {comp}"
 
         assert (
-            completion_tokenized.seq_pos == torch.tensor(case["completion_pos"])
-        ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos} != {case['completion_pos']}"
+            completion_tokenized.residue_index == torch.tensor(case["completion_pos"])
+        ).all(), f"Completion positions mismatch: {completion_tokenized.residue_index} != {case['completion_pos']}"

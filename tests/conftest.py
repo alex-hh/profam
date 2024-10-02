@@ -144,10 +144,10 @@ def proteingym_batch(profam_tokenizer):
 def pfam_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         name="pfam",
-        keep_gaps=False,
+        keep_gaps=False,  # TODO unexpected argument
         data_path_pattern="pfam/Domain_60429258_61033370.parquet",
-        keep_insertions=True,
-        to_upper=True,
+        keep_insertions=True,  # TODO unexpected argument
+        to_upper=True,  # TODO unexpected argument
         is_parquet=True,
     )
     data = load_protein_dataset(
@@ -166,10 +166,10 @@ def pfam_batch(profam_tokenizer):
 def foldseek_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         name="foldseek",
-        keep_gaps=False,
+        keep_gaps=False,  # TODO unexpected argument
         data_path_pattern="foldseek_struct/3.parquet",
-        keep_insertions=True,
-        to_upper=True,
+        keep_insertions=True,  # TODO unexpected argument
+        to_upper=True,  # TODO unexpected argument
         is_parquet=True,
     )
     data = load_protein_dataset(
@@ -177,8 +177,6 @@ def foldseek_batch(profam_tokenizer):
         tokenizer=profam_tokenizer,
         max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        embed_res_pos_in_seq=True,
-        max_res_pos_in_seq=2048,
         shuffle=False,
     )
     datapoint = next(iter(data))
@@ -277,7 +275,7 @@ def cfg_eval(cfg_eval_global: DictConfig, tmp_path: Path) -> DictConfig:
 
     This is called by each test which uses the `cfg_eval` arg. Each test generates its own temporary logging path.
 
-    :param cfg_train_global: The input DictConfig object to be modified.
+    :param cfg_eval_global: The input DictConfig object to be modified.
     :param tmp_path: The temporary logging path.
 
     :return: A DictConfig with updated output and log directories corresponding to `tmp_path`.
