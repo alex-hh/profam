@@ -108,6 +108,12 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         self.split_ids = [pdb_id.replace(".", "") for pdb_id in self.split_ids]
         self.jsonl_file = CATH_43_JSONL_FILE if use_cath_43 else CATH_42_JSONL_FILE
         self.num_proc = num_proc
+        if self.num_proc is None:
+            print(
+                "Warning: num_proc is None for CATHDatasetBuilder, may be handled differently to other datasets"
+            )
+            print("Automatically setting num_proc to ", os.cpu_count())
+            self.num_proc = os.cpu_count()
         self.preprocessor = preprocessor
         if preprocessor is not None:
             self.preprocessor.single_protein_documents = True
@@ -181,7 +187,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
                 "tokenizer": tokenizer,
                 "max_tokens_per_example": max_tokens_per_example,
             },
-            remove_columns=["seq", "name"],
+            remove_columns=["seq", "name", "CATH"],
         )
         # processed_dataset = []
         # for example in dataset:

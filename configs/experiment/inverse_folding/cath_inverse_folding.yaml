@@ -5,7 +5,6 @@
 # python train.py experiment=foldseek_small
 
 defaults:
-  - /extra_callbacks@extra_callbacks.esmfold_if: cath_esmfold_if
   - override /callbacks: default_with_shuffle
   - override /data: cath_interleaved
   - override /model: llama_small
@@ -13,19 +12,6 @@ defaults:
 tags: ["cath_if"]
 
 seed: 12345
-
-extra_callbacks:
-  esmfold_if:
-    prompt_builder:
-      _target_: src.models.inference.InterleavedInverseFoldingPromptBuilder
-      preprocessor: ${data.dataset_builders.cath43.preprocessor}
-      max_tokens: ${data.max_tokens}
-      seed: 42
-    pipeline:
-      num_generations: 1
-    match_representative_length: true
-    sampling_kwargs:
-      temperature: 0.3
 
 trainer:
   min_epochs: 10

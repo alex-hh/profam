@@ -9,7 +9,7 @@ dataset_builders:
   cath43_val:
     name: cath43_val
     split_name: validation
-batch_size: 36
+batch_size: 48
 max_tokens: 1026
 data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
