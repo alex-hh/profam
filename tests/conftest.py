@@ -31,7 +31,7 @@ def profam_tokenizer():
         mask_token="?",
         seq_struct_sep_token="|",
         use_seq_pos=True,
-        max_seq_pos=2048,
+        max_res_pos_in_seq=2048,
         max_tokens=2048,
         mask_below_plddt=None,
     )
@@ -51,7 +51,7 @@ def profam_tokenizer_noseqpos():
         mask_token="?",
         seq_struct_sep_token="|",
         use_seq_pos=False,
-        max_seq_pos=2048,
+        max_res_pos_in_seq=2048,
         max_tokens=2048,
         mask_below_plddt=None,
     )
@@ -178,7 +178,7 @@ def foldseek_batch(profam_tokenizer):
         max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         use_seq_pos=True,
-        max_seq_pos=2048,
+        max_res_pos_in_seq=2048,
         shuffle=False,
     )
     datapoint = next(iter(data))

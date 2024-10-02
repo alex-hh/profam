@@ -2,7 +2,7 @@ import torch
 
 from src.data.objects import ProteinDocument
 from src.data.transforms import convert_sequences_adding_positions
-from src.utils.tokenizers import get_seq_pos_from_positions
+from src.utils.tokenizers import get_res_pos_in_seq_from_positions
 
 """
 replicates the pre-processing and
@@ -112,11 +112,11 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
             bos_token=profam_tokenizer.sep_token,
         )
 
-        msa_seq_pos = get_seq_pos_from_positions(
+        msa_seq_pos = get_res_pos_in_seq_from_positions(
             msa_tokenized.input_ids,
             msa_proteins.positions,
             pad_token_id=profam_tokenizer.pad_token_id,
-            max_seq_pos=profam_tokenizer.max_seq_pos,
+            max_res_pos_in_seq=profam_tokenizer.max_res_pos_in_seq,
             num_start_tokens=profam_tokenizer.num_start_tokens,
             num_end_tokens=0,  # No end tokens for MSA
         )
