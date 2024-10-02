@@ -2,11 +2,28 @@
 
 [Notes based on colab notebook here](https://colab.research.google.com/drive/1OFLZnX9y5QUFNONuvFsxOizq4M-tFvk-#scrollTo=Jflo2-6zAf0K)
 
-Pytorch lightning will automatically apply distributed sampler to map-style datasets.
+Pytorch lightning trainer will automatically apply distributed sampler to map-style datasets.
 (Q. Will HF datasets also do something automatically?)
 
+Distributed Sampler first checks if the dataset size is divisible by the number of devices,
+adds extra (repeated) samples in case it is not, then divides the samples evenly between
+the devices. [source](https://discuss.pytorch.org/t/distributedsampler/90205)
+
+This leads to possible slight environment dependence of evaluation metrics:
+exactly which data is evaluated on depends on the number of devices. One way around
+this would be to choose a fixed number of samples that is divisible by all the world
+sizes you want to work with (e.g. is divisible by 32, for example, and therefore compatible
+with world size 1,2,4,8,16)
+
+More info: https://github.com/pytorch/pytorch/issues/22584
+Possible workaround: https://github.com/SeungjunNah/DeepDeblur-PyTorch/blob/master/src/data/sampler.py
 
 ### Iterable datasets
+
+If you don't do anything, you'll get duplicated data. The standard solution is to shuffle the
+data in the same way on each device, then only train on the ith datapoint on the ith device.
+This is implemented automatically by the split_dataset_by_node function in datasets, although
+whether it does exactly this depends on the way the dataset is sharded.
 
 #### split_dataset_by_node
 
@@ -32,26 +49,58 @@ the world size, then 'at least one of the nodes will get an empty / incomplete b
 The data is not repeated in that case. If the training loop doesn't take this into
 account it can lead to unexpected behaviours.'
 
+[Question: in what settings exactly can this lead to timeouts?]
+
 [Note: to get an empty batch, I think total num samples % world size has to be less than
-world size; I don't know if there is some way to handle this]
+world size; I don't know if there is some way to handle this case]
 
-#### Edge-cases and solutions
+#### Undesirable situations
 
-If number of shards is not divisible by world size: do we need to handle overhanging samples?
-Do we want number of shards to be divisible by world size? If so, we can repeat some
+If device 1 is waiting for a gradient update from device 0 that's never going to happen
+because device 0 has finished training, potentially that causes a hang (don't understand
+if this is what is described exactly:)
+
+https://github.com/pytorch/pytorch/issues/22584
+
+#### Possible solutions
+
+If we want to ensure that the number of shards is divisible by world size, we can repeat some
 files up to a point where it is.
 
 To avoid issues with iterable validation datasets, one solution would be to always use
 map-style datasets for validation data.
 
+'My recommendation for these situations where you don't know the total number of samples
+apriori is to, configure the iterable dataset to yield a fixed number of samples before
+raising StopIteration, and if necessary, repeat/reshuffle samples to hit that number'
+
+One solution for training would be to calculate the total number of samples across
+all datasets using the appropriate index files, then determine a number of samples
+that each device should run to avoid any overhang when taking the ith sample on each
+device. This would need index files to be maintained accurately.
+
+Similar-ish solution for val is to just use map datasets and slice the dataset so
+that the number of samples is divisible by 32. If we have fewer samples than this,
+maybe we evenly repeat the samples so that the number of samples is divisible by 32,
+or we just run on a single device?
+
 
 ### Questions
 
-What exactly is the role of shards? In a non-distributed setting,
-What's the easiest way to test this stuff? Perhaps something like the example
+* What exactly is the role of shards? In a non-distributed setting, do batches form
+across shards if the number of samples in a shard is not divisible by batch size?
+* What's the easiest way to test this stuff? Perhaps something like the example
 from the discussion thread?
-Does interleave datasets sample without replacement? How exactly does e.g.
+* Does interleave datasets sample without replacement? How exactly does e.g.
 all exhausted work?
+* If number of shards is divisible by world size, is there any way to force the
+other behaviour of split_dataset_by_node (i.e. each device seeing all shards).
+* If number of shards is divisible by world size, do we need each shard to contain
+the same number of samples?
+    https://github.com/huggingface/datasets/issues/6437
+    'If the shards don't contain the same number of examples, then some workers [devices] might end up with more examples than others.'
+* If number of shards is not divisible by world size: do we need to handle overhanging samples?
+Is the only real issue when one device gets an empty batch? Or are incomplete batches also problematic?
 
 ```python
 import torch
