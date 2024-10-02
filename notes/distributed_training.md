@@ -1,3 +1,11 @@
+Main question:
+
+In distributed setups we can end up with different devices seeing different
+numbers of samples. Is this necessarily an issue?
+
+Maybe the toy test example covers this case exactly..
+
+
 ### Map-style datasets
 
 [Notes based on colab notebook here](https://colab.research.google.com/drive/1OFLZnX9y5QUFNONuvFsxOizq4M-tFvk-#scrollTo=Jflo2-6zAf0K)
@@ -64,6 +72,11 @@ https://github.com/pytorch/pytorch/issues/22584
 
 #### Possible solutions
 
+A relatively simple solution for training:
+ids.repeat(None).take(n_samples_per_epoch)
+However repeat isn't yet implemented
+https://github.com/huggingface/datasets/issues/7192
+
 If we want to ensure that the number of shards is divisible by world size, we can repeat some
 files up to a point where it is.
 
@@ -79,20 +92,34 @@ all datasets using the appropriate index files, then determine a number of sampl
 that each device should run to avoid any overhang when taking the ith sample on each
 device. This would need index files to be maintained accurately.
 
+This isn't robust because of filtering
+
 Similar-ish solution for val is to just use map datasets and slice the dataset so
 that the number of samples is divisible by 32. If we have fewer samples than this,
 maybe we evenly repeat the samples so that the number of samples is divisible by 32,
 or we just run on a single device?
+
+We could set up an infinite loop with interleave datasets by adding an extra dataset
+with probability 0, then set a fixed number of steps.
+https://github.com/huggingface/datasets/issues/7147
+
+one can already set the max number of iterations per dataset by doing dataset.take(n) on the dataset that should only have n samples.
+
+so we want to calculate total number of samples in interleaved dataset - but this
+might also be very challenging...
 
 
 ### Questions
 
 * What exactly is the role of shards? In a non-distributed setting, do batches form
 across shards if the number of samples in a shard is not divisible by batch size?
+* Can we access the shards associated with each dataset? Based on that can we
+  calculate the total number of samples?
 * What's the easiest way to test this stuff? Perhaps something like the example
 from the discussion thread?
 * Does interleave datasets sample without replacement? How exactly does e.g.
 all exhausted work?
+    https://github.com/huggingface/datasets/pull/4831
 * If number of shards is divisible by world size, is there any way to force the
 other behaviour of split_dataset_by_node (i.e. each device seeing all shards).
 * If number of shards is divisible by world size, do we need each shard to contain
@@ -135,3 +162,28 @@ for x in cycle(chain(dl, ["end"])):
     # model.forward(...)
     print(x)
 ```
+
+### Relevant issues
+
+Datasets
+
+https://github.com/huggingface/datasets/issues/6594
+
+Changing from stepping shards to stepping samples means that every single process reads ALL
+of the shards. This was never an intended default for sharded training, shards gain their performance
+advantage in large scale distributed training by explicitly avoiding the need to have every process
+overlapping in the data they read, by default, only the data allocated to each process via their
+assigned shards should be read in each pass of the dataset.
+
+Using a large scale CLIP example, some of the larger datasets have 10-20k shards across 100+TB of data.
+Training with 1000 GPUs we are switching between reading 100 terabytes per epoch to 100 petabytes
+if say change 20k % 1000 and drop one gpu-node to 20k % 992.
+
+The 'step over samples' case might be worth the overhead in specific validation scenarios where
+gaurantees of at least/most once samples seen are more important and do not make up a significant
+portion of train time or are done in smaller world sizes outside of train.
+
+https://github.com/huggingface/datasets/issues/6437
+https://github.com/huggingface/datasets/issues/6623#issuecomment-2379458138
+https://github.com/huggingface/datasets/issues/6719
+https://github.com/huggingface/datasets/issues/7147
