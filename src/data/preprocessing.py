@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
+import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 
-from src.constants import BASEDIR
+from src.constants import BASEDIR, SEQUENCE_TENSOR_FEATURES, STRUCTURE_TENSOR_FEATURES
 from src.data import transforms
 from src.data.objects import ProteinDocument
 from src.utils.tokenizers import ProFamTokenizer
@@ -211,6 +212,7 @@ class ProteinDocumentPreprocessor:
         tokenizer: ProFamTokenizer,
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
+        return_tensors: bool = False,
     ) -> Dict[str, Any]:
         if self.single_protein_documents:
             # maybe handle padding differently? probably not
@@ -239,7 +241,14 @@ class ProteinDocumentPreprocessor:
                 example["input_ids"].shape[-1],
                 max_tokens,
             )
-        if "coords" in example:
+        if return_tensors:
+            tensor_features = SEQUENCE_TENSOR_FEATURES + STRUCTURE_TENSOR_FEATURES
+            for k, v in example.items():
+                if k in tensor_features:
+                    example[k] = torch.tensor(v)
+        elif "coords" in example:
+            # TODO: this seems to be pretty slow.
+            # TODO: can we use Array3D etc to avoid issue?
             # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
             example["coords"] = example["coords"].tolist()
             example["coords_mask"] = example["coords_mask"].tolist()

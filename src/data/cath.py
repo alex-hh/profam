@@ -215,6 +215,7 @@ class CATHTorchDatasetBuilder(BaseCATHDatasetBuilder):
                 tokenizer,
                 max_tokens=max_tokens_per_example,  # handles padding
                 shuffle=False,
+                return_tensors=True,
             )
             example["ds_name"] = self.name
             processed_dataset.append(example)
