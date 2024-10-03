@@ -125,7 +125,12 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         self.repeats = repeats
 
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
-        dataset = load_dataset(path="json", data_files=self.jsonl_file, split="train")
+        dataset = load_dataset(
+            path="json",
+            data_files=self.jsonl_file,
+            split="train",
+            keep_in_memory=True,
+        )
         dataset = dataset.filter(
             lambda x: x["name"].replace(".", "") in self.split_ids,
             num_proc=self.num_proc,
