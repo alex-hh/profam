@@ -16,6 +16,11 @@ from src.utils.tokenizers import ProFamTokenizer
 
 @dataclass
 class ProteinDatasetConfig:
+    """Config for file-based datasets.
+
+    TODO: rename (what should we call file-based datasets?)
+    """
+
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
     holdout_identifiers: Optional[List[str]] = None
@@ -171,7 +176,7 @@ class BaseProteinDatasetBuilder:
             "Must implement build_document method on child dataset builder"
         )
 
-    def filter(self, example, **kwargs):
+    def filter_fn(self, example, **kwargs):
         if self.required_keys is not None:
             for k in self.required_keys:
                 if k not in example or not example[k]:
@@ -179,24 +184,69 @@ class BaseProteinDatasetBuilder:
         return True
 
 
-# TODO: consider breaking out document building into a separate class
-# for re-use in pipelines
-class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
+class FileBasedProteinDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(
         self,
         name: str,
         cfg: ProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
-        batched_map: bool = False,
-        map_batch_size: int = 100,
-        max_sequences_per_document: Optional[int] = None,
         required_keys: Optional[List[str]] = None,
     ):
         super().__init__(name, preprocessor, required_keys=required_keys)
         self.cfg = cfg
-        self.batched_map = batched_map
-        self.map_batch_size = map_batch_size
-        self.max_sequences_per_document = max_sequences_per_document
+
+    def load(
+        self,
+        data_dir="data",
+        world_size: int = 1,
+        verbose: bool = False,
+    ):
+        # TODO: maybe handle world size elsewhere by shard slicing...
+        data_files = prepare_data_files(
+            data_dir, self.cfg, world_size=world_size, stream=True
+        )
+        print("data_files", data_files[:5])
+        load_kwargs = {"sample_by": "document"} if self.cfg.file_type == "text" else {}
+        dataset = load_dataset(
+            self.cfg.file_type,
+            data_files=data_files,
+            split="train",  # just automatically assigns all files to train - get this 'split'
+            streaming=True,
+            **load_kwargs,
+        )
+
+        print("Dataset n shards", dataset.n_shards)
+        if verbose:
+            print("Verifying dataset content:")
+            for i, item in enumerate(dataset.take(3)):
+                print(f"  Item {i + 1}:")
+                for key, value in item.items():
+                    if isinstance(value, str):
+                        value_to_print = value[:100]
+                    elif isinstance(value, list):
+                        # TODO: if its a list of lists we want to print only first few elements
+                        if isinstance(value[0], list):
+                            value_to_print = f"[{value[0][:10]},...]"
+                        else:
+                            value_to_print = (
+                                f"{value[:3]}..." if len(value) > 3 else value
+                            )
+                    else:
+                        value_to_print = value
+                    print(f"    {key}: {value_to_print}")
+                print()
+
+        return dataset
+
+    def filter(self, dataset, tokenizer: ProFamTokenizer):
+        return dataset.filter(
+            self.filter_fn,
+            fn_kwargs={
+                "min_sequences": self.cfg.minimum_sequences,
+                "holdout_identifiers": self.cfg.holdout_identifiers,
+                "tokenizer": tokenizer,
+            },
+        )
 
     def preprocess_examples(
         self,
@@ -251,6 +301,79 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
                 examples["identifier"] = self.name + "/" + examples["identifier"]
             return examples
 
+
+class MemoryMappedProteinDatasetBuilder(FileBasedProteinDatasetBuilder):
+    """File-based builder for a non-iterable Dataset"""
+
+    def __init__(
+        self,
+        name: str,
+        cfg: ProteinDatasetConfig,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
+        required_keys: Optional[List[str]] = None,
+        process_online: bool = True,
+        map_batch_size: int = 100,
+        batched_map: bool = False,
+    ):
+        """process_online defaults to true for consistency with StreamedProteinDatasetBuilder."""
+        super().__init__(name, preprocessor, required_keys=required_keys)
+        self.cfg = cfg
+        self.process_online = process_online
+        self.map_batch_size = map_batch_size
+        self.batched_map = batched_map
+
+    def process(
+        self,
+        dataset: Dataset,
+        tokenizer: ProFamTokenizer,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+        feature_names: Optional[List[str]] = None,
+    ):
+        dataset = self.filter(dataset, tokenizer)
+        if self.preprocessor is not None and not self.process_online:
+            if dataset.column_names is not None:
+                # Q: what causes None? maybe loading text rather than parquet
+                remove_columns = [
+                    c for c in dataset.column_names if c not in (feature_names or [])
+                ]  # shouldnt be necessary but is for plddts - bug?
+            else:
+                remove_columns = None
+            dataset = dataset.map(
+                self.preprocess_examples,
+                batched=self.batched_map,
+                batch_size=self.map_batch_size,
+                remove_columns=remove_columns,
+                fn_kwargs={
+                    "tokenizer": tokenizer,
+                    "max_tokens_per_example": max_tokens_per_example,
+                    "shuffle_proteins_in_document": shuffle_proteins_in_document,
+                },
+            )
+        else:
+            raise NotImplementedError("Must implement online processing method")
+        return dataset
+
+
+# TODO: consider breaking out document building into a separate class
+# for re-use in pipelines
+class StreamedProteinDatasetBuilder(FileBasedProteinDatasetBuilder):
+    def __init__(
+        self,
+        name: str,
+        cfg: ProteinDatasetConfig,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
+        batched_map: bool = False,
+        map_batch_size: int = 100,
+        max_sequences_per_document: Optional[int] = None,
+        required_keys: Optional[List[str]] = None,
+    ):
+        super().__init__(name, preprocessor, required_keys=required_keys)
+        self.cfg = cfg
+        self.batched_map = batched_map
+        self.map_batch_size = map_batch_size
+        self.max_sequences_per_document = max_sequences_per_document
+
     def process(
         self,
         dataset: Dataset,
@@ -264,6 +387,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
 
         feature_names: names of features to keep
         """
+        dataset = self.filter(dataset, tokenizer)
         if self.preprocessor is not None:
             # Q. how does batched map interact with interleave datasets?
             if dataset.column_names is not None:
@@ -273,15 +397,7 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
                 ]  # shouldnt be necessary but is for plddts - bug?
             else:
                 remove_columns = None
-
-            dataset = dataset.filter(
-                self.filter,
-                fn_kwargs={
-                    "min_sequences": self.cfg.minimum_sequences,
-                    "holdout_identifiers": self.cfg.holdout_identifiers,
-                    "tokenizer": tokenizer,
-                },
-            ).map(
+            dataset = dataset.map(
                 self.preprocess_examples,
                 batched=self.batched_map,
                 batch_size=self.map_batch_size,
@@ -293,49 +409,6 @@ class StreamedProteinDatasetBuilder(BaseProteinDatasetBuilder):
                 },
             )
             # n.b. coords is returned as a list...
-
-        return dataset
-
-    def load(
-        self,
-        data_dir="data",
-        world_size: int = 1,
-        verbose: bool = False,
-    ):
-        # TODO: maybe handle world size elsewhere by shard slicing...
-        data_files = prepare_data_files(
-            data_dir, self.cfg, world_size=world_size, stream=True
-        )
-        print("data_files", data_files[:5])
-        load_kwargs = {"sample_by": "document"} if self.cfg.file_type == "text" else {}
-        dataset = load_dataset(
-            self.cfg.file_type,
-            data_files=data_files,
-            split="train",  # just automatically assigns all files to train - get this 'split'
-            streaming=True,
-            **load_kwargs,
-        )
-
-        print("Dataset n shards", dataset.n_shards)
-        if verbose:
-            print("Verifying dataset content:")
-            for i, item in enumerate(dataset.take(3)):
-                print(f"  Item {i + 1}:")
-                for key, value in item.items():
-                    if isinstance(value, str):
-                        value_to_print = value[:100]
-                    elif isinstance(value, list):
-                        # TODO: if its a list of lists we want to print only first few elements
-                        if isinstance(value[0], list):
-                            value_to_print = f"[{value[0][:10]},...]"
-                        else:
-                            value_to_print = (
-                                f"{value[:3]}..." if len(value) > 3 else value
-                            )
-                    else:
-                        value_to_print = value
-                    print(f"    {key}: {value_to_print}")
-                print()
 
         return dataset
 
@@ -378,14 +451,14 @@ class FastaProteinDatasetBuilder(StreamedProteinDatasetBuilder):
             required_keys=["text"],
         )
 
-    def filter(
+    def filter_fn(
         self,
         example,
         min_sequences: Optional[int] = None,
         holdout_identifiers: Optional[List[str]] = None,
         tokenizer: ProFamTokenizer = None,
     ):
-        super_filter = super().filter(example)
+        super_filter = super().filter_fn(example)
         if super_filter:
             assert (
                 holdout_identifiers is None

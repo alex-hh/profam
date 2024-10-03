@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 import numpy as np
+from torch.utils.data import Dataset
 from transformers import DataCollatorForLanguageModeling
 
 from src.data.objects import StringObject
