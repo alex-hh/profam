@@ -15,16 +15,17 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         super().__init__(*args, **kwargs)
         self.use_cath_43 = use_cath_43
         self.split_name = split_name
-        jsonl_file = (
-            cath.CATH_43_JSONL_FILE if self.use_cath_43 else cath.CATH_42_JSONL_FILE
-        )
         t0 = time.time()
-        splits = cath.cath_43_splits() if self.use_cath_43 else cath.cath_42_splits()
-        self.instance_dicts = {
-            entry["name"].replace(".", ""): entry
-            for entry in cath.load_coords(jsonl_file)
-            if entry["name"] in splits[split_name]
-        }
+        if self.use_cath_43:
+            self.targets = cath.load_cath43_coords(
+                convert_to_protein_list=True, split_name=self.split_name
+            )
+        else:
+            self.targets = cath.load_cath42_coords(
+                convert_to_protein_list=True, split_name=self.split_name
+            )
+        self.targets = sorted(self.targets, key=lambda x: x.accession)
+        self.instance_dicts = {target.accession: target for target in self.targets}
         t1 = time.time()
         version = "4.3" if self.use_cath_43 else "4.2"
         print(
@@ -34,7 +35,7 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         )
 
     def instance_ids(self):
-        return sorted(list(self.instance_dicts.keys()))
+        return [target.accession for target in self.targets]
 
     def load_protein_document(self, instance_id):
         if instance_id == "3j7y.K":
@@ -42,7 +43,10 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         elif instance_id == "3j7yK":
             instance_id = "3j7yKK"
         entry = self.instance_dicts[instance_id]
-        return cath.CATHDatasetBuilder.build_document(entry)
+        proteins = ProteinDocument.from_protein(
+            entry, representative_accession=instance_id, identifier=instance_id
+        )
+        return proteins
 
     def get_instance_summary(self, instance_id):
         return {
