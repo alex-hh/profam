@@ -215,6 +215,8 @@ class ProteinDataMixture(LightningDataModule):
                         )
                         # in case we have fewer samples than we want on some devices, we repeat the dataset (post shuffle)
                         # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
+                        # TODO: Main question is what happens when set_epoch is called - do we just shuffle the individual
+                        # datasets rather than the concatenated dataset?
                         self.train_dataset = concatenate_datasets(
                             [self.train_dataset] * 2
                         )
