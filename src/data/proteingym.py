@@ -59,7 +59,7 @@ def tokenize_completions(
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
-        positions=sample["completion_residue_index"],
+        positions=sample["completion_res_pos_in_seq"],
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
@@ -180,7 +180,7 @@ def load_comp_seq_dms_for_row(
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
-    row["completion_residue_index"] = proteins.positions
+    row["completion_res_pos_in_seq"] = proteins.positions
     return row
 
 
@@ -231,7 +231,7 @@ def build_gym_df(
             "res_pos_in_seq",
             "DMS_scores",
             "completion_seqs",
-            "completion_residue_index",
+            "completion_res_pos_in_seq",
             "ds_name",
         ]
     ]
