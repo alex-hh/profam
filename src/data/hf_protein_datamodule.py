@@ -206,10 +206,12 @@ class ProteinDataMixture(LightningDataModule):
                         self.max_train_samples = (
                             self.total_num_train_samples // world_size
                         )
-                    assert (
-                        self.max_train_samples is not None
-                    ), "max_train_samples or total_num_train_samples must be set for distributed training"
-                    if self.max_train_samples is not None:
+                    # assert (
+                    #     self.max_train_samples is not None
+                    # ), "max_train_samples or total_num_train_samples must be set for distributed training"
+                    if self.max_train_samples is None:
+                        print("Warning: world size > 1 but max_train_samples not set - likely to cause timeout")
+                    else:
                         print(
                             f"Using {self.max_train_samples} samples for training on each device"
                         )
@@ -217,6 +219,7 @@ class ProteinDataMixture(LightningDataModule):
                         # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
                         # TODO: Main question is what happens when set_epoch is called - do we just shuffle the individual
                         # datasets rather than the concatenated dataset?
+                        # perhaps we could test similar to https://github.com/huggingface/datasets/issues/7156
                         self.train_dataset = concatenate_datasets(
                             [self.train_dataset] * 2
                         )
