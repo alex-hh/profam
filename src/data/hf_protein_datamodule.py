@@ -46,7 +46,17 @@ class ProteinDataModule(LightningDataModule):
 
 
 class ProteinDataMixture(LightningDataModule):
-    """Data module for training on mixture of datasets."""
+    """Data module for training on mixture of datasets.
+
+    total_num_train_samples: estimate of total number of samples across all datasets
+        (because of on-the-fly filtering, may not be exact). used to ensure the
+        same number of samples are seen on each device when using distributed
+        training. If the dataset on a given device has fewer than total_num_train_samples
+        samples, it will be repeated to ensure the same number of samples are seen
+        on each device. However total_num_train_samples must be no greater than twice
+        the number of samples on any single device. TODO: figure out some way of
+        raising an error if this is exceeded.
+    """
 
     def __init__(
         self,
@@ -69,6 +79,7 @@ class ProteinDataMixture(LightningDataModule):
         evaluate_pfam_class: bool = False,
         shuffle: bool = True,
         ignore_gaps: bool = False,
+        total_num_train_samples: Optional[int] = None,
         max_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
     ):
@@ -101,6 +112,7 @@ class ProteinDataMixture(LightningDataModule):
         )
         self._is_setup = False
         self.max_train_samples = max_train_samples
+        self.total_num_train_samples = total_num_train_samples
 
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
@@ -184,9 +196,19 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
+                    if self.total_num_train_samples is not None:
+                        assert (
+                            self.max_train_samples is None
+                        ), "Cannot set both total_num_train_samples and max_train_samples"
+                        print(
+                            f"Using {self.total_num_train_samples//world_size} samples for training on each device"
+                        )
+                        self.max_train_samples = (
+                            self.total_num_train_samples // world_size
+                        )
                     assert (
                         self.max_train_samples is not None
-                    ), "max_train_samples must be set for distributed training"
+                    ), "max_train_samples or total_num_train_samples must be set for distributed training"
                     if self.max_train_samples is not None:
                         print(
                             f"Using {self.max_train_samples} samples for training on each device"
@@ -196,15 +218,20 @@ class ProteinDataMixture(LightningDataModule):
                         self.train_dataset = concatenate_datasets(
                             [self.train_dataset] * 2
                         )
-                        self.train_dataset = self.train_dataset.take(
-                            self.max_train_samples
-                        )
+                elif self.total_num_train_samples is None:
+                    print(
+                        "Warning: total_num_train_samples not needed for world size 1 and will be ignored"
+                    )
             else:
                 if self.num_workers is None:
                     self.num_workers = os.cpu_count()
                 self.train_dataset = self.train_dataset.shuffle(seed=42)
-                if self.max_train_samples is not None:
-                    self.train_dataset = self.train_dataset.take(self.max_train_samples)
+                if self.total_num_train_samples is not None:
+                    print(
+                        "Warning: total_num_train_samples not needed for non iterable datasets and will be ignored"
+                    )
+            if self.max_train_samples is not None:
+                self.train_dataset = self.train_dataset.take(self.max_train_samples)
 
             self.val_datasets = []
             for v_ds_name in self.val_dataset_names:

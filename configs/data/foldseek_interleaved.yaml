@@ -33,3 +33,4 @@ feature_names: [
   "identifier", "original_size", "aa_mask", "coords", "coords_mask",
   "interleaved_coords_mask", "structure_mask", "plddts", "high_plddt_mask"
 ]
+total_num_train_samples: 1900000
