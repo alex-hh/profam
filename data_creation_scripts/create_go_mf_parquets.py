@@ -21,29 +21,14 @@ def fetch_sequence(uniprot_id, txn):
             return value.decode('utf-8')
     return None
 
-def count_uniprot_ids(input_path, min_ic):
-    total_ids = 0
-    with gzip.open(input_path, 'rt') as f:
-        for line in tqdm(f, desc="Counting UniProt IDs"):
-            parts = line.strip().split('\t')
-            if len(parts) != 3:
-                continue
-            
-            _, info_content, uniprot_ids = parts
-            if float(info_content) < min_ic:
-                continue
-            
-            total_ids += len(uniprot_ids.split(','))
-    
-    return total_ids
-
-def create_batches(input_path, min_ic, batch_size):
+def create_batches_and_count(input_path, min_ic, batch_size):
     batches = defaultdict(list)
     current_batch = 0
     current_batch_size = 0
+    total_ids = 0
     
     with gzip.open(input_path, 'rt') as f:
-        for line in tqdm(f, desc="Creating batches"):
+        for line in tqdm(f, desc="Creating batches and counting UniProt IDs"):
             parts = line.strip().split('\t')
             if len(parts) != 3:
                 continue
@@ -52,21 +37,28 @@ def create_batches(input_path, min_ic, batch_size):
             if float(info_content) < min_ic:
                 continue
             
-            for uid in uniprot_ids.split(','):
-                batches[current_batch].append((fam_id, uid.strip()))
+            uids = [uid.strip() for uid in uniprot_ids.split(',')]
+            total_ids += len(uids)
+            
+            for uid in uids:
+                batches[current_batch].append((fam_id, uid))
                 current_batch_size += 1
                 
                 if current_batch_size >= batch_size:
                     current_batch += 1
                     current_batch_size = 0
     
-    return batches
+    return batches, total_ids
 
-def process_batch(batch, txn, writers, num_parquet, schema):
+def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
     fam_sequences = defaultdict(lambda: {'sequences': [], 'accessions': []})
     
     for fam_id, uid in batch:
-        seq = fetch_sequence(uid, txn)
+        if uid in seq_cache:
+            seq = seq_cache[uid]
+        else:
+            seq = fetch_sequence(uid, txn)
+            seq_cache[uid] = seq
         if seq:
             fam_sequences[fam_id]['sequences'].append(seq)
             fam_sequences[fam_id]['accessions'].append(uid)
@@ -90,17 +82,15 @@ def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic, batch_s
     writers = {i: pq.ParquetWriter(os.path.join(output_dir, f'go_mf_{i}.parquet'), schema, compression='snappy')
                for i in range(num_parquet)}
     
-    total_ids = count_uniprot_ids(input_path, min_ic)
+    batches, total_ids = create_batches_and_count(input_path, min_ic, batch_size)
     logging.info(f"Total UniProt IDs to process: {total_ids}")
-    
-    batches = create_batches(input_path, min_ic, batch_size)
     logging.info(f"Created {len(batches)} batches")
     
     with lmdb.open(lmdb_path, readonly=True, lock=False) as env, \
          env.begin(write=False) as txn:
         
         for batch_num, batch in tqdm(batches.items(), desc="Processing batches"):
-            process_batch(batch, txn, writers, num_parquet, schema)
+            process_batch(batch, txn, writers, num_parquet, schema, seq_cache={})
     
     for writer in writers.values():
         writer.close()
