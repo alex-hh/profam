@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Optional
 
-from datasets import interleave_datasets
+from datasets import concatenate_datasets, interleave_datasets
 from datasets.distributed import split_dataset_by_node
 from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
@@ -69,6 +69,7 @@ class ProteinDataMixture(LightningDataModule):
         evaluate_pfam_class: bool = False,
         shuffle: bool = True,
         ignore_gaps: bool = False,
+        max_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
     ):
         super().__init__()
@@ -99,6 +100,7 @@ class ProteinDataMixture(LightningDataModule):
             feature_names=self.feature_names,
         )
         self._is_setup = False
+        self.max_train_samples = max_train_samples
 
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
@@ -182,10 +184,28 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
+                    assert (
+                        self.max_train_samples is not None
+                    ), "max_train_samples must be set for distributed training"
+                    if self.max_train_samples is not None:
+                        print(
+                            f"Using {self.max_train_samples} samples for training on each device"
+                        )
+                        # in case we have fewer samples than we want on some devices, we repeat the dataset (post shuffle)
+                        # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
+                        self.train_dataset = concatenate_datasets(
+                            [self.train_dataset] * 2
+                        )
+                        self.train_dataset = self.train_dataset.take(
+                            self.max_train_samples
+                        )
             else:
                 if self.num_workers is None:
                     self.num_workers = os.cpu_count()
                 self.train_dataset = self.train_dataset.shuffle(seed=42)
+                if self.max_train_samples is not None:
+                    self.train_dataset = self.train_dataset.take(self.max_train_samples)
+
             self.val_datasets = []
             for v_ds_name in self.val_dataset_names:
                 val_dataset_cfg = self.dataset_cfgs[v_ds_name]

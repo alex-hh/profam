@@ -128,6 +128,7 @@ the same number of samples?
     'If the shards don't contain the same number of examples, then some workers [devices] might end up with more examples than others.'
 * If number of shards is not divisible by world size: do we need to handle overhanging samples?
 Is the only real issue when one device gets an empty batch? Or are incomplete batches also problematic?
+* What is advantage of sharding an unsharded dataset (Iterable or not)? how does this work?
 
 ```python
 import torch
