@@ -28,7 +28,7 @@ def create_batches_and_count(input_path, min_ic, batch_size):
     total_ids = 0
     
     with gzip.open(input_path, 'rt') as f:
-        for line in tqdm(f, desc="Creating batches and counting UniProt IDs"):
+        for i, line in enumerate(tqdm(f, desc="Creating batches and counting UniProt IDs")):
             parts = line.strip().split('\t')
             if len(parts) != 3:
                 continue
@@ -47,13 +47,18 @@ def create_batches_and_count(input_path, min_ic, batch_size):
                 if current_batch_size >= batch_size:
                     current_batch += 1
                     current_batch_size = 0
+            
+            # Print an example of the first line processed
+            if i == 0:
+                logging.info(f"Example input line: {line.strip()}")
+                logging.info(f"Parsed components: GO term: {fam_id}, IC: {info_content}, First UniProt ID: {uids[0]}")
     
     return batches, total_ids
 
 def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
     fam_sequences = defaultdict(lambda: {'sequences': [], 'accessions': []})
     
-    for fam_id, uid in batch:
+    for i, (fam_id, uid) in enumerate(batch):
         if uid in seq_cache:
             seq = seq_cache[uid]
         else:
@@ -62,6 +67,10 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
         if seq:
             fam_sequences[fam_id]['sequences'].append(seq)
             fam_sequences[fam_id]['accessions'].append(uid)
+        
+        # Print an example of the first sequence fetched
+        if i == 0:
+            logging.info(f"Example fetched sequence for UniProt ID {uid}: {seq[:50]}...")
     
     for fam_id, data in fam_sequences.items():
         if data['sequences']:
@@ -71,6 +80,16 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
                 schema=schema
             )
             writers[parquet_index].write_batch(record)
+    
+    # Print an example of the first family processed
+    if fam_sequences:
+        example_fam_id = next(iter(fam_sequences))
+        example_data = fam_sequences[example_fam_id]
+        logging.info(f"Example family data:")
+        logging.info(f"  Family ID: {example_fam_id}")
+        logging.info(f"  Number of sequences: {len(example_data['sequences'])}")
+        logging.info(f"  First sequence (truncated): {example_data['sequences'][0][:50]}...")
+        logging.info(f"  First accession: {example_data['accessions'][0]}")
 
 def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic, batch_size):
     schema = pa.schema([
@@ -96,6 +115,13 @@ def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic, batch_s
         writer.close()
 
     logging.info("Parquet files written successfully.")
+
+    # Print an example of the data written to a Parquet file
+    example_parquet = os.path.join(output_dir, 'go_mf_0.parquet')
+    if os.path.exists(example_parquet):
+        table = pq.read_table(example_parquet)
+        logging.info(f"Example data from Parquet file:")
+        logging.info(table.to_pandas().head())
 
 def main():
     parser = argparse.ArgumentParser(description='Process GO term data and generate parquet files.')
