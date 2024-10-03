@@ -761,7 +761,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 **forward_kwargs,
             )
             if not include_prompt_in_output:
-                outputs = outputs[:, input_ids.shape[1]:]
+                outputs = outputs[:, input_ids.shape[1] :]
             all_outputs.append(outputs)
 
         max_output_length = max([o.shape[1] for o in all_outputs])
@@ -772,7 +772,7 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         start_ix = 0
         for o in all_outputs:
-            padded_outputs[start_ix: start_ix + o.shape[0], :o.shape[1]] = o
+            padded_outputs[start_ix : start_ix + o.shape[0], : o.shape[1]] = o
             start_ix += o.shape[0]
 
         return padded_outputs

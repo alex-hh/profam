@@ -7,4 +7,6 @@ def test_seqpos_start(test_model, proteingym_batch):
         proteingym_batch["completion_residue_index"][:, :, 1]
         == test_model.model.start_residue_index
     ).all()
-    assert (proteingym_batch["residue_index"][:, 2] == test_model.model.start_residue_index).all()
+    assert (
+        proteingym_batch["residue_index"][:, 2] == test_model.model.start_residue_index
+    ).all()
