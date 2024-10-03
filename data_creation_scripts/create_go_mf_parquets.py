@@ -19,6 +19,9 @@ def fetch_sequence(uniprot_id, txn):
         value = txn.get(key)
         if value:
             return value.decode('utf-8')
+        else:
+            logging.debug(f"Key not found: {key}")
+    logging.debug(f"No sequence found for UniProt ID: {uniprot_id}")
     return None
 
 def create_batches_and_count(input_path, min_ic, batch_size):
@@ -60,23 +63,21 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
     fam_sequences = defaultdict(lambda: {'sequences': [], 'accessions': []})
     
     for i, (fam_id, uid) in enumerate(batch):
+        if i < 5:  # Print details for first 5 UniProt IDs
+            logging.info(f"Attempting to fetch sequence for UniProt ID: {uid}")
+        
         if uid in seq_cache:
             seq = seq_cache[uid]
         else:
             seq = fetch_sequence(uid, txn)
             seq_cache[uid] = seq
         
-        # Print an example of the first sequence fetched (or not found)
-        if i == 0:
-            if seq:
-                logging.info(f"Example fetched sequence for UniProt ID {uid}: {seq[:50]}...")
-            else:
-                logging.info(f"No sequence found for UniProt ID {uid}")
-        
         if seq:
             fam_sequences[fam_id]['sequences'].append(seq)
             fam_sequences[fam_id]['accessions'].append(uid)
-    
+        elif i < 5:  # Log first 5 missing sequences
+            logging.warning(f"Sequence not found for UniProt ID: {uid}")
+
     for fam_id, data in fam_sequences.items():
         if data['sequences']:
             parquet_index = hash(fam_id) % num_parquet
@@ -131,6 +132,18 @@ def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic, batch_s
         logging.info(f"Example data from Parquet file:")
         logging.info(table.to_pandas().head())
 
+def check_lmdb_contents(lmdb_path):
+    with lmdb.open(lmdb_path, readonly=True, lock=False) as env:
+        with env.begin() as txn:
+            cursor = txn.cursor()
+            for i, (key, value) in enumerate(cursor):
+                if i < 5:  # Print first 5 entries
+                    logging.info(f"LMDB entry {i}: Key: {key}, Value: {value[:50]}...")
+                else:
+                    break
+            logging.info(f"Total number of entries in LMDB: {txn.stat()['entries']}")
+
+
 def main():
     parser = argparse.ArgumentParser(description='Process GO term data and generate parquet files.')
     parser.add_argument('--input', required=True, help='Path to input gzipped TSV file.')
@@ -145,6 +158,18 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     
     logging.info("Starting processing...")
+    
+    # Check if we can open the LMDB database
+    try:
+        with lmdb.open(args.lmdb_path, readonly=True, lock=False) as env:
+            with env.begin() as txn:
+                logging.info(f"Successfully opened LMDB database at {args.lmdb_path}")
+                logging.info(f"LMDB database size: {txn.stat()['entries']} entries")
+    except Exception as e:
+        logging.error(f"Failed to open LMDB database: {e}")
+        return
+
+    check_lmdb_contents(args.lmdb_path)
     process_file(args.input, args.output_dir, args.lmdb_path, args.num_parquet, args.min_ic, args.batch_size)
     logging.info("Processing completed.")
 
