@@ -209,9 +209,9 @@ class ProteinDataMixture(LightningDataModule):
             batch_size=self.batch_size,
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
-            persistent_workers=True,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
+            persistent_workers=self.num_workers
+            > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
             shuffle=True,  # presumably does not affect iterable datasets
-            pin_memory=True,
         )
 
     def val_dataloader(self) -> List[DataLoader]:
@@ -222,8 +222,7 @@ class ProteinDataMixture(LightningDataModule):
                 collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers // 2,
-                persistent_workers=True,
-                pin_memory=True,
+                persistent_workers=self.num_workers > 1,
             )
             for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
         ]
@@ -237,8 +236,7 @@ class ProteinDataMixture(LightningDataModule):
                 collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers // 2,
-                persistent_workers=True,
-                pin_memory=True,
+                persistent_workers=self.num_workers > 1,
             )
         ]
         return loaders
