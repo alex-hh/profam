@@ -7,8 +7,6 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import os
 import hashlib
-from concurrent.futures import ProcessPoolExecutor
-import multiprocessing
 import numpy as np
 
 def setup_logging():
@@ -27,63 +25,37 @@ def fetch_sequence(uniprot_id, txn):
 def assign_parquet_file(fam_id, num_parquet):
     return int(hashlib.md5(fam_id.encode()).hexdigest(), 16) % num_parquet
 
-def process_chunk(chunk, db_env, num_parquet, min_ic):
+def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic):
     writers = {i: {} for i in range(num_parquet)}
     
-    with db_env.begin(write=False) as txn:
-        for line in chunk:
-            parts = line.strip().split('\t')
-            if len(parts) != 3:
-                continue
-            
-            fam_id, info_content, uniprot_ids = parts
-            if float(info_content) < min_ic:
-                continue
+    env = lmdb.open(lmdb_path, readonly=True, lock=False)
+    try:
+        with env.begin(write=False) as txn, gzip.open(input_path, 'rt') as f:
+            for line in tqdm(f, desc="Processing GO terms"):
+                parts = line.strip().split('\t')
+                if len(parts) != 3:
+                    continue
+                
+                fam_id, info_content, uniprot_ids = parts
+                if float(info_content) < min_ic:
+                    continue
 
-            sequences = []
-            accessions = []
-            for uid in uniprot_ids.split(','):
-                seq = fetch_sequence(uid.strip(), txn)
-                if seq:
-                    sequences.append(seq)
-                    accessions.append(uid.strip())
+                sequences = []
+                accessions = []
+                for uid in uniprot_ids.split(','):
+                    seq = fetch_sequence(uid.strip(), txn)
+                    if seq:
+                        sequences.append(seq)
+                        accessions.append(uid.strip())
 
-            if sequences:
-                parquet_index = assign_parquet_file(fam_id, num_parquet)
-                if fam_id not in writers[parquet_index]:
-                    writers[parquet_index][fam_id] = {'sequences': [], 'accessions': []}
-                writers[parquet_index][fam_id]['sequences'].extend(sequences)
-                writers[parquet_index][fam_id]['accessions'].extend(accessions)
-
-    return writers
-
-def process_file(input_path, output_dir, db_env, num_parquet, min_ic):
-    chunk_size = 10000  # Adjust this value based on your data and system
-    writers = {i: {} for i in range(num_parquet)}
-
-    logging.info("Reading input file...")
-    with gzip.open(input_path, 'rt') as f:
-        lines = f.readlines()
-
-    total_lines = len(lines)
-    logging.info(f"Total lines in input file: {total_lines}")
-
-    chunks = [lines[i:i + chunk_size] for i in range(0, total_lines, chunk_size)]
-    total_chunks = len(chunks)
-    logging.info(f"Number of chunks to process: {total_chunks}")
-
-    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        futures = [executor.submit(process_chunk, chunk, db_env, num_parquet, min_ic) for chunk in chunks]
-
-        for future in tqdm(futures, desc="Processing chunks", total=total_chunks):
-            chunk_writers = future.result()
-            for i in range(num_parquet):
-                for fam_id, data in chunk_writers[i].items():
-                    if fam_id not in writers[i]:
-                        writers[i][fam_id] = data
-                    else:
-                        writers[i][fam_id]['sequences'].extend(data['sequences'])
-                        writers[i][fam_id]['accessions'].extend(data['accessions'])
+                if sequences:
+                    parquet_index = assign_parquet_file(fam_id, num_parquet)
+                    if fam_id not in writers[parquet_index]:
+                        writers[parquet_index][fam_id] = {'sequences': [], 'accessions': []}
+                    writers[parquet_index][fam_id]['sequences'].extend(sequences)
+                    writers[parquet_index][fam_id]['accessions'].extend(accessions)
+    finally:
+        env.close()
 
     logging.info("Writing parquet files...")
     for i, fam_data in tqdm(writers.items(), desc="Writing parquet files", total=num_parquet):
@@ -112,10 +84,7 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     
     logging.info("Starting processing...")
-    db_env = lmdb.open(args.lmdb_path, readonly=True, lock=False)
-    process_file(args.input, args.output_dir, db_env, args.num_parquet, args.min_ic)
-    db_env.close()
-    
+    process_file(args.input, args.output_dir, args.lmdb_path, args.num_parquet, args.min_ic)
     logging.info("Processing completed.")
 
 if __name__ == "__main__":
