@@ -13,14 +13,17 @@ def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def fetch_sequence(uniprot_id, txn):
-    prefixes = [f'sp|{uniprot_id}|', f'tr|{uniprot_id}|']
+    prefixes = ['sp|', 'tr|']
     for prefix in prefixes:
-        key = prefix.encode('utf-8')
-        value = txn.get(key)
-        if value:
-            return value.decode('utf-8')
-        else:
-            logging.debug(f"Key not found: {key}")
+        partial_key = f'{prefix}{uniprot_id}'
+        cursor = txn.cursor()
+        if cursor.set_range(partial_key.encode('utf-8')):
+            key, value = cursor.item()
+            key = key.decode('utf-8')
+            if key.startswith(partial_key):
+                logging.debug(f"Found sequence for {uniprot_id} with key: {key}")
+                return value.decode('utf-8')
+        logging.debug(f"No match found for {partial_key}")
     logging.debug(f"No sequence found for UniProt ID: {uniprot_id}")
     return None
 
