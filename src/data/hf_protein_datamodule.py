@@ -1,9 +1,9 @@
 import os
 from typing import Dict, List, Optional
 
-from datasets import interleave_datasets
+from datasets import concatenate_datasets, interleave_datasets
 from datasets.distributed import split_dataset_by_node
-from datasets.iterable_dataset import Dataset, IterableDataset
+from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
@@ -20,7 +20,17 @@ class ProteinDataModule(LightningDataModule):
 
 
 class ProteinDataMixture(LightningDataModule):
-    """Data module for training on mixture of datasets."""
+    """Data module for training on mixture of datasets.
+
+    total_num_train_samples: estimate of total number of samples across all datasets
+        (because of on-the-fly filtering, may not be exact). used to ensure the
+        same number of samples are seen on each device when using distributed
+        training. If the dataset on a given device has fewer than total_num_train_samples
+        samples, it will be repeated to ensure the same number of samples are seen
+        on each device. However total_num_train_samples must be no greater than twice
+        the number of samples on any single device. TODO: figure out some way of
+        raising an error if this is exceeded.
+    """
 
     def __init__(
         self,
@@ -34,6 +44,8 @@ class ProteinDataMixture(LightningDataModule):
         num_workers: Optional[int] = None,
         shuffle: bool = True,
         ignore_gaps: bool = False,
+        total_num_train_samples: Optional[int] = None,
+        max_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
     ):
         super().__init__()
@@ -63,6 +75,8 @@ class ProteinDataMixture(LightningDataModule):
             feature_names=None,
         )
         self._is_setup = False
+        self.max_train_samples = max_train_samples
+        self.total_num_train_samples = total_num_train_samples
 
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
@@ -153,13 +167,49 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
+                    if self.total_num_train_samples is not None:
+                        assert (
+                            self.max_train_samples is None
+                        ), "Cannot set both total_num_train_samples and max_train_samples"
+                        print(
+                            f"Using {self.total_num_train_samples//world_size} samples for training on each device"
+                        )
+                        self.max_train_samples = (
+                            self.total_num_train_samples // world_size
+                        )
+                    # assert (
+                    #     self.max_train_samples is not None
+                    # ), "max_train_samples or total_num_train_samples must be set for distributed training"
+                    if self.max_train_samples is None:
+                        print("Warning: world size > 1 but max_train_samples not set - likely to cause timeout")
+                    else:
+                        print(
+                            f"Using {self.max_train_samples} samples for training on each device"
+                        )
+                        # in case we have fewer samples than we want on some devices, we repeat the dataset (post shuffle)
+                        # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
+                        # TODO: Main question is what happens when set_epoch is called - do we just shuffle the individual
+                        # datasets rather than the concatenated dataset?
+                        # perhaps we could test similar to https://github.com/huggingface/datasets/issues/7156
+                        self.train_dataset = concatenate_datasets(
+                            [self.train_dataset] * 2
+                        )
+                elif self.total_num_train_samples is None:
+                    print(
+                        "Warning: total_num_train_samples not needed for world size 1 and will be ignored"
+                    )
             else:
                 if self.num_workers is None:
                     self.num_workers = os.cpu_count()
-                # unnecessary and may affect in_memory datasets
-                # self.train_dataset = self.train_dataset.shuffle(
-                #     seed=42
-                # )  # maybe unnecessary since we are shuffling in the dataloader in this case
+                # unnecessary and could slow down in memory datasets
+                # self.train_dataset = self.train_dataset.shuffle(seed=42)
+                if self.total_num_train_samples is not None:
+                    print(
+                        "Warning: total_num_train_samples not needed for non iterable datasets and will be ignored"
+                    )
+            if self.max_train_samples is not None:
+                self.train_dataset = self.train_dataset.take(self.max_train_samples)
+
             self.val_datasets = []
             self.val_dataset_names = []
             for v_ds_name, val_batch_size in self.val_dataset_batch_sizes.items():
