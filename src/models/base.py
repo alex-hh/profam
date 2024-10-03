@@ -526,11 +526,11 @@ class BaseFamilyLitModule(BaseLitModule):
             forward_kwargs = {}
             if self.embed_res_pos_in_seq:
                 # fmt: off
-                this_res_pos = completion_residue_index[
+                this_res_ix = completion_residue_index[
                     :, batch_start: batch_start + batch_size, :L_mini_batch
                                ].reshape(-1, L_mini_batch)
                 # fmt: on
-                forward_kwargs["residue_index"] = this_res_pos
+                forward_kwargs["residue_index"] = this_res_ix
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
@@ -598,11 +598,11 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
             )  # SEP token which signals end of last prompt seq
             if self.embed_res_pos_in_seq:
-                this_res_pos = torch.cat(
+                this_res_ix = torch.cat(
                     [input_residue_index, completion_residue_index[:, completion_ix]],
                     dim=1,
                 )[..., :L_mini_batch]
-                forward_kwargs["residue_index"] = this_res_pos
+                forward_kwargs["residue_index"] = this_res_ix
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
@@ -663,7 +663,7 @@ class BaseFamilyLitModule(BaseLitModule):
         max_total_length: Optional[
             int
         ] = None,  # maximum length of inputs plus completions
-        input_res_pos_in_seq: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
         input_coords: Optional[torch.FloatTensor] = None,
         include_prompt_in_output: bool = False,
         fixed_length: Optional[int] = None,
@@ -737,13 +737,13 @@ class BaseFamilyLitModule(BaseLitModule):
             self.tokenizer.sep_token_id,
             self.tokenizer.seq_struct_sep_token_id,
         ]
-        assert input_res_pos_in_seq.shape == input_ids.shape
+        assert input_residue_index.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
             forward_kwargs = self.get_forward_kwargs(
-                {"residue_index": input_res_pos_in_seq, "coords": input_coords}
+                {"residue_index": input_residue_index, "coords": input_coords}
             )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
@@ -761,7 +761,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 **forward_kwargs,
             )
             if not include_prompt_in_output:
-                outputs = outputs[:, input_ids.shape[1] :]
+                outputs = outputs[:, input_ids.shape[1]:]
             all_outputs.append(outputs)
 
         max_output_length = max([o.shape[1] for o in all_outputs])
@@ -772,7 +772,7 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         start_ix = 0
         for o in all_outputs:
-            padded_outputs[start_ix : start_ix + o.shape[0], : o.shape[1]] = o
+            padded_outputs[start_ix: start_ix + o.shape[0], :o.shape[1]] = o
             start_ix += o.shape[0]
 
         return padded_outputs

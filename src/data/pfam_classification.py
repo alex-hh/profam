@@ -182,7 +182,7 @@ def load_pfam_classification_dataset(
         "eval_fam_ids",
     ]
     if tokenizer.embed_res_pos_in_seq:
-        columns += ["res_pos_in_seq", "completion_residue_index"]
+        columns += ["residue_index", "completion_residue_index"]
 
     dataset.set_format(
         type="torch",
