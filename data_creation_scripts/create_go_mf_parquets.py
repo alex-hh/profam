@@ -13,13 +13,12 @@ def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def fetch_sequence(uniprot_id, txn):
-    prefixes = ['sp|', 'tr|']
+    prefixes = [b'sp|', b'tr|']
     for prefix in prefixes:
-        partial_key = f'{prefix}{uniprot_id}'
+        partial_key = prefix + uniprot_id.encode('utf-8')
         cursor = txn.cursor()
-        if cursor.set_range(partial_key.encode('utf-8')):
+        if cursor.set_range(partial_key):
             key, value = cursor.item()
-            key = key.decode('utf-8')
             if key.startswith(partial_key):
                 logging.debug(f"Found sequence for {uniprot_id} with key: {key}")
                 return value.decode('utf-8')
@@ -64,10 +63,12 @@ def create_batches_and_count(input_path, min_ic, batch_size):
 
 def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
     fam_sequences = defaultdict(lambda: {'sequences': [], 'accessions': []})
+    sequences_found = 0
+    sequences_not_found = 0
     
     for i, (fam_id, uid) in enumerate(batch):
         if i < 5:  # Print details for first 5 UniProt IDs
-            logging.info(f"Attempting to fetch sequence for UniProt ID: {uid}")
+            logging.info(f"Processing UniProt ID: {uid} for family {fam_id}")
         
         if uid in seq_cache:
             seq = seq_cache[uid]
@@ -78,8 +79,15 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
         if seq:
             fam_sequences[fam_id]['sequences'].append(seq)
             fam_sequences[fam_id]['accessions'].append(uid)
-        elif i < 5:  # Log first 5 missing sequences
-            logging.warning(f"Sequence not found for UniProt ID: {uid}")
+            sequences_found += 1
+            if i < 5:
+                logging.info(f"Found sequence for {uid}: {seq[:50]}...")
+        else:
+            sequences_not_found += 1
+            if i < 5:
+                logging.warning(f"Sequence not found for UniProt ID: {uid}")
+
+    logging.info(f"Batch summary: Found {sequences_found} sequences, {sequences_not_found} not found")
 
     for fam_id, data in fam_sequences.items():
         if data['sequences']:
