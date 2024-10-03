@@ -1,17 +1,16 @@
 import copy
 import json
 import os
-import torch
 from typing import List, Optional
 
 import numpy as np
-from datasets import Dataset, load_dataset
+import torch
+from datasets import Dataset, concatenate_datasets, load_dataset
 
 from src import constants
-from src.data import transforms
 from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import Protein, ProteinDocument
-from src.data.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor
+from src.data.preprocessing import ProteinDocumentPreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
 CATH_43_JSONL_FILE = os.path.join(
@@ -125,6 +124,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             self.interleave_structure_sequence = False
         self.document_token = document_token
         self.repeats = repeats
+
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
         dataset = load_dataset(path="json", data_files=self.jsonl_file, split="train")
         dataset = dataset.filter(
@@ -178,9 +178,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
                 else max_tokens_per_example
             )
 
-        dataset = dataset.filter(
-            filter_fn, num_proc=self.num_proc
-        ).map(
+        dataset = dataset.filter(filter_fn, num_proc=self.num_proc).map(
             self.preprocess_example,
             batched=False,
             num_proc=self.num_proc,
@@ -193,7 +191,8 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             remove_columns=["seq", "name", "CATH"],
         )
         if self.repeats > 1:
-            dataset = torch.utils.data.ConcatDataset([dataset] * self.repeats)
+            # TODO: test we still get shuffling - we should because of map style
+            dataset = concatenate_datasets([dataset] * self.repeats)
         return dataset
         # processed_dataset = []
         # for example in dataset:

@@ -5,6 +5,7 @@
 Pytorch lightning will automatically apply distributed sampler to map-style datasets.
 (Q. Will HF datasets also do something automatically?)
 
+Pytorch dataloader will shuffle by using a custom sampler.
 
 ### Iterable datasets
 
@@ -52,6 +53,7 @@ What's the easiest way to test this stuff? Perhaps something like the example
 from the discussion thread?
 Does interleave datasets sample without replacement? How exactly does e.g.
 all exhausted work?
+Is it possible to remake shards for an already sharded dataset?
 
 ```python
 import torch
