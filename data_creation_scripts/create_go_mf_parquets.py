@@ -61,15 +61,21 @@ def process_file(input_path, output_dir, db_env, num_parquet, min_ic):
     chunk_size = 10000  # Adjust this value based on your data and system
     writers = {i: {} for i in range(num_parquet)}
 
+    logging.info("Reading input file...")
     with gzip.open(input_path, 'rt') as f:
         lines = f.readlines()
 
-    chunks = [lines[i:i + chunk_size] for i in range(0, len(lines), chunk_size)]
+    total_lines = len(lines)
+    logging.info(f"Total lines in input file: {total_lines}")
+
+    chunks = [lines[i:i + chunk_size] for i in range(0, total_lines, chunk_size)]
+    total_chunks = len(chunks)
+    logging.info(f"Number of chunks to process: {total_chunks}")
 
     with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
         futures = [executor.submit(process_chunk, chunk, db_env, num_parquet, min_ic) for chunk in chunks]
 
-        for future in tqdm(futures, desc="Processing chunks"):
+        for future in tqdm(futures, desc="Processing chunks", total=total_chunks):
             chunk_writers = future.result()
             for i in range(num_parquet):
                 for fam_id, data in chunk_writers[i].items():
@@ -79,7 +85,8 @@ def process_file(input_path, output_dir, db_env, num_parquet, min_ic):
                         writers[i][fam_id]['sequences'].extend(data['sequences'])
                         writers[i][fam_id]['accessions'].extend(data['accessions'])
 
-    for i, fam_data in writers.items():
+    logging.info("Writing parquet files...")
+    for i, fam_data in tqdm(writers.items(), desc="Writing parquet files", total=num_parquet):
         if fam_data:
             records = [
                 {
@@ -104,8 +111,10 @@ def main():
     setup_logging()
     os.makedirs(args.output_dir, exist_ok=True)
     
-    with lmdb.open(args.lmdb_path, readonly=True, lock=False) as db_env:
-        process_file(args.input, args.output_dir, db_env, args.num_parquet, args.min_ic)
+    logging.info("Starting processing...")
+    db_env = lmdb.open(args.lmdb_path, readonly=True, lock=False)
+    process_file(args.input, args.output_dir, db_env, args.num_parquet, args.min_ic)
+    db_env.close()
     
     logging.info("Processing completed.")
 
