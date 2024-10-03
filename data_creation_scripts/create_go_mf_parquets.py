@@ -26,12 +26,25 @@ def assign_parquet_file(fam_id, num_parquet):
     return int(hashlib.md5(fam_id.encode()).hexdigest(), 16) % num_parquet
 
 def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic):
-    writers = {i: {} for i in range(num_parquet)}
+    schema = pa.schema([
+        ('fam_id', pa.string()),
+        ('sequences', pa.list_(pa.string())),
+        ('accessions', pa.list_(pa.string()))
+    ])
+    
+    writers = {i: pq.ParquetWriter(os.path.join(output_dir, f'go_mf_{i}.parquet'), schema, compression='snappy')
+               for i in range(num_parquet)}
     
     env = lmdb.open(lmdb_path, readonly=True, lock=False)
     try:
         with env.begin(write=False) as txn, gzip.open(input_path, 'rt') as f:
-            for line in tqdm(f, desc="Processing GO terms"):
+            # Count valid lines first
+            valid_lines = sum(1 for line in f if len(line.strip().split('\t')) == 3 and float(line.strip().split('\t')[1]) >= min_ic)
+            
+            # Reset file pointer to the beginning
+            f.seek(0)
+            
+            for line in tqdm(f, total=valid_lines, desc="Processing GO terms"):
                 parts = line.strip().split('\t')
                 if len(parts) != 3:
                     continue
@@ -50,26 +63,17 @@ def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic):
 
                 if sequences:
                     parquet_index = assign_parquet_file(fam_id, num_parquet)
-                    if fam_id not in writers[parquet_index]:
-                        writers[parquet_index][fam_id] = {'sequences': [], 'accessions': []}
-                    writers[parquet_index][fam_id]['sequences'].extend(sequences)
-                    writers[parquet_index][fam_id]['accessions'].extend(accessions)
+                    record = pa.RecordBatch.from_arrays(
+                        [pa.array([fam_id]), pa.array([sequences]), pa.array([accessions])],
+                        schema=schema
+                    )
+                    writers[parquet_index].write_batch(record)
     finally:
         env.close()
+        for writer in writers.values():
+            writer.close()
 
-    logging.info("Writing parquet files...")
-    for i, fam_data in tqdm(writers.items(), desc="Writing parquet files", total=num_parquet):
-        if fam_data:
-            records = [
-                {
-                    'fam_id': fam_id,
-                    'sequences': np.array(data['sequences'], dtype=object),
-                    'accessions': np.array(data['accessions'])
-                }
-                for fam_id, data in fam_data.items()
-            ]
-            table = pa.Table.from_pylist(records)
-            pq.write_table(table, os.path.join(output_dir, f'go_mf_{i}.parquet'), compression='snappy')
+    logging.info("Parquet files written successfully.")
 
 def main():
     parser = argparse.ArgumentParser(description='Process GO term data and generate parquet files.')
