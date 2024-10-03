@@ -7,27 +7,10 @@ from datasets.iterable_dataset import Dataset, IterableDataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
+from src.constants import DEFAULT_FEATURE_NAMES
 from src.data.datasets import ProteinDatasetConfig
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
-
-# N.B. feature names only needs to be applied for training
-# i.e. to standardise features across interleaved datasets
-DEFAULT_FEATURE_NAMES = [
-    "input_ids",
-    "attention_mask",
-    "labels",
-    "ds_name",
-    "original_size",
-    "seq_pos",
-    "identifier",
-    "coords",
-    "coords_mask",
-    "interleaved_coords_mask",
-    "aa_mask",
-    "plddts",
-    "structure_mask",
-]
 
 
 class ProteinDataModule(LightningDataModule):
@@ -64,6 +47,8 @@ class ProteinDataMixture(LightningDataModule):
         self.max_tokens = max_tokens
         self.shuffle = shuffle
         self.tokenizer = tokenizer
+        # N.B. feature names only needs to be applied for training
+        # i.e. to standardise features across interleaved datasets
         self.feature_names = feature_names or DEFAULT_FEATURE_NAMES
         self.train_collator = CustomDataCollator(
             self.tokenizer,

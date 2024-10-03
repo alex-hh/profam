@@ -4,7 +4,6 @@ import os
 from typing import List, Optional
 
 import numpy as np
-import torch
 from datasets import Dataset, concatenate_datasets, load_dataset
 
 from src import constants
@@ -193,6 +192,13 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         if self.repeats > 1:
             # TODO: test we still get shuffling - we should because of map style
             dataset = concatenate_datasets([dataset] * self.repeats)
+        # https://discuss.huggingface.co/t/dataset-set-format/1961/4
+        tensor_features = [c for c in constants.SEQUENCE_TENSOR_FEATURES + constants.STRUCTURE_TENSOR_FEATURES if c in dataset.column_names]
+        dataset.set_format(
+            type="torch",
+            columns=tensor_features,
+            output_all_columns=True,  # also output string features
+        )
         return dataset
         # processed_dataset = []
         # for example in dataset:
