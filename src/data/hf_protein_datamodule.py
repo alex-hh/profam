@@ -233,7 +233,7 @@ class ProteinDataMixture(LightningDataModule):
                 batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
                 collate_fn=self.val_collator,
                 shuffle=False,
-                num_workers=self.num_workers,
+                num_workers=self.num_workers // 2,
                 persistent_workers=True,
                 pin_memory=True,
             )
@@ -248,7 +248,7 @@ class ProteinDataMixture(LightningDataModule):
                 batch_size=self.batch_size,
                 collate_fn=self.val_collator,
                 shuffle=False,
-                num_workers=self.num_workers,
+                num_workers=self.num_workers // 2,
                 persistent_workers=True,
                 pin_memory=True,
             )

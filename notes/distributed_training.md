@@ -17,7 +17,9 @@ The behaviour of the dataset after this function is applied depends on whether t
 number of shards of the dataset is divisible by the world size:
 
 if this is the case, then each epoch, n_shards // world_size shards will be assigned
-to each device.
+to each device. The shards are shuffled across devices between epochs:
+https://discuss.huggingface.co/t/keeping-iterabledataset-node-wise-split-fixed-during-ddp/58713/7
+(Is this assuming shuffle True?)
 
 [Q. is it important in this case that each shard contains the same number of samples]
 
