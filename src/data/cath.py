@@ -4,6 +4,8 @@ import os
 from typing import List, Optional
 
 import numpy as np
+import torch
+import tqdm
 from datasets import Dataset, concatenate_datasets, load_dataset
 
 from src import constants
@@ -18,18 +20,18 @@ CATH_43_JSONL_FILE = os.path.join(
 CATH_42_JSONL_FILE = os.path.join(
     constants.PROFAM_DATA_DIR, "cath/cath42/chain_set.jsonl"
 )
+CATH_43_SPLITS_FILE = os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json")
+CATH_42_SPLITS_FILE = os.path.join(constants.PROFAM_DATA_DIR, "cath/cath42/splits.json")
 
 
 def cath_43_splits():
-    return json.load(
-        open(os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json"))
-    )
+    with open(CATH_43_SPLITS_FILE) as f:
+        return json.load(f)
 
 
 def cath_42_splits():
-    return json.load(
-        open(os.path.join(constants.PROFAM_DATA_DIR, "cath/cath42/splits.json"))
-    )
+    with open(CATH_42_SPLITS_FILE) as f:
+        return json.load(f)
 
 
 def coords_dict_to_list(coords_dict):
@@ -73,46 +75,91 @@ def protein_from_coords_dict(coords_dict):
     )
 
 
-def load_coords(jsonl_file):
+def _load_coords(
+    jsonl_file,
+    convert_to_protein_list: bool = False,
+    disable_tqdm: bool = False,
+    split_file: Optional[str] = None,
+    split_name: Optional[str] = None,
+):
     """Split-specific jsonl files should be created by running data_creation_scripts/create_cath_splits.py"""
+    if split_name is not None:
+        assert split_file is not None
+        with open(split_file) as f:
+            split_ids = json.load(f)[split_name]
+
     entries = []
     with open(jsonl_file) as f:
-        for line in f:
+        lines = (
+            f.readlines()
+        )  # get a list rather than iterator to allow tqdm to know progress
+        for line in tqdm.tqdm(lines, disable=disable_tqdm):
             coords_dict = json.loads(line)
+            if split_name is not None:
+                if coords_dict["name"] not in split_ids:
+                    continue
             if coords_dict["name"] == "3j7y.K":
                 coords_dict["name"] = "3j7y.KK"  # disambiguate from 3j7y.k
-            entries.append(coords_dict)
+            if convert_to_protein_list:
+                entries.append(protein_from_coords_dict(coords_dict))
+            else:
+                entries.append(coords_dict)
     return entries
 
 
-class CATHDatasetBuilder(BaseProteinDatasetBuilder):
+def load_cath43_coords(
+    convert_to_protein_list: bool = False,
+    disable_tqdm: bool = False,
+    split_name: Optional[str] = None,
+):
+    return _load_coords(
+        CATH_43_JSONL_FILE,
+        convert_to_protein_list=convert_to_protein_list,
+        disable_tqdm=disable_tqdm,
+        split_file=CATH_43_SPLITS_FILE,
+        split_name=split_name,
+    )
+
+
+def load_cath42_coords(
+    convert_to_protein_list: bool = False,
+    disable_tqdm: bool = False,
+    split_name: Optional[str] = None,
+):
+    return _load_coords(
+        CATH_42_JSONL_FILE,
+        convert_to_protein_list=convert_to_protein_list,
+        disable_tqdm=disable_tqdm,
+        split_file=CATH_42_SPLITS_FILE,
+        split_name=split_name,
+    )
+
+
+class ListDataset(torch.utils.data.Dataset):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self):
+        # Return the total number of items in the dataset
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        # Get the item at index `idx`
+        return self.data[idx]
+
+
+class BaseCATHDatasetBuilder(BaseProteinDatasetBuilder):
     def __init__(
         self,
         name: str,
-        document_token: str = "[RAW]",
-        split_name: str = "validation",
         use_cath_43: bool = False,
-        num_proc: Optional[int] = None,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         repeats: int = 1,
+        document_token: str = "[RAW]",
+        split_name: str = "validation",
     ):
         super().__init__(name)
         self.use_cath_43 = use_cath_43
-        self.split_name = split_name
-        self.split_ids = (
-            cath_43_splits()[split_name]
-            if use_cath_43
-            else cath_42_splits()[split_name]
-        )
-        self.split_ids = [pdb_id.replace(".", "") for pdb_id in self.split_ids]
-        self.jsonl_file = CATH_43_JSONL_FILE if use_cath_43 else CATH_42_JSONL_FILE
-        self.num_proc = num_proc
-        if self.num_proc is None:
-            print(
-                "Warning: num_proc is None for CATHDatasetBuilder, may be handled differently to other datasets"
-            )
-            print("Automatically setting num_proc to ", os.cpu_count())
-            self.num_proc = os.cpu_count()
         self.preprocessor = preprocessor
         if preprocessor is not None:
             self.preprocessor.single_protein_documents = True
@@ -123,8 +170,117 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             self.interleave_structure_sequence = False
         self.document_token = document_token
         self.repeats = repeats
+        self.split_name = split_name
+
+
+class CATHTorchDatasetBuilder(BaseCATHDatasetBuilder):
+    def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
+        print("Loading CATH dataset")
+        if self.use_cath_43:
+            data = load_cath43_coords(
+                convert_to_protein_list=True, split_name=self.split_name
+            )
+        else:
+            data = load_cath42_coords(
+                convert_to_protein_list=True, split_name=self.split_name
+            )
+        print("Done loading CATH dataset of length ", len(data))
+        return ListDataset(data)
+
+    def process(
+        self,
+        dataset: ListDataset,
+        tokenizer: ProFamTokenizer,
+        max_tokens_per_example: Optional[int] = None,
+        shuffle_proteins_in_document: bool = True,
+        feature_names: Optional[List[str]] = None,
+    ):
+        processed_dataset = []
+        print("Processing CATH dataset")
+        for protein in tqdm.tqdm(dataset, disable=False):
+            if (
+                self.interleave_structure_sequence
+                and len(protein.sequence) > (max_tokens_per_example // 2) - 3
+            ):
+                continue
+            elif len(protein.sequence) > max_tokens_per_example - 3:
+                continue
+            proteins = ProteinDocument.from_proteins(
+                [protein],
+                representative_accession=protein.accession,
+                identifier=protein.accession,
+            )
+            example = self.preprocessor.preprocess_protein_data(
+                proteins,
+                tokenizer,
+                max_tokens=max_tokens_per_example,  # handles padding
+                shuffle=False,
+            )
+            example["ds_name"] = self.name
+            processed_dataset.append(example)
+        return ListDataset(processed_dataset)
+
+
+class CATHHFDatasetBuilder(BaseProteinDatasetBuilder):
+    def __init__(
+        self,
+        name: str,
+        document_token: str = "[RAW]",
+        split_name: str = "validation",
+        use_cath_43: bool = False,
+        num_proc: Optional[int] = None,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
+        repeats: int = 1,
+        to_torch_dataset: bool = True,
+    ):
+        """Speed issues:
+
+        https://huggingface.co/docs/datasets/en/about_mapstyle_vs_iterable#speed-differences
+
+        However as soon as your Dataset has an indices mapping (via Dataset.shuffle() for example),
+        the speed can become 10x slower. This is because there is an extra step to get the row index
+        to read using the indices mapping, and most importantly, you aren’t reading contiguous chunks
+        of data anymore. To restore the speed, you’d need to rewrite the entire dataset on your disk
+        again using Dataset.flatten_indices(), which removes the indices mapping. This may take a lot
+        of time depending on the size of your dataset though:
+
+        In this case, we recommend switching to an IterableDataset and leveraging its fast approximate
+        shuffling method IterableDataset.shuffle(). It only shuffles the shards order and adds a shuffle
+        buffer to your dataset, which keeps the speed of your dataset optimal. You can also reshuffle
+        the dataset easily:
+
+        If you want to shuffle your dataset or use it with a PyTorch DataLoader, we recommend generating a sharded IterableDataset:
+
+        Copied
+        my_iterable_dataset = my_dataset.to_iterable_dataset(num_shards=1024)
+        my_iterable_dataset.n_shards  # 1024
+        """
+        super().__init__(
+            name=name,
+            preprocessor=preprocessor,
+            repeats=repeats,
+            document_token=document_token,
+            split_name=split_name,
+            use_cath_43=use_cath_43,
+        )
+        self.num_proc = num_proc
+        if self.num_proc is None:
+            print(
+                "Warning: num_proc is None for CATHDatasetBuilder, may be handled differently to other datasets"
+            )
+            print("Automatically setting num_proc to ", os.cpu_count())
+            self.num_proc = os.cpu_count()
+        self.to_torch_dataset = to_torch_dataset
+        self.split_ids = (
+            cath_43_splits()[split_name]
+            if self.use_cath_43
+            else cath_42_splits()[split_name]
+        )
+        self.split_ids = [pdb_id.replace(".", "") for pdb_id in self.split_ids]
+        self.jsonl_file = CATH_43_JSONL_FILE if self.use_cath_43 else CATH_42_JSONL_FILE
 
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
+        # TODO: we need to use correct types to make this faster.
         dataset = load_dataset(
             path="json",
             data_files=self.jsonl_file,
@@ -182,7 +338,9 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
                 else max_tokens_per_example
             )
 
-        dataset = dataset.filter(filter_fn, num_proc=self.num_proc, keep_in_memory=True).map(
+        dataset = dataset.filter(
+            filter_fn, num_proc=self.num_proc, keep_in_memory=True
+        ).map(
             self.preprocess_example,
             batched=False,
             num_proc=self.num_proc,
@@ -199,12 +357,26 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             # TODO: test we still get shuffling - we should because of map style
             dataset = concatenate_datasets([dataset] * self.repeats)
         # https://discuss.huggingface.co/t/dataset-set-format/1961/4
-        tensor_features = [c for c in constants.SEQUENCE_TENSOR_FEATURES + constants.STRUCTURE_TENSOR_FEATURES if c in dataset.column_names]
+        tensor_features = [
+            c
+            for c in constants.SEQUENCE_TENSOR_FEATURES
+            + constants.STRUCTURE_TENSOR_FEATURES
+            if c in dataset.column_names
+        ]
         dataset.set_format(
             type="torch",
             columns=tensor_features,
             output_all_columns=True,  # also output string features
         )
+        # https://github.com/huggingface/datasets/issues/5841
+        if self.to_torch_dataset:
+            print("Converting to torch dataset")
+            processed_dataset = []
+            # TODO: this is SUPER slow; maybe use iter with batch_size?
+            for example in dataset:
+                processed_dataset.append(example)
+            dataset = ListDataset(processed_dataset)
+            print("Done converting to torch dataset of length ", len(dataset))
         return dataset
         # processed_dataset = []
         # for example in dataset:

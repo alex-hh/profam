@@ -302,8 +302,11 @@ class FileBasedProteinDatasetBuilder(BaseProteinDatasetBuilder):
             return examples
 
 
-class MemoryMappedProteinDatasetBuilder(FileBasedProteinDatasetBuilder):
-    """File-based builder for a non-iterable Dataset"""
+class ProteinDatasetBuilder(FileBasedProteinDatasetBuilder):
+    """File-based builder for a non-iterable Dataset.
+
+    (Not necessarily memory-mapped, because can be used with in_memory=True)
+    """
 
     def __init__(
         self,
@@ -330,6 +333,28 @@ class MemoryMappedProteinDatasetBuilder(FileBasedProteinDatasetBuilder):
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
     ):
+        """Speed issues:
+
+        https://huggingface.co/docs/datasets/en/about_mapstyle_vs_iterable#speed-differences
+
+        However as soon as your Dataset has an indices mapping (via Dataset.shuffle() for example),
+        the speed can become 10x slower. This is because there is an extra step to get the row index
+        to read using the indices mapping, and most importantly, you aren’t reading contiguous chunks
+        of data anymore. To restore the speed, you’d need to rewrite the entire dataset on your disk
+        again using Dataset.flatten_indices(), which removes the indices mapping. This may take a lot
+        of time depending on the size of your dataset though:
+
+        In this case, we recommend switching to an IterableDataset and leveraging its fast approximate
+        shuffling method IterableDataset.shuffle(). It only shuffles the shards order and adds a shuffle
+        buffer to your dataset, which keeps the speed of your dataset optimal. You can also reshuffle
+        the dataset easily:
+
+        If you want to shuffle your dataset or use it with a PyTorch DataLoader, we recommend generating a sharded IterableDataset:
+
+        Copied
+        my_iterable_dataset = my_dataset.to_iterable_dataset(num_shards=1024)
+        my_iterable_dataset.n_shards  # 1024
+        """
         dataset = self.filter(dataset, tokenizer)
         if self.preprocessor is not None and not self.process_online:
             if dataset.column_names is not None:

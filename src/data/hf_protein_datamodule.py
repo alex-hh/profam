@@ -95,8 +95,10 @@ class ProteinDataMixture(LightningDataModule):
                     # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                     # https://github.com/huggingface/datasets/pull/5735
                     print(
-                        f"Dataset {data_key} keys in example batch",
-                        list(next(iter(dataset)).keys()),
+                        f"Dataset {data_key} keys in example datapoint",
+                        list(next(iter(dataset)).keys())
+                        if isinstance(dataset, IterableDataset)
+                        else list(dataset[0].keys()),
                     )
                     train_datasets.append(dataset)
                     # TODO: we could also shuffle individual datasets here - is there a reason we might want to?
@@ -154,9 +156,10 @@ class ProteinDataMixture(LightningDataModule):
             else:
                 if self.num_workers is None:
                     self.num_workers = os.cpu_count()
-                self.train_dataset = self.train_dataset.shuffle(
-                    seed=42
-                )  # maybe unnecessary since we are shuffling in the dataloader in this case
+                # unnecessary and may affect in_memory datasets
+                # self.train_dataset = self.train_dataset.shuffle(
+                #     seed=42
+                # )  # maybe unnecessary since we are shuffling in the dataloader in this case
             self.val_datasets = []
             self.val_dataset_names = []
             for v_ds_name, val_batch_size in self.val_dataset_batch_sizes.items():
@@ -207,7 +210,7 @@ class ProteinDataMixture(LightningDataModule):
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
             persistent_workers=True,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
-            shuffle=isinstance(self.train_dataset, Dataset),
+            shuffle=True,  # presumably does not affect iterable datasets
             pin_memory=True,
         )
 
