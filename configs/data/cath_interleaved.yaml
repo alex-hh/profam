@@ -6,6 +6,9 @@ defaults:
 data_weights:
   cath43: 1.0
 dataset_builders:
+  cath43:
+    name: cath43
+    split_name: train
   cath43_val:
     name: cath43_val
     split_name: validation
