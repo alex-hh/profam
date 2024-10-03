@@ -14,8 +14,10 @@ def setup_logging():
 
 def fetch_sequence(uniprot_id, txn):
     prefixes = [f'sp|{uniprot_id}|', f'tr|{uniprot_id}|']
-    for key, value in txn.cursor():
-        if any(key.startswith(prefix.encode('utf-8')) for prefix in prefixes):
+    for prefix in prefixes:
+        key = prefix.encode('utf-8')
+        value = txn.get(key)
+        if value:
             return value.decode('utf-8')
     return None
 
