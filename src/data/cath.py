@@ -182,7 +182,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
                 else max_tokens_per_example
             )
 
-        dataset = dataset.filter(filter_fn, num_proc=self.num_proc).map(
+        dataset = dataset.filter(filter_fn, num_proc=self.num_proc, keep_in_memory=True).map(
             self.preprocess_example,
             batched=False,
             num_proc=self.num_proc,
@@ -193,6 +193,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
                 "max_tokens_per_example": max_tokens_per_example,
             },
             remove_columns=["seq", "name", "CATH"],
+            keep_in_memory=True,
         )
         if self.repeats > 1:
             # TODO: test we still get shuffling - we should because of map style
