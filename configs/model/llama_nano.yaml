@@ -1,3 +1,4 @@
+# designed to be comparable in param count to IF models like MPNN
 _target_: src.models.llama.LlamaLitModule
 scheduler_name: "inverse_sqrt"
 num_warmup_steps: 1000

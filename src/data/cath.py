@@ -1,7 +1,7 @@
 import copy
 import json
 import os
-import time
+import torch
 from typing import List, Optional
 
 import numpy as np
@@ -96,6 +96,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         use_cath_43: bool = False,
         num_proc: Optional[int] = None,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
+        repeats: int = 1,
     ):
         super().__init__(name)
         self.use_cath_43 = use_cath_43
@@ -123,7 +124,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
         else:
             self.interleave_structure_sequence = False
         self.document_token = document_token
-
+        self.repeats = repeats
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
         dataset = load_dataset(path="json", data_files=self.jsonl_file, split="train")
         dataset = dataset.filter(
@@ -177,7 +178,7 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
                 else max_tokens_per_example
             )
 
-        return dataset.filter(
+        dataset = dataset.filter(
             filter_fn, num_proc=self.num_proc
         ).map(
             self.preprocess_example,
@@ -191,6 +192,9 @@ class CATHDatasetBuilder(BaseProteinDatasetBuilder):
             },
             remove_columns=["seq", "name", "CATH"],
         )
+        if self.repeats > 1:
+            dataset = torch.utils.data.ConcatDataset([dataset] * self.repeats)
+        return dataset
         # processed_dataset = []
         # for example in dataset:
         #     processed_dataset.append(
