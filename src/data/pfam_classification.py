@@ -61,7 +61,7 @@ def pfam_sample_from_msa_path(
     )
     tokenized_msa["completion_ids"] = tokenized_eval_seqs.input_ids
     if tokenizer.embed_res_pos_in_seq:
-        tokenized_msa["completion_residue_index"] = tokenized_eval_seqs.res_pos
+        tokenized_msa["completion_residue_index"] = tokenized_eval_seqs.residue_index
     fam_id = msa_path["msa_paths"].split("/")[-1].split("_")[0]
     tokenized_msa["family_id"] = fam_id
     eval_fam_names = [n.split("_")[-1] for n in eval_names]
