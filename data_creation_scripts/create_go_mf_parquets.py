@@ -10,6 +10,7 @@ import os
 import hashlib
 import csv
 from collections import defaultdict, Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def fetch_sequence(uniprot_id, db_env):
     """Fetches the protein sequence for a given UniProt ID from the LMDB database."""
@@ -105,8 +106,7 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
     logging.info(f"Total UniProt IDs to process: {total_uniprot_ids}")
 
     try:
-        with gzip.open(input_path, 'rt') as f:
-            # Create a progress bar
+        with gzip.open(input_path, 'rt') as f, ThreadPoolExecutor(max_workers=8) as executor:
             pbar = tqdm(total=total_uniprot_ids, desc="Processing UniProt IDs", unit="ID")
             
             for line in f:
@@ -115,26 +115,33 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
                     logging.warning(f"Skipping malformed line: {line.strip()}")
                     continue
                 fam_id, info_content, uniprot_ids = parts
-                
-                # Skip GO terms with Information Content below the threshold
+
                 if fam_id in filtered_go_terms:
                     continue
 
                 processed_go_terms += 1
                 uniprot_ids_list = [uid.strip() for uid in uniprot_ids.split(',') if uid.strip()]
 
+                # Submit fetch_sequence tasks to the executor
+                future_to_uid = {executor.submit(fetch_sequence, uid, db_env): uid for uid in uniprot_ids_list}
+
                 sequences = []
                 accessions = []
-                for uid in uniprot_ids_list:
-                    seq = fetch_sequence(uid, db_env)
-                    if seq:
-                        sequences.append(seq)
-                        accessions.append(uid)
-                        counts['success'] += 1
-                    else:
-                        logging.error(f"Failed to fetch sequence for UniProt ID: {uid}")
+                for future in as_completed(future_to_uid):
+                    uid = future_to_uid[future]
+                    try:
+                        seq = future.result()
+                        if seq:
+                            sequences.append(seq)
+                            accessions.append(uid)
+                            counts['success'] += 1
+                        else:
+                            logging.error(f"Failed to fetch sequence for UniProt ID: {uid}")
+                            counts['failure'] += 1
+                    except Exception as e:
+                        logging.error(f"Exception occurred while fetching sequence for {uid}: {e}")
                         counts['failure'] += 1
-                    pbar.update(1)  # Update progress bar for each processed UniProt ID
+                    pbar.update(1)
 
                 if sequences:
                     parquet_index = assign_parquet_file(fam_id, num_parquet)
@@ -155,7 +162,7 @@ def process_file(input_path, output_dir, db_env, num_parquet, filtered_go_terms,
                     write_parquet(writers, output_dir)
                     writers = {i: [] for i in range(num_parquet)}
 
-            pbar.close()  # Close the progress bar when done
+            pbar.close()
 
     except Exception as e:
         logging.error(f"An error occurred while processing the file: {e}")
