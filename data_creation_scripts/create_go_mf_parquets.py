@@ -52,6 +52,7 @@ def create_batches_and_count(input_path, min_ic, batch_size):
             if i == 0:
                 logging.info(f"Example input line: {line.strip()}")
                 logging.info(f"Parsed components: GO term: {fam_id}, IC: {info_content}, First UniProt ID: {uids[0]}")
+                logging.info(f"Number of UniProt IDs in this line: {len(uids)}")
     
     return batches, total_ids
 
@@ -64,13 +65,17 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
         else:
             seq = fetch_sequence(uid, txn)
             seq_cache[uid] = seq
+        
+        # Print an example of the first sequence fetched (or not found)
+        if i == 0:
+            if seq:
+                logging.info(f"Example fetched sequence for UniProt ID {uid}: {seq[:50]}...")
+            else:
+                logging.info(f"No sequence found for UniProt ID {uid}")
+        
         if seq:
             fam_sequences[fam_id]['sequences'].append(seq)
             fam_sequences[fam_id]['accessions'].append(uid)
-        
-        # Print an example of the first sequence fetched
-        if i == 0:
-            logging.info(f"Example fetched sequence for UniProt ID {uid}: {seq[:50]}...")
     
     for fam_id, data in fam_sequences.items():
         if data['sequences']:
@@ -88,8 +93,11 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
         logging.info(f"Example family data:")
         logging.info(f"  Family ID: {example_fam_id}")
         logging.info(f"  Number of sequences: {len(example_data['sequences'])}")
-        logging.info(f"  First sequence (truncated): {example_data['sequences'][0][:50]}...")
-        logging.info(f"  First accession: {example_data['accessions'][0]}")
+        if example_data['sequences']:
+            logging.info(f"  First sequence (truncated): {example_data['sequences'][0][:50]}...")
+            logging.info(f"  First accession: {example_data['accessions'][0]}")
+        else:
+            logging.info("  No sequences found for this family")
 
 def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic, batch_size):
     schema = pa.schema([
