@@ -6,7 +6,6 @@ from tqdm import tqdm
 import pyarrow as pa
 import pyarrow.parquet as pq
 import os
-import numpy as np
 from collections import defaultdict
 
 def setup_logging():
@@ -20,10 +19,7 @@ def fetch_sequence(uniprot_id, txn):
         if cursor.set_range(partial_key):
             key, value = cursor.item()
             if key.startswith(partial_key):
-                logging.debug(f"Found sequence for {uniprot_id} with key: {key}")
                 return value.decode('utf-8')
-        logging.debug(f"No match found for {partial_key}")
-    logging.debug(f"No sequence found for UniProt ID: {uniprot_id}")
     return None
 
 def create_batches_and_count(input_path, min_ic, batch_size):
@@ -33,7 +29,7 @@ def create_batches_and_count(input_path, min_ic, batch_size):
     total_ids = 0
     
     with gzip.open(input_path, 'rt') as f:
-        for i, line in enumerate(tqdm(f, desc="Creating batches and counting UniProt IDs")):
+        for line in tqdm(f, desc="Creating batches and counting UniProt IDs"):
             parts = line.strip().split('\t')
             if len(parts) != 3:
                 continue
@@ -52,12 +48,6 @@ def create_batches_and_count(input_path, min_ic, batch_size):
                 if current_batch_size >= batch_size:
                     current_batch += 1
                     current_batch_size = 0
-            
-            # Print an example of the first line processed
-            if i == 0:
-                logging.info(f"Example input line: {line.strip()}")
-                logging.info(f"Parsed components: GO term: {fam_id}, IC: {info_content}, First UniProt ID: {uids[0]}")
-                logging.info(f"Number of UniProt IDs in this line: {len(uids)}")
     
     return batches, total_ids
 
@@ -66,10 +56,7 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
     sequences_found = 0
     sequences_not_found = 0
     
-    for i, (fam_id, uid) in enumerate(batch):
-        if i < 5:  # Print details for first 5 UniProt IDs
-            logging.info(f"Processing UniProt ID: {uid} for family {fam_id}")
-        
+    for fam_id, uid in batch:
         if uid in seq_cache:
             seq = seq_cache[uid]
         else:
@@ -80,14 +67,8 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
             fam_sequences[fam_id]['sequences'].append(seq)
             fam_sequences[fam_id]['accessions'].append(uid)
             sequences_found += 1
-            if i < 5:
-                logging.info(f"Found sequence for {uid}: {seq[:50]}...")
         else:
             sequences_not_found += 1
-            if i < 5:
-                logging.warning(f"Sequence not found for UniProt ID: {uid}")
-
-    logging.info(f"Batch summary: Found {sequences_found} sequences, {sequences_not_found} not found")
 
     for fam_id, data in fam_sequences.items():
         if data['sequences']:
@@ -98,18 +79,7 @@ def process_batch(batch, txn, writers, num_parquet, schema, seq_cache):
             )
             writers[parquet_index].write_batch(record)
     
-    # Print an example of the first family processed
-    if fam_sequences:
-        example_fam_id = next(iter(fam_sequences))
-        example_data = fam_sequences[example_fam_id]
-        logging.info(f"Example family data:")
-        logging.info(f"  Family ID: {example_fam_id}")
-        logging.info(f"  Number of sequences: {len(example_data['sequences'])}")
-        if example_data['sequences']:
-            logging.info(f"  First sequence (truncated): {example_data['sequences'][0][:50]}...")
-            logging.info(f"  First accession: {example_data['accessions'][0]}")
-        else:
-            logging.info("  No sequences found for this family")
+    return sequences_found, sequences_not_found
 
 def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic, batch_size):
     schema = pa.schema([
@@ -125,35 +95,23 @@ def process_file(input_path, output_dir, lmdb_path, num_parquet, min_ic, batch_s
     logging.info(f"Total UniProt IDs to process: {total_ids}")
     logging.info(f"Created {len(batches)} batches")
     
+    total_found = 0
+    total_not_found = 0
+    
     with lmdb.open(lmdb_path, readonly=True, lock=False) as env, \
          env.begin(write=False) as txn:
         
         for batch_num, batch in tqdm(batches.items(), desc="Processing batches"):
-            process_batch(batch, txn, writers, num_parquet, schema, seq_cache={})
+            found, not_found = process_batch(batch, txn, writers, num_parquet, schema, seq_cache={})
+            total_found += found
+            total_not_found += not_found
     
     for writer in writers.values():
         writer.close()
 
     logging.info("Parquet files written successfully.")
-
-    # Print an example of the data written to a Parquet file
-    example_parquet = os.path.join(output_dir, 'go_mf_0.parquet')
-    if os.path.exists(example_parquet):
-        table = pq.read_table(example_parquet)
-        logging.info(f"Example data from Parquet file:")
-        logging.info(table.to_pandas().head())
-
-def check_lmdb_contents(lmdb_path):
-    with lmdb.open(lmdb_path, readonly=True, lock=False) as env:
-        with env.begin() as txn:
-            cursor = txn.cursor()
-            for i, (key, value) in enumerate(cursor):
-                if i < 5:  # Print first 5 entries
-                    logging.info(f"LMDB entry {i}: Key: {key}, Value: {value[:50]}...")
-                else:
-                    break
-            logging.info(f"Total number of entries in LMDB: {txn.stat()['entries']}")
-
+    logging.info(f"Total sequences found: {total_found}")
+    logging.info(f"Total sequences not found: {total_not_found}")
 
 def main():
     parser = argparse.ArgumentParser(description='Process GO term data and generate parquet files.')
@@ -169,18 +127,6 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
     
     logging.info("Starting processing...")
-    
-    # Check if we can open the LMDB database
-    try:
-        with lmdb.open(args.lmdb_path, readonly=True, lock=False) as env:
-            with env.begin() as txn:
-                logging.info(f"Successfully opened LMDB database at {args.lmdb_path}")
-                logging.info(f"LMDB database size: {txn.stat()['entries']} entries")
-    except Exception as e:
-        logging.error(f"Failed to open LMDB database: {e}")
-        return
-
-    check_lmdb_contents(args.lmdb_path)
     process_file(args.input, args.output_dir, args.lmdb_path, args.num_parquet, args.min_ic, args.batch_size)
     logging.info("Processing completed.")
 
