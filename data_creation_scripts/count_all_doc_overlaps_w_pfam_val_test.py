@@ -2,7 +2,6 @@ import os
 import json
 import pandas as pd
 from collections import defaultdict
-import matplotlib.pyplot as plt
 
 def load_pfam_val_test():
     pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
