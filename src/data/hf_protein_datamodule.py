@@ -7,12 +7,12 @@ from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
+from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.family_classification import (
     load_classifier_dataset,
     load_ec_cluster_classifier_dataset,
 )
-from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.hf_datasets import repeat
 from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset

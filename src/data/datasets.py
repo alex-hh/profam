@@ -120,6 +120,7 @@ def load_protein_dataset(
     feature_names: Optional[List[str]] = None,
     world_size: int = 1,
     verbose: bool = False,
+    return_format: Optional[str] = "numpy",  # n.b. return format None is very slow
 ) -> Dataset:
 
     data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
@@ -279,10 +280,11 @@ def load_protein_dataset(
             remove_columns=remove_columns,
         )
         # n.b. coords is returned as a list...
-        dataset = dataset.set_format(
-            type="torch",
-            columns=[c for c in feature_names if c in TENSOR_FEATURES],
-            output_all_columns=True,
-        )
+        if return_format is not None:
+            dataset = dataset.with_format(type=return_format)
+        else:
+            print(
+                "WARNING: returning dataset without format; expect slow iteration and batching"
+            )
 
     return dataset
