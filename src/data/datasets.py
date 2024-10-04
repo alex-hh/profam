@@ -239,27 +239,11 @@ def load_protein_dataset(
                 assert example["input_ids"].ndim == 2
             batch_size = len(example["input_ids"])
             example["ds_name"] = [dataset_name] * batch_size
-            if "coords" in example:
-                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = [c.tolist() for c in example["coords"]]
-                example["coords_mask"] = [m.tolist() for m in example["coords_mask"]]
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = [
-                        m.tolist() for m in example["interleaved_coords_mask"]
-                    ]
         else:
             example["ds_name"] = dataset_name
             # TODO: get identifier for fasta files...
             if cfg.identifier_col is not None:
                 example["identifier"] = dataset_name + "/" + identifier
-            if "coords" in example:
-                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = example["coords"].tolist()
-                example["coords_mask"] = example["coords_mask"].tolist()
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = example[
-                        "interleaved_coords_mask"
-                    ].tolist()
 
         return example
 
