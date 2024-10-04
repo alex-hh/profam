@@ -1,5 +1,5 @@
-#$ -l tmem=16G
-#$ -l h_vmem=16G
+#$ -l tmem=8G
+#$ -l h_vmem=8G
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
 #$ -N countOverlaps
