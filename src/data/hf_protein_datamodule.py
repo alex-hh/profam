@@ -207,6 +207,7 @@ class ProteinDataMixture(LightningDataModule):
                     # in case we have fewer samples than we want on some devices, we repeat the dataset (post shuffle)
                     # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
                     # perhaps we could test similar to https://github.com/huggingface/datasets/issues/7156
+                    print("Repeating dataset to avoid running out of samples")
                     self.train_dataset = repeat(
                         self.train_dataset, num_times=None
                     ).take(max_train_samples)
