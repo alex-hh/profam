@@ -12,7 +12,7 @@ from src.data.family_classification import (
 )
 from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import CustomDataCollator
+from src.data.collators import CustomDataCollator, DataCollatorWithFlattening
 from src.utils.tokenizers import ProFamTokenizer
 
 DEFAULT_FEATURE_NAMES = [
