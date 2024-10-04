@@ -1,10 +1,15 @@
 import copy
+from typing import Optional
 
 import numpy as np
 from datasets.iterable_dataset import IterableDataset, _BaseExamplesIterable
 
 
 class RepeatExamplesIterable(_BaseExamplesIterable):
+    """
+    Iterable that repeats the underlying iterable a given number of times.
+    """
+
     def __init__(
         self,
         ex_iterable: _BaseExamplesIterable,
@@ -22,16 +27,15 @@ class RepeatExamplesIterable(_BaseExamplesIterable):
         return self._state_dict
 
     def __iter__(self):
-        if self.num_times is None:
-            while True:
-                yield from self.ex_iterable
-                if self._state_dict:
-                    self._state_dict["repeat_index"] += 1
-        else:
-            for _ in range(self.num_times):
-                yield from self.ex_iterable
-                if self._state_dict:
-                    self._state_dict["repeat_index"] += 1
+        repeat_index = self._state_dict["repeat_index"] if self._state_dict else 0
+        while True:
+            if self.num_times and repeat_index >= max(self.num_times, 0):
+                break
+            yield from self.ex_iterable
+            repeat_index += 1
+            if self._state_dict:
+                self._state_dict["repeat_index"] = repeat_index
+                self._state_dict["ex_iterable"] = self.ex_iterable._init_state_dict()
 
     def shuffle_data_sources(
         self, generator: np.random.Generator
@@ -55,7 +59,9 @@ class RepeatExamplesIterable(_BaseExamplesIterable):
         return self.ex_iterable.n_shards
 
 
-def repeat(dataset: IterableDataset, num_times: int) -> IterableDataset:
+def repeat(
+    dataset: IterableDataset, num_times: Optional[int] = None
+) -> IterableDataset:
     return IterableDataset(
         ex_iterable=RepeatExamplesIterable(dataset._ex_iterable, num_times=num_times),
         info=dataset._info,
