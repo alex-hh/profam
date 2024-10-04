@@ -249,3 +249,19 @@ if __name__ == "__main__":
         print("Funfam counts saved to", save_path)
     else:
         print("Funfam counts already exist at", save_path)
+
+    # Process GO which is parquets saved here GO_MF/mfparquets
+    save_path = os.path.join(base_data_dir, "go_mf_pfam_overlap_counts.json")
+    if not os.path.exists(save_path):
+        go_mf_counts = process_dataset(
+            counter_class=ParquetOverlapCounter,
+            pfam_val_test=pfam_val_test,
+            data_dir=os.path.join(base_data_dir, "GO_MF/mfparquets"),
+            fam_id_col="fam_id",
+            up_id_col="accessions"
+        )
+        with open(save_path, 'w') as f:
+            json.dump(go_mf_counts, f, indent=2)
+        print("GO MF counts saved to", save_path)
+    else:
+        print("GO MF counts already exist at", save_path)
