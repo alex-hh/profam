@@ -2,7 +2,7 @@
 #$ -l h_vmem=8G
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N countOverlaps
+#$ -N arrayCountOverlaps
 #$ -t 1-100
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
