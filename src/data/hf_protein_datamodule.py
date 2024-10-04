@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Optional
 
-from datasets import concatenate_datasets, interleave_datasets
+from datasets import interleave_datasets
 from datasets.distributed import split_dataset_by_node
 from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
@@ -12,32 +12,12 @@ from src.data.family_classification import (
     load_classifier_dataset,
     load_ec_cluster_classifier_dataset,
 )
+from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.hf_datasets import repeat
 from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
-
-DEFAULT_FEATURE_NAMES = [
-    "input_ids",
-    "attention_mask",
-    "labels",
-    "ds_name",
-    "original_size",
-    "seq_pos",
-    "identifier",
-    "family_labels",
-    "eval_fam_ids",
-    "completion_seq_pos",
-    "completion_ids",
-    "DMS_scores",
-    "coords",
-    "coords_mask",
-    "aa_mask",
-    "plddts",
-    "family_id",
-    "structure_mask",
-]
 
 
 class ProteinDataModule(LightningDataModule):
@@ -81,7 +61,6 @@ class ProteinDataMixture(LightningDataModule):
         shuffle: bool = True,
         ignore_gaps: bool = False,
         total_num_train_samples: Optional[int] = None,
-        max_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
     ):
         super().__init__()
@@ -104,12 +83,18 @@ class ProteinDataMixture(LightningDataModule):
         self.gym_dms_ids = gym_dms_ids
         self.tokenizer = tokenizer
         self.use_filtered_gym_msas = use_filtered_gym_msas
-        self.feature_names = feature_names or DEFAULT_FEATURE_NAMES
-        self.collator = CustomDataCollator(
+        # feature names are only required for train collator, when we have different datasets
+        self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
+        self.train_collator = CustomDataCollator(
             self.tokenizer,
             mlm=False,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
+        )
+        self.val_collator = CustomDataCollator(
+            self.tokenizer,
+            mlm=False,
+            ignore_gaps=ignore_gaps,
         )
         self._is_setup = False
         self.total_num_train_samples = total_num_train_samples
@@ -337,7 +322,7 @@ class ProteinDataMixture(LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            collate_fn=self.collator,
+            collate_fn=self.train_collator,
             num_workers=self.num_workers,
         )
 
@@ -354,7 +339,7 @@ class ProteinDataMixture(LightningDataModule):
         return DataLoader(
             self.ec_class_dataset,
             batch_size=1,
-            collate_fn=self.collator,
+            collate_fn=self.val_collator,
             shuffle=False,
         )
 
@@ -363,7 +348,7 @@ class ProteinDataMixture(LightningDataModule):
             DataLoader(
                 val_ds,
                 batch_size=self.batch_size,
-                collate_fn=self.collator,
+                collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )
@@ -384,7 +369,7 @@ class ProteinDataMixture(LightningDataModule):
                 DataLoader(
                     self.ec_class_dataset,
                     batch_size=1,
-                    collate_fn=self.collator,
+                    collate_fn=self.val_collator,
                     shuffle=False,
                 )
             )
@@ -394,7 +379,7 @@ class ProteinDataMixture(LightningDataModule):
                 DataLoader(
                     self.ec_cluster_class_dataset,
                     batch_size=1,
-                    collate_fn=self.collator,
+                    collate_fn=self.val_collator,
                     shuffle=False,
                 )
             )
@@ -404,7 +389,7 @@ class ProteinDataMixture(LightningDataModule):
                 DataLoader(
                     self.pfam_class_dataset,
                     batch_size=1,
-                    collate_fn=self.collator,
+                    collate_fn=self.val_collator,
                     shuffle=False,
                 )
             )
@@ -415,7 +400,7 @@ class ProteinDataMixture(LightningDataModule):
             DataLoader(
                 self.test_dataset,
                 batch_size=self.batch_size,
-                collate_fn=self.collator,
+                collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers,
             )
@@ -435,7 +420,7 @@ class ProteinDataMixture(LightningDataModule):
                 DataLoader(
                     self.ec_class_dataset,
                     batch_size=1,
-                    collate_fn=self.collator,
+                    collate_fn=self.val_collator,
                     shuffle=False,
                 )
             )

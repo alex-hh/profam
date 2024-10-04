@@ -8,6 +8,7 @@ import torch
 from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 
+from src.constants import TENSOR_FEATURES
 from src.data.preprocessing import BasePreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -280,7 +281,7 @@ def load_protein_dataset(
         # n.b. coords is returned as a list...
         dataset = dataset.set_format(
             type="torch",
-            columns=[c for c in feature_names if c in TENSOR_FEATURE_NAMES],
+            columns=[c for c in feature_names if c in TENSOR_FEATURES],
             output_all_columns=True,
         )
 

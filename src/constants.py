@@ -47,3 +47,34 @@ RESIDUE_LEVEL_FEATURES = [
     "seq_pos",
     "token_type_ids",
 ]
+
+STRING_FEATURE_NAMES = [
+    "ds_name",
+    "identifier",
+]
+
+SEQUENCE_TENSOR_FEATURES = [
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "original_size",
+    "seq_pos",
+]
+
+
+STRUCTURE_TENSOR_FEATURES = [
+    "coords",
+    "coords_mask",
+    "interleaved_coords_mask",
+    "aa_mask",
+    "plddts",
+    "structure_mask",
+]
+
+TENSOR_FEATURES = SEQUENCE_TENSOR_FEATURES + STRUCTURE_TENSOR_FEATURES
+
+
+SEQUENCE_FEATURE_NAMES = STRING_FEATURE_NAMES + SEQUENCE_TENSOR_FEATURES
+ALL_FEATURE_NAMES = (
+    STRING_FEATURE_NAMES + TENSOR_FEATURES
+)
