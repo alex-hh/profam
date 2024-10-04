@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Optional
 
-from datasets import concatenate_datasets, interleave_datasets
+from datasets import interleave_datasets
 from datasets.distributed import split_dataset_by_node
 from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
@@ -75,7 +75,6 @@ class ProteinDataMixture(LightningDataModule):
             feature_names=None,
         )
         self._is_setup = False
-        self.max_train_samples = max_train_samples
         self.total_num_train_samples = total_num_train_samples
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -167,33 +166,21 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
-                    if self.total_num_train_samples is not None:
-                        assert (
-                            self.max_train_samples is None
-                        ), "Cannot set both total_num_train_samples and max_train_samples"
-                        print(
-                            f"Using {self.total_num_train_samples//world_size} samples for training on each device"
-                        )
-                        self.max_train_samples = (
-                            self.total_num_train_samples // world_size
-                        )
-                    # assert (
-                    #     self.max_train_samples is not None
-                    # ), "max_train_samples or total_num_train_samples must be set for distributed training"
-                    if self.max_train_samples is None:
-                        print("Warning: world size > 1 but max_train_samples not set - likely to cause timeout")
-                    else:
-                        print(
-                            f"Using {self.max_train_samples} samples for training on each device"
-                        )
-                        # in case we have fewer samples than we want on some devices, we repeat the dataset (post shuffle)
-                        # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
-                        # TODO: Main question is what happens when set_epoch is called - do we just shuffle the individual
-                        # datasets rather than the concatenated dataset?
-                        # perhaps we could test similar to https://github.com/huggingface/datasets/issues/7156
-                        self.train_dataset = concatenate_datasets(
-                            [self.train_dataset] * 2
-                        )
+                    assert (
+                        self.total_num_train_samples is not None
+                    ), "total_num_train_samples must be set for distributed iterable datasets"
+                    print(
+                        f"Using {self.total_num_train_samples//world_size} samples for training on each device"
+                    )
+                    max_train_samples = self.total_num_train_samples // world_size
+
+                    # in case we have fewer samples than we want on some devices, we repeat the dataset (post shuffle)
+                    # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
+                    # perhaps we could test similar to https://github.com/huggingface/datasets/issues/7156
+                    print("Repeating dataset to avoid running out of samples")
+                    self.train_dataset = repeat(
+                        self.train_dataset, num_times=None
+                    ).take(max_train_samples)
                 elif self.total_num_train_samples is None:
                     print(
                         "Warning: total_num_train_samples not needed for world size 1 and will be ignored"
@@ -207,8 +194,6 @@ class ProteinDataMixture(LightningDataModule):
                     print(
                         "Warning: total_num_train_samples not needed for non iterable datasets and will be ignored"
                     )
-            if self.max_train_samples is not None:
-                self.train_dataset = self.train_dataset.take(self.max_train_samples)
 
             self.val_datasets = []
             self.val_dataset_names = []
