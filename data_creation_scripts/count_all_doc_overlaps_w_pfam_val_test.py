@@ -3,19 +3,52 @@ import json
 import pandas as pd
 from collections import defaultdict
 
+def load_pfam_val_test():
+    pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
+    pfam_uniprot_json = "../data/pfam/pfam_uniprot_mappings.json"
+    pfam_val_test_all_up_ids_json = "../data/pfam/pfam_val_test_all_up_ids.json"
+    if not os.path.exists(pfam_val_test_all_up_ids_json):
+        # Load the JSON file
+        with open(pfam_uniprot_json, 'r') as f:
+            pfam_to_uniprot = json.load(f)
+        
+        df = pd.read_csv(pfam_val_test_csv)
+        print(f"Loaded pfam val test csv with {len(df)} rows")
+        
+        fam_to_up = defaultdict(set)
+        for i, row in df.iterrows():
+            try:
+                fam_id = row['fam_id'].split(".")[0]
+            except AttributeError:
+                fam_id = row['fam_id']
+            json_uniprot = set(pfam_to_uniprot.get(fam_id, []))
+            if row.isnull().Entry:
+                fam_to_up[fam_id] = json_uniprot
+            else:
+                csv_uniprot = set(row['Entry'].split(','))
+                # Combine UniProt IDs from both sources
+                combined_uniprot = csv_uniprot.union(json_uniprot)
+                fam_to_up[fam_id] = combined_uniprot
+                
+                # Sense check
+                in_both = csv_uniprot.intersection(json_uniprot)
+                only_csv = csv_uniprot - json_uniprot
+                only_json = json_uniprot - csv_uniprot
+                if len(only_csv) > 0:
+                    print(f"Family {fam_id}:")
+                    print(f"  UniProt IDs in both: {len(in_both)}")
+            
+    
+        with open(pfam_val_test_all_up_ids_json, "w") as f:
+            json.dump({k: list(v) for k,v in fam_to_up.items()}, f, indent=2)
+    else:
+        with open(pfam_val_test_all_up_ids_json, "r") as f:
+            fam_to_up = json.load(f)
+    return fam_to_up
 
 class BaseOverlapCounter:
     def __init__(self, pfam_val_test):
         self.pfam_val_test = pfam_val_test
-
-    def load_pfam_val_test(self):
-        pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
-        df = pd.read_csv(pfam_val_test_csv)
-        print(f"Loaded pfam val test csv with {len(df)} rows")
-        fam_to_up = defaultdict(set)
-        for i, row in df.iterrows():
-            fam_to_up[row['fam_id']].add(row['Entry'])
-        return fam_to_up
 
     def count_overlaps(self):
         fam_id_up_ids = self.get_fam_id_up_ids()
@@ -125,14 +158,6 @@ def process_dataset(counter_class, pfam_val_test, **kwargs):
     overlap_counts = counter.count_overlaps()
     return overlap_counts
 
-def load_pfam_val_test():
-    pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
-    df = pd.read_csv(pfam_val_test_csv)
-    print(f"Loaded pfam val test csv with {len(df)} rows")
-    fam_to_up = defaultdict(set)
-    for i, row in df.iterrows():
-        fam_to_up[row['fam_id']].add(row['Entry'])
-    return fam_to_up
 
 
 if __name__ == "__main__":
