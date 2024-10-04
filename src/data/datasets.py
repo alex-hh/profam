@@ -278,5 +278,10 @@ def load_protein_dataset(
             remove_columns=remove_columns,
         )
         # n.b. coords is returned as a list...
+        dataset = dataset.set_format(
+            type="torch",
+            columns=[c for c in feature_names if c in TENSOR_FEATURE_NAMES],
+            output_all_columns=True,
+        )
 
     return dataset
