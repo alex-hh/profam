@@ -17,5 +17,5 @@ conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 cd $ROOT_DIR
-python ${ROOT_DIR}/data_creation/array_count_all_doc_overlaps_w_pfam_val_test.py --task_index $((SGE_TASK_ID - 1)) --num_tasks 100
+python ${ROOT_DIR}/data_creation_scripts/array_count_all_doc_overlaps_w_pfam_val_test.py --task_index $((SGE_TASK_ID - 1)) --num_tasks 100
 date
