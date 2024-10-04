@@ -214,7 +214,7 @@ if __name__ == "__main__":
             "name": "foldseek",
             "counter_class": FoldseekOverlapCounter,
             "kwargs": {
-                "foldseek_cluster_index_file": "../visualise_families/1-AFDBClusters-entryId_repId_taxId.tsv"
+                "foldseek_cluster_index_file": "../data/afdb/1-AFDBClusters-entryId_repId_taxId.tsv"
             }
         },
         {
