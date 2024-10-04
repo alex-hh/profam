@@ -5,6 +5,7 @@ from datasets import interleave_datasets
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
+from src.data.collators import CustomDataCollator, DataCollatorWithFlattening
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.family_classification import (
     load_classifier_dataset,
@@ -12,7 +13,6 @@ from src.data.family_classification import (
 )
 from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
-from src.data.collators import CustomDataCollator, DataCollatorWithFlattening
 from src.utils.tokenizers import ProFamTokenizer
 
 DEFAULT_FEATURE_NAMES = [

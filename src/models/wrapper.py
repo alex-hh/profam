@@ -30,8 +30,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         use_seq_pos: embed position of amino acid within sequence (TODO: standardise variable naming)
         embed_sequence_index: if True, embed index of sequence within sequence of sequences (TODO: rename)
         pass_constant_position_ids_for_global_index: if True, pass constant position ids to model (for e.g. inbuilt ROPE embeddings)
-        pass_sequence_position_ids_for_global_index: if True, pass sequence position ids to model
+        pass_sequence_position_ids_for_global_index: if True, pass position of token within sequence as position_ids.
+        pass_document_position_ids_for_global_index: if True, pass position of token within document as position_ids. Useful for sequence packing.
     """
+
+    # TODO: if using sequence packing, we should probably not pass any attention mask (no padding)
+    # Well, actually, we could still have padding - how should we handle it?
 
     # This is a mixin for models that require seq pos input during generation
     # using the mixin allows the use of standard generation code
@@ -47,6 +51,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
+        pass_document_position_ids_for_global_index: bool = False,
         max_sequence_index: int = 1024,
     ):
         super().__init__(config)
@@ -70,6 +75,19 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self.pass_sequence_position_ids_for_global_index = (
             pass_sequence_position_ids_for_global_index
         )
+        self.pass_document_position_ids_for_global_index = (
+            pass_document_position_ids_for_global_index
+        )
+        assert (
+            sum(
+                [
+                    self.pass_constant_position_ids_for_global_index,
+                    self.pass_sequence_position_ids_for_global_index,
+                    self.pass_document_position_ids_for_global_index,
+                ]
+            )
+            <= 1
+        ), "Only one of pass_constant_position_ids_for_global_index, pass_sequence_position_ids_for_global_index, pass_document_position_ids_for_global_index can be True"
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
                 self.num_atoms * 3,
@@ -304,10 +322,19 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.pass_constant_position_ids_for_global_index:
             assert position_ids is None
             position_ids = torch.full_like(input_ids, 10).long()
-        if self.pass_sequence_position_ids_for_global_index:
+        elif self.pass_sequence_position_ids_for_global_index:
             assert position_ids is None
             assert seq_pos is not None
             position_ids = seq_pos
+        elif self.pass_document_position_ids_for_global_index:
+            assert input_ids.shape[0] == 1
+            counter = torch.arange(input_ids.shape[1], device=input_ids.device)
+            document_indices = (
+                torch.cumsum(input_ids[0] == self.tokenizer.bos_token_id) - 1
+            )
+            doc_starts = torch.argwhere(input_ids[0] == self.tokenizer.bos_token_id) + 1
+            offsets = counter[doc_starts][document_indices]
+            position_ids = (counter - offsets).unsqueeze(0)
         return position_ids
 
     def compute_start_sequence_index(self, past_key_values):
