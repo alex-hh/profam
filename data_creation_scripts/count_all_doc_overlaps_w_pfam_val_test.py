@@ -2,18 +2,22 @@ import os
 import json
 import pandas as pd
 from collections import defaultdict
+import matplotlib.pyplot as plt
 
 def load_pfam_val_test():
     pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
     pfam_uniprot_json = "../data/pfam/pfam_uniprot_mappings.json"
     pfam_val_test_all_up_ids_json = "../data/pfam/pfam_val_test_all_up_ids.json"
+    null_counter = 0
+    proportion_in_json = []
+    proportion_by_fam = {}
+    df = pd.read_csv(pfam_val_test_csv)
+    print(f"Loaded pfam val test csv with {len(df)} rows")
     if not os.path.exists(pfam_val_test_all_up_ids_json):
         # Load the JSON file
         with open(pfam_uniprot_json, 'r') as f:
             pfam_to_uniprot = json.load(f)
         
-        df = pd.read_csv(pfam_val_test_csv)
-        print(f"Loaded pfam val test csv with {len(df)} rows")
         
         fam_to_up = defaultdict(set)
         for i, row in df.iterrows():
@@ -24,6 +28,7 @@ def load_pfam_val_test():
             json_uniprot = set(pfam_to_uniprot.get(fam_id, []))
             if row.isnull().Entry:
                 fam_to_up[fam_id] = json_uniprot
+                null_counter += 1
             else:
                 csv_uniprot = set(row['Entry'].split(','))
                 # Combine UniProt IDs from both sources
@@ -34,16 +39,27 @@ def load_pfam_val_test():
                 in_both = csv_uniprot.intersection(json_uniprot)
                 only_csv = csv_uniprot - json_uniprot
                 only_json = json_uniprot - csv_uniprot
-                if len(only_csv) > 0:
-                    print(f"Family {fam_id}:")
-                    print(f"  UniProt IDs in both: {len(in_both)}")
+                hit_prop = len(in_both) / len(csv_uniprot)
+                proportion_in_json.append(hit_prop)
+                if fam_id not in proportion_by_fam:
+                    proportion_by_fam[fam_id] = []
+                proportion_by_fam[fam_id].append(hit_prop)
             
     
         with open(pfam_val_test_all_up_ids_json, "w") as f:
             json.dump({k: list(v) for k,v in fam_to_up.items()}, f, indent=2)
+        print(f"Null counter: {null_counter} of {len(df)}")
+        print(f"complete: {len([i for i in proportion_in_json if i == 1])}")
+        print(f"incomplete: {len([i for i in proportion_in_json if i != 1])}")
+        family_props = {k: sum(v) / len(v) for k,v in proportion_by_fam.items()}
+        print(f"num families with 0 matches: {len([i for i in family_props.values() if i == 0])}")
+        print(f"num families with more than 85% matches: {len([i for i in family_props.values() if i > 0.85])}")
+        # plt.hist(list(family_props.values()), bins=100)
+        # plt.show()
     else:
         with open(pfam_val_test_all_up_ids_json, "r") as f:
             fam_to_up = json.load(f)
+
     return fam_to_up
 
 class BaseOverlapCounter:
@@ -67,8 +83,8 @@ class BaseOverlapCounter:
         return overlap_counts
 
 class FastaOverlapCounter(BaseOverlapCounter):
-    def __init__(self, data_dir):
-        super().__init__()
+    def __init__(self, pfam_val_test, data_dir):
+        super().__init__(pfam_val_test)
         self.fasta_dir = data_dir
     
     def get_fam_id_from_docpath(self, doc_path):
@@ -98,20 +114,20 @@ class FastaOverlapCounter(BaseOverlapCounter):
         return fam_id_up_ids
 
 class ECOverlapCounter(FastaOverlapCounter):
-    def __init__(self, data_dir="../data/ec/ec_fastas"):
-        super().__init__(data_dir)
+    def __init__(self, pfam_val_test, data_dir="../data/ec/ec_fastas"):
+        super().__init__(pfam_val_test, data_dir)
 
 class TEDOverlapCounter(FastaOverlapCounter):
-    def __init__(self, data_dir="../data/ted/ted_s50_by_sfam"):
-        super().__init__(data_dir)
+    def __init__(self, pfam_val_test, data_dir="../data/ted/ted_s50_by_sfam"):
+        super().__init__(pfam_val_test, data_dir)
 
     def up_id_from_line(self, fasta_line):
         return fasta_line.split("-")[1]
 
 
 class FoldseekOverlapCounter(BaseOverlapCounter):
-    def __init__(self, foldseek_cluster_index_file):
-        super().__init__()
+    def __init__(self, pfam_val_test, foldseek_cluster_index_file):
+        super().__init__(pfam_val_test)
         self.foldseek_cluster_index_file = foldseek_cluster_index_file
     
     def get_fam_id_up_ids(self):
@@ -134,8 +150,8 @@ class FoldseekOverlapCounter(BaseOverlapCounter):
         return dict(clust_to_up_ids)
 
 class ParquetOverlapCounter(BaseOverlapCounter):
-    def __init__(self, data_dir, fam_id_col, up_id_col):
-        super().__init__()
+    def __init__(self, pfam_val_test, data_dir, fam_id_col, up_id_col):
+        super().__init__(pfam_val_test)
         self.parquet_dir = data_dir
         self.fam_id_col = fam_id_col
         self.up_id_col = up_id_col
@@ -179,7 +195,8 @@ if __name__ == "__main__":
                 "1-AFDBClusters-entryId_repId_taxId.tsv",
             )
         foldseek_counts = process_dataset(
-            FoldseekOverlapCounter,
+            counter_class=FoldseekOverlapCounter, 
+            pfam_val_test=pfam_val_test,
             foldseek_cluster_index_file=foldseek_cluster_index_file
         )
         with open(save_path, 'w') as f:
@@ -191,7 +208,10 @@ if __name__ == "__main__":
     # Process TED dataset
     save_path = os.path.join(save_dir, "ted_pfam_overlap_counts.json")
     if not os.path.exists(save_path):
-        ted_counts = process_dataset(TEDOverlapCounter)
+        ted_counts = process_dataset(
+            counter_class=TEDOverlapCounter, 
+            pfam_val_test=pfam_val_test
+        )
         with open(save_path, 'w') as f:
             json.dump(ted_counts, f, indent=2)
         print("TED counts saved to", save_path)
@@ -201,7 +221,10 @@ if __name__ == "__main__":
     # Process EC dataset
     save_path = os.path.join(save_dir, "ec_pfam_overlap_counts.json")
     if not os.path.exists(save_path):
-        ec_counts = process_dataset(ECOverlapCounter)
+        ec_counts = process_dataset(
+            counter_class=ECOverlapCounter, 
+            pfam_val_test=pfam_val_test
+        )
         with open(save_path, 'w') as f:
             json.dump(ec_counts, f, indent=2)
         print("EC counts saved to", save_path)
@@ -215,6 +238,7 @@ if __name__ == "__main__":
     if not os.path.exists(save_path):
         funfam_counts = process_dataset(
             counter_class=ParquetOverlapCounter,
+            pfam_val_test=pfam_val_test,
             data_dir=os.path.join(base_data_dir, "funfams/parquets"),
             fam_id_col="fam_id",
             up_id_col="accessions"
