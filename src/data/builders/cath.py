@@ -307,28 +307,14 @@ class CATHHFDataset(BaseCATHDataset):
         )
         return proteins
 
-    def preprocess_example(
-        self,
-        example,
-        tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
-    ):
-        proteins = self.build_document(example)
-        example = self.preprocessor.preprocess_protein_data(
-            proteins,
-            tokenizer,
-            max_tokens=max_tokens_per_example,  # handles padding
-            shuffle=False,
-        )
-        example["ds_name"] = self.name
-        return example
+    def _build_document(self, example):
+        return self.build_document(example)
 
     def process(
         self,
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
-        shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
         return_format: str = "numpy",
     ):
@@ -352,7 +338,6 @@ class CATHHFDataset(BaseCATHDataset):
             writer_batch_size=100,
             fn_kwargs={
                 "tokenizer": tokenizer,
-                "max_tokens_per_example": max_tokens_per_example,
             },
             remove_columns=["seq", "name", "CATH"],
             keep_in_memory=True,

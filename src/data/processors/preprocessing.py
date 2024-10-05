@@ -31,6 +31,7 @@ class PreprocessingConfig:
     allow_unk: bool = False
     max_tokens_per_example: Optional[int] = None
     shuffle_proteins_in_document: bool = True
+    padding: str = "do_not_pad"  # "longest", "max_length", "do_not_pad"
 
 
 @dataclass
@@ -180,7 +181,7 @@ class ProteinDocumentPreprocessor:
         examples = tokenizer.batched_encode(
             processed_proteins_list,
             document_token=self.cfg.document_token,
-            padding="max_length",
+            padding=self.cfg.padding,
             max_length=self.cfg.max_tokens_per_example,
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),
@@ -207,7 +208,7 @@ class ProteinDocumentPreprocessor:
         example = tokenizer.encode(
             proteins,
             document_token=self.cfg.document_token,
-            padding="max_length",
+            padding=self.cfg.padding,
             max_length=self.cfg.max_tokens_per_example,
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),

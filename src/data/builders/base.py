@@ -4,11 +4,6 @@ from src.data.processors import ProteinDocumentPreprocessor
 from src.data.tokenizers import ProFamTokenizer
 
 
-def examples_to_list_of_dicts(examples):
-    keys = list(examples.keys())
-    return [{k: examples[k][i] for k in keys} for i in range(len(examples[keys[0]]))]
-
-
 class BaseProteinDataset:
     def __init__(
         self,
@@ -28,7 +23,6 @@ class BaseProteinDataset:
         self,
         dataset: Any,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
     ):
         raise NotImplementedError("Must implement process method")
 
