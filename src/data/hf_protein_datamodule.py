@@ -62,6 +62,7 @@ class ProteinDataMixture(LightningDataModule):
         ignore_gaps: bool = False,
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
+        data_return_format: str = "numpy",
     ):
         super().__init__()
         self.dataset_cfgs = dataset_cfgs
@@ -74,6 +75,7 @@ class ProteinDataMixture(LightningDataModule):
         self.keep_gym_gaps = keep_gym_gaps
         self.max_tokens = max_tokens
         self.shuffle = shuffle
+        self.data_return_format = data_return_format
         if self.evaluate_gym:
             self.gym_data_dir = os.path.join(self.data_dir, gym_data_dir)
         self.evaluate_ec_class = evaluate_ec_class
@@ -118,6 +120,7 @@ class ProteinDataMixture(LightningDataModule):
                         max_tokens_per_example=self.max_tokens,
                         feature_names=self.feature_names,
                         world_size=world_size,
+                        return_format=self.data_return_format,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
@@ -225,6 +228,7 @@ class ProteinDataMixture(LightningDataModule):
                     data_dir=self.data_dir,
                     max_tokens_per_example=self.max_tokens,
                     world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
+                    return_format=self.data_return_format,
                 )
                 if world_size > 1:
                     # https://github.com/huggingface/datasets/issues/6623

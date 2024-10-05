@@ -28,7 +28,6 @@ class ProteinDatasetConfig:
     length_filter: Optional[str] = None  # max_tokens, max_seq_pos
     minimum_mean_plddt: Optional[float] = None
     stream: bool = True
-    return_format: Optional[str] = "numpy"
 
 
 def filter_on_length(example, cfg, max_tokens, tokenizer):
@@ -264,9 +263,8 @@ def load_protein_dataset(
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
         )
-        # n.b. coords is returned as a list...
-        if cfg.return_format is not None:
-            dataset = dataset.with_format(type=cfg.return_format)
+        if return_format is not None:
+            dataset = dataset.with_format(type=return_format)
         else:
             print(
                 "WARNING: returning dataset without format; expect slow iteration and batching"

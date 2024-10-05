@@ -1,17 +1,7 @@
-from collections import defaultdict
-from typing import List, Optional
-
-import numpy as np
 import pandas as pd
 
-from src.data.datasets import ProteinDatasetConfig
-from src.data.objects import Protein, ProteinDocument
-from src.data.preprocessing import (
-    ProteinDocumentPreprocessor,
-    backbone_coords_from_example,
-)
-from src.data.utils import random_subsample
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.objects import Protein
+from src.data.preprocessing import backbone_coords_from_example
 
 
 def build_representative_df(
