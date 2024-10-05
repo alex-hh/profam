@@ -26,5 +26,5 @@ data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   foldseek_val: ${data.batch_size}
 num_workers: null # None means use all available CPU cores
-feature_names: ${constants.all_feature_names}
+feature_names: ${constants.structure_features}
 total_num_train_samples: 1900000

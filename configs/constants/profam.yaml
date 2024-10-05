@@ -1,35 +1,34 @@
 vocab_size: 68
-
 gym_val_assay_list:
-  - "BLAT_ECOLX_Jacquier_2013"
-  - "CALM1_HUMAN_Weile_2017"
-  - "DYR_ECOLI_Thompson_2019"
-  - "DLG4_RAT_McLaughlin_2012"
-  - "REV_HV1H2_Fernandes_2016"
-  - "TAT_HV1BR_Fernandes_2016"
-  - "RL40A_YEAST_Roscoe_2013"
-  - "P53_HUMAN_Giacomelli_2018_WT_Nutlin"
+  - BLAT_ECOLX_Jacquier_2013
+  - CALM1_HUMAN_Weile_2017
+  - DYR_ECOLI_Thompson_2019
+  - DLG4_RAT_McLaughlin_2012
+  - REV_HV1H2_Fernandes_2016
+  - TAT_HV1BR_Fernandes_2016
+  - RL40A_YEAST_Roscoe_2013
+  - P53_HUMAN_Giacomelli_2018_WT_Nutlin
 
-all_feature_names:
+sequence_features:
+  - ds_name
+  - identifier
   - input_ids
   - attention_mask
   - labels
-  - ds_name
   - original_size
   - seq_pos
+
+structure_features:
+  - ds_name
   - identifier
+  - input_ids
+  - attention_mask
+  - labels
+  - original_size
+  - seq_pos
   - coords
   - coords_mask
   - interleaved_coords_mask
   - aa_mask
   - plddts
   - structure_mask
-
-sequence_feature_names:
-  - input_ids
-  - attention_mask
-  - labels
-  - ds_name
-  - original_size
-  - seq_pos
-  - identifier

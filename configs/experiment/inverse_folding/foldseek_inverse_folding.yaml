@@ -57,6 +57,12 @@ trainer:
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
 
+data:
+  evaluate_gym: false
+  evaluate_ec_class: false
+  evaluate_ec_cluster_class: false
+  evaluate_pfam_class: false
+
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
   num_warmup_steps: 1000

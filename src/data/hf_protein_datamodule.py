@@ -7,8 +7,8 @@ from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
-from src.constants import DEFAULT_FEATURE_NAMES
-from src.data.datasets import ProteinDatasetConfig
+from src.constants import SEQUENCE_FEATURE_NAMES
+from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -34,7 +34,7 @@ class ProteinDataMixture(LightningDataModule):
 
     def __init__(
         self,
-        dataset_builders: Dict[str, ProteinDatasetConfig],
+        dataset_builders: Dict[str, BaseProteinDatasetBuilder],
         data_weights: Dict[str, float],
         tokenizer: ProFamTokenizer,
         data_dir: str,
@@ -45,8 +45,8 @@ class ProteinDataMixture(LightningDataModule):
         shuffle: bool = True,
         ignore_gaps: bool = False,
         total_num_train_samples: Optional[int] = None,
-        max_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
+        data_return_format: str = "numpy",
     ):
         super().__init__()
         self.dataset_builders = dataset_builders
@@ -61,7 +61,8 @@ class ProteinDataMixture(LightningDataModule):
         self.tokenizer = tokenizer
         # N.B. feature names only needs to be applied for training
         # i.e. to standardise features across interleaved datasets
-        self.feature_names = feature_names or DEFAULT_FEATURE_NAMES
+        self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
+        self.data_return_format = data_return_format
         self.train_collator = CustomDataCollator(
             self.tokenizer,
             mlm=False,
@@ -101,6 +102,7 @@ class ProteinDataMixture(LightningDataModule):
                         max_tokens_per_example=self.max_tokens,
                         shuffle_proteins_in_document=self.shuffle,
                         feature_names=self.feature_names,
+                        return_format=self.data_return_format,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
@@ -206,6 +208,8 @@ class ProteinDataMixture(LightningDataModule):
                 assert (
                     dataset_builder.name == v_ds_name
                 ), f"Dataset builder name {dataset_builder.name} must match data key {v_ds_name}"
+                # world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
+                raise NotImplementedError("Need to safely handle world size for val dataset implemented")
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,
                     world_size=world_size,
@@ -217,6 +221,7 @@ class ProteinDataMixture(LightningDataModule):
                     max_tokens_per_example=self.max_tokens,
                     shuffle_proteins_in_document=self.shuffle,
                     feature_names=self.feature_names,
+                    return_format=self.data_return_format,
                 )
                 if world_size > 1:
                     # https://github.com/huggingface/datasets/issues/6623

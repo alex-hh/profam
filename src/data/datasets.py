@@ -11,6 +11,7 @@ from src.data.objects import ProteinDocument
 from src.data.preprocessing import ProteinDocumentPreprocessor
 from src.data.utils import examples_to_list_of_dicts
 from src.sequence.fasta import read_fasta_sequences
+from src.constants import TENSOR_FEATURES
 from src.utils.tokenizers import ProFamTokenizer
 
 
