@@ -12,10 +12,10 @@ from typing import List
 import pandas as pd
 from datasets import Dataset
 
-from src.data import utils as data_utils
-from src.data.proteingym import tokenize
+from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
-from src.utils.tokenizers import ProFamTokenizer
+
+from .proteingym import tokenize
 
 family_columns = [
     "input_ids",

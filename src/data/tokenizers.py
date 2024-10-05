@@ -4,7 +4,6 @@ import numpy as np
 from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
-from src.data.utils import examples_list_to_dict
 from src.utils import RankedLogger
 
 log = RankedLogger(__name__, rank_zero_only=True)
@@ -108,6 +107,11 @@ def get_sequence_of_sequences(
     if document_token is not None:
         concatenated_seqs = document_token + concatenated_seqs
     return concatenated_seqs
+
+
+def examples_list_to_dict(examples):
+    keys = list(examples[0].keys())
+    return {k: [example[k] for example in examples] for k in keys}
 
 
 class ProFamTokenizer(PreTrainedTokenizerFast):

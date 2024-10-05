@@ -19,9 +19,9 @@ from transformers.optimization import get_scheduler
 
 from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
+from src.data.tokenizers import ProFamTokenizer
 from src.models import metrics
 from src.models.utils import log_likelihood_from_outputs
-from src.utils.tokenizers import ProFamTokenizer
 
 
 def calc_grad_norm(params):

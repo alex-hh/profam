@@ -1,5 +1,5 @@
 from src.data.objects import ProteinDocument
-from src.data.transforms import sample_to_max_tokens
+from src.data.processors.transforms import sample_to_max_tokens
 from src.sequence.fasta import read_fasta_sequences
 
 

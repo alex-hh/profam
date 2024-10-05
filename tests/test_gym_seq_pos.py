@@ -1,8 +1,8 @@
 import numpy as np
 
 from src.data.objects import ProteinDocument
-from src.data.transforms import convert_sequences_adding_positions
-from src.utils.tokenizers import get_seq_pos_from_positions
+from src.data.processors.transforms import convert_sequences_adding_positions
+from src.data.tokenizers import get_seq_pos_from_positions
 
 """
 replicates the pre-processing and

@@ -4,14 +4,13 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
-import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 
-from src.constants import BASEDIR, SEQUENCE_TENSOR_FEATURES, STRUCTURE_TENSOR_FEATURES
-from src.data import transforms
+from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.processors import transforms
+from src.data.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
 
@@ -25,59 +24,50 @@ def load_named_preprocessor(preprocessor_name, overrides: Optional[List[str]] = 
 
 @dataclass
 class PreprocessingConfig:
+    document_token: str = "[RAW]"
+    drop_first_protein: bool = False
+    keep_first_protein: bool = False
+    # https://github.com/mit-ll-responsible-ai/hydra-zen/issues/182
+    allow_unk: bool = False
+    max_tokens_per_example: Optional[int] = None
+    shuffle_proteins_in_document: bool = True
+
+
+@dataclass
+class AlignedProteinPreprocessingConfig(PreprocessingConfig):
     keep_insertions: bool = False
     to_upper: bool = False
     keep_gaps: bool = False
-    document_token: str = "[RAW]"
-    truncate_after_n_sequences: Optional[int] = None
+    document_token: str = "[MSA]"
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
-    # https://github.com/mit-ll-responsible-ai/hydra-zen/issues/182
-    allow_unk: bool = False
 
 
 def default_transforms(
-    max_tokens: Optional[int] = None,
-    shuffle: bool = True,
-    seed: Optional[int] = None,
+    cfg: PreprocessingConfig,
+    sequence_converter: Callable,
 ):
     return [
         functools.partial(
-            transforms.sample_to_max_tokens,
-            max_tokens=max_tokens,
-            shuffle=shuffle,
-            seed=seed,
+            transforms.preprocess_sequences_sampling_to_max_tokens,
+            max_tokens=cfg.max_tokens_per_example,
+            shuffle=cfg.shuffle_proteins_in_document,
+            sequence_converter=sequence_converter,
+            drop_first=cfg.drop_first_protein,
+            keep_first=cfg.keep_first_protein,
         ),
         transforms.fill_missing_fields,
         transforms.replace_selenocysteine_pyrrolysine,
     ]
 
 
-def default_transforms_single_protein():
+def default_transforms_single_protein(sequence_converter: Callable):
     return [
+        functools.partial(
+            transforms.preprocess_sequences, sequence_converter=sequence_converter
+        ),
         transforms.fill_missing_fields,
         transforms.replace_selenocysteine_pyrrolysine,
     ]
-
-
-def preprocess_protein_sequences(
-    proteins: ProteinDocument,
-    cfg: PreprocessingConfig,
-    tokenizer: ProFamTokenizer,
-):
-    assert isinstance(proteins, ProteinDocument), type(proteins)
-    # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if tokenizer.use_seq_pos:
-        proteins = transforms.convert_sequences_adding_positions(
-            proteins,
-            keep_gaps=cfg.keep_gaps,
-            keep_insertions=cfg.keep_insertions,
-            to_upper=cfg.to_upper,
-            use_msa_pos=cfg.use_msa_pos,
-            truncate_after_n_sequences=cfg.truncate_after_n_sequences,
-        )
-    else:
-        proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
-    return proteins
 
 
 def backbone_coords_from_example(
@@ -160,100 +150,82 @@ class ProteinDocumentPreprocessor:
         )
         self.single_protein_documents = single_protein_documents
 
+    def sequence_converter(self, sequence):
+        return transforms.convert_raw_sequence_adding_positions(sequence)
+
     def batched_preprocess_protein_data(
         self,
         proteins_list: List[ProteinDocument],
         tokenizer: ProFamTokenizer,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, List[Any]]:
         """
         a batched map is an instruction for converting a set of examples to a
         new set of examples (not necessarily of the same size). it should return a dict whose
         values are lists, where the length of the lists determines the size of the new set of examples.
         """
         if self.single_protein_documents:
-            transform_fns = default_transforms_single_protein()
+            transform_fns = default_transforms_single_protein(self.sequence_converter)
         else:
-            transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+            transform_fns = default_transforms(self.cfg, self.sequence_converter)
         transform_fns += self.transform_fns or []
         processed_proteins_list = []
         for proteins in proteins_list:
-            proteins = preprocess_protein_sequences(
-                proteins,
-                self.cfg,
-                tokenizer,
-            )
             proteins = transforms.apply_transforms(
-                transform_fns, proteins, tokenizer, max_tokens=max_tokens
+                transform_fns,
+                proteins,
+                tokenizer,
+                max_tokens=self.cfg.max_tokens_per_example,
             )
             processed_proteins_list.append(proteins)
         examples = tokenizer.batched_encode(
             processed_proteins_list,
             document_token=self.cfg.document_token,
             padding="max_length",
-            max_length=max_tokens,
+            max_length=self.cfg.max_tokens_per_example,
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),
         )
-        if "coords" in examples:
-            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-            examples["coords"] = [c.tolist() for c in examples["coords"]]
-            examples["coords_mask"] = [m.tolist() for m in examples["coords_mask"]]
-            if "interleaved_coords_mask" in examples:
-                examples["interleaved_coords_mask"] = [
-                    m.tolist() for m in examples["interleaved_coords_mask"]
-                ]
         return examples
 
     def preprocess_protein_data(
         self,
         proteins: ProteinDocument,
         tokenizer: ProFamTokenizer,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
-        return_tensors: bool = False,
     ) -> Dict[str, Any]:
         if self.single_protein_documents:
             # maybe handle padding differently? probably not
             transform_fns = default_transforms_single_protein()
         else:
-            transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+            transform_fns = default_transforms(self.cfg)
         transform_fns += self.transform_fns or []
-        proteins = preprocess_protein_sequences(
-            proteins,
-            self.cfg,
-            tokenizer,
-        )
         proteins = transforms.apply_transforms(
-            transform_fns, proteins, tokenizer, max_tokens=max_tokens
+            transform_fns,
+            proteins,
+            tokenizer,
+            max_tokens=self.cfg.max_tokens_per_example,
         )
         example = tokenizer.encode(
             proteins,
             document_token=self.cfg.document_token,
             padding="max_length",
-            max_length=max_tokens,
+            max_length=self.cfg.max_tokens_per_example,
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),
         ).data
-        if max_tokens is not None:
-            assert example["input_ids"].shape[-1] <= max_tokens, (
+        if self.cfg.max_tokens_per_example is not None:
+            assert example["input_ids"].shape[-1] <= self.cfg.max_tokens_per_example, (
                 example["input_ids"].shape[-1],
-                max_tokens,
+                self.cfg.max_tokens_per_example,
             )
-        if return_tensors:
-            tensor_features = SEQUENCE_TENSOR_FEATURES + STRUCTURE_TENSOR_FEATURES
-            for k, v in example.items():
-                if k in tensor_features:
-                    example[k] = torch.tensor(v)
-        elif "coords" in example:
-            # TODO: this seems to be pretty slow.
-            # TODO: can we use Array3D etc to avoid issue?
-            # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-            example["coords"] = example["coords"].tolist()
-            example["coords_mask"] = example["coords_mask"].tolist()
-            if "interleaved_coords_mask" in example:
-                example["interleaved_coords_mask"] = example[
-                    "interleaved_coords_mask"
-                ].tolist()
         return example
+
+
+class AlignedProteinDocumentPreprocessor(ProteinDocumentPreprocessor):
+    def sequence_converter(self, sequence):
+        return transforms.convert_aligned_sequence_adding_positions(
+            sequence,
+            keep_gaps=self.cfg.keep_gaps,
+            keep_insertions=self.cfg.keep_insertions,
+            to_upper=self.cfg.to_upper,
+            use_msa_pos=self.cfg.use_msa_pos,
+        )

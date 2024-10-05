@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from transformers.utils import ModelOutput
 
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.tokenizers import ProFamTokenizer
 from src.utils.utils import nested_getattr
 
 

@@ -1,5 +1,5 @@
 _target_: src.utils.tokenizers.ProFamTokenizer
-tokenizer_file: src/data/components/profam_tokenizer.json
+tokenizer_file: data/profam_tokenizer.json
 unk_token: "[UNK]"
 pad_token: "[PAD]"
 bos_token: "[start-of-document]"

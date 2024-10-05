@@ -5,9 +5,12 @@ import datasets
 import torch
 
 from src.constants import BASEDIR
-from src.data.datasets import ProteinDatasetConfig, StreamedProteinDatasetBuilder
-from src.data.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.builders import HFProteinDatasetConfig, IterableHFProteinDataset
+from src.data.processors.preprocessing import (
+    PreprocessingConfig,
+    ProteinDocumentPreprocessor,
+)
+from src.data.tokenizers import ProFamTokenizer
 
 
 def test_non_interleaved_shuffle():
@@ -19,7 +22,7 @@ def test_non_interleaved_shuffle():
         sep_token="[SEP]",
         pad_token="[PAD]",
     )
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="expasy_ec/*.fasta",
         preprocessor=ProteinDocumentPreprocessor(PreprocessingConfig()),
         file_type="text",
@@ -27,7 +30,7 @@ def test_non_interleaved_shuffle():
         stream=True,
     )
 
-    builder = StreamedProteinDatasetBuilder(
+    builder = IterableHFProteinDataset(
         name="ec_example",
         cfg=cfg,
         tokenizer=tokenizer,
@@ -64,13 +67,13 @@ def test_interleaved_shuffle():
         sep_token="[SEP]",
         pad_token="[PAD]",
     )
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="expasy_ec/*.fasta",
         preprocessor=ProteinDocumentPreprocessor(PreprocessingConfig()),
         shuffle=False,
         stream=True,
     )
-    builder = StreamedProteinDatasetBuilder(
+    builder = IterableHFProteinDataset(
         name="ec_example",
         cfg=cfg,
         tokenizer=tokenizer,

@@ -3,15 +3,15 @@ from typing import Dict, Optional
 
 import torch
 
-from src.data import transforms
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import (
+from src.data.processors import transforms
+from src.data.processors.preprocessing import (
     ProteinDocumentPreprocessor,
     default_transforms,
     preprocess_protein_sequences,
 )
+from src.data.tokenizers import ProFamTokenizer
 from src.models.base import BaseFamilyLitModule
-from src.utils.tokenizers import ProFamTokenizer
 
 
 class PromptBuilder:

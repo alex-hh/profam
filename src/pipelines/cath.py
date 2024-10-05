@@ -3,7 +3,7 @@ import time
 
 import numpy as np
 
-from src.data import cath
+from src.data.builders import cath
 from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 

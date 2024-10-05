@@ -2,11 +2,11 @@ from typing import List, Optional
 
 import pandas as pd
 
-from src.data.objects import ProteinDocument
-from src.data.parquet import (
+from src.data.builders.parquet import (
     ParquetSequenceDatasetBuilder,
     ParquetStructureDatasetBuilder,
 )
+from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 

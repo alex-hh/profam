@@ -5,18 +5,18 @@ import os
 import pytest
 
 from src.constants import BASEDIR
-from src.data.datasets import ProteinDatasetConfig, build_documents_helper
-from src.data.parquet import ParquetStructureDatasetBuilder
-from src.data.utils import examples_list_to_dict
+from src.data.builders import HFProteinDatasetConfig, ParquetStructureDataset
+from src.data.builders.base import build_documents_helper
+from src.data.tokenizers import examples_list_to_dict
 
 
 @pytest.fixture()
 def foldseek_datapoint(profam_tokenizer):
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = ParquetStructureDatasetBuilder(
+    builder = ParquetStructureDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -42,7 +42,7 @@ def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
     examples = examples_list_to_dict(examples)
 
     document_builder = functools.partial(
-        ParquetStructureDatasetBuilder.build_document,
+        ParquetStructureDataset.build_document,
         structure_tokens_col="msta_3di",
     )
     proteins_list = build_documents_helper(
@@ -54,11 +54,11 @@ def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
 
 # for inverse folding, we want a single document with all sequences concatenated
 def test_concat_representatives_into_single_document(profam_tokenizer):
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
     )
-    builder = ParquetStructureDatasetBuilder(
+    builder = ParquetStructureDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -82,7 +82,7 @@ def test_concat_representatives_into_single_document(profam_tokenizer):
 
     proteins_list = build_documents_helper(
         examples,
-        ParquetStructureDatasetBuilder.build_document,
+        ParquetStructureDataset.build_document,
         max_tokens=protein_len * 4,
         shuffle=False,
     )

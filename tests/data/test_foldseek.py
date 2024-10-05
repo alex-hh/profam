@@ -7,11 +7,9 @@ import pytest
 import torch
 
 from src.constants import BASEDIR
-from src.data import preprocessing, transforms
-from src.data.datasets import ProteinDatasetConfig
-from src.data.parquet import ParquetStructureDatasetBuilder
-from src.data.preprocessing import backbone_coords_from_example
-from src.data.utils import CustomDataCollator
+from src.data.builders import HFProteinDatasetConfig, ParquetStructureDataset
+from src.data.collators import CustomDataCollator
+from src.data.processors import backbone_coords_from_example, preprocessing, transforms
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 
 
@@ -72,14 +70,13 @@ def foldseek_interleaved_structure_sequence_batch(
         config=preprocessing_cfg,
         interleave_structure_sequence=True,
     )
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = ParquetStructureDatasetBuilder(
+    builder = ParquetStructureDataset(
         name="foldseek_example",
         cfg=cfg,
-        structure_tokens_col="msta_3di",
         preprocessor=parquet_3di_processor,
         infer_representative_from_identifier=True,
     )
@@ -98,11 +95,12 @@ def foldseek_interleaved_structure_sequence_batch(
 
 @pytest.fixture()
 def foldseek_datapoint(profam_tokenizer):
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
+        structure_tokens_col="msta_3di",
     )
-    builder = ParquetStructureDatasetBuilder(
+    builder = ParquetStructureDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -239,16 +237,15 @@ def test_foldseek_plddt_masking(profam_tokenizer):
             transforms.interleave_structure_sequence,
         ],
     )
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
+        structure_tokens_col="msta_3di",
     )
-    builder = ParquetStructureDatasetBuilder(
+    builder = ParquetStructureDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=preprocessor,
-        structure_tokens_col="msta_3di",
-        infer_representative_from_identifier=True,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
@@ -300,18 +297,16 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         config=preprocessing_cfg,
         interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
     )
-    cfg = ProteinDatasetConfig(
+    cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
         shuffle=False,
+        structure_tokens_col=None,
     )
-    builder = ParquetStructureDatasetBuilder(
+    builder = ParquetStructureDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=parquet_3di_processor,
-        batched_map=True,
-        map_batch_size=30,
-        structure_tokens_col=None,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(

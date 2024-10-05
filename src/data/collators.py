@@ -1,24 +1,8 @@
 from typing import List, Optional
 
-import numpy as np
-from torch.utils.data import Dataset
 from transformers import DataCollatorForLanguageModeling
 
 from src.data.objects import StringObject
-from src.utils.utils import np_random
-
-# TODO: add things like sequence col, structure col, etc.
-# TODO: be careful around loading coords if using alignment - how can we test for this?
-
-
-def examples_to_list_of_dicts(examples):
-    keys = list(examples.keys())
-    return [{k: examples[k][i] for k in keys} for i in range(len(examples[keys[0]]))]
-
-
-def examples_list_to_dict(examples):
-    keys = list(examples[0].keys())
-    return {k: [example[k] for example in examples] for k in keys}
 
 
 class CustomDataCollator:
@@ -46,6 +30,11 @@ class CustomDataCollator:
         def keep_feature(feature_name):
             return self.feature_names is None or feature_name in self.feature_names
 
+        if self.feature_names is not None:
+            assert all(
+                [f in examples[0].keys() for f in self.feature_names]
+            ), "All feature names must be present in the examples"
+
         non_string_data = [
             {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
             for e in examples
@@ -59,7 +48,7 @@ class CustomDataCollator:
             batch = self.base_collator(non_string_data)
         except Exception as e:
             print("Error in collator")
-            # print(string_data)
+            print(string_data)
             # print(non_string_data)
             raise e
         if self.ignore_gaps:
@@ -75,27 +64,3 @@ class CustomDataCollator:
             str_obj.text = str_vals
             batch[str_key] = str_obj
         return batch
-
-
-def subsample_fasta_lines(lines, n_lines, shuffle=True):
-    start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
-    end_ix = start_ix[1:]
-    end_ix = np.append(end_ix, len(lines))
-    lines_per_seq = len(lines) // len(start_ix)
-    n_samples = min(n_lines // lines_per_seq, len(start_ix))
-    if shuffle:
-        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
-    else:
-        sample_indices = np.arange(n_samples)
-    starts = start_ix[sample_indices]
-    ends = end_ix[sample_indices]
-    sampled_lines = []
-    for start, end in zip(starts, ends):
-        assert lines[end - 1][0] != ">"
-        sampled_lines.extend(lines[start:end])
-    return sampled_lines
-
-
-def random_subsample(arr, n, seed: Optional[int] = None):
-    rnd = np_random(seed)
-    return rnd.choice(arr, min(n, len(arr)), replace=False)

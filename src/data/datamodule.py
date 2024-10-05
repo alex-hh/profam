@@ -8,9 +8,9 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
 from src.constants import SEQUENCE_FEATURE_NAMES
-from src.data.datasets import BaseProteinDatasetBuilder
-from src.data.utils import CustomDataCollator
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.builders import BaseProteinDatasetBuilder
+from src.data.collators import CustomDataCollator
+from src.data.tokenizers import ProFamTokenizer
 
 
 class ProteinDataModule(LightningDataModule):
@@ -209,7 +209,9 @@ class ProteinDataMixture(LightningDataModule):
                     dataset_builder.name == v_ds_name
                 ), f"Dataset builder name {dataset_builder.name} must match data key {v_ds_name}"
                 # world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
-                raise NotImplementedError("Need to safely handle world size for val dataset implemented")
+                raise NotImplementedError(
+                    "Need to safely handle world size for val dataset implemented"
+                )
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,
                     world_size=world_size,

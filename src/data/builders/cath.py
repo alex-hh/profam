@@ -9,10 +9,11 @@ import tqdm
 from datasets import Dataset, concatenate_datasets, load_dataset
 
 from src import constants
-from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import Protein, ProteinDocument
-from src.data.preprocessing import ProteinDocumentPreprocessor
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.processors import ProteinDocumentPreprocessor
+from src.data.tokenizers import ProFamTokenizer
+
+from .base import BaseProteinDataset
 
 CATH_43_JSONL_FILE = os.path.join(
     constants.PROFAM_DATA_DIR, "cath/cath43/chain_set.jsonl"
@@ -148,7 +149,7 @@ class ListDataset(torch.utils.data.Dataset):
         return self.data[idx]
 
 
-class BaseCATHDatasetBuilder(BaseProteinDatasetBuilder):
+class BaseCATHDataset(BaseProteinDataset):
     def __init__(
         self,
         name: str,
@@ -173,7 +174,7 @@ class BaseCATHDatasetBuilder(BaseProteinDatasetBuilder):
         self.split_name = split_name
 
 
-class CATHTorchDatasetBuilder(BaseCATHDatasetBuilder):
+class CATHTorchDataset(BaseCATHDataset):
     def load(self, data_dir: str, world_size: int = 1, verbose: bool = False):
         print("Loading CATH dataset")
         if self.use_cath_43:
@@ -222,7 +223,8 @@ class CATHTorchDatasetBuilder(BaseCATHDatasetBuilder):
         return ListDataset(processed_dataset)
 
 
-class CATHHFDatasetBuilder(BaseProteinDatasetBuilder):
+# TODO: inherit from FileBasedHFProteinDataset
+class CATHHFDataset(BaseCATHDataset):
     def __init__(
         self,
         name: str,
@@ -328,6 +330,7 @@ class CATHHFDatasetBuilder(BaseProteinDatasetBuilder):
         max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
+        return_format: str = "numpy",
     ):
         # commented out due to issues. TODO: make minimal example and report
         # https://github.com/huggingface/datasets/issues/6319
@@ -365,8 +368,8 @@ class CATHHFDatasetBuilder(BaseProteinDatasetBuilder):
             if c in dataset.column_names
         ]
         dataset.set_format(
-            type="torch",
-            columns=tensor_features,
+            type=return_format,
+            columns=tensor_features,  # may be unnecessary
             output_all_columns=True,  # also output string features
         )
         # https://github.com/huggingface/datasets/issues/5841

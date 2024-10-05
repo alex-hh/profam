@@ -4,8 +4,11 @@ import numpy as np
 import pandas as pd
 
 from src.constants import BASEDIR
-from src.data.parquet import ParquetStructureDatasetBuilder
-from src.data.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor
+from src.data.builders.parquet import ParquetStructureDataset
+from src.data.processors.preprocessing import (
+    PreprocessingConfig,
+    ProteinDocumentPreprocessor,
+)
 from src.models.inference import InterleavedInverseFoldingPromptBuilder
 
 
@@ -19,7 +22,7 @@ def test_representative_inverse_folding(profam_tokenizer):
         config=cfg,
         interleave_structure_sequence=True,
     )
-    proteins = ParquetStructureDatasetBuilder.build_document(
+    proteins = ParquetStructureDataset.build_document(
         example,
         max_tokens=1536,
         shuffle=False,

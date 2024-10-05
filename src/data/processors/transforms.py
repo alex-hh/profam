@@ -1,83 +1,165 @@
+import functools
 import itertools
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 from src.constants import BACKBONE_ATOMS
 from src.data.objects import Protein, ProteinDocument
+from src.data.tokenizers import ProFamTokenizer
 from src.sequence.fasta import convert_sequence_with_positions
-from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
+from .preprocessing import PreprocessingConfig
 
-def convert_sequences_adding_positions(
-    proteins: ProteinDocument,
-    keep_gaps: bool = False,
-    keep_insertions: bool = True,
-    to_upper: bool = True,
-    use_msa_pos: bool = False,
-    truncate_after_n_sequences: Optional[int] = None,
-    **kwargs,
+
+def convert_aligned_sequence_adding_positions(
+    seq,
+    keep_gaps=True,
+    keep_insertions=True,
+    to_upper=False,
+    use_msa_pos: bool = True,
 ):
-    sequences = []
+    """
+    Get positions relative to sequence.
+    For alignments, if use_msa_pos is True, the positions are relative to the alignment columns
+    (match states). Insertions have the same position index as the previous match state.
+
+    If use_msa_pos is False, or the sequence is unaligned,
+    positions are relative to the retained sequence - ignored insertions dont contribute
+
+    For both raw and aligned sequences, the first non-insertions should have position 1.
+
+    N.B. currently there is ambiguity between position encoding for a gap then insert
+    and a match state. we require a binary mask to resolve.
+    """
+    match_index = 0  # 0 for inserts before first match state
     positions = []
-    for seq in itertools.islice(proteins.sequences, truncate_after_n_sequences):
-        seq, pos, _ = convert_sequence_with_positions(
-            seq,
-            keep_gaps=keep_gaps,
-            keep_insertions=keep_insertions,
-            to_upper=to_upper,
-            use_msa_pos=use_msa_pos,
-        )
+    is_match = []
+    sequence = ""
+
+    # if not use_msa_pos:
+    #     return seq, list(range(1, len(seq+1))), [True] * len(seq)
+
+    if keep_insertions:
+        assert to_upper, "If keeping insertions should convert to upper case"
+    for aa in seq:
+        if keep_gaps or aa != "-":
+            if aa == ".":
+                # dont keep gaps in insert columns: we can modify later if we ever want to use
+                continue
+            # at this point we have any amino acid character (match or insert) or a match gap
+            # TODO: check for valid characters
+            upper = aa.upper()
+            if upper == aa or keep_insertions:
+                # increment first so that insert corresponds to prev match state
+                if upper == aa and aa != ".":  # includes case where aa is "-"
+                    match_index += 1
+                    is_match.append(True)
+                else:
+                    assert aa != "."
+                    # insertion
+                    if not use_msa_pos:
+                        match_index += 1
+                    is_match.append(False)
+                positions.append(match_index)
+                sequence += upper
+            # otherwise we're not keeping insertions in which case we pass
+
+        elif aa == "-":
+            if use_msa_pos:
+                match_index += 1  # keep_gaps is False so we dont add to sequence but still increment match_index
+
+    assert len(positions) == len(
+        sequence
+    ), f"positions length {len(positions)} != sequence length {len(sequence)}"
+    assert len(sequence) == len(
+        is_match
+    ), f"sequence length {len(sequence)} != is_match length {len(is_match)}"
+    return sequence, positions, is_match
+
+
+def convert_raw_sequence_adding_positions(seq):
+    return seq, list(range(1, len(seq) + 1)), [True] * len(seq)
+
+
+def preprocess_sequences(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    sequence_converter: Callable = convert_raw_sequence_adding_positions,
+    **kwargs,
+) -> ProteinDocument:
+    sequences, positions = [], []
+    for seq in proteins.sequences:
+        seq, pos, is_match = sequence_converter(seq)
         sequences.append(seq)
         positions.append(pos)
-    return proteins.clone(
-        sequences=sequences,
-        positions=positions,
-        modality_masks=None,  # reset
-    )
+    return proteins.clone(sequences=sequences, positions=positions)
 
 
-# TODO: implement rotation, centering, scaling of coordinates
-def sample_to_max_tokens(
+def preprocess_sequences_sampling_to_max_tokens(
     proteins: ProteinDocument,
-    max_tokens: int,
-    tokenizer: Optional[ProFamTokenizer] = None,
+    tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
     shuffle: bool = True,
-    seed: Optional[int] = None,
     drop_first: bool = False,
     keep_first: bool = False,
-    extra_tokens_per_document: Optional[int] = None,
+    seed: Optional[int] = None,
+    sequence_converter: Callable = convert_raw_sequence_adding_positions,
     **kwargs,
-):
-    extra_tokens_per_sequence = 1  # for separator. TODO infer from tokenizer?
-    if tokenizer is not None:
-        extra_tokens_per_document = tokenizer.num_start_tokens
-    else:
-        assert extra_tokens_per_document is not None
-        extra_tokens_per_document = 2
-    # extra_arrays = [positions, proteins.coords, proteins.plddts, proteins.structure_tokens]
-    rnd = np_random(seed)
+) -> ProteinDocument:
+    """
+    Sample proteins to fit within a maximum token limit.
+
+    Args:
+        proteins: ProteinDocument containing the proteins to sample from.
+        max_tokens: Maximum number of tokens allowed.
+        tokenizer: Optional ProFamTokenizer for accurate token counting.
+        shuffle: Whether to shuffle the proteins before sampling.
+        seed: Random seed for shuffling.
+        drop_first: Whether to drop the first protein before sampling.
+        keep_first: Whether to always keep the first protein in the sample.
+        extra_tokens_per_document: Number of extra tokens per document.
+
+    Returns:
+        A new ProteinDocument containing the sampled proteins.
+    """
+    extra_tokens_per_protein = 1  # separator token
+    extra_tokens_per_document = tokenizer.num_start_tokens
+
     if drop_first:
         proteins = proteins[1:]
+
     if shuffle:
+        rnd = np_random(seed)
         perm = rnd.permutation(len(proteins))
         if keep_first:
-            perm[0] = 0
-        proteins = proteins[perm]
+            perm = np.concatenate(([0], perm[perm != 0]))
+    else:
+        perm = range(len(proteins))
 
-    if max_tokens is not None:
-        total_length = 0
-        sampled_protein_ids = []
-        for ix, seq in enumerate(proteins.sequences):
-            total_length += len(seq) + extra_tokens_per_sequence
-            if total_length > max_tokens - extra_tokens_per_document:
-                break
-            sampled_protein_ids.append(ix)
-        return proteins[sampled_protein_ids]
+    if max_tokens is None:
+        return proteins[perm]
 
-    return proteins
+    total_length = extra_tokens_per_document
+    sampled_protein_ids = []
+    sampled_protein_sequences = []
+    sampled_protein_positions = []
+    for ix in perm:
+        seq, pos, is_match = sequence_converter(proteins.sequences[ix])
+        seq_length = len(seq) + extra_tokens_per_protein
+        if total_length + seq_length > max_tokens:
+            break
+        total_length += seq_length
+        sampled_protein_ids.append(ix)
+        sampled_protein_sequences.append(seq)
+        sampled_protein_positions.append(pos)
+
+    return proteins[sampled_protein_ids].clone(
+        positions=sampled_protein_positions,
+        sequences=sampled_protein_sequences,
+    )
 
 
 def noise_backbones(proteins: ProteinDocument, std: float = 0.1, **kwargs):

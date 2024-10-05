@@ -28,12 +28,10 @@ from typing import List
 import torch
 from datasets import Dataset
 
-import src.data.utils as data_utils
-from src.data.family_classification import family_columns
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import PreprocessingConfig, preprocess_protein_sequences
+from src.data.processors import PreprocessingConfig, preprocess_protein_sequences
+from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
-from src.utils.tokenizers import ProFamTokenizer
 
 
 def pfam_sample_from_msa_path(

@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 
-from src.data.parquet import build_representative_df
+from src.data.builders.parquet import build_representative_df
 from src.pipelines.mixins import ParquetStructureMixin
 
 

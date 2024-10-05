@@ -7,12 +7,13 @@ import pandas as pd
 from datasets import Dataset
 from transformers import PreTrainedTokenizerFast
 
-from src.data import transforms
-from src.data.datasets import BaseProteinDatasetBuilder
 from src.data.objects import ProteinDocument
-from src.data.transforms import sample_to_max_tokens
+from src.data.processors import transforms
+from src.data.processors.transforms import sample_to_max_tokens
+from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
-from src.utils.tokenizers import ProFamTokenizer
+
+from .base import BaseProteinDataset
 
 
 def has_no_indels(string_list):
@@ -198,7 +199,7 @@ def build_gym_df(dms_ids, gym_data_dir: str):
     ]
 
 
-class GymDatasetBuilder(BaseProteinDatasetBuilder):
+class ProteinGymDataset(BaseProteinDataset):
     def __init__(
         self,
         name: str,
