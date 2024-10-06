@@ -205,8 +205,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     base_data_dir = "../data"
-    save_dir = "data/val_test/overlap_counts"
-    os.makedirs(save_dir, exist_ok=True)
+    base_save_dir = "data/val_test/overlap_counts"
+    os.makedirs(base_save_dir, exist_ok=True)
 
     pfam_val_test = load_pfam_val_test()
 
@@ -245,11 +245,20 @@ if __name__ == "__main__":
                 "fam_id_col": "fam_id",
                 "up_id_col": "accessions"
             }
-        }
+        },
+        {
+            "name": "pfam",
+            "counter_class": ParquetOverlapCounter,
+            "kwargs": {
+                "data_dir": os.path.join(base_data_dir, "pfam/combined_parquets"),
+                "fam_id_col": "fam_id",
+                "up_id_col": "accessions"
+            }
+        },
     ]
 
     for dataset in datasets:
-        save_dir = os.path.join(save_dir, dataset["name"])
+        save_dir = os.path.join(base_save_dir, dataset["name"])
         os.makedirs(save_dir, exist_ok=True)
         save_path = os.path.join(save_dir, f"{dataset['name']}_pfam_overlap_counts_task_{args.task_index}.json")
         if not os.path.exists(save_path):
