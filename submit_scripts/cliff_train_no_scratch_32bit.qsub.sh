@@ -42,5 +42,5 @@ data.num_workers=10 \
 data.max_tokens=10000 \
 paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data"  \
 float32_matmul_precision=high \
-callbacks=default_with_shuffle \
+callbacks=default_with_shuffle
 date
