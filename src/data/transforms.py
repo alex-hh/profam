@@ -419,7 +419,7 @@ def interleave_structure_sequence(
 
     return proteins.clone(
         sequences=interleaved_sequences,
-        positions=interleaved_positions,
+        residue_positions=interleaved_positions,
         plddts=interleaved_plddts,
         backbone_coords=interleaved_coords,
         backbone_coords_masks=interleaved_structure_coords_masks,
