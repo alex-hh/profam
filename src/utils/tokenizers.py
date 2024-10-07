@@ -12,7 +12,7 @@ from src.utils import RankedLogger
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-def get_flat_res_pos_in_seq_from_positions(
+def get_flat_residue_index_from_positions(
     residue_positions,
     max_res_pos_in_seq: int = 1024,
     prepend_index=0,
@@ -23,17 +23,17 @@ def get_flat_res_pos_in_seq_from_positions(
 ):
     # TODO: maybe raise exception if max_res_pos_in_seq exceeded rather than duplicating...
     if len(residue_positions) > 0:
-        flat_positions = [prepend_index] * num_start_tokens
+        flat_indices = [prepend_index] * num_start_tokens
         for sequence_positions in residue_positions[:-1]:
-            # add 1 so that sep doesnt have same position index
+            # add 1 so that sep doesnt have same index
             # n.b. that convert_sequence_with_positions is also already 1-based
-            flat_positions += [
+            flat_indices += [
                 min(p + 1, max_res_pos_in_seq - 1) for p in sequence_positions
             ]
-            flat_positions.append(sep_index)
-        flat_positions += [min(p + 1, max_res_pos_in_seq - 1) for p in residue_positions[-1]]
-        flat_positions += [append_index] * num_end_tokens  # no [SEP] at end of MSA
-        return flat_positions
+            flat_indices.append(sep_index)
+        flat_indices += [min(p + 1, max_res_pos_in_seq - 1) for p in residue_positions[-1]]
+        flat_indices += [append_index] * num_end_tokens  # no [SEP] at end of MSA
+        return flat_indices
     else:
         return []
 
@@ -49,7 +49,7 @@ def get_residue_index_from_positions(
     assert input_ids.ndim == 1
     residue_index = torch.zeros_like(input_ids)
     # TODO: convert to array and use concatenate_pad_array instead
-    flat_indices = get_flat_res_pos_in_seq_from_positions(
+    flat_indices = get_flat_residue_index_from_positions(
         residue_positions,
         max_res_pos_in_seq=max_res_pos_in_seq,
         prepend_index=0,
