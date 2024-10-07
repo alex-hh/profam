@@ -26,9 +26,10 @@ cd $ROOT_DIR
 conda deactivate
 source scripts/pfenv.source
 conda activate venvPF
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+conda install pytorch torchvision torchaudio pytorch-cuda=12.4 numpy<=1.26.4 -c pytorch -c nvidia -c conda-forge
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
+export HYDRA_FULL_ERROR=1
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
 data.batch_size=9 \
