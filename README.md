@@ -83,7 +83,7 @@ Train model with an experiment configuration from [configs/experiment/](configs/
 python src/train.py experiment=experiment_name.yaml
 ```
 
-Override configuration parameters using standard
+Override configuration parameters using standard hydra syntax
 
 ```bash
 python src/train.py trainer.max_epochs=20 data.batch_size=64
