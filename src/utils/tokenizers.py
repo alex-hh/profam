@@ -47,9 +47,9 @@ def get_residue_index_from_positions(
     num_end_tokens=1,
 ):
     assert input_ids.ndim == 1
-    res_pos_in_seq = torch.zeros_like(input_ids)
+    residue_index = torch.zeros_like(input_ids)
     # TODO: convert to array and use concatenate_pad_array instead
-    flat_pos = get_flat_res_pos_in_seq_from_positions(
+    flat_indices = get_flat_res_pos_in_seq_from_positions(
         residue_positions,
         max_res_pos_in_seq=max_res_pos_in_seq,
         prepend_index=0,
@@ -63,8 +63,8 @@ def get_residue_index_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
-    res_pos_in_seq[:pad_start] = torch.tensor(flat_pos)
-    return res_pos_in_seq
+    residue_index[:pad_start] = torch.tensor(flat_indices)
+    return residue_index
 
 
 def concatenate_pad_array(
