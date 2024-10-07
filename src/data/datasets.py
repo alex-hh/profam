@@ -153,7 +153,6 @@ def load_protein_dataset(
         ), "Need identifier column for identifier holdout"
 
     def prefilter_example(example):
-        # TODO: base this on max_res_pos_in_seq
         structure_tokens_col = getattr(cfg.preprocessor, "structure_tokens_col", None)
         if structure_tokens_col is not None and example[structure_tokens_col] is None:
             # TODO: refactor datasets will handle this more gracefully
