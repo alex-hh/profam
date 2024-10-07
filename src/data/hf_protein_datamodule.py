@@ -105,8 +105,11 @@ class ProteinDataMixture(LightningDataModule):
             train_datasets = []
             train_data_weights = []
             train_dataset_names = []
-            world_size = self.trainer.world_size
-            print("World size", world_size)
+            if self.trainer is not None:
+                world_size = self.trainer.world_size
+                print("World size", world_size)
+            else:
+                world_size = 1
             for data_key, dataset_config in self.dataset_cfgs.items():
                 if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
