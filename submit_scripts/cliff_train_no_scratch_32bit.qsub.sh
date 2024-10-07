@@ -28,6 +28,7 @@ cd $ROOT_DIR
 cd $ROOT_DIR
 conda activate venvPF
 echo "Using python from $(which python)"
+export WANDB_MODE=online
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 export HYDRA_FULL_ERROR=1
 python ${ROOT_DIR}/src/train.py \
