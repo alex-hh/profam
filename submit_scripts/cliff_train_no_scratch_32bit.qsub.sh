@@ -23,9 +23,10 @@ echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
-conda deactivate
-source scripts/pfenv.source
-#conda activate venvPF
+#conda deactivate
+#source scripts/pfenv.source
+cd $ROOT_DIR
+conda activate venvPF
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 export HYDRA_FULL_ERROR=1
