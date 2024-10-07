@@ -212,6 +212,8 @@ def concatenate_short_documents(
 
     This is ultimately a bin-packing problem, if we handle it via a fixed set of examples (i.e. via batched map).
     So batch_sampler is a bin-packing sampler.
+    An approximate bin packing solution:
+    https://github.com/imoneoi/multipack_sampler/blob/master/multipack_sampler.py
     """
     # TODO: use logic from DataCollatorWithFlattening
     # advantage of doing processing here rather than in collator is that we can
