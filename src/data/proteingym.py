@@ -13,7 +13,7 @@ from src.data import transforms
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
-from src.data.utils import CustomDataCollator
+from src.data.utils import DocumentBatchCollator
 from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -363,7 +363,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.keep_gaps = keep_gaps
         self.use_seq_pos = use_seq_pos
         self.tokenizer = tokenizer
-        self.collator = CustomDataCollator(self.tokenizer, mlm=False)
+        self.collator = DocumentBatchCollator(self.tokenizer)
         # TODO: fix to avoid hardcoding
         assert self.gym_dms_id is not None
         assert self.gym_data_dir is not None

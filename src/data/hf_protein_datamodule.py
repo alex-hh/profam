@@ -16,7 +16,7 @@ from src.data.family_classification import (
 from src.data.hf_datasets import repeat
 from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import CustomDataCollator
+from src.data.utils import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -87,15 +87,13 @@ class ProteinDataMixture(LightningDataModule):
         self.use_filtered_gym_msas = use_filtered_gym_msas
         # feature names are only required for train collator, when we have different datasets
         self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
-        self.train_collator = CustomDataCollator(
+        self.train_collator = DocumentBatchCollator(
             self.tokenizer,
-            mlm=False,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
         )
-        self.val_collator = CustomDataCollator(
+        self.val_collator = DocumentBatchCollator(
             self.tokenizer,
-            mlm=False,
             ignore_gaps=ignore_gaps,
         )
         self._is_setup = False
@@ -149,7 +147,9 @@ class ProteinDataMixture(LightningDataModule):
                     split="train",
                     seed=42,
                 )
+                self.train_dataset = self.train_dataset.with_format("numpy")
             else:
+                print("Using single dataset", flush=True)
                 self.train_dataset = train_datasets[0]
 
             if isinstance(self.train_dataset, IterableDataset):
