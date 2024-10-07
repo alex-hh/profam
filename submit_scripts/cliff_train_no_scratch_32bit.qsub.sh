@@ -23,8 +23,9 @@ echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
-#source ../pfenv/bin/activate
-conda activate venvPF
+conda deactivate
+source scripts/pfenv.source
+#conda activate venvPF
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 python ${ROOT_DIR}/src/train.py \
