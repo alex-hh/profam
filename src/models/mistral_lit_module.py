@@ -28,9 +28,14 @@ class MistralLitModule(BaseFamilyLitModule):
         embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
-        max_sequence_index: int = 1024,
+        max_seq_pos_in_doc: int = 1024,
+        embed_residue_index: bool = True,
+        max_res_pos_in_seq: int = 4096,
     ) -> None:
-        if tokenizer.use_seq_pos or embed_coords:
+        if tokenizer.embed_residue_index or embed_coords:
+            # had to remove these as they break testing
+            # assert embed_residue_index == tokenizer.embed_residue_index
+            # assert max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
             model = WrappedMistralForCausalLM(
                 config,
                 "model.embed_tokens",
@@ -38,7 +43,7 @@ class MistralLitModule(BaseFamilyLitModule):
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,
                 embed_sequence_index=embed_sequence_index,
-                max_sequence_index=max_sequence_index,
+                max_seq_pos_in_doc=max_seq_pos_in_doc,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
                 pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
             )

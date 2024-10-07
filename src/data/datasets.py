@@ -26,7 +26,7 @@ class ProteinDatasetConfig:
     minimum_sequences: Optional[int] = None
     is_parquet: bool = False
     shuffle: bool = True
-    length_filter: Optional[str] = None  # max_tokens, max_seq_pos
+    length_filter: Optional[str] = None  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     stream: bool = True
 
@@ -34,8 +34,10 @@ class ProteinDatasetConfig:
 def filter_on_length(example, cfg, max_tokens, tokenizer):
     if cfg.length_filter is None:
         return True
-    elif cfg.length_filter == "max_seq_pos":
-        return any([len(s) <= tokenizer.max_seq_pos - 1 for s in example["sequences"]])
+    elif cfg.length_filter == "max_res_pos_in_seq":
+        return any(
+            [len(s) <= tokenizer.max_res_pos_in_seq - 1 for s in example["sequences"]]
+        )
     elif cfg.length_filter == "max_tokens":
         if max_tokens is None:
             return True
@@ -151,7 +153,6 @@ def load_protein_dataset(
         ), "Need identifier column for identifier holdout"
 
     def prefilter_example(example):
-        # TODO: base this on max_seq_pos
         structure_tokens_col = getattr(cfg.preprocessor, "structure_tokens_col", None)
         if structure_tokens_col is not None and example[structure_tokens_col] is None:
             # TODO: refactor datasets will handle this more gracefully
