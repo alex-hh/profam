@@ -31,7 +31,3 @@ class PfamGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
 
     def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
         return {}
-
-    def load_protein_document(self, instance_id: str):
-        protein_example = self.get_protein_example(instance_id)
-        return ProteinDocument.from_fasta_str(instance_id, protein_example["text"])

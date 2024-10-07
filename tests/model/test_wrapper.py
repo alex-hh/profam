@@ -3,12 +3,31 @@ import torch
 from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
 
+# def test_generate():
+#     from transformers import LlamaForCausalLM, LlamaConfig
+#     config = LlamaConfig(hidden_dim=64, num_attention_heads=4, num_hidden_layers=1, vocab_size=20, intermediate_size=128)
+#     model = LlamaForCausalLM(config)
 
-def test_compute_sequence_index(default_model, profam_tokenizer):
+#     model.eval()
+#     input_ids = torch.ones(1, 10).long()
+#     attention_mask = torch.zeros((
+#         1, 1, 10, 10
+#     ))
+#     # attention_mask = torch.ones(1, 10)
+#     model.generate(
+#         input_ids=input_ids,
+#         max_new_tokens=2,
+#         do_sample=True,
+#         num_return_sequences=2,
+#         attention_mask=attention_mask,
+#     )
+
+
+def test_compute_sequence_index(test_model, profam_tokenizer):
     sequences = ["ARC", "MKLLL", "MKPP"]
     document = ProteinDocument(sequences=sequences)
     tokenized = profam_tokenizer.encode(document)
-    sequence_indices = default_model.model.compute_sequence_index(
+    sequence_indices = test_model.model.compute_sequence_index(
         tokenized.input_ids[None]
     )
     expected_sequence_indices = torch.tensor(
@@ -40,11 +59,11 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences), add_final_sep=False
     )
-    input_seq_pos = tokenized.seq_pos[None, :-2]
+    input_residue_index = tokenized.residue_index[None, :-2]
     input_ids = tokenized.input_ids[None, :-2]
 
     model_kwargs = {
-        "seq_pos": input_seq_pos,
+        "residue_index": input_residue_index,
         "use_cache": True,
         "past_key_values": None,
     }
@@ -54,7 +73,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         input_ids, model_kwargs
     )
     # cache position is [0,1,2,3,4,5,6,7,8,9,10]
-    # seq_pos is [[0,0,2,3,4,0,2,3,4,5,0]]
+    # residue_index is [[0,0,2,3,4,0,2,3,4,5,0]]
 
     with torch.no_grad():
         outputs = model_seq_index.model(input_ids=input_ids, **model_kwargs)
@@ -80,9 +99,9 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         tokenized.input_ids[None, :-1],
         **model_kwargs,
     )
-    print(inputs["input_ids"], inputs["seq_pos"])
+    print(inputs["input_ids"], inputs["residue_index"])
     assert (inputs["start_sequence_index"] == 2).all()
-    assert (inputs["seq_pos"] == 2).all()
+    assert (inputs["residue_index"] == 2).all()
 
     # TODO: add next step.
 
@@ -98,6 +117,6 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         tokenized.input_ids[None],
         **model_kwargs,
     )
-    print(inputs["input_ids"], inputs["seq_pos"])
-    assert (inputs["seq_pos"] == 3).all()
+    print(inputs["input_ids"], inputs["residue_index"])
+    assert (inputs["residue_index"] == 3).all()
     assert (inputs["start_sequence_index"] == 2).all()

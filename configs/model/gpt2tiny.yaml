@@ -4,12 +4,15 @@ num_warmup_steps: 1000
 lr: 1e-4
 embed_coords: false
 embed_sequence_index: false
+embed_residue_index: true
+max_seq_pos_in_doc: 1024
+max_res_pos_in_seq: 4096
 optimizer: adamw
 config:
   _target_: transformers.GPT2Config
-  vocab_size: 66
+  vocab_size: ${constants.vocab_size}
   n_embd: 512
   n_head: 4
   n_layer: 6
   n_positions: 2048
-  _attn_implementation: flash_attention_2  # eager/flash_attention_2/sdpa
+  attn_implementation: null  # eager/flash_attention_2/sdpa
