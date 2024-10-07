@@ -12,5 +12,3 @@ wandb:
   group: ""
   tags: []
   job_type: ""
-  log_hydra_config_file: true
-  log_git_hash: true
