@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from src.constants import BASEDIR
@@ -28,12 +29,12 @@ def test_compute_sequence_index(test_model, profam_tokenizer):
     document = ProteinDocument(sequences=sequences)
     tokenized = profam_tokenizer.encode(document)
     sequence_indices = test_model.model.compute_sequence_index(
-        tokenized.input_ids[None]
+        torch.from_numpy(tokenized.input_ids[None])
     )
-    expected_sequence_indices = torch.tensor(
+    expected_sequence_indices = np.array(
         [[0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]]
     )
-    assert (sequence_indices == expected_sequence_indices).all()
+    assert (sequence_indices.numpy() == expected_sequence_indices).all()
 
 
 def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
@@ -59,8 +60,8 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences), add_final_sep=False
     )
-    input_seq_pos = tokenized.seq_pos[None, :-2]
-    input_ids = tokenized.input_ids[None, :-2]
+    input_seq_pos = torch.from_numpy(tokenized.seq_pos[None, :-2])
+    input_ids = torch.from_numpy(tokenized.input_ids[None, :-2])
 
     model_kwargs = {
         "seq_pos": input_seq_pos,
@@ -96,7 +97,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     # cache position is [11]
     # we have to pass past_key_values for default prepare_inputs_for_generation to slice out added input ids
     inputs = model_seq_index.model.prepare_inputs_for_generation(
-        tokenized.input_ids[None, :-1],
+        torch.from_numpy(tokenized.input_ids[None, :-1]),
         **model_kwargs,
     )
     print(inputs["input_ids"], inputs["seq_pos"])
@@ -114,7 +115,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         is_encoder_decoder=model_seq_index.model.config.is_encoder_decoder,
     )
     inputs = model_seq_index.model.prepare_inputs_for_generation(
-        tokenized.input_ids[None],
+        torch.from_numpy(tokenized.input_ids[None]),
         **model_kwargs,
     )
     print(inputs["input_ids"], inputs["seq_pos"])

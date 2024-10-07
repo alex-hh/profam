@@ -1,4 +1,4 @@
-import torch
+import numpy as np
 
 from src.data.objects import ProteinDocument
 from src.data.transforms import convert_sequences_adding_positions
@@ -123,16 +123,16 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
 
         # Check MSA positions
         assert (
-            msa_seq_pos == torch.tensor(case["msa_pos"])
+            msa_seq_pos == np.array(case["msa_pos"])
         ).all(), (
             f"MSA positions mismatch: {msa_proteins.positions} != {case['msa_pos']}"
         )
 
         for i, comp in enumerate(case["completion_pos"]):
             assert (
-                completion_tokenized.seq_pos[i] == torch.tensor(comp)
+                completion_tokenized.seq_pos[i] == np.array(comp)
             ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos[i]} != {comp}"
 
         assert (
-            completion_tokenized.seq_pos == torch.tensor(case["completion_pos"])
+            completion_tokenized.seq_pos == np.array(case["completion_pos"])
         ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos} != {case['completion_pos']}"
