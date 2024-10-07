@@ -361,13 +361,13 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             add_special_tokens=False,
         )
         if self.embed_residue_index:
-            all_positions = []
+            all_residue_indices = []
             for i, seq in enumerate(sequences):
                 if residue_positions is None:
                     res_positions = [list(range(1, len(seq) + 1))]
                 else:
                     res_positions = [residue_positions[i]]
-                all_positions.append(
+                all_residue_indices.append(
                     get_res_pos_in_seq_from_positions(
                         tokenized.input_ids[i],
                         res_positions,
@@ -379,7 +379,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )
-            tokenized.data["residue_index"] = stack(all_positions)
+            tokenized.data["residue_index"] = stack(all_residue_indices)
 
         return tokenized
 
