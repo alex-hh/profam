@@ -27,8 +27,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 
     args:
-        embed_res_pos_in_seq: embed position of amino acid within sequence
-        embed_seq_pos_in_doc: if True, embed index of sequence within sequence of sequences
+        embed_residue_index: embed position of amino acid within sequence
+        embed_sequence_index: if True, embed index of sequence within sequence of sequences
         pass_constant_position_ids_for_global_index: if True, pass constant position ids to model (for e.g. inbuilt ROPE embeddings)
         pass_sequence_position_ids_for_global_index: if True, pass sequence position ids to model
     """
@@ -44,14 +44,14 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         require_residue_index: bool = True,
         embed_coords: bool = False,
         start_residue_index: int = 2,
-        embed_seq_pos_in_doc: bool = False,
+        embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
         max_seq_pos_in_doc: int = 1024,
     ):
         super().__init__(config)
         self.tokenizer = tokenizer
-        self.embed_res_pos_in_seq = tokenizer.embed_res_pos_in_seq
+        self.embed_residue_index = tokenizer.embed_residue_index
         self.start_residue_index = (
             start_residue_index  # TODO: double-check this is consistent
         )
@@ -64,7 +64,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self.embed_coords = embed_coords
         self.start_residue_index = start_residue_index
         self.num_atoms = 4
-        self.embed_seq_pos_in_doc = embed_seq_pos_in_doc
+        self.embed_sequence_index = embed_sequence_index
         self.max_seq_pos_in_doc = max_seq_pos_in_doc
         self.pass_constant_position_ids_for_global_index = (
             pass_constant_position_ids_for_global_index
@@ -78,11 +78,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 embedding_dim,
                 bias=False,
             )
-        if self.tokenizer.embed_res_pos_in_seq:
+        if self.tokenizer.embed_residue_index:
             self.res_pos_in_seq_embedding = nn.Embedding(
                 self.tokenizer.max_res_pos_in_seq, embedding_dim
             )
-        if self.embed_seq_pos_in_doc:
+        if self.embed_sequence_index:
             self.sequence_index_embedding = nn.Embedding(
                 self.max_seq_pos_in_doc,
                 embedding_dim,
@@ -189,12 +189,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # kwargs["residue_index"] is prompt only
         # inputs["input_ids"] is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
-        if self.embed_res_pos_in_seq:
+        if self.embed_residue_index:
             inputs["residue_index"] = self.update_residue_index_for_generation(
                 input_ids, residue_index
             )
 
-        if self.embed_seq_pos_in_doc:
+        if self.embed_sequence_index:
             # model will automatically do compute_sequence_index on new tokens
             # so we just need to tell it the sequence index of the new tokens
             # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
@@ -283,7 +283,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
-        if self.tokenizer.embed_res_pos_in_seq:
+        if self.tokenizer.embed_residue_index:
             if self.require_residue_index:
                 assert residue_index is not None
             if residue_index is not None:
@@ -296,7 +296,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             coords_embeds = self.coords_embedding(coords.flatten(start_dim=-2))
             inputs_embeds += coords_embeds
 
-        if self.embed_seq_pos_in_doc:
+        if self.embed_sequence_index:
             sequence_index = self.compute_sequence_index(
                 input_ids, start_sequence_index=start_sequence_index
             )
@@ -345,7 +345,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
 
-        if self.embed_seq_pos_in_doc and past_key_values is not None:
+        if self.embed_sequence_index and past_key_values is not None:
             assert (
                 start_sequence_index is not None
             ), "Must pass start_sequence_index if using sequence index embeddings with cache"

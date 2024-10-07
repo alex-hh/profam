@@ -38,7 +38,7 @@ def tokenize_msa(
         proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
-    if tokenizer.embed_res_pos_in_seq:
+    if tokenizer.embed_residue_index:
         sample["residue_index"] = tokenized.data["residue_index"]
     return sample
 
@@ -63,7 +63,7 @@ def tokenize_completions(
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
-    if tokenizer.embed_res_pos_in_seq:
+    if tokenizer.embed_residue_index:
         sample["completion_residue_index"] = tokenized.data["residue_index"]
     return sample
 
@@ -284,7 +284,7 @@ def load_gym_dataset(
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
-    if tokenizer.embed_res_pos_in_seq:
+    if tokenizer.embed_residue_index:
         columns += ["residue_index", "completion_residue_index"]
 
     dataset.set_format(
@@ -351,7 +351,7 @@ class GymSingleMSADataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
         keep_gaps: bool = True,
-        embed_res_pos_in_seq: bool = False,
+        embed_residue_index: bool = False,
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
@@ -360,7 +360,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.gym_dms_id = gym_dms_id
         self.num_workers = num_workers
         self.keep_gaps = keep_gaps
-        self.embed_res_pos_in_seq = embed_res_pos_in_seq
+        self.embed_residue_index = embed_residue_index
         self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         # TODO: fix to avoid hardcoding

@@ -16,7 +16,7 @@ config:
 scoring_max_tokens: 8000
 use_kv_cache_for_scoring: True
 embed_coords: false
-embed_seq_pos_in_doc: false
-embed_res_pos_in_seq: true
+embed_sequence_index: false
+embed_residue_index: true
 max_seq_pos_in_doc: 1024
 max_res_pos_in_seq: 4096

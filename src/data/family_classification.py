@@ -40,7 +40,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
         remove_columns=["MSA", "completion_seqs"],
     )
     columns = family_columns
-    if tokenizer.embed_res_pos_in_seq:
+    if tokenizer.embed_residue_index:
         columns += ["residue_index", "completion_residue_index"]
 
     dataset.set_format(

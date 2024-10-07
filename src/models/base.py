@@ -447,17 +447,17 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
-        self.embed_res_pos_in_seq = self.tokenizer.embed_res_pos_in_seq
+        self.embed_residue_index = self.tokenizer.embed_residue_index
         self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
         self.embed_coords = embed_coords
-        self.embed_seq_pos_in_doc = self.model.embed_seq_pos_in_doc
+        self.embed_sequence_index = self.model.embed_sequence_index
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
         if self.embed_coords:
             assert batch["coords"] is not None
             forward_kwargs["coords"] = batch["coords"]
-        if self.embed_res_pos_in_seq:
+        if self.embed_residue_index:
             assert batch["residue_index"] is not None
             forward_kwargs["residue_index"] = batch["residue_index"]
         return forward_kwargs
@@ -501,7 +501,7 @@ class BaseFamilyLitModule(BaseLitModule):
         )  # just a tuple of tensors - doesn't get extended
         L = completion_ids.shape[-1]
 
-        if self.embed_seq_pos_in_doc:
+        if self.embed_sequence_index:
             prompt_sequence_index = self.model.compute_sequence_index(input_ids)
             assert (input_ids[:, -1] == input_ids[0, -1]).all()
             if input_ids[0, -1] == self.tokenizer.sep_token_id:
@@ -524,7 +524,7 @@ class BaseFamilyLitModule(BaseLitModule):
             this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
             L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
-            if self.embed_res_pos_in_seq:
+            if self.embed_residue_index:
                 # fmt: off
                 this_res_ix = completion_residue_index[
                     :, batch_start: batch_start + batch_size, :L_mini_batch
@@ -534,7 +534,7 @@ class BaseFamilyLitModule(BaseLitModule):
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
-            if self.embed_seq_pos_in_doc:
+            if self.embed_sequence_index:
                 forward_kwargs["start_sequence_index"] = start_sequence_index
 
             actual_batch_size = this_input_ids.shape[0]
@@ -597,7 +597,7 @@ class BaseFamilyLitModule(BaseLitModule):
             assert (
                 this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
             )  # SEP token which signals end of last prompt seq
-            if self.embed_res_pos_in_seq:
+            if self.embed_residue_index:
                 this_res_ix = torch.cat(
                     [input_residue_index, completion_residue_index[:, completion_ix]],
                     dim=1,
@@ -684,7 +684,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
         if max_total_length is None:
-            if self.embed_res_pos_in_seq:
+            if self.embed_residue_index:
                 max_total_length = min(
                     max_tokens,
                     input_ids.shape[1] + self.tokenizer.max_res_pos_in_seq,

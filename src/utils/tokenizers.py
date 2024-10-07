@@ -125,7 +125,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         *args,
         add_bos_token: bool = True,
         add_document_token: bool = True,
-        embed_res_pos_in_seq: bool = False,
+        embed_residue_index: bool = False,
         max_res_pos_in_seq: int = 1024,
         seq_struct_sep_token="|",
         **kwargs,
@@ -133,7 +133,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
         self.add_document_token = add_document_token
-        self.embed_res_pos_in_seq = embed_res_pos_in_seq
+        self.embed_residue_index = embed_residue_index
         self.max_res_pos_in_seq = max_res_pos_in_seq
         self.seq_struct_sep_token = seq_struct_sep_token
 
@@ -197,7 +197,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert not (
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
-        if self.embed_res_pos_in_seq:
+        if self.embed_residue_index:
             if proteins.residue_positions is None:
                 log.warning(
                     "Using res_pos_in_seq but positions not provided. "
@@ -360,7 +360,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             truncation=False,
             add_special_tokens=False,
         )
-        if self.embed_res_pos_in_seq:
+        if self.embed_residue_index:
             all_positions = []
             for i, seq in enumerate(sequences):
                 if positions is None:

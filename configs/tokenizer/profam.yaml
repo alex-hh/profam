@@ -10,5 +10,5 @@ add_final_sep: true
 add_bos_token: true
 add_document_token: true
 mask_below_plddt: 80  # > 90 is 'very high' confidence in af browser
-embed_res_pos_in_seq: ${model.embed_res_pos_in_seq}
+embed_residue_index: ${model.embed_residue_index}
 max_res_pos_in_seq: ${model.max_res_pos_in_seq}
