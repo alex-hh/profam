@@ -23,9 +23,10 @@ echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
-conda deactivate
-source scripts/pfenv.source
-#conda activate venvPF
+#conda deactivate
+#source scripts/pfenv.source
+cd $ROOT_DIR
+conda activate venvPF
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 export HYDRA_FULL_ERROR=1
@@ -38,7 +39,7 @@ trainer.max_epochs=1000 \
 model=llama_medium \
 model.lr=1e-3 \
 model.optimizer="adamw" \
-model.config.attn_implementation="flash_attention_2" \
+model.config.attn_implementation="sdpa" \
 model.embed_sequence_index="true" \
 trainer.val_check_interval=1.0 \
 trainer.precision="bf16-mixed" \

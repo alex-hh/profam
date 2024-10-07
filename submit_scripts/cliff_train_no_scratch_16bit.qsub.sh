@@ -23,10 +23,7 @@ echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
-conda deactivate
-source scripts/pfenv.source
 conda activate venvPF
-conda install pytorch torchvision torchaudio pytorch-cuda=12.4 numpy<=1.26.4 -c pytorch -c nvidia -c conda-forge
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 export HYDRA_FULL_ERROR=1
