@@ -79,7 +79,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 bias=False,
             )
         if self.tokenizer.embed_residue_index:
-            self.res_pos_in_seq_embedding = nn.Embedding(
+            self.residue_index_embedding = nn.Embedding(
                 self.tokenizer.max_res_pos_in_seq, embedding_dim
             )
         if self.embed_sequence_index:
@@ -287,7 +287,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if self.require_residue_index:
                 assert residue_index is not None
             if residue_index is not None:
-                res_ix_embeds = self.res_pos_in_seq_embedding(residue_index)
+                res_ix_embeds = self.residue_index_embedding(residue_index)
                 inputs_embeds = inputs_embeds + res_ix_embeds
 
         # TODO: might want to embed coords mask to allow for masked coords
