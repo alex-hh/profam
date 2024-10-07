@@ -13,7 +13,7 @@ log = RankedLogger(__name__, rank_zero_only=True)
 
 
 def get_flat_res_pos_in_seq_from_positions(
-    positions,
+    residue_positions,
     max_res_pos_in_seq: int = 1024,
     prepend_index=0,
     append_index=0,
@@ -22,16 +22,16 @@ def get_flat_res_pos_in_seq_from_positions(
     num_end_tokens=1,
 ):
     # TODO: maybe raise exception if max_res_pos_in_seq exceeded rather than duplicating...
-    if len(positions) > 0:
+    if len(residue_positions) > 0:
         flat_positions = [prepend_index] * num_start_tokens
-        for sequence_positions in positions[:-1]:
+        for sequence_positions in residue_positions[:-1]:
             # add 1 so that sep doesnt have same position index
             # n.b. that convert_sequence_with_positions is also already 1-based
             flat_positions += [
                 min(p + 1, max_res_pos_in_seq - 1) for p in sequence_positions
             ]
             flat_positions.append(sep_index)
-        flat_positions += [min(p + 1, max_res_pos_in_seq - 1) for p in positions[-1]]
+        flat_positions += [min(p + 1, max_res_pos_in_seq - 1) for p in residue_positions[-1]]
         flat_positions += [append_index] * num_end_tokens  # no [SEP] at end of MSA
         return flat_positions
     else:
@@ -40,7 +40,7 @@ def get_flat_res_pos_in_seq_from_positions(
 
 def get_res_pos_in_seq_from_positions(
     input_ids,
-    positions,
+    residue_positions,
     pad_token_id,
     max_res_pos_in_seq: int = 1024,
     num_start_tokens=1,
@@ -50,7 +50,7 @@ def get_res_pos_in_seq_from_positions(
     res_pos_in_seq = torch.zeros_like(input_ids)
     # TODO: convert to array and use concatenate_pad_array instead
     flat_pos = get_flat_res_pos_in_seq_from_positions(
-        positions,
+        residue_positions,
         max_res_pos_in_seq=max_res_pos_in_seq,
         prepend_index=0,
         append_index=0,
@@ -200,17 +200,17 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         if self.embed_residue_index:
             if proteins.residue_positions is None:
                 log.warning(
-                    "Using res_pos_in_seq but positions not provided. "
-                    "Using default positions."
+                    "Using res_pos_in_seq but residue_positions not provided. "
+                    "Using default residue_positions."
                 )
                 # +1 to match convert_sequence_with_positions
                 # get_res_pos_in_seq_from_positions adds another offset
-                positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
+                residue_positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
             else:
-                positions = proteins.residue_positions
+                residue_positions = proteins.residue_positions
             res_pos_in_seq = get_res_pos_in_seq_from_positions(
                 tokenized.input_ids,
-                positions,
+                residue_positions,
                 pad_token_id=self.pad_token_id,
                 max_res_pos_in_seq=self.max_res_pos_in_seq,
                 num_start_tokens=self.num_start_tokens,
@@ -288,7 +288,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["original_size"] = torch.tensor(proteins.original_size)
 
         # TODO: handle nans
-        # TODO: return sequence start and end positions?
+        # TODO: return sequence start and end residue_positions?
         return tokenized
 
     def batched_encode(
@@ -348,7 +348,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     def encode_completions(
         self,
         sequences,
-        positions: Optional[List[int]] = None,
+        residue_positions: Optional[List[int]] = None,
         bos_token="[SEP]",
         eos_token="[SEP]",
     ):
@@ -363,10 +363,10 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         if self.embed_residue_index:
             all_positions = []
             for i, seq in enumerate(sequences):
-                if positions is None:
+                if residue_positions is None:
                     res_positions = [list(range(1, len(seq) + 1))]
                 else:
-                    res_positions = [positions[i]]
+                    res_positions = [residue_positions[i]]
                 all_positions.append(
                     get_res_pos_in_seq_from_positions(
                         tokenized.input_ids[i],

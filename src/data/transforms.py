@@ -21,7 +21,7 @@ def convert_sequences_adding_positions(
     **kwargs,
 ):
     sequences = []
-    positions = []
+    residue_positions = []
     for seq in itertools.islice(proteins.sequences, truncate_after_n_sequences):
         seq, pos, _ = convert_sequence_with_positions(
             seq,
@@ -31,10 +31,10 @@ def convert_sequences_adding_positions(
             use_msa_pos=use_msa_pos,
         )
         sequences.append(seq)
-        positions.append(pos)
+        residue_positions.append(pos)
     return proteins.clone(
         sequences=sequences,
-        positions=positions,
+        residue_positions=residue_positions,
         modality_masks=None,  # reset
     )
 
