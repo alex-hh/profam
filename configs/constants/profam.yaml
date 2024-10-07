@@ -14,7 +14,6 @@ sequence_features:
   - identifier
   - input_ids
   - attention_mask
-  - labels
   - original_size
   - seq_pos
 
@@ -23,7 +22,6 @@ structure_features:
   - identifier
   - input_ids
   - attention_mask
-  - labels
   - original_size
   - seq_pos
   - coords
