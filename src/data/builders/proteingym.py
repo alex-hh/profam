@@ -9,7 +9,8 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
-from src.data.processors.transforms import sample_to_max_tokens
+from src.data.processors.preprocessing import PreprocessingConfig
+from src.data.processors.transforms import preprocess_sequences_sampling_to_max_tokens
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
 
@@ -117,13 +118,14 @@ def load_msa_for_row(
     # need to allow room for the completion
     # todo should be max completion length (once we handle indels)
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
-    proteins = sample_to_max_tokens(
+    proteins = preprocess_sequences_sampling_to_max_tokens(
         proteins,
         seed=seed,
         drop_first=drop_wt,
         keep_first=keep_wt,
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
+        sequence_converter=transforms.convert_aligned_sequence_adding_positions,
     )
 
     proteins = transforms.convert_sequences_adding_positions(

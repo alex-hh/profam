@@ -24,15 +24,11 @@ from src.data.processors import (
     backbone_coords_from_example,
 )
 from src.data.tokenizers import ProFamTokenizer
+from src.data.utils import examples_list_to_dict, examples_to_list_of_dicts
 from src.utils.utils import np_random
 
 from .base import BaseProteinDataset
-from .utils import (
-    examples_list_to_dict,
-    examples_to_list_of_dicts,
-    filter_on_length,
-    uniformly_sample_clusters,
-)
+from .utils import filter_on_length, uniformly_sample_clusters
 
 
 @dataclass

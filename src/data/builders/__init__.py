@@ -2,6 +2,7 @@ from .hf_datasets import (
     FileBasedHFProteinDataset,
     HFProteinDatasetConfig,
     IterableHFProteinDataset,
+    SequenceDocumentDataset,
+    StructureDocumentDataset,
 )
-from .parquet import ParquetSequenceDataset, ParquetStructureDataset
 from .proteingym import ProteinGymDataset

@@ -1,4 +1,4 @@
-_target_: src.data.hf_protein_datamodule.ProteinDataMixture
+_target_: src.data.datamodule.ProteinDataMixture
 defaults:
   - dataset@dataset_builders.openfold_aligned: openfold_aligned_example
   - dataset@dataset_builders.openfold_raw: openfold_raw_example
@@ -24,4 +24,4 @@ val_dataset_batch_sizes:
   ec: ${data.batch_size}
   proteingym: 1
 num_workers: 0  # None means use all available CPU cores
-feature_names: ${constants.sequence_feature_names}
+feature_names: ${constants.structure_features}

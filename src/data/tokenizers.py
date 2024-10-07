@@ -3,8 +3,8 @@ from typing import List, Optional
 import numpy as np
 from transformers import PreTrainedTokenizerFast
 
-from src.data.builders.utils import examples_list_to_dict
 from src.data.objects import ProteinDocument
+from src.data.utils import examples_list_to_dict
 from src.utils import RankedLogger
 
 log = RankedLogger(__name__, rank_zero_only=True)

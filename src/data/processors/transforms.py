@@ -8,10 +8,7 @@ from scipy.spatial.transform import Rotation as R
 from src.constants import BACKBONE_ATOMS
 from src.data.objects import Protein, ProteinDocument
 from src.data.tokenizers import ProFamTokenizer
-from src.sequence.fasta import convert_sequence_with_positions
 from src.utils.utils import np_random
-
-from .preprocessing import PreprocessingConfig
 
 
 def convert_aligned_sequence_adding_positions(
@@ -87,7 +84,7 @@ def convert_raw_sequence_adding_positions(seq):
 def preprocess_sequences(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
-    sequence_converter: Callable = convert_raw_sequence_adding_positions,
+    sequence_converter: Callable,
     **kwargs,
 ) -> ProteinDocument:
     sequences, positions = [], []
@@ -101,12 +98,12 @@ def preprocess_sequences(
 def preprocess_sequences_sampling_to_max_tokens(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
+    sequence_converter: Callable,
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
     drop_first: bool = False,
     keep_first: bool = False,
     seed: Optional[int] = None,
-    sequence_converter: Callable = convert_raw_sequence_adding_positions,
     **kwargs,
 ) -> ProteinDocument:
     """

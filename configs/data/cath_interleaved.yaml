@@ -1,4 +1,4 @@
-_target_: src.data.hf_protein_datamodule.ProteinDataMixture
+_target_: src.data.datamodule.ProteinDataMixture
 defaults:
   - dataset@dataset_builders.cath43: cath_43_interleaved
   - dataset@dataset_builders.cath43_val: cath_43_interleaved
