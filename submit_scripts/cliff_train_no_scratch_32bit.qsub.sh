@@ -28,6 +28,7 @@ cd $ROOT_DIR
 cd $ROOT_DIR
 conda activate venvPF
 echo "Using python from $(which python)"
+export WANDB_MODE=online
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 export HYDRA_FULL_ERROR=1
 python ${ROOT_DIR}/src/train.py \
@@ -47,5 +48,6 @@ data.num_workers=10 \
 data.max_tokens=10000 \
 paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data"  \
 float32_matmul_precision=high \
+logger=wandb \
 callbacks=default_with_shuffle
 date
