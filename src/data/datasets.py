@@ -1,5 +1,6 @@
 import glob
 import os
+import sys
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -234,9 +235,6 @@ def load_protein_dataset(
         )
 
         if cfg.preprocessor.batched_map:
-            # Q: should we tolist all tensors?
-            if torch.is_tensor(example["input_ids"]):
-                assert example["input_ids"].ndim == 2
             batch_size = len(example["input_ids"])
             example["ds_name"] = [dataset_name] * batch_size
         else:
@@ -264,9 +262,7 @@ def load_protein_dataset(
             batched=cfg.preprocessor.batched_map,
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
-            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
-            if feature_names is not None
-            else None,
+            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names}) if feature_names is not None else None,
         )
         if return_format is not None:
             dataset = dataset.with_format(type=return_format)
