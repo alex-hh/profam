@@ -258,6 +258,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         # these really denote where you're PREDICTING the modality. because you could have fixed residue identities in structure regions.
         tokenized.data["aa_mask"] = modality_mask[:, 0]
         tokenized.data["structure_mask"] = modality_mask[:, 1]
+        del tokenized.data["token_type_ids"]
         if proteins.plddts is not None:
             tokenized.data["plddts"] = concatenate_pad_array(
                 proteins.plddts,

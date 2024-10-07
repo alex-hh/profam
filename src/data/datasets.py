@@ -5,10 +5,10 @@ from typing import List, Optional
 
 import numpy as np
 import torch
-from datasets import Dataset, load_dataset
+from datasets import Dataset, Features, load_dataset
 from omegaconf.listconfig import ListConfig
 
-from src.constants import TENSOR_FEATURES
+from src.constants import TOKENIZED_FEATURE_TYPES
 from src.data.preprocessing import BasePreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
@@ -113,16 +113,15 @@ def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
     dataset_name: str,
+    feature_names: List[str],
     data_dir="data",
     split="train",
     max_tokens_per_example: Optional[int] = None,
     shuffle: bool = True,
-    feature_names: Optional[List[str]] = None,
     world_size: int = 1,
     verbose: bool = False,
     return_format: Optional[str] = "numpy",  # n.b. return format None is very slow
 ) -> Dataset:
-
     data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
 
     if cfg.is_parquet:
@@ -262,6 +261,7 @@ def load_protein_dataset(
             batched=cfg.preprocessor.batched_map,
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
+            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names}),
         )
         if return_format is not None:
             dataset = dataset.with_format(type=return_format)
