@@ -27,12 +27,14 @@ special_tokens = [
     "[start-of-document]",
     "[end-of-document]",
     "[SEP]",
-    "[MASK]",
     "[UNK]",
     "[RAW]",
     "[MSA]",
     "[RAW-WITH-MSA-POS]",
-    "[SEQ-STRUCT-SEP]",
+    "|",
+    "?",
+    "[AFDB]",
+    "[PDB]",
 ] + unassigned_special_tokens
 tokenizer.add_special_tokens(special_tokens)
 # N.B. if all special tokens aren't assigned we have tokenization issues...
@@ -62,10 +64,18 @@ fast_tokenizer = PreTrainedTokenizerFast(
     pad_token="[PAD]",
     bos_token="[start-of-document]",
     sep_token="[SEP]",
-    mask_token="[MASK]",
+    mask_token="?",
     # Add them here to ensure they are skipped when decoding with skip_special_tokens is set to True
     additional_special_tokens=unassigned_special_tokens
-    + ["[end-of-document]", "[RAW]", "[MSA]", "[RAW-WITH-MSA-POS]", "[SEQ-STRUCT-SEP]"],
+    + [
+        "[end-of-document]",
+        "[RAW]",
+        "[MSA]",
+        "[RAW-WITH-MSA-POS]",
+        "|",
+        "[AFDB]",
+        "[PDB]",
+    ],
 )
 
 # Test the tokenizer

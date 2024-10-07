@@ -1,18 +1,23 @@
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import torch
+from lightning.fabric.utilities.throughput import get_available_flops
 from lightning.pytorch.callbacks import Callback, ThroughputMonitor
-from lightning.pytorch.trainer.states import RunningStage
+from lightning.pytorch.callbacks.throughput_monitor import _plugin_to_compute_dtype
+from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
 from typing_extensions import override
 
 from src.utils import RankedLogger
+from src.utils.throughput import Throughput
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
 class ShuffleCallback(Callback):
+    # TODO: check this works with interleaved datasets
+    # https://huggingface.co/docs/datasets/en/stream#reshuffle
     def on_train_epoch_start(self, trainer, pl_module):
         # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
         trainer.train_dataloader.dataset.set_epoch(trainer.current_epoch)
@@ -36,6 +41,7 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            sync_dist=True,
         )
 
     def on_validation_epoch_start(self, trainer, pl_module):
@@ -49,6 +55,7 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
+            sync_dist=True,
         )
 
 
@@ -80,6 +87,33 @@ class TokenThroughputMonitor(ThroughputMonitor):
         )
         self.run_on_validation = run_on_validation
         self._samples: Dict[RunningStage, int] = {}
+        self._non_padding_lengths: Dict[RunningStage, int] = {}
+        self._proteins: Dict[RunningStage, int] = {}
+
+    @override
+    def setup(
+        self, trainer: "Trainer", pl_module: "LightningModule", stage: str
+    ) -> None:
+        dtype = _plugin_to_compute_dtype(trainer.precision_plugin)
+        self.available_flops = get_available_flops(trainer.strategy.root_device, dtype)
+
+        if stage == TrainerFn.FITTING and trainer.enable_validation:
+            # `fit` includes validation inside
+            throughput = Throughput(
+                available_flops=self.available_flops,
+                world_size=trainer.world_size,
+                **self.kwargs,
+            )
+            self._throughputs[RunningStage.VALIDATING] = throughput
+
+        throughput = Throughput(
+            available_flops=self.available_flops,
+            world_size=trainer.world_size,
+            **self.kwargs,
+        )
+        stage = trainer.state.stage
+        assert stage is not None
+        self._throughputs[stage] = throughput
 
     @override
     @rank_zero_only
@@ -110,6 +144,23 @@ class TokenThroughputMonitor(ThroughputMonitor):
         self._lengths[stage] = 0
         self._t0s[stage] = time.perf_counter()
         self._samples[stage] = 0
+        self._non_padding_lengths[stage] = 0
+        self._proteins[stage] = 0
+
+    def _compute(self, trainer: "Trainer", iter_num: Optional[int] = None) -> None:
+        # modified to add 'throughput' as a prefix
+        if not trainer._logger_connector.should_update_logs:
+            return
+        stage = trainer.state.stage
+        assert stage is not None
+        throughput = self._throughputs[stage]
+        metrics = throughput.compute()
+        # prefix with the stage to avoid collisions
+        metrics = {
+            f"throughput/{stage.value}{throughput.separator}{k}": v
+            for k, v in metrics.items()
+        }
+        trainer._logger_connector.log_metrics(metrics, step=iter_num)  # type: ignore[arg-type]
 
     @torch.inference_mode()  # in case `length_fn` or `batch_size_fn` computes grads
     def _update(
@@ -131,6 +182,15 @@ class TokenThroughputMonitor(ThroughputMonitor):
         if self.length_fn is not None:
             self._lengths[stage] += self.length_fn(batch)
 
+        if hasattr(pl_module, "tokenizer"):
+            padding_mask = (
+                batch["input_ids"] != pl_module.tokenizer.pad_token_id
+            ).float()
+            self._non_padding_lengths[stage] += padding_mask.sum().item()
+            self._proteins[stage] += (
+                (batch["input_ids"] == pl_module.tokenizer.sep_token_id).sum().item()
+            )
+
         self._samples[stage] += self.batch_size_fn(batch)
 
         if hasattr(pl_module, "flops_per_batch"):
@@ -148,5 +208,7 @@ class TokenThroughputMonitor(ThroughputMonitor):
             # this assumes that all iterations used the same batch size
             samples=self._samples[stage],
             lengths=None if self.length_fn is None else self._lengths[stage],
+            non_padding_lengths=self._non_padding_lengths[stage],
+            proteins=self._proteins[stage],
             flops=flops_per_batch,
         )

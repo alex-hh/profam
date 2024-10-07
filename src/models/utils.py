@@ -1,7 +1,23 @@
-from typing import List, Optional
+import os
 
-import numpy as np
 import torch
+from hydra import compose, initialize_config_dir
+from hydra.utils import instantiate
+
+from src.constants import BASEDIR, VOCAB_SIZE
+
+
+def load_named_model(model_name, overrides=None):
+    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
+        model_overrides = [f"+constants.vocab_size={VOCAB_SIZE}"] + (overrides or [])
+        model_cfg = compose(
+            config_name=f"model/{model_name}", overrides=model_overrides
+        )
+        tokenizer_cfg = compose(config_name=f"tokenizer/profam")
+
+    tokenizer = instantiate(tokenizer_cfg.tokenizer)
+    model = instantiate(model_cfg.model, tokenizer=tokenizer)
+    return model
 
 
 def calc_grad_norm(params):
@@ -13,54 +29,6 @@ def calc_grad_norm(params):
     )
 
     return grad_norm
-
-
-def accuracy_from_outputs(
-    model_outputs,
-    labels,
-    start_ix=0,
-    ignore_index=-100,
-    dataset_names=None,
-    ignore_token_ids: Optional[List[int]] = None,
-):
-    """Compute the accuracy of the target sequence given the model outputs.
-
-    Args:
-        model_outputs: The model outputs from the forward pass.
-        input_ids: The input sequence.
-        ignore_index: Token index to ignore when computing accuracy.
-            (this will get added automatically by the data collator as padding)
-
-    Returns:
-        The accuracy of the target sequence.
-    """
-    labels = labels.clone()
-    if ignore_token_ids is not None:
-        ignore_token_ids = torch.tensor(ignore_token_ids).to(labels.device)
-        labels[torch.isin(labels, ignore_token_ids)] = ignore_index
-    logits = model_outputs.logits
-    # Shift so that tokens < n predict n
-    shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
-    shift_labels = labels[..., start_ix + 1 :].contiguous()  # b, L
-    # Ensure tensors are on the same device
-    shift_labels = shift_labels.to(shift_logits.device)
-    non_padding_mask = shift_labels != ignore_index
-    # TODO: we might also want to ignore gaps...
-    accuracy = (shift_logits.argmax(-1) == shift_labels).float()
-    if dataset_names is not None:
-        # N.B. this also works for empty list
-        ds_accuracies = {}
-        for ds_name in set(dataset_names):
-            in_dataset_mask = np.array(dataset_names) == ds_name
-            ds_accuracies[ds_name] = (
-                accuracy[in_dataset_mask] * non_padding_mask[in_dataset_mask]
-            ).sum() / non_padding_mask[in_dataset_mask].sum()
-        ds_accuracies["global"] = (
-            accuracy * non_padding_mask
-        ).sum() / non_padding_mask.sum()
-        return ds_accuracies
-    accuracy = (accuracy * non_padding_mask).sum() / non_padding_mask.sum()
-    return accuracy
 
 
 def log_likelihood_from_outputs(model_outputs, labels, start_ix=0, flatten=False):

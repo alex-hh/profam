@@ -4,6 +4,7 @@ BASEDIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 BENCHMARK_RESULTS_DIR_NAME = "benchmark_results"
 BENCHMARK_RESULTS_DIR = os.path.join(BASEDIR, BENCHMARK_RESULTS_DIR_NAME)
 
+VOCAB_SIZE = 68
 
 aa_letters = [
     "A",
@@ -28,7 +29,20 @@ aa_letters = [
     "Y",
 ]
 
+BACKBONE_ATOMS = ["N", "CA", "C", "O"]
 
-PROFAM_DATA_DIR = os.environ.get(
-    "PROFAM_DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data"
-)
+PROFAM_DATA_DIR = os.environ.get("PROFAM_DATA_DIR", os.path.join(BASEDIR, "data"))
+
+
+# features whose first non-batch dim is equal to the number of residues
+RESIDUE_LEVEL_FEATURES = [
+    "input_ids",
+    "attention_mask",
+    "residue_index",
+    "coords",
+    "coords_mask",
+    "plddts",
+    "plddt_mask",
+    "aa_mask",
+    "token_type_ids",
+]

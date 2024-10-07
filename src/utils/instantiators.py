@@ -19,7 +19,6 @@ def instantiate_callbacks(
     :return: A list of instantiated callbacks.
     """
     callbacks: List[Callback] = []
-    print("Extra callbacks cfg: ", extra_callbacks_cfg)
 
     if not callbacks_cfg and not extra_callbacks_cfg:
         log.warning("No callback configs found! Skipping..")
@@ -39,7 +38,7 @@ def instantiate_callbacks(
         for _, cb_conf in extra_callbacks_cfg.items():
             if isinstance(cb_conf, DictConfig) and "_target_" in cb_conf:
                 log.info(f"Instantiating callback <{cb_conf._target_}>")
-                callbacks.append(hydra.utils.instantiate(cb_conf))
+                callbacks.append(hydra.utils.instantiate(cb_conf, _convert_="partial"))
             else:
                 raise ValueError(
                     "Callback config must be a dict config with a _target_ key!"

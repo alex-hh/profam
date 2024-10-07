@@ -29,7 +29,19 @@ source pfenv/bin/activate
 
 # install requirements
 pip install -r requirements.txt
+
+# if using flash attention, install separately
+pip install flash-attn --no-build-isolation
 ```
+
+#### Loading environment on UCL cs cluster
+
+```bash
+source /SAN/orengolab/cath_plm/ProFam/pfenv.source
+export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
+```
+
+(The former file is at scripts/pfenv.source)
 
 ## Introduction
 

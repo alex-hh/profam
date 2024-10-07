@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from src.data.fasta import convert_sequence_with_positions, read_fasta_sequences
+from src.sequence.fasta import convert_sequence_with_positions, read_fasta_sequences
 
 
 @pytest.fixture
