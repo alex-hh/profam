@@ -425,7 +425,9 @@ class ProteinDocument:
             accession=self.accessions.pop(index)
             if self.accessions is not None
             else None,
-            residue_positions=self.residue_positions.pop(index) if self.residue_positions is not None else None,
+            residue_positions=self.residue_positions.pop(index)
+            if self.residue_positions is not None
+            else None,
             plddt=self.plddts.pop(index) if self.plddts is not None else None,
             backbone_coords=self.backbone_coords.pop(index)
             if self.backbone_coords is not None
@@ -456,7 +458,9 @@ class ProteinDocument:
                 accessions=self.accessions[key]
                 if self.accessions is not None
                 else None,
-                residue_positions=self.residue_positions[key] if self.residue_positions is not None else None,
+                residue_positions=self.residue_positions[key]
+                if self.residue_positions is not None
+                else None,
                 plddts=self.plddts[key] if self.plddts is not None else None,
                 backbone_coords=self.backbone_coords[key]
                 if self.backbone_coords is not None
@@ -505,7 +509,9 @@ class ProteinDocument:
             return Protein(
                 sequence=self.sequences[key],
                 accession=self.accessions[key] if self.accessions is not None else None,
-                residue_positions=self.residue_positions[key] if self.residue_positions is not None else None,
+                residue_positions=self.residue_positions[key]
+                if self.residue_positions is not None
+                else None,
                 plddt=self.plddts[key] if self.plddts is not None else None,
                 backbone_coords=self.backbone_coords[key]
                 if self.backbone_coords is not None
@@ -604,7 +610,9 @@ class ProteinDocument:
             ),
             residue_positions=kwargs.get(
                 "residue_positions",
-                self.residue_positions.copy() if self.residue_positions is not None else None,
+                self.residue_positions.copy()
+                if self.residue_positions is not None
+                else None,
             ),
             plddts=kwargs.get(
                 "plddts", self.plddts.copy() if self.plddts is not None else None

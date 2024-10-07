@@ -124,9 +124,7 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
         # Check MSA positions
         assert (
             msa_seq_pos == torch.tensor(case["msa_pos"])
-        ).all(), (
-            f"MSA positions mismatch: {msa_proteins.residue_positions} != {case['msa_pos']}"
-        )
+        ).all(), f"MSA positions mismatch: {msa_proteins.residue_positions} != {case['msa_pos']}"
 
         for i, comp in enumerate(case["completion_pos"]):
             assert (

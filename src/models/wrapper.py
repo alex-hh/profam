@@ -134,7 +134,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         return residue_index
 
-    # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(
         self,
         input_ids,

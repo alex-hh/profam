@@ -31,7 +31,9 @@ def get_flat_residue_index_from_positions(
                 min(p + 1, max_res_pos_in_seq - 1) for p in sequence_positions
             ]
             flat_indices.append(sep_index)
-        flat_indices += [min(p + 1, max_res_pos_in_seq - 1) for p in residue_positions[-1]]
+        flat_indices += [
+            min(p + 1, max_res_pos_in_seq - 1) for p in residue_positions[-1]
+        ]
         flat_indices += [append_index] * num_end_tokens  # no [SEP] at end of MSA
         return flat_indices
     else:
@@ -205,7 +207,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 )
                 # +1 to match convert_sequence_with_positions
                 # get_res_pos_in_seq_from_positions adds another offset
-                residue_positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
+                residue_positions = [
+                    list(range(1, len(seq) + 1)) for seq in proteins.sequences
+                ]
             else:
                 residue_positions = proteins.residue_positions
             res_pos_in_seq = get_residue_index_from_positions(
