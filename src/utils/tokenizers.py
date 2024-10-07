@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 import numpy as np
-from torch import stack
 from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
@@ -186,6 +185,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             padding=padding,
             add_special_tokens=False,
             max_length=max_length,
+            return_token_type_ids=False,
         )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
@@ -258,7 +258,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         # these really denote where you're PREDICTING the modality. because you could have fixed residue identities in structure regions.
         tokenized.data["aa_mask"] = modality_mask[:, 0]
         tokenized.data["structure_mask"] = modality_mask[:, 1]
-        del tokenized.data["token_type_ids"]
         if proteins.plddts is not None:
             tokenized.data["plddts"] = concatenate_pad_array(
                 proteins.plddts,
@@ -366,7 +365,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )
-            tokenized.data["seq_pos"] = stack(all_positions)
+            tokenized.data["seq_pos"] = np.stack(all_positions)
 
         return tokenized
 

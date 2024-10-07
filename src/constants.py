@@ -58,7 +58,7 @@ STRING_FEATURE_NAMES = [
 SEQUENCE_TENSOR_FEATURES = [
     "input_ids",
     "attention_mask",
-    "labels",
+    # "labels",  # added by collator
     "original_size",
     "seq_pos",
 ]
@@ -85,7 +85,7 @@ TOKENIZED_FEATURE_TYPES = {
     "plddts": Sequence(feature=Value(dtype="float32"), length=-1),
     "input_ids": Sequence(feature=Value(dtype="int32"), length=-1),
     "attention_mask": Sequence(feature=Value(dtype="int32"), length=-1),
-    "labels": Sequence(feature=Value(dtype="int32"), length=-1),
+    # "labels": Sequence(feature=Value(dtype="int32"), length=-1),
     "seq_pos": Sequence(feature=Value(dtype="int32"), length=-1),
     "original_size": Value(dtype="int32"),
     "aa_mask": Sequence(feature=Value(dtype="bool"), length=-1),

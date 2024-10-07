@@ -229,6 +229,7 @@ class ProteinDataMixture(LightningDataModule):
                     max_tokens_per_example=self.max_tokens,
                     world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
                     return_format=self.data_return_format,
+                    feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
                 )
                 if world_size > 1:
                     # https://github.com/huggingface/datasets/issues/6623

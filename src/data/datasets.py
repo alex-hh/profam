@@ -113,7 +113,7 @@ def load_protein_dataset(
     cfg: ProteinDatasetConfig,
     tokenizer: ProFamTokenizer,
     dataset_name: str,
-    feature_names: List[str],
+    feature_names: Optional[List[str]] = None,
     data_dir="data",
     split="train",
     max_tokens_per_example: Optional[int] = None,
@@ -138,6 +138,7 @@ def load_protein_dataset(
         assert (
             cfg.holdout_identifiers is None
         ), "Holdout identifiers not supported for fasta"
+        # https://github.com/huggingface/datasets/issues/5806
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -243,6 +244,8 @@ def load_protein_dataset(
             # TODO: get identifier for fasta files...
             if cfg.identifier_col is not None:
                 example["identifier"] = dataset_name + "/" + identifier
+            else:
+                example["identifier"] = dataset_name  # just a default value...
 
         return example
 
@@ -261,7 +264,9 @@ def load_protein_dataset(
             batched=cfg.preprocessor.batched_map,
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
-            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names}),
+            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
+            if feature_names is not None
+            else None,
         )
         if return_format is not None:
             dataset = dataset.with_format(type=return_format)
