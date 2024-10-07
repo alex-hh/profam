@@ -4,9 +4,14 @@ defaults:
   - dataset@dataset_cfgs.openfold_raw: openfold_raw_example
   - dataset@dataset_cfgs.ec: ec_example
   - _self_
+
 data_weights:
   openfold_aligned: 0.5
   openfold_raw: 0.5
+
+dataset_cfgs:
+  ec:
+    shuffle: false
 
 batch_size: 2
 max_tokens: 3000

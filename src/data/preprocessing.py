@@ -372,6 +372,7 @@ class FastaPreprocessor(BasePreprocessor):
                 max_fasta_lines_to_preprocess,
                 shuffle=shuffle,
             )
+
         sequences = [
             seq
             for seq in read_fasta_sequences(
@@ -382,6 +383,7 @@ class FastaPreprocessor(BasePreprocessor):
                 to_upper=False,
             )
         ]
+
         return ProteinDocument(
             sequences=sequences, original_size=len(lines) // 2
         )  # upper bound estimate of number of sequences

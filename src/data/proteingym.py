@@ -269,6 +269,7 @@ def load_gym_dataset(
         extra_tokens_per_document=tokenizer.num_start_tokens,
         use_msa_pos=use_msa_pos,
     )
+    # n.b. this isn't streamed
     dataset = Dataset.from_pandas(df, preserve_index=False)
     print("Loading gym dataset")
     dataset = dataset.map(
@@ -496,7 +497,7 @@ class GymMultiMSADataModule(LightningDataModule):
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=self.max_tokens,
+            max_tokens_per_example=self.max_tokens,
             data_dir=self.data_dir,
         )
         self.train_dataset = self.train_dataset.shuffle(
@@ -507,13 +508,13 @@ class GymMultiMSADataModule(LightningDataModule):
         self.val_dataset = load_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=self.max_tokens,
+            max_tokens_per_example=self.max_tokens,
             data_dir=self.data_dir,
         )
         self.test_dataset = load_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=self.max_tokens,
+            max_tokens_per_example=self.max_tokens,
             data_dir=self.data_dir,
         )
 
