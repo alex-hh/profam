@@ -264,7 +264,7 @@ class ProteinDocument:
     sequences: List[str]
     accessions: Optional[List[str]] = None
     identifier: Optional[str] = None
-    positions: Optional[List[List[int]]] = None
+    residue_positions: Optional[List[List[int]]] = None
     plddts: Optional[List[np.ndarray]] = None
     backbone_coords: Optional[List[np.ndarray]] = None
     backbone_coords_masks: Optional[List[np.ndarray]] = None
@@ -425,7 +425,7 @@ class ProteinDocument:
             accession=self.accessions.pop(index)
             if self.accessions is not None
             else None,
-            positions=self.positions.pop(index) if self.positions is not None else None,
+            positions=self.residue_positions.pop(index) if self.residue_positions is not None else None,
             plddt=self.plddts.pop(index) if self.plddts is not None else None,
             backbone_coords=self.backbone_coords.pop(index)
             if self.backbone_coords is not None
@@ -456,7 +456,7 @@ class ProteinDocument:
                 accessions=self.accessions[key]
                 if self.accessions is not None
                 else None,
-                positions=self.positions[key] if self.positions is not None else None,
+                residue_positions=self.residue_positions[key] if self.residue_positions is not None else None,
                 plddts=self.plddts[key] if self.plddts is not None else None,
                 backbone_coords=self.backbone_coords[key]
                 if self.backbone_coords is not None
@@ -480,8 +480,8 @@ class ProteinDocument:
                 accessions=[self.accessions[i] for i in key]
                 if self.accessions is not None
                 else None,
-                positions=[self.positions[i] for i in key]
-                if self.positions is not None
+                residue_positions=[self.residue_positions[i] for i in key]
+                if self.residue_positions is not None
                 else None,
                 plddts=[self.plddts[i] for i in key]
                 if self.plddts is not None
@@ -505,7 +505,7 @@ class ProteinDocument:
             return Protein(
                 sequence=self.sequences[key],
                 accession=self.accessions[key] if self.accessions is not None else None,
-                positions=self.positions[key] if self.positions is not None else None,
+                positions=self.residue_positions[key] if self.residue_positions is not None else None,
                 plddt=self.plddts[key] if self.plddts is not None else None,
                 backbone_coords=self.backbone_coords[key]
                 if self.backbone_coords is not None
@@ -526,8 +526,8 @@ class ProteinDocument:
             identifier=self.identifier,
             sequences=[seq[s] for seq, s in zip(self.sequences, slices)],
             accessions=self.accessions,
-            positions=[pos[s] for pos, s in zip(self.positions, slices)]
-            if self.positions is not None
+            residue_positions=[pos[s] for pos, s in zip(self.residue_positions, slices)]
+            if self.residue_positions is not None
             else None,
             plddts=[plddt[s] for plddt, s in zip(self.plddts, slices)]
             if self.plddts is not None
@@ -602,9 +602,9 @@ class ProteinDocument:
                 "accessions",
                 self.accessions.copy() if self.accessions is not None else None,
             ),
-            positions=kwargs.get(
+            residue_positions=kwargs.get(
                 "positions",
-                self.positions.copy() if self.positions is not None else None,
+                self.residue_positions.copy() if self.residue_positions is not None else None,
             ),
             plddts=kwargs.get(
                 "plddts", self.plddts.copy() if self.plddts is not None else None

@@ -198,7 +198,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
         if self.embed_res_pos_in_seq:
-            if proteins.positions is None:
+            if proteins.residue_positions is None:
                 log.warning(
                     "Using res_pos_in_seq but positions not provided. "
                     "Using default positions."
@@ -207,7 +207,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 # get_res_pos_in_seq_from_positions adds another offset
                 positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
             else:
-                positions = proteins.positions
+                positions = proteins.residue_positions
             res_pos_in_seq = get_res_pos_in_seq_from_positions(
                 tokenized.input_ids,
                 positions,

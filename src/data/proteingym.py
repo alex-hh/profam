@@ -32,7 +32,7 @@ def tokenize_msa(
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     proteins = ProteinDocument(
         sequences=sample["MSA"],
-        positions=sample["res_pos_in_seq"],
+        residue_positions=sample["res_pos_in_seq"],
     )
     tokenized = tokenizer.encode(
         proteins, document_token=document_token, add_final_sep=False
@@ -115,7 +115,7 @@ def load_msa_for_row(
         sequences=seqs,
         accessions=None,
         identifier=None,
-        positions=None,
+        residue_positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
@@ -141,7 +141,7 @@ def load_msa_for_row(
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
     row["MSA"] = proteins.sequences
-    row["res_pos_in_seq"] = proteins.positions
+    row["res_pos_in_seq"] = proteins.residue_positions
     return row
 
 
@@ -165,7 +165,7 @@ def load_comp_seq_dms_for_row(
         sequences=completion_seqs,
         accessions=None,
         identifier=None,
-        positions=None,
+        residue_positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
@@ -180,7 +180,7 @@ def load_comp_seq_dms_for_row(
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
-    row["completion_res_pos_in_seq"] = proteins.positions
+    row["completion_res_pos_in_seq"] = proteins.residue_positions
     return row
 
 

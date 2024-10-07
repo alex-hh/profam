@@ -323,7 +323,7 @@ def interleave_structure_sequence(
             plddts = proteins.plddts[ix]
         else:
             plddts = np.full((len(seq),), 100.0)
-        positions = proteins.positions[ix]
+        positions = proteins.residue_positions[ix]
         # TODO: monitor max_tokens
         assert (
             len(seq) == len(xyz) == len(plddts)

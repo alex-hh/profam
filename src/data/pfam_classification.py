@@ -149,7 +149,7 @@ def load_pfam_classification_dataset(
 
     tokenized_eval_seqs = tokenizer.encode_completions(
         sequences=eval_proteins.sequences,
-        positions=eval_proteins.positions,
+        positions=eval_proteins.residue_positions,
         bos_token=tokenizer.sep_token,
         eos_token=tokenizer.sep_token,
     )
