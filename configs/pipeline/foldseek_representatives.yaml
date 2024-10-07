@@ -9,6 +9,6 @@ num_generations: 10
 max_protein_length: null
 min_plddt: null
 preprocessor:
-  _target_: src.data.preprocessing.ParquetStructurePreprocessor
+  _target_: src.data.processors.ParquetStructurePreprocessor
   structure_tokens_col: null  # representatives may not have structure tokens.
   infer_representative_from_identifier: True

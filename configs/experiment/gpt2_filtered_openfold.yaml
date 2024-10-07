@@ -43,7 +43,7 @@ data:
   gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "CALM1_HUMAN_Weile_2017", "DYR_ECOLI_Thompson_2019", "DLG4_RAT_McLaughlin_2012", "REV_HV1H2_Fernandes_2016", "TAT_HV1BR_Fernandes_2016", "RL40A_YEAST_Roscoe_2013", "P53_HUMAN_Giacomelli_2018_WT_Nutlin"]
   dataset_cfgs:
     openfold_aligned_c50_si20:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: openfold_aligned_c50_si20
       data_path_pattern: openfold/c50_si20_uniclust30_filtered/*.parquet
       is_parquet: true
@@ -52,7 +52,7 @@ data:
       keep_insertions: false
 
     ec:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: ec
       data_path_pattern: ec/ec_fastas/*.fasta
       is_parquet: false
@@ -61,7 +61,7 @@ data:
       keep_insertions: false
 
     interpro:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: interpro
       data_path_pattern: ../profam/data/example_data/interpro/protein-matching-*.fasta
       keep_gaps: false

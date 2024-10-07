@@ -6,10 +6,12 @@ import pandas as pd
 import pytest
 import torch
 
-from src.constants import BASEDIR
+from src.constants import ALL_FEATURE_NAMES, BASEDIR
 from src.data.builders import HFProteinDatasetConfig, ParquetStructureDataset
 from src.data.collators import CustomDataCollator
+from src.data.preprocessing import backbone_coords_from_example
 from src.data.processors import backbone_coords_from_example, preprocessing, transforms
+from src.data.utils import CustomDataCollator
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 
 
@@ -86,7 +88,7 @@ def foldseek_interleaved_structure_sequence_batch(
         tokenizer=profam_tokenizer,
         max_tokens_per_example=max_tokens,
         shuffle_proteins_in_document=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
+        feature_names=ALL_FEATURE_NAMES,
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
@@ -112,7 +114,7 @@ def foldseek_datapoint(profam_tokenizer):
         tokenizer=profam_tokenizer,
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
+        feature_names=ALL_FEATURE_NAMES,
     )
     # bc preprocessor is none we have to filter out the datapoint manually
     data = data.filter(lambda x: x["msta_3di"] is not None)
@@ -253,7 +255,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         tokenizer=profam_tokenizer,
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
+        feature_names=ALL_FEATURE_NAMES,
     )
 
     datapoint = next(iter(data))

@@ -224,6 +224,7 @@ class ProteinDataMixture(LightningDataModule):
                     shuffle_proteins_in_document=self.shuffle,
                     feature_names=self.feature_names,
                     return_format=self.data_return_format,
+                    feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
                 )
                 if world_size > 1:
                     # https://github.com/huggingface/datasets/issues/6623

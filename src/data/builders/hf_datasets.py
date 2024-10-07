@@ -55,7 +55,6 @@ class HFProteinDatasetConfig:
     sequence_col: str = "sequences"
     identifier_col: Optional[str] = "fam_id"
     structure_tokens_col: Optional[str] = None
-    identifier_col: str = "fam_id"
     infer_representative_from_identifier: bool = False
     sample_uniformly_from_col: Optional[str] = None  # for redundancy-aware sampling
     concatenate_short_documents: bool = False
@@ -262,8 +261,9 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
     ):
-        super().__init__(name, preprocessor, required_keys=required_keys)
+        super().__init__(name, preprocessor)
         self.cfg = cfg
+        self.required_keys = required_keys
 
     def get_data_files(self, data_dir: str, world_size: int):
         return prepare_data_files(data_dir, self.cfg)
@@ -302,7 +302,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         world_size: int = 1,
         verbose: bool = False,
     ):
-        data_files = self.get_data_files(data_dir, world_size)
+        data_files = self.get_data_files(data_dir, world_size=world_size)
         print("data_files", data_files[:5])
         load_kwargs = {"sample_by": "document"} if self.cfg.file_type == "text" else {}
         dataset = load_dataset(
@@ -471,8 +471,8 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         self.cfg = cfg
 
     def get_data_files(self, data_dir: str, world_size: int):
-        data_files = self.get_data_files(data_dir)
-        if len(data_files) < world_size:
+        data_files = super().get_data_files(data_dir, world_size)
+        if world_size is not None and len(data_files) < world_size:
             print(
                 f"WARNING: Fewer data files ({len(data_files)}) than world size ({world_size})."
                 " Repeating data files to match world size."

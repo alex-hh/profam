@@ -38,7 +38,7 @@ data:
   keep_gym_gaps: True
   dataset_cfgs:
     pfam_msa:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: pfam_pos
       data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
       holdout_data_files: null
@@ -51,7 +51,7 @@ data:
       document_tag: "[RAW-WITH-MSA-POS]"
       use_msa_pos: true
     pfam_raw:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: pfam_raw
       data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
       holdout_data_files: null
@@ -62,7 +62,7 @@ data:
       document_tag: "[RAW]"
       use_msa_pos: false
     interpro:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: interpro
       data_path_pattern: "../profam/data/example_data/interpro/protein-matching-*.fasta"
       keep_gaps: true
@@ -70,7 +70,7 @@ data:
       keep_insertions: true
       document_tag: "[RAW]"
     gym_msas:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: gym_msas
       data_path_pattern: "ProteinGym/DMS_msa_files/*2023*.a2m"
       keep_gaps: true
@@ -78,7 +78,7 @@ data:
       keep_insertions: true
       document_tag: "[MSA]"
     ted_s50:
-      _target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+      _target_: src.data.hf_protein_datamodule.HFProteinDatasetConfig
       name: ted_s50
       data_path_pattern: "ted/ted_s50_by_sfam/*11*S50_rep_seq.fasta"
       is_parquet: false

@@ -4,11 +4,10 @@ defaults:
   - /preprocessor: raw
 
 cfg:
-  _target_: src.data.builders.ProteinDatasetConfig
+  _target_: src.data.builders.HFProteinDatasetConfig
   data_path_pattern: gene3d/all_sfams_4.3/*/*_s50_rep_seq.fasta
   holdout_data_files: null
   holdout_identifiers: null
   identifier_col: null
   file_type: text
   minimum_sequences: null
-  shuffle: true

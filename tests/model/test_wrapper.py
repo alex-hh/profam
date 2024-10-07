@@ -30,10 +30,10 @@ def test_compute_sequence_index(test_model, profam_tokenizer):
     sequence_indices = test_model.model.compute_sequence_index(
         torch.from_numpy(tokenized.input_ids[None])
     )
-    expected_sequence_indices = torch.tensor(
+    expected_sequence_indices = np.array(
         [[0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]]
     )
-    assert (sequence_indices == expected_sequence_indices).all()
+    assert (sequence_indices.numpy() == expected_sequence_indices).all()
 
 
 def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):

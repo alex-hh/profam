@@ -185,6 +185,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             padding=padding,
             add_special_tokens=False,
             max_length=max_length,
+            return_token_type_ids=False,
         )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
@@ -246,6 +247,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_end_tokens=num_end_tokens,
                 pad_to_length=max_length if padding == "max_length" else None,
             )
+
         modality_mask = concatenate_pad_array(
             proteins.modality_masks,
             fill_value=False,

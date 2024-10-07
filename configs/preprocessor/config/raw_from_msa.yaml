@@ -1,2 +1,6 @@
 _target_: src.data.processors.PreprocessingConfig
+keep_gaps: false
+keep_insertions: true
+to_upper: true
 document_token: "[RAW]"
+use_msa_pos: false
