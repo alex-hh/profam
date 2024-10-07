@@ -25,7 +25,8 @@ export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
 conda deactivate
 source scripts/pfenv.source
-#conda activate venvPF
+conda activate venvPF
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 python ${ROOT_DIR}/src/train.py \
