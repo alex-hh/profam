@@ -28,6 +28,7 @@ source scripts/pfenv.source
 #conda activate venvPF
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
+export HYDRA_FULL_ERROR=1
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
 data.batch_size=7 \
