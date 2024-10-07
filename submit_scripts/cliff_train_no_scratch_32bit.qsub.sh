@@ -1,7 +1,9 @@
 #!/bin/bash
 #$ -P cath
 #$ -l tmem=64G
-#$ -l hostname=clifford*
+##$ -l hostname=clifford*
+#$ -l gpu=true
+#$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l gpu=true
 #$ -pe gpu 1
 #$ -l m_core=32
@@ -33,7 +35,7 @@ export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 export HYDRA_FULL_ERROR=1
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
-data.batch_size=7 \
+data.batch_size=2 \
 trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
