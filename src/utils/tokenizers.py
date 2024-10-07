@@ -38,7 +38,7 @@ def get_flat_res_pos_in_seq_from_positions(
         return []
 
 
-def get_res_pos_in_seq_from_positions(
+def get_residue_index_from_positions(
     input_ids,
     residue_positions,
     pad_token_id,
@@ -208,7 +208,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 residue_positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
             else:
                 residue_positions = proteins.residue_positions
-            res_pos_in_seq = get_res_pos_in_seq_from_positions(
+            res_pos_in_seq = get_residue_index_from_positions(
                 tokenized.input_ids,
                 residue_positions,
                 pad_token_id=self.pad_token_id,
@@ -368,7 +368,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 else:
                     res_positions = [residue_positions[i]]
                 all_residue_indices.append(
-                    get_res_pos_in_seq_from_positions(
+                    get_residue_index_from_positions(
                         tokenized.input_ids[i],
                         res_positions,
                         pad_token_id=self.pad_token_id,
