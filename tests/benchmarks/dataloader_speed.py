@@ -5,8 +5,9 @@ Relevant issues:
  - batched iteration and feature types are essential for performance: https://github.com/huggingface/datasets/issues/5841
  - making batched iteration compatible with pytorch data loader: https://github.com/huggingface/datasets/pull/7054
     -> we want to do something along these lines for sequence packing.
-"""
 
+TODO: configure this script somehow to allow benchmarking different configurations.
+"""
 import argparse
 import cProfile
 import io
@@ -31,7 +32,8 @@ def main(max_iters: int, loader_type: str, data_folder: str):
                 "experiment=foldseek_inverse_folding",
                 "data=foldseek_interleaved",
                 "data.num_workers=0",
-                f"data.data_path_pattern={data_folder}/*.parquet",
+                f"data.dataset_cfgs.foldseek.holdout_data_files=null",
+                f"data.dataset_cfgs.foldseek.data_path_pattern={data_folder}/*.parquet",
                 f"paths.root_dir={BASEDIR}",
             ],
         )
@@ -68,7 +70,7 @@ def main(max_iters: int, loader_type: str, data_folder: str):
 
     # Optionally, save profiling results to a file
     ps.dump_stats(
-        os.path.join(BASEDIR, "tests", "benchmarks", "dataloader_profile.prof")
+        os.path.join(BASEDIR, "tests", "benchmarks", f"{data_folder}_dataloader_profile.prof")
     )
 
 

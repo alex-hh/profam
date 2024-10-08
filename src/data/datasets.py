@@ -122,6 +122,7 @@ def load_protein_dataset(
     world_size: int = 1,
     verbose: bool = False,
     return_format: Optional[str] = "numpy",  # n.b. return format None is very slow
+    # input_features: Optional[List[str]] = None,
 ) -> Dataset:
     data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
 

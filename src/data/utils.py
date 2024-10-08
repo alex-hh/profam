@@ -44,6 +44,7 @@ class DocumentBatchCollator:
             {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
             for e in examples
         ]
+        # TODO: handle Nones
         string_data = [
             {k: v for k, v in e.items() if isinstance(v, str) and keep_feature(k)}
             for e in examples
