@@ -1,3 +1,12 @@
+"""
+Relevant issues:
+ - shuffling an iterable dataset causes slowdown: https://github.com/huggingface/datasets/issues/7102
+ - transforms remove formatting: https://github.com/huggingface/datasets/issues/6833, https://github.com/huggingface/datasets/issues/5864
+ - batched iteration and feature types are essential for performance: https://github.com/huggingface/datasets/issues/5841
+ - making batched iteration compatible with pytorch data loader: https://github.com/huggingface/datasets/pull/7054
+    -> we want to do something along these lines for sequence packing.
+"""
+
 import argparse
 import cProfile
 import io
@@ -11,7 +20,7 @@ from hydra import compose, initialize_config_dir
 from src.constants import BASEDIR
 
 
-def main(max_iters: int):
+def main(max_iters: int, loader_type: str, data_folder: str):
     pr = cProfile.Profile()
     pr.enable()
 
@@ -22,6 +31,7 @@ def main(max_iters: int):
                 "experiment=foldseek_inverse_folding",
                 "data=foldseek_interleaved",
                 "data.num_workers=0",
+                f"data.data_path_pattern={data_folder}/*.parquet",
                 f"paths.root_dir={BASEDIR}",
             ],
         )
@@ -29,10 +39,16 @@ def main(max_iters: int):
             config_name="tokenizer/profam",
         )
 
+    # TODO: look into batched iteration: https://github.com/huggingface/datasets/blob/3.0.1/src/datasets/iterable_dataset.py#L2844
     tokenizer = hydra.utils.instantiate(tokenizer_cfg.tokenizer)
     dm = hydra.utils.instantiate(cfg.data, tokenizer=tokenizer, _convert_="partial")
     dm.setup()
-    train_loader = dm.train_dataloader()
+    if loader_type == "loader":
+        print("Loading from dataloader")
+        train_loader = dm.train_dataloader()
+    else:
+        print("Loading from dataset directly")
+        train_loader = dm.train_dataset
 
     t_prev = time.time()
     for ix, batch in enumerate(train_loader):
@@ -59,5 +75,7 @@ def main(max_iters: int):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("max_iters", type=int)
+    parser.add_argument("--loader_type", choices=["loader", "dataset"])
+    parser.add_argument("--data_folder", type=str, default="foldseek_struct")
     args = parser.parse_args()
-    main(args.max_iters)
+    main(args.max_iters, args.loader_type, args.data_folder)
