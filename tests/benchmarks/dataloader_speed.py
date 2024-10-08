@@ -70,7 +70,9 @@ def main(max_iters: int, loader_type: str, data_folder: str):
 
     # Optionally, save profiling results to a file
     ps.dump_stats(
-        os.path.join(BASEDIR, "tests", "benchmarks", f"{data_folder}_dataloader_profile.prof")
+        os.path.join(
+            BASEDIR, "tests", "benchmarks", f"{data_folder}_dataloader_profile.prof"
+        )
     )
 
 

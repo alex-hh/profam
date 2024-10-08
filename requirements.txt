@@ -20,7 +20,8 @@ cmd2==2.4.3
 colorama==0.4.6
 colorlog==6.8.2
 dask==2024.8.1
-git+https://github.com/huggingface/datasets.git@7274083#egg=datasets
+# git+https://github.com/huggingface/datasets.git@d72e9a4#egg=datasets
+git+https://github.com/alex-hh/datasets.git@fix-unbatched-arrow-iterable-map#egg=datasets
 decorator==5.1.1
 dill==0.3.8
 distlib==0.3.8
