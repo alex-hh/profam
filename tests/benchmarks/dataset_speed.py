@@ -54,6 +54,7 @@ def main(
     preprocess_null_manual: bool = False,
     map_batch_size: Optional[int] = None,
     run_dataloader: bool = False,
+    null_filter: bool = False,
 ):
     pr = cProfile.Profile()
     pr.enable()
@@ -123,6 +124,8 @@ def main(
                 **{f: TOKENIZED_FEATURE_TYPES[f] for f in ALL_FEATURE_NAMES}
             )
             # Does applying Map override formatting? that could be one issue...
+            if null_filter:
+                dataset = dataset.filter(lambda x: True)
             dataset = dataset.map(
                 preprocess_fn,
                 batch_size=map_batch_size,
@@ -204,8 +207,8 @@ if __name__ == "__main__":
     parser.add_argument("--preprocess_manual", action="store_true")
     parser.add_argument("--preprocess_null_map", action="store_true")
     parser.add_argument("--preprocess_null_manual", action="store_true")
-    parser.add_argument("--profile", action="store_true")
     parser.add_argument("--run_dataloader", action="store_true")
+    parser.add_argument("--null_filter", action="store_true")
     args = parser.parse_args()
     main(
         args.max_iters,
@@ -219,6 +222,6 @@ if __name__ == "__main__":
         preprocess_null_map=args.preprocess_null_map,
         preprocess_null_manual=args.preprocess_null_manual,
         map_batch_size=args.map_batch_size,
-        profile=args.profile,
         run_dataloader=args.run_dataloader,
+        null_filter=args.null_filter,
     )

@@ -237,7 +237,7 @@ def load_protein_dataset(
         )
         if cfg.preprocessor.required_keys is not None:
             for k in cfg.preprocessor.required_keys:
-                if k not in example or not example[k]:
+                if k not in example or example[k] is None:
                     return False
 
         if cfg.minimum_mean_plddt is not None:
@@ -271,8 +271,8 @@ def load_protein_dataset(
                 "WARNING: returning dataset without format; expect slow iteration and batching"
             )
 
-        preprocess_fn = functools.partial(
-            wrapped_preprocess,
+        preprocess_fn = wrapped_preprocess(
+            cfg.preprocessor.preprocess_protein_data,
             cfg=cfg,
             tokenizer=tokenizer,
             dataset_name=dataset_name,

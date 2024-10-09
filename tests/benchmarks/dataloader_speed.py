@@ -21,7 +21,7 @@ from hydra import compose, initialize_config_dir
 from src.constants import BASEDIR
 
 
-def main(max_iters: int, loader_type: str, data_folder: str):
+def main(max_samples: int, loader_type: str, data_folder: str):
     pr = cProfile.Profile()
     pr.enable()
 
@@ -54,7 +54,7 @@ def main(max_iters: int, loader_type: str, data_folder: str):
 
     t_0 = time.time()
     for ix, batch in enumerate(train_loader):
-        if ix * dm.batch_size >= max_iters:
+        if ix * dm.batch_size >= max_samples:
             break
     t_1 = time.time()
     print(f"Total iteration time: {t_1 - t_0:.4f} seconds")
@@ -82,4 +82,4 @@ if __name__ == "__main__":
     parser.add_argument("--loader_type", choices=["loader", "dataset"])
     parser.add_argument("--data_folder", type=str, default="foldseek_struct")
     args = parser.parse_args()
-    main(args.max_iters, args.loader_type, args.data_folder)
+    main(args.max_samples, args.loader_type, args.data_folder)
