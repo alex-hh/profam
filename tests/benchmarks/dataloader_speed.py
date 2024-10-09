@@ -54,7 +54,11 @@ def main(max_samples: int, loader_type: str, data_folder: str):
 
     t_0 = time.time()
     for ix, batch in enumerate(train_loader):
-        if ix * dm.batch_size >= max_samples:
+        if ix % 100 == 0:
+            print(f"batch {ix}", {k: type(v) for k, v in batch.items()})
+        if loader_type == "loader" and ix * dm.batch_size >= max_samples:
+            break
+        if loader_type == "dataset" and ix >= max_samples:
             break
     t_1 = time.time()
     print(f"Total iteration time: {t_1 - t_0:.4f} seconds")
@@ -65,7 +69,7 @@ def main(max_samples: int, loader_type: str, data_folder: str):
     # Print profiling results
     s = io.StringIO()
     ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
-    ps.print_stats()
+    ps.print_stats(20)
     print(s.getvalue())
 
     # Optionally, save profiling results to a file

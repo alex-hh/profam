@@ -279,15 +279,12 @@ def load_protein_dataset(
             max_tokens_per_example=max_tokens_per_example,
             shuffle=shuffle,
         )
+
         dataset = dataset.filter(prefilter_example).map(
             preprocess_fn,
             batched=cfg.preprocessor.batched_map,
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
-            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
-            if feature_names is not None
-            else None,
-            format_outputs=False,
-        )
+        ).with_format(None)
 
     return dataset

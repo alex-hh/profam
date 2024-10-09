@@ -70,10 +70,12 @@ def main(
         split="train",
         streaming=True,
     )
+    print("Initial formatting", dataset._formatting, dataset.info.features)
     if format is not None:
         dataset = dataset.with_format(format)
 
     dataset = dataset.filter(lambda x: True)
+    print("Post filter", dataset._formatting, dataset.info.features)
 
     def null_map(x):
         return x
@@ -123,9 +125,9 @@ def main(
             shuffle=True,
         )
         if preprocess_map:
-            features = Features(
-                **{f: TOKENIZED_FEATURE_TYPES[f] for f in ALL_FEATURE_NAMES}
-            )
+            # features = Features(
+            #     **{f: TOKENIZED_FEATURE_TYPES[f] for f in ALL_FEATURE_NAMES}
+            # )
             # Does applying Map override formatting? that could be one issue...
             dataset = dataset.map(
                 preprocess_fn,
@@ -134,8 +136,7 @@ def main(
                     c for c in dataset.column_names if c not in ALL_FEATURE_NAMES
                 ],
                 batched=True if map_batch_size is not None else False,
-                format_outputs=False,
-            )
+            ).with_format(None)
 
     if interleave_n > 1:
         dataset = interleave_datasets([dataset] * interleave_n)
