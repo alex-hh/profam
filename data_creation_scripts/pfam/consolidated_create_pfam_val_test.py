@@ -56,7 +56,7 @@ def check_job_status(job_id):
             job_status = status.get('jobStatus')
             if job_status in ('RUNNING', 'NEW'):
                 print(f"Job is {job_status}...")
-                time.sleep(12)
+                time.sleep(20)
                 fail_counter = 0
             else:
                 fail_counter += 1
