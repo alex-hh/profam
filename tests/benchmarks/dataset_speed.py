@@ -1,13 +1,13 @@
 """Raw iteration speed.
 
+The most important factor is to avoid conversions between python lists
+and numpy arrays. This requires careful handling of formatting etc.
+
 Observations:
 - serialising as array3d is helpful for a ~1-1.5x speedup maybe
 - setting data format to numpy (or torch) is critical.
 - interleaving doesn't affect performance
-- in order to apply map efficiently, we need to set the format to arrow first.
-    https://github.com/huggingface/datasets/issues/6833
-    https://github.com/huggingface/datasets/issues/7206
-    however, presumably this requires manually converting to numpy in the map function...
+- in order to apply map efficiently, we needed to fix the format -> map pathway in datasets.
 
 Relevant issues:
 - Lazy mapping FR: https://github.com/huggingface/datasets/issues/6012
@@ -93,7 +93,11 @@ def main(
     elif preprocess:
         cfg = ProteinDatasetConfig(
             identifier_col="fam_id",
-            preprocessor=ParquetStructurePreprocessor(config=PreprocessingConfig()),
+            preprocessor=ParquetStructurePreprocessor(
+                config=PreprocessingConfig(),
+                batched_map=True if map_batch_size is not None else False,
+                map_batch_size=map_batch_size,
+            ),
         )
         tokenizer = ProFamTokenizer(
             tokenizer_file=os.path.join(
@@ -135,9 +139,11 @@ def main(
 
     if interleave_n > 1:
         dataset = interleave_datasets([dataset] * interleave_n)
-        dataset = dataset.with_format(
-            format
-        )  # interleave datasets ignores underlying format(s)
+        if preprocess_null_map or preprocess_manual or preprocess_null_manual:
+            # if preprocess_map, we've already handled formatting within map itself
+            dataset = dataset.with_format(
+                format
+            )  # interleave datasets ignores underlying format(s)
 
     t1 = time.time()
     print(f"Time to load dataset: {t1 - t0:.4f} seconds")
