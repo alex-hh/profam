@@ -144,18 +144,29 @@ def backbone_coords_from_example(
     sequence_col="sequences",
     use_pdb_if_available_prob: float = 0.0,
 ):
+    # print("seq", example[sequence_col], type(example[sequence_col]), example[sequence_col].dtype, example["plddts"].shape, example["backbone_coords"].shape)
+    example_len = len(example[sequence_col])
+    prot_has_pdb = (
+        example["pdb_index_mask"]
+        if "pdb_index_mask" in example
+        else [False] * example_len
+    )
+    if "backbone_coords" in example:
+        if use_pdb_if_available_prob:
+            raise NotImplementedError()
+        return [example["backbone_coords"][i] for i in selected_ids], [
+            prot_has_pdb[i] for i in selected_ids
+        ]
     ns = example["N"]
     cas = example["CA"]
     cs = example["C"]
     oxys = example["O"]
     sequences = example[sequence_col]
-    prot_has_pdb = (
-        example["pdb_index_mask"] if "pdb_index_mask" in example else [False] * len(ns)
-    )
+
     coords = []
     is_pdb = []
     if selected_ids is None:
-        selected_ids = range(len(ns))
+        selected_ids = range(example_len)
 
     for ix in selected_ids:
         seq = sequences[ix]
@@ -571,7 +582,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
 
-        if "N" in example and not self.cfg.keep_gaps:
+        if ("N" in example or "backbone_coords" in example) and not self.cfg.keep_gaps:
             assert not any(["-" in seq for seq in sequences])
             if structure_tokens is not None:
                 assert not any(["-" in seq for seq in structure_tokens])
@@ -596,6 +607,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             # TODO: support aligned coords, plddts
             coords = None
             plddts = None
+            struct_is_pdb = None
 
         return ProteinDocument(
             sequences=sequences,
