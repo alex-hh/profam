@@ -22,7 +22,7 @@ CATH_42_JSONL_FILE = os.path.join(
     constants.PROFAM_DATA_DIR, "cath/cath42/chain_set.jsonl"
 )
 CATH_43_SPLITS_FILE = os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json")
-CATH_42_SPLITS_FILE = os.path.join(constants.PROFAM_DATA_DIR, "cath/cath42/splits.json")
+CATH_42_SPLITS_FILE = os.path.join(constants.PROFAM_DATA_DIR, "cath/cath42/chain_set_splits.json")
 
 
 def cath_43_splits():
@@ -80,15 +80,9 @@ def _load_coords(
     jsonl_file,
     convert_to_protein_list: bool = False,
     disable_tqdm: bool = False,
-    split_file: Optional[str] = None,
-    split_name: Optional[str] = None,
+    split_ids: Optional[List[str]] = None,
 ):
     """Split-specific jsonl files should be created by running data_creation_scripts/create_cath_splits.py"""
-    if split_name is not None:
-        assert split_file is not None
-        with open(split_file) as f:
-            split_ids = json.load(f)[split_name]
-
     entries = []
     with open(jsonl_file) as f:
         lines = (
@@ -96,9 +90,8 @@ def _load_coords(
         )  # get a list rather than iterator to allow tqdm to know progress
         for line in tqdm.tqdm(lines, disable=disable_tqdm):
             coords_dict = json.loads(line)
-            if split_name is not None:
-                if coords_dict["name"] not in split_ids:
-                    continue
+            if split_ids is not None and coords_dict["name"] not in split_ids:
+                continue
             if coords_dict["name"] == "3j7y.K":
                 coords_dict["name"] = "3j7y.KK"  # disambiguate from 3j7y.k
             if convert_to_protein_list:
@@ -113,12 +106,12 @@ def load_cath43_coords(
     disable_tqdm: bool = False,
     split_name: Optional[str] = None,
 ):
+    split_ids = cath_43_splits()[split_name]
     return _load_coords(
         CATH_43_JSONL_FILE,
         convert_to_protein_list=convert_to_protein_list,
         disable_tqdm=disable_tqdm,
-        split_file=CATH_43_SPLITS_FILE,
-        split_name=split_name,
+        split_ids=split_ids,
     )
 
 
@@ -127,12 +120,12 @@ def load_cath42_coords(
     disable_tqdm: bool = False,
     split_name: Optional[str] = None,
 ):
+    split_ids = cath_42_splits()[split_name]
     return _load_coords(
         CATH_42_JSONL_FILE,
         convert_to_protein_list=convert_to_protein_list,
         disable_tqdm=disable_tqdm,
-        split_file=CATH_42_SPLITS_FILE,
-        split_name=split_name,
+        split_ids=split_ids,
     )
 
 
