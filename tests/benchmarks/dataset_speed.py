@@ -130,6 +130,7 @@ def main(
                     c for c in dataset.column_names if c not in ALL_FEATURE_NAMES
                 ],
                 batched=True if map_batch_size is not None else False,
+                format_outputs=False,
             )
 
     if interleave_n > 1:
