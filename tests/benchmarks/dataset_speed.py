@@ -20,7 +20,6 @@ Solutions:
 """
 import argparse
 import cProfile
-import functools
 import io
 import os
 import pstats
@@ -54,12 +53,10 @@ def main(
     preprocess_null_map: bool = False,
     preprocess_null_manual: bool = False,
     map_batch_size: Optional[int] = None,
-    profile: bool = False,
     run_dataloader: bool = False,
 ):
-    if profile:
-        pr = cProfile.Profile()
-        pr.enable()
+    pr = cProfile.Profile()
+    pr.enable()
 
     t0 = time.time()
     print(
@@ -183,14 +180,13 @@ def main(
         t2 = time.time()
         print(f"Total iteration time with loader: {t2 - t1:.4f} seconds")
 
-    if profile:
-        pr.disable()
+    pr.disable()
 
-        # Print profiling results
-        s = io.StringIO()
-        ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
-        ps.print_stats(20)
-        print(s.getvalue())
+    # Print profiling results
+    s = io.StringIO()
+    ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
+    ps.print_stats(20)
+    print(s.getvalue())
 
 
 if __name__ == "__main__":

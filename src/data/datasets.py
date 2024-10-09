@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-import torch
 from datasets import Dataset, Features, load_dataset
 from omegaconf.listconfig import ListConfig
 
@@ -263,6 +262,15 @@ def load_protein_dataset(
         else:
             remove_columns = None
 
+        if return_format is not None:
+            dataset = dataset.with_format(
+                type=return_format,
+            )
+        else:
+            print(
+                "WARNING: returning dataset without format; expect slow iteration and batching"
+            )
+
         preprocess_fn = functools.partial(
             wrapped_preprocess,
             cfg=cfg,
@@ -279,12 +287,7 @@ def load_protein_dataset(
             features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
             if feature_names is not None
             else None,
+            format_outputs=False,
         )
-        if return_format is not None:
-            dataset = dataset.with_format(type=return_format)
-        else:
-            print(
-                "WARNING: returning dataset without format; expect slow iteration and batching"
-            )
 
     return dataset

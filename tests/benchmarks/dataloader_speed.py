@@ -52,12 +52,12 @@ def main(max_iters: int, loader_type: str, data_folder: str):
         print("Loading from dataset directly")
         train_loader = dm.train_dataset
 
-    t_prev = time.time()
+    t_0 = time.time()
     for ix, batch in enumerate(train_loader):
-        if ix >= max_iters:
+        if ix * dm.batch_size >= max_iters:
             break
-        print(ix, time.time() - t_prev)
-        t_prev = time.time()
+    t_1 = time.time()
+    print(f"Total iteration time: {t_1 - t_0:.4f} seconds")
 
     pr.disable()  # Stop profiling
     pr.disable()
@@ -78,7 +78,7 @@ def main(max_iters: int, loader_type: str, data_folder: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("max_iters", type=int)
+    parser.add_argument("--max_samples", type=int, default=1000)
     parser.add_argument("--loader_type", choices=["loader", "dataset"])
     parser.add_argument("--data_folder", type=str, default="foldseek_struct")
     args = parser.parse_args()

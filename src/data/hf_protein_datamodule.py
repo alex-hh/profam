@@ -150,7 +150,6 @@ class ProteinDataMixture(LightningDataModule):
                     split="train",
                     seed=42,
                 )
-                self.train_dataset = self.train_dataset.with_format("numpy")
             else:
                 print("Using single dataset", flush=True)
                 self.train_dataset = train_datasets[0]
