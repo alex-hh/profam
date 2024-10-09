@@ -19,7 +19,11 @@ Solutions:
 * write a function wrapper that wraps any mapped function in a transform function.
 """
 import argparse
+import cProfile
+import functools
+import io
 import os
+import pstats
 import time
 from typing import Optional
 
@@ -32,6 +36,7 @@ from src.constants import (
     PROFAM_DATA_DIR,
     TOKENIZED_FEATURE_TYPES,
 )
+from src.data.datasets import ProteinDatasetConfig, wrapped_preprocess
 from src.data.preprocessing import ParquetStructurePreprocessor, PreprocessingConfig
 from src.data.utils import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer
@@ -49,7 +54,13 @@ def main(
     preprocess_null_map: bool = False,
     preprocess_null_manual: bool = False,
     map_batch_size: Optional[int] = None,
+    profile: bool = False,
+    run_dataloader: bool = False,
 ):
+    if profile:
+        pr = cProfile.Profile()
+        pr.enable()
+
     t0 = time.time()
     print(
         f"Loading files matching glob: {os.path.join(PROFAM_DATA_DIR, f'{data_folder}/*.parquet')}"
@@ -77,8 +88,13 @@ def main(
             features=dataset.features,
             batch_size=map_batch_size,
             batched=True if map_batch_size is not None else False,
+            format_outputs=False,
         )
     elif preprocess:
+        cfg = ProteinDatasetConfig(
+            identifier_col="fam_id",
+            preprocessor=ParquetStructurePreprocessor(config=PreprocessingConfig()),
+        )
         tokenizer = ProFamTokenizer(
             tokenizer_file=os.path.join(
                 BASEDIR, "src/data/components/profam_tokenizer.json"
@@ -93,8 +109,13 @@ def main(
             add_bos_token=True,
             add_document_token=True,
         )
-        preprocessor = ParquetStructurePreprocessor(
-            config=PreprocessingConfig(),
+        preprocess_fn = wrapped_preprocess(
+            preprocess_fn=cfg.preprocessor.preprocess_protein_data,
+            cfg=cfg,
+            tokenizer=tokenizer,
+            dataset_name="foldseek_struct",
+            max_tokens_per_example=max_tokens,
+            shuffle=True,
         )
         if preprocess_map:
             features = Features(
@@ -102,8 +123,7 @@ def main(
             )
             # Does applying Map override formatting? that could be one issue...
             dataset = dataset.map(
-                preprocessor.preprocess_protein_data,
-                fn_kwargs={"tokenizer": tokenizer, "max_tokens": max_tokens},
+                preprocess_fn,
                 batch_size=map_batch_size,
                 features=features,
                 remove_columns=[
@@ -117,29 +137,34 @@ def main(
         dataset = dataset.with_format(
             format
         )  # interleave datasets ignores underlying format(s)
+
     t1 = time.time()
     print(f"Time to load dataset: {t1 - t0:.4f} seconds")
     print(dataset.info.features)
-    iterator = iter(dataset)
-    for ix, datapoint in enumerate(iterator):
-        if preprocess_null_manual:
-            datapoint = null_map(datapoint)
-        elif preprocess_manual:
-            datapoint = preprocessor.preprocess_protein_data(
-                datapoint,
-                tokenizer=tokenizer,
-                max_tokens=max_tokens,
+    if not run_dataloader:
+        iterator = iter(dataset)
+        for ix, datapoint in enumerate(iterator):
+            if preprocess_null_manual:
+                datapoint = null_map(datapoint)
+            elif preprocess_manual:
+                datapoint = preprocess_fn(datapoint)
+                datapoint = {
+                    k: v for k, v in datapoint.items() if k in ALL_FEATURE_NAMES
+                }
+            print("datapoint", {k: type(v) for k, v in datapoint.items()})
+            if ix >= max_iters:
+                break
+
+        if preprocess_null_manual or preprocess_null_map or preprocess:
+            print(
+                "datapoint",
+                100 * datapoint["plddts"],
+                {k: type(v) for k, v in datapoint.items()},
             )
-            datapoint = {k: v for k, v in datapoint.items() if k in ALL_FEATURE_NAMES}
-        if ix >= max_iters:
-            break
+        t2 = time.time()
+        print(f"Total iteration time: {t2 - t1:.4f} seconds")
 
-    if preprocess_null_manual or preprocess_null_map:
-        print(datapoint["plddts"])
-    t2 = time.time()
-    print(f"Total iteration time: {t2 - t1:.4f} seconds")
-
-    if preprocess_map:
+    else:
         collator = DocumentBatchCollator(tokenizer=tokenizer)
         loader = torch.utils.data.DataLoader(
             dataset, batch_size=loader_batch_size, num_workers=0, collate_fn=collator
@@ -148,8 +173,17 @@ def main(
             if ix * loader_batch_size >= max_iters:
                 break
 
-        t3 = time.time()
-        print(f"Total iteration time with loader: {t3 - t2:.4f} seconds")
+        t2 = time.time()
+        print(f"Total iteration time with loader: {t2 - t1:.4f} seconds")
+
+    if profile:
+        pr.disable()
+
+        # Print profiling results
+        s = io.StringIO()
+        ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
+        ps.print_stats(20)
+        print(s.getvalue())
 
 
 if __name__ == "__main__":
@@ -167,6 +201,8 @@ if __name__ == "__main__":
     parser.add_argument("--preprocess_manual", action="store_true")
     parser.add_argument("--preprocess_null_map", action="store_true")
     parser.add_argument("--preprocess_null_manual", action="store_true")
+    parser.add_argument("--profile", action="store_true")
+    parser.add_argument("--run_dataloader", action="store_true")
     args = parser.parse_args()
     main(
         args.max_iters,
@@ -180,4 +216,6 @@ if __name__ == "__main__":
         preprocess_null_map=args.preprocess_null_map,
         preprocess_null_manual=args.preprocess_null_manual,
         map_batch_size=args.map_batch_size,
+        profile=args.profile,
+        run_dataloader=args.run_dataloader,
     )

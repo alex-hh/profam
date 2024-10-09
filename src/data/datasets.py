@@ -1,6 +1,6 @@
+import functools
 import glob
 import os
-import sys
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -29,6 +29,49 @@ class ProteinDatasetConfig:
     length_filter: Optional[str] = None  # max_tokens, max_seq_pos
     minimum_mean_plddt: Optional[float] = None
     stream: bool = True
+
+
+def wrapped_preprocess(
+    preprocess_fn, cfg, tokenizer, dataset_name, max_tokens_per_example, shuffle
+):
+    """Function to be mapped.
+
+    a map is an instruction for converting an example to a new example.
+    it should return a datapoint dict.
+
+    a batched map is an instruction for converting a set of examples to a
+    new set of examples (not necessarily of the same size). it should return a dict of lists,
+    where the length of the lists determines the size of the new set of examples.
+    """
+
+    def wrapped_preprocess_fn(example):
+        if not cfg.stream:
+            raise NotImplementedError(
+                "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
+            )
+        if cfg.identifier_col is not None and not cfg.preprocessor.batched_map:
+            # when batched mapping, we cat multiple identifiers together...
+            identifier = example[cfg.identifier_col]
+        example = preprocess_fn(
+            example,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens_per_example,
+            shuffle=shuffle,
+        )
+
+        if cfg.preprocessor.batched_map:
+            batch_size = len(example["input_ids"])
+            example["ds_name"] = [dataset_name] * batch_size
+        else:
+            example["ds_name"] = dataset_name
+            # TODO: get identifier for fasta files...
+            if cfg.identifier_col is not None:
+                example["identifier"] = dataset_name + "/" + identifier
+            else:
+                example["identifier"] = dataset_name  # just a default value...
+        return example
+
+    return wrapped_preprocess_fn
 
 
 def filter_on_length(example, cfg, max_tokens, tokenizer):
@@ -122,7 +165,6 @@ def load_protein_dataset(
     world_size: int = 1,
     verbose: bool = False,
     return_format: Optional[str] = "numpy",  # n.b. return format None is very slow
-    # input_features: Optional[List[str]] = None,
 ) -> Dataset:
     data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
 
@@ -211,43 +253,6 @@ def load_protein_dataset(
         else:
             return length_filter and filter_identifier and filter_num_seqs
 
-    def wrapped_preprocess(example):
-        """Function to be mapped.
-
-        a map is an instruction for converting an example to a new example.
-        it should return a datapoint dict.
-
-        a batched map is an instruction for converting a set of examples to a
-        new set of examples (not necessarily of the same size). it should return a dict of lists,
-        where the length of the lists determines the size of the new set of examples.
-        """
-        if not cfg.stream:
-            raise NotImplementedError(
-                "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
-            )
-        if cfg.identifier_col is not None and not cfg.preprocessor.batched_map:
-            # when batched mapping, we cat multiple identifiers together...
-            identifier = example[cfg.identifier_col]
-        example = cfg.preprocessor.preprocess_protein_data(
-            example,
-            tokenizer=tokenizer,
-            max_tokens=max_tokens_per_example,
-            shuffle=shuffle,
-        )
-
-        if cfg.preprocessor.batched_map:
-            batch_size = len(example["input_ids"])
-            example["ds_name"] = [dataset_name] * batch_size
-        else:
-            example["ds_name"] = dataset_name
-            # TODO: get identifier for fasta files...
-            if cfg.identifier_col is not None:
-                example["identifier"] = dataset_name + "/" + identifier
-            else:
-                example["identifier"] = dataset_name  # just a default value...
-
-        return example
-
     if cfg.preprocessor is not None:
         # Q. how does batched map interact with interleave datasets?
         if dataset.column_names is not None:
@@ -258,8 +263,16 @@ def load_protein_dataset(
         else:
             remove_columns = None
 
-        dataset = dataset.filter(prefilter_example).map(
+        preprocess_fn = functools.partial(
             wrapped_preprocess,
+            cfg=cfg,
+            tokenizer=tokenizer,
+            dataset_name=dataset_name,
+            max_tokens_per_example=max_tokens_per_example,
+            shuffle=shuffle,
+        )
+        dataset = dataset.filter(prefilter_example).map(
+            preprocess_fn,
             batched=cfg.preprocessor.batched_map,
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
