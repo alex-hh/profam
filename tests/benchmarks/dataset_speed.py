@@ -70,12 +70,15 @@ def main(
         split="train",
         streaming=True,
     )
-    print("Initial formatting", dataset._formatting)
     if format is not None:
         dataset = dataset.with_format(format)
 
+    dataset = dataset.filter(lambda x: True)
+
     def null_map(x):
         return x
+
+    # dataset.info.features = None  can help if filtering is causing a slowdown on old versions of datasets
 
     preprocess = preprocess_map or preprocess_manual
     if preprocess_null_map:
@@ -83,11 +86,11 @@ def main(
         # a possible cause of problems is ex_iterable iterator converting to python
         dataset = dataset.map(
             null_map,
-            features=dataset.features,
             batch_size=map_batch_size,
             batched=True if map_batch_size is not None else False,
             format_outputs=False,
         )
+
     elif preprocess:
         cfg = ProteinDatasetConfig(
             identifier_col="fam_id",
@@ -124,12 +127,9 @@ def main(
                 **{f: TOKENIZED_FEATURE_TYPES[f] for f in ALL_FEATURE_NAMES}
             )
             # Does applying Map override formatting? that could be one issue...
-            if null_filter:
-                dataset = dataset.filter(lambda x: True)
             dataset = dataset.map(
                 preprocess_fn,
                 batch_size=map_batch_size,
-                features=features,
                 remove_columns=[
                     c for c in dataset.column_names if c not in ALL_FEATURE_NAMES
                 ],
@@ -158,16 +158,11 @@ def main(
                 datapoint = {
                     k: v for k, v in datapoint.items() if k in ALL_FEATURE_NAMES
                 }
-            print("datapoint", {k: type(v) for k, v in datapoint.items()})
+            if ix % 100 == 0:
+                print(f"datapoint {ix}", {k: type(v) for k, v in datapoint.items()})
             if ix >= max_iters:
                 break
 
-        if preprocess_null_manual or preprocess_null_map or preprocess:
-            print(
-                "datapoint",
-                100 * datapoint["plddts"],
-                {k: type(v) for k, v in datapoint.items()},
-            )
         t2 = time.time()
         print(f"Total iteration time: {t2 - t1:.4f} seconds")
 
