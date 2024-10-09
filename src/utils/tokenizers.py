@@ -242,6 +242,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_end_tokens=num_end_tokens,
                 pad_to_length=max_length if padding == "max_length" else None,
             )
+        elif proteins.backbone_coords is not None:
+            # still need to return something in case other batches have interleaved coords
+            tokenized.data["interleaved_coords_mask"] = np.zeros_like(
+                tokenized.data["coords_mask"]
+            )
 
         modality_mask = concatenate_pad_array(
             proteins.modality_masks,

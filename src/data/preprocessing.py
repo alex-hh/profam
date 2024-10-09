@@ -121,17 +121,14 @@ def preprocess_protein_sequences(
     assert isinstance(proteins, ProteinDocument), type(proteins)
     transform_fns = transform_fns or []
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if tokenizer.use_seq_pos:
-        proteins = transforms.convert_sequences_adding_positions(
-            proteins,
-            keep_gaps=cfg.keep_gaps,
-            keep_insertions=cfg.keep_insertions,
-            to_upper=cfg.to_upper,
-            use_msa_pos=cfg.use_msa_pos,
-            truncate_after_n_sequences=cfg.truncate_after_n_sequences,
-        )
-    else:
-        proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=cfg.keep_gaps,
+        keep_insertions=cfg.keep_insertions,
+        to_upper=cfg.to_upper,
+        use_msa_pos=cfg.use_msa_pos,
+        truncate_after_n_sequences=cfg.truncate_after_n_sequences,
+    )
     proteins = transforms.apply_transforms(
         transform_fns, proteins, tokenizer, max_tokens=max_tokens
     )
