@@ -8,15 +8,6 @@ import numpy as np
 import pandas as pd
 import logging
 from collections import defaultdict
-from data_creation_scripts.pfam.consolidated_create_pfam_val_test import (
-    extract_uniprotkb_ids,
-    submit_id_mapping,
-    check_job_status,
-    get_results_url,
-    get_results,
-    process_results
-)
-
 """
 Iterates through all of the Pfam parquet files and
 creates a mapping that maps from the sequence name 
@@ -24,6 +15,112 @@ creates a mapping that maps from the sequence name
 """
 
 API_URL = "https://rest.uniprot.org"
+
+def extract_uniprotkb_ids(sequence_names):
+    uniprotkb_ids = []
+    for name in sequence_names:
+        id_part = name.split('/')[0]  # Extract before '/'
+        uniprotkb_id = id_part.strip()
+        uniprotkb_ids.append(uniprotkb_id)
+    return uniprotkb_ids
+
+
+def check_job_status(job_id):
+    status_url = f"{API_URL}/idmapping/status/{job_id}"
+    fail_counter = 0
+    while True:
+        response = requests.get(status_url, allow_redirects=False)
+        response.raise_for_status()
+
+        if response.status_code == 303:
+            # Job is finished
+            return True
+        else:
+            status = response.json()
+            job_status = status.get('jobStatus')
+            if job_status in ('RUNNING', 'NEW'):
+                print(f"Job is {job_status}...")
+                time.sleep(20)
+                fail_counter = 0
+            else:
+                fail_counter += 1
+                time.sleep(20)
+            if fail_counter > 12:
+                print(f"Job failed with status: {job_status}")
+                return False
+
+def get_uniprot_accessions_from_names(pfam_df, save_path):
+    sequence_names = pfam_df['sequence_name'].tolist()
+    uniprotkb_ids = extract_uniprotkb_ids(sequence_names)
+
+    # Split IDs into chunks of up to 100,000 IDs
+    chunk_size = 100000
+    id_chunks = [uniprotkb_ids[i:i + chunk_size] for i in range(0, len(uniprotkb_ids), chunk_size)]
+
+    all_mappings = []
+
+    for idx, ids_chunk in enumerate(id_chunks):
+        print(f"Processing chunk {idx+1}/{len(id_chunks)} with {len(ids_chunk)} IDs")
+        job_id = submit_id_mapping('UniProtKB_AC-ID', 'UniProtKB', ids_chunk)
+        print(f"Submitted job with ID: {job_id}")
+        if check_job_status(job_id):
+            print("Job finished. Retrieving results...")
+            results_text = get_results(job_id)
+            mapping_df = process_results(results_text)
+            all_mappings.append(mapping_df)
+        else:
+            print(f"Job {job_id} failed.")
+
+    # Combine all mappings
+    mappings_df = pd.concat(all_mappings, ignore_index=True)
+    pfam_df['join_id'] = pfam_df['sequence_name'].apply(lambda x: x.split("/")[0])
+
+    merged_df = pfam_df.merge(mappings_df, left_on='join_id', right_on='From', how='left')
+    merged_df = merged_df[['sequence_name', 'family_accession', 'aligned_sequence', 'sequence', 'Entry', 'Length']]
+    # Save the merged data
+    merged_df.to_csv(save_path, index=False)
+    print(f"Mapping completed and results saved to {save_path}.")
+    return merged_df
+
+
+def submit_id_mapping(from_db, to_db, ids):
+    url = f"{API_URL}/idmapping/run"
+    params = {'from': from_db, 'to': to_db, 'ids': ','.join(ids)}
+    response = requests.post(url, data=params)
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        print(f"Error: {response.status_code} - {response.text}")
+        raise err
+    return response.json()['jobId']
+
+def get_results_url(job_id):
+    status_url = f"{API_URL}/idmapping/status/{job_id}"
+    response = requests.get(status_url, allow_redirects=False)
+    if response.status_code == 303:
+        redirect_url = response.headers['Location']
+        # Modify the URL to point to the streaming endpoint
+        if '/results/' in redirect_url:
+            results_url = redirect_url.replace('/results/', '/results/stream/')
+        else:
+            results_url = redirect_url + '/stream'
+        return results_url
+    else:
+        raise Exception("Results are not ready yet.")
+
+def get_results(job_id):
+    results_url = get_results_url(job_id)
+    params = {'format': 'tsv'}
+    response = requests.get(results_url, params=params, stream=True)
+    response.raise_for_status()
+    results_text = ''
+    for chunk in response.iter_content(chunk_size=1024):
+        results_text += chunk.decode('utf-8')
+    return results_text
+
+
+def process_results(results_text):
+    return pd.read_csv(StringIO(results_text), sep='\t')
 
 def setup_logging():
     logging.basicConfig(
@@ -49,6 +146,10 @@ def get_sequence_name_to_uniprot_mapping(sequence_names):
     failed_ids = []
 
     for idx, ids_chunk in enumerate(id_chunks):
+        chunk_file = f'mapping_chunk_{idx+1}.csv'
+        if os.path.exists(chunk_file):
+            logging.info(f"Skipping chunk {idx+1}/{len(id_chunks)} because it already exists")
+            continue
         logging.info(f"Processing chunk {idx+1}/{len(id_chunks)} with {len(ids_chunk)} IDs")
         try:
             job_id = submit_id_mapping('UniProtKB_AC-ID', 'UniProtKB', ids_chunk)
@@ -58,6 +159,10 @@ def get_sequence_name_to_uniprot_mapping(sequence_names):
                 results_text = get_results(job_id)
                 mapping_df = process_results(results_text)
                 all_mappings.append(mapping_df)
+                
+                # Save mapping data to disk after each chunk
+                mapping_df.to_csv(chunk_file, index=False)
+                logging.info(f"Saved mapping data for chunk {idx+1} to {chunk_file}")
             else:
                 logging.error(f"Job {job_id} failed.")
                 failed_ids.extend(ids_chunk)
@@ -119,8 +224,8 @@ def process_parquet_files(parq_paths, sequence_to_uniprot_mapping, output_dir):
         # Save the updated parquet file
         output_path = os.path.join(output_dir, os.path.relpath(parq_path, start=pfam_parquet_dir))
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        df.to_parquet(output_path)
-        logging.info(f"Saved updated parquet file to {output_path}")
+        df.to_parquet(parq_path, index=False)
+        logging.info(f"Overwritten parquet file: {parq_path}")
 
     # Log the proportion of names which cannot be matched
     if total_sequences > 0:

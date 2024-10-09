@@ -1,6 +1,8 @@
 import os
 from io import StringIO
 import pandas as pd
+import logging
+import numpy as np
 from collections import defaultdict
 import random
 import requests
@@ -12,6 +14,11 @@ import csv
 from collections import defaultdict
 from data_creation_scripts.pfam.shuffle_pfam_parquets import shuffle_pfam_parquets
 
+from data_creation_scripts.pfam.get_up_accs_for_all_of_pfam import (
+    setup_logging,
+    get_sequence_name_to_uniprot_mapping,
+    process_parquet_files
+)
 """
 Consolidated script for Pfam data processing.
 
@@ -28,115 +35,13 @@ parquet files and splits the data into train, validation, and test sets.
 
 4. Generates the 'pfam_val_test_all_up_ids.json' file mapping Pfam families to UniProt IDs.
 
+5. Maps sequence names to UniProt accessions and adds a 'matched_accessions' column to the parquet files
+
 Usage:
     python consolidated_pfam_processing.py
 """
 API_URL = "https://rest.uniprot.org"
-def extract_uniprotkb_ids(sequence_names):
-    uniprotkb_ids = []
-    for name in sequence_names:
-        id_part = name.split('/')[0]  # Extract before '/'
-        uniprotkb_id = id_part.strip()
-        uniprotkb_ids.append(uniprotkb_id)
-    return uniprotkb_ids
 
-
-def check_job_status(job_id):
-    status_url = f"{API_URL}/idmapping/status/{job_id}"
-    fail_counter = 0
-    while True:
-        response = requests.get(status_url, allow_redirects=False)
-        response.raise_for_status()
-
-        if response.status_code == 303:
-            # Job is finished
-            return True
-        else:
-            status = response.json()
-            job_status = status.get('jobStatus')
-            if job_status in ('RUNNING', 'NEW'):
-                print(f"Job is {job_status}...")
-                time.sleep(20)
-                fail_counter = 0
-            else:
-                fail_counter += 1
-                time.sleep(20)
-            if fail_counter > 12:
-                print(f"Job failed with status: {job_status}")
-                return False
-
-def get_uniprot_accessions_from_names(pfam_df, save_path):
-    sequence_names = pfam_df['sequence_name'].tolist()
-    uniprotkb_ids = extract_uniprotkb_ids(sequence_names)
-
-    # Split IDs into chunks of up to 100,000 IDs
-    chunk_size = 100000
-    id_chunks = [uniprotkb_ids[i:i + chunk_size] for i in range(0, len(uniprotkb_ids), chunk_size)]
-
-    all_mappings = []
-
-    for idx, ids_chunk in enumerate(id_chunks):
-        print(f"Processing chunk {idx+1}/{len(id_chunks)} with {len(ids_chunk)} IDs")
-        job_id = submit_id_mapping('UniProtKB_AC-ID', 'UniProtKB', ids_chunk)
-        print(f"Submitted job with ID: {job_id}")
-        if check_job_status(job_id):
-            print("Job finished. Retrieving results...")
-            results_text = get_results(job_id)
-            mapping_df = process_results(results_text)
-            all_mappings.append(mapping_df)
-        else:
-            print(f"Job {job_id} failed.")
-
-    # Combine all mappings
-    mappings_df = pd.concat(all_mappings, ignore_index=True)
-    pfam_df['join_id'] = pfam_df['sequence_name'].apply(lambda x: x.split("/")[0])
-
-    merged_df = pfam_df.merge(mappings_df, left_on='join_id', right_on='From', how='left')
-    merged_df = merged_df[['sequence_name', 'family_accession', 'aligned_sequence', 'sequence', 'Entry', 'Length']]
-    # Save the merged data
-    merged_df.to_csv(save_path, index=False)
-    print(f"Mapping completed and results saved to {save_path}.")
-    return merged_df
-
-
-def submit_id_mapping(from_db, to_db, ids):
-    url = f"{API_URL}/idmapping/run"
-    params = {'from': from_db, 'to': to_db, 'ids': ','.join(ids)}
-    response = requests.post(url, data=params)
-    try:
-        response.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        print(f"Error: {response.status_code} - {response.text}")
-        raise err
-    return response.json()['jobId']
-
-def get_results_url(job_id):
-    status_url = f"{API_URL}/idmapping/status/{job_id}"
-    response = requests.get(status_url, allow_redirects=False)
-    if response.status_code == 303:
-        redirect_url = response.headers['Location']
-        # Modify the URL to point to the streaming endpoint
-        if '/results/' in redirect_url:
-            results_url = redirect_url.replace('/results/', '/results/stream/')
-        else:
-            results_url = redirect_url + '/stream'
-        return results_url
-    else:
-        raise Exception("Results are not ready yet.")
-
-def get_results(job_id):
-    results_url = get_results_url(job_id)
-    params = {'format': 'tsv'}
-    response = requests.get(results_url, params=params, stream=True)
-    response.raise_for_status()
-    results_text = ''
-    for chunk in response.iter_content(chunk_size=1024):
-        results_text += chunk.decode('utf-8')
-    return results_text
-
-
-def process_results(results_text):
-    return pd.read_csv(StringIO(results_text), sep='\t')
 
 def sample_fams_by_size(
     pfam_select_fam_path,
@@ -628,6 +533,29 @@ def select_families(
 
     return selected_families
 
+def add_accessions_to_parquets(split_parquet_save_dir):
+    setup_logging()
+    # Collect all unique sequence names from the parquet files
+    parq_paths = glob.glob(os.path.join(split_parquet_save_dir, '*.parquet'))
+    all_sequence_names = set()
+
+    for parq_path in parq_paths:
+        logging.info(f"Reading parquet file: {parq_path}")
+        df = pd.read_parquet(parq_path)
+        if 'accessions' in df.columns:
+            sequence_names = df['accessions'].explode().tolist()
+            all_sequence_names.update(sequence_names)
+
+    logging.info(f"Total unique sequence names collected: {len(all_sequence_names)}")
+
+    # Get the mapping from sequence names to UniProt accessions
+    logging.info("Mapping sequence names to UniProt accessions...")
+    sequence_to_uniprot_mapping = get_sequence_name_to_uniprot_mapping(list(all_sequence_names))
+
+    # Process parquet files to add 'matched_accessions' column and overwrite them
+    logging.info("Adding 'matched_accessions' column to parquet files...")
+    process_parquet_files(parq_paths, sequence_to_uniprot_mapping)
+
 
 if __name__ == "__main__":
     external_pfam_dir = '../pfam_eval_splits'
@@ -691,3 +619,6 @@ if __name__ == "__main__":
         writer.writerow(['fam_id', 'parquet_file'])
         writer.writerows(new_index)
     print(f"New index CSV saved to {index_csv_output}")
+
+    print("Adding UniProt accessions to parquet files...")
+    add_accessions_to_parquets(split_parquet_save_dir)
