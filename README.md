@@ -83,7 +83,7 @@ Train model with an experiment configuration from [configs/experiment/](configs/
 python src/train.py experiment=experiment_name.yaml
 ```
 
-Override configuration parameters using standard
+Override configuration parameters using standard hydra syntax
 
 ```bash
 python src/train.py trainer.max_epochs=20 data.batch_size=64
@@ -127,14 +127,15 @@ During training, data loading involves a few steps:
   2. The protein document is preprocessed, with standardisations and other transformatins
      applied to its contents (e.g. subsampling of sequences, calculation of MSA-aware sequence
      positions, rotation of backbone coordinates...)
-  3. The protein document is encoded into a dictionary of tensors by the ProFamTokenizer
+  3. The protein document is encoded into a dictionary of numpy arrays by the ProFamTokenizer
   4. Batches are constructed by collating protein document tensor dictionaries.
 
 Steps 1-3 are handled by a Preprocessor instance, which has configuration determining how
 the document should be extracted and processed. Preprocessors live in src/data/preprocessing.py,
-and are applied to dataset instances via the map() function (which runs on-the-fly on iterable
-datasets during training.)
-A preprocessor applies a set of transformations to the document. Transformations are functions
+and are applied to dataset instances via the hf datasets map() function (which runs on-the-fly
+on iterable datasets during training.)
+
+A preprocessor applies a set of transform functions to the document. Transforms are functions
 which accept protein documents as input and return a new protein document. These live in
 src/data/transforms.py.
 
