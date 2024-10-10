@@ -54,13 +54,15 @@ def main(max_samples: int, loader_type: str, data_folder: str):
 
     t_0 = time.time()
     num_samples = 0
+    current_multiple_of_100 = 0
     for ix, batch in enumerate(train_loader):
         num_samples += ix * dm.batch_size if loader_type == "loader" else 1
-        if ix % 100 == 0:
+        if num_samples // 100 > current_multiple_of_100:
             print(
                 f"batch: {ix} (samples {num_samples})",
                 {k: type(v) for k, v in batch.items()},
             )
+            current_multiple_of_100 += 1
         if num_samples >= max_samples:
             break
     t_1 = time.time()
