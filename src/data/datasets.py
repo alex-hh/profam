@@ -112,7 +112,8 @@ def prepare_data_files(data_dir, cfg, world_size=1):
             leftover_files = data_files[len(data_files) // world_size * world_size :]
             # worst case scenario is leftover_files=1: handle this or any other case by repeating maximal amount and slicing
             repeated_leftovers = [leftover_files] * world_size
-            data_files = data_files + repeated_leftovers[: len(data_files) % world_size]
+            data_files = data_files + repeated_leftovers[:world_size]
+            assert len(data_files) % world_size == 0, "Data files not evenly divisible"
     return data_files
 
 
