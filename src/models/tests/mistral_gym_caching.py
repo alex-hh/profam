@@ -16,7 +16,7 @@ tokenizer = PreTrainedTokenizerFast(
     pad_token="[PAD]",
     bos_token="[start-of-document]",
     sep_token="[SEP]",
-    mask_token="[MASK]",
+    mask_token="?",
     add_special_tokens=True,
 )
 config = MistralConfig(

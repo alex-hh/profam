@@ -11,14 +11,19 @@ import tqdm
 
 
 def main(args):
+    # TODO: add number of pdbs
     data_dir = os.environ.get("DATA_DIR", "/SAN/orengolab/cath_plm/ProFam/data")
     with open(os.path.join(data_dir, args.data_folder, "index.csv"), "w") as f:
         data_file_pattern = os.path.join(data_dir, args.data_folder, "*.parquet")
         files = glob.glob(data_file_pattern)
         print(f"Found {len(files)} files matching pattern {data_file_pattern}")
-        f.write("identifier,parquet_file,cluster_size,sequence_length\n")
+        f.write("identifier,parquet_file,cluster_size,sequence_length,num_pdb_ids\n")
         for file in tqdm.tqdm(files):
-            df = pd.read_parquet(file)
+            try:
+                df = pd.read_parquet(file)
+            except Exception as e:
+                print(f"Could not read {file}")
+                raise e
             for _, row in df.iterrows():
                 representative = row[args.identifier_col]
                 try:
@@ -27,7 +32,8 @@ def main(args):
                 except:
                     print(f"Could not find representative {representative} in {row['accessions']} (file {file})")
                     representative_sequence = ""
-                f.write(f"{row[args.identifier_col]},{os.path.basename(file)},{len(row['sequences'])},{len(representative_sequence)}\n")
+                num_pdb_ids = len(row['pdb_ids']) if 'pdb_ids' in row and row['pdb_ids'] is not None else 0
+                f.write(f"{row[args.identifier_col]},{os.path.basename(file)},{len(row['sequences'])},{len(representative_sequence)},{num_pdb_ids}\n")
 
 
 if __name__ == "__main__":

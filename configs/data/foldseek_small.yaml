@@ -1,4 +1,4 @@
-_target_: src.data.hf_protein_datamodule.ProteinDataModule
+_target_: src.data.hf_protein_datamodule.ProteinDataMixture
 # https://github.com/facebookresearch/hydra/issues/1939#issuecomment-1035395006
 defaults:
   - dataset@dataset_cfgs.foldseek: foldseek
@@ -8,7 +8,6 @@ data_weights:
   foldseek: 1.0
 dataset_cfgs:
   foldseek:
-    name: foldseek
     data_path_pattern: foldseek/1*.parquet
     is_parquet: true
     keep_gaps: false
@@ -16,7 +15,6 @@ dataset_cfgs:
     keep_insertions: false
     minimum_sequences: 10
   foldseek_val:
-    name: foldseek_val
     data_path_pattern: foldseek/20000.parquet
     is_parquet: true
     keep_gaps: false

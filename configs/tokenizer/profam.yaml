@@ -4,11 +4,11 @@ unk_token: "[UNK]"
 pad_token: "[PAD]"
 bos_token: "[start-of-document]"
 sep_token: "[SEP]"
-mask_token: "[MASK]"
+mask_token: "?"
+seq_struct_sep_token: "|"
 add_final_sep: true
 add_bos_token: true
-add_document_type_token: true
-max_tokens: ${data.max_tokens}
-max_below_plddt: 90  # 'very high' confidence in af browser
-use_seq_pos: true
-max_seq_pos: 1024
+add_document_token: true
+mask_below_plddt: 80  # > 90 is 'very high' confidence in af browser
+embed_residue_index: ${model.embed_residue_index}
+max_res_pos_in_seq: ${model.max_res_pos_in_seq}

@@ -52,6 +52,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     :return: A tuple with metrics and dict with all instantiated objects.
     """
     log.info(f"Output dir: {cfg.paths.output_dir}")  # base for checkpoint, wandb
+
     if cfg.get("float32_matmul_precision", None) is not None:
         log.info(f"Setting float32_matmul_precision to {cfg.float32_matmul_precision}")
         torch.set_float32_matmul_precision(cfg.float32_matmul_precision)
@@ -65,9 +66,12 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     log.info(f"Instantiating datamodule <{cfg.data._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(
-        cfg.data, tokenizer=tokenizer
+        cfg.data,
+        tokenizer=tokenizer,
+        _convert_="partial",
     )
-
+    assert cfg.model.embed_residue_index == tokenizer.embed_residue_index
+    assert cfg.model.max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
     log.info(f"Instantiating model <{cfg.model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
 

@@ -1,6 +1,7 @@
 """
 Create foldseek database.
-We'll probably still load cluster_dict into memory. But the db will allow us to directly load all zipfiles / ids for a cluster.
+We'll probably still load cluster_dict into memory. But the db will allow us to
+directly load all zipfiles / ids for a cluster.
 
 # TODO: save backbone coordinates into db?
 """

@@ -1,8 +1,5 @@
-_target_: src.data.preprocessing.ParquetSequencePreprocessorConfig
-keep_gaps: false
-keep_insertions: false
-to_upper: false
+_target_: src.data.preprocessing.ParquetSequencePreprocessor
+defaults:
+  - config: msa
 sequence_col: "sequences"
-document_token: "[MSA]"
-truncate_after_n_sequences: null
-use_msa_pos: false
+infer_representative_from_identifier: true

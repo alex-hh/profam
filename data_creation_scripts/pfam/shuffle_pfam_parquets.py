@@ -14,7 +14,7 @@ import sys
 
 import pandas as pd
 
-from src.data.fasta import read_fasta_lines
+from src.sequence.fasta import read_fasta_lines
 
 
 def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):

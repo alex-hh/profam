@@ -5,12 +5,12 @@
 
 defaults:
   - /extra_callbacks@extra_callbacks.esmfold: esmfold
-  - override /preprocessor@extra_callbacks.esmfold.preprocessor: parquet_3di
+  - override /preprocessor@extra_callbacks.esmfold.prompt_builder.preprocessor: parquet_3di
   - override /callbacks: default_with_shuffle
   - override /data: foldseek
   - override /model: llama_small
 
-experiment_group: "foldseek"
+experiment_group: "foldseek_3di"
 tags: ["${.experiment_group}"]
 
 seed: 12345
@@ -19,6 +19,7 @@ extra_callbacks:
   esmfold:
     pipeline:
       evaluation_parquet: ${paths.data_dir}/${data.dataset_cfgs.foldseek_val.data_path_pattern}
+      max_instances: 50
 
 trainer:
   min_epochs: 10

@@ -1,7 +1,5 @@
 """This file prepares config fixtures for other tests."""
-
 import os
-from functools import partial
 from pathlib import Path
 
 import hydra
@@ -14,12 +12,9 @@ from omegaconf import DictConfig, open_dict
 
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
+from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import (
-    CustomDataCollator,
-    ProteinDatasetConfig,
-    load_protein_dataset,
-)
+from src.data.utils import CustomDataCollator
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -33,10 +28,12 @@ def profam_tokenizer():
         pad_token="[PAD]",
         bos_token="[start-of-document]",
         sep_token="[SEP]",
-        mask_token="[MASK]",
-        use_seq_pos=True,
-        max_seq_pos=2048,
+        mask_token="?",
+        seq_struct_sep_token="|",
+        embed_residue_index=True,
+        max_res_pos_in_seq=2048,
         max_tokens=2048,
+        mask_below_plddt=None,
     )
     return tokenizer
 
@@ -51,31 +48,41 @@ def profam_tokenizer_noseqpos():
         pad_token="[PAD]",
         bos_token="[start-of-document]",
         sep_token="[SEP]",
-        mask_token="[MASK]",
-        use_seq_pos=False,
-        max_seq_pos=2048,
+        mask_token="?",
+        seq_struct_sep_token="|",
+        embed_residue_index=False,
+        max_res_pos_in_seq=2048,
         max_tokens=2048,
+        mask_below_plddt=None,
     )
     return tokenizer
 
 
 @pytest.fixture(scope="package")
-def default_model_noseqpos(profam_tokenizer_noseqpos):
+def test_model_noseqpos(profam_tokenizer_noseqpos):
     # otherwise could do this via overrides...
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
+            overrides=[
+                "model=llama_test",
+                "model.embed_sequence_index=False",
+            ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
 
 
 @pytest.fixture(scope="package")
-def default_model(profam_tokenizer):
+def test_model(profam_tokenizer):
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
+            overrides=[
+                "model=llama_test",
+                "model.embed_sequence_index=True",
+            ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
@@ -86,113 +93,67 @@ def model_seq_index(profam_tokenizer):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
-            overrides=["model.embed_sequence_index=True"],
+            overrides=[
+                "model.embed_sequence_index=True",
+                "model.config.attn_implementation=null",
+            ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
 
 @pytest.fixture(scope="package")
 def parquet_raw_sequence_processor():
-    return preprocessing.ParquetSequencePreprocessorConfig(
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
+    )
+    return preprocessing.ParquetSequencePreprocessor(
+        config=preprocessing_cfg,
     )
 
 
 @pytest.fixture(scope="package")
 def parquet_3di_processor():
-    return preprocessing.ParquetStructureTokensPreprocessorConfig(
-        structure_tokens_col="msta_3di",
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
-        transforms=[partial(transforms.interleave_structure_sequence, max_tokens=2048)],
-        keep_columns=["plddts"],
+    )
+    return preprocessing.ParquetStructurePreprocessor(
+        config=preprocessing_cfg,
+        structure_tokens_col="msta_3di",
+        transform_fns=[transforms.interleave_structure_sequence],
     )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def proteingym_batch(profam_tokenizer):
+    # TODO: use filtered msa - processing the full msa very slow (why?)
     data = load_gym_dataset(
         dms_ids=["BLAT_ECOLX_Jacquier_2013"],
         tokenizer=profam_tokenizer,
         gym_data_dir="data/example_data/ProteinGym",
-        max_tokens=profam_tokenizer.max_tokens,
+        max_tokens=2048,
         keep_gaps=False,
         num_proc=None,
+        use_filtered_msa=True,
     )
     datapoint = next(iter(data))
     collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
     return collator([datapoint])
-
-
-@pytest.fixture()
-def foldseek_interleaved_structure_sequence_batch(
-    profam_tokenizer,
-):
-    max_tokens = 2048
-    parquet_3di_processor = preprocessing.ParquetStructureTokensPreprocessorConfig(
-        structure_tokens_col="msta_3di",
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
-        transforms=[
-            partial(transforms.interleave_structure_sequence, max_tokens=max_tokens)
-        ],
-        keep_columns=["plddts"],
-    )
-    cfg = ProteinDatasetConfig(
-        name="foldseek",
-        preprocessor=parquet_3di_processor,
-        data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
-    )
-    data = load_protein_dataset(
-        cfg,
-        tokenizer=profam_tokenizer,
-        max_tokens=max_tokens,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
-    )
-    datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
-    return collator([datapoint])
-
-
-@pytest.fixture()
-def foldseek_interleaved_structure_sequence_datapoint(
-    profam_tokenizer, parquet_3di_processor
-):
-    cfg = ProteinDatasetConfig(
-        name="foldseek",
-        data_path_pattern="foldseek_struct/0.parquet",
-        is_parquet=True,
-        preprocessor=None,
-    )
-    data = load_protein_dataset(
-        cfg,
-        tokenizer=profam_tokenizer,
-        max_tokens=2048,
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
-        shuffle=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
-    )
-    return next(iter(data))
 
 
 @pytest.fixture()
 def pfam_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         name="pfam",
-        keep_gaps=False,
+        keep_gaps=False,  # TODO unexpected argument
         data_path_pattern="pfam/Domain_60429258_61033370.parquet",
-        keep_insertions=True,
-        to_upper=True,
+        keep_insertions=True,  # TODO unexpected argument
+        to_upper=True,  # TODO unexpected argument
         is_parquet=True,
     )
     data = load_protein_dataset(
@@ -211,10 +172,10 @@ def pfam_batch(profam_tokenizer):
 def foldseek_batch(profam_tokenizer):
     cfg = ProteinDatasetConfig(
         name="foldseek",
-        keep_gaps=False,
+        keep_gaps=False,  # TODO unexpected argument
         data_path_pattern="foldseek_struct/3.parquet",
-        keep_insertions=True,
-        to_upper=True,
+        keep_insertions=True,  # TODO unexpected argument
+        to_upper=True,  # TODO unexpected argument
         is_parquet=True,
     )
     data = load_protein_dataset(
@@ -222,8 +183,6 @@ def foldseek_batch(profam_tokenizer):
         tokenizer=profam_tokenizer,
         max_tokens=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
-        use_seq_pos=True,
-        max_seq_pos=2048,
         shuffle=False,
     )
     datapoint = next(iter(data))
@@ -322,7 +281,7 @@ def cfg_eval(cfg_eval_global: DictConfig, tmp_path: Path) -> DictConfig:
 
     This is called by each test which uses the `cfg_eval` arg. Each test generates its own temporary logging path.
 
-    :param cfg_train_global: The input DictConfig object to be modified.
+    :param cfg_eval_global: The input DictConfig object to be modified.
     :param tmp_path: The temporary logging path.
 
     :return: A DictConfig with updated output and log directories corresponding to `tmp_path`.

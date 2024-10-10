@@ -1,0 +1,13 @@
+- _target_: src.data.transforms.apply_plddt_mask
+  _partial_: true
+  threshold: 80.0  # TODO: make this easier to configure
+- _target_: src.data.transforms.centre_backbones
+  _partial_: true
+  scale: 6.0
+- _target_: src.data.transforms.rescale_backbones
+  _partial_: true
+- _target_: src.data.transforms.rotate_backbones
+  _partial_: true
+- _target_: src.data.transforms.replace_nans_in_coords
+  _partial_: true
+  fill_value: 0.0

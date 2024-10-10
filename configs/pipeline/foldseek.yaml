@@ -1,6 +1,12 @@
-_target_: src.pipelines.foldseek.FoldseekGenerationsPipeline
+_target_: src.pipelines.mixins.ParquetGenerationsPipeline
+defaults:
+  - /preprocessor/config@preprocessor.config: raw
 evaluation_parquet: null
 evaluation_accessions_file: null
+evaluation_accessions: null
 parquet_index: null
-pipeline_id: foldseek_n${.num_generations}
 num_generations: 10
+preprocessor:
+  _target_: src.data.preprocessing.ParquetStructurePreprocessor
+  structure_tokens_col: "msta_3di"
+  infer_representative_from_identifier: True
