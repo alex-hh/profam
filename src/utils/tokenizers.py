@@ -1,7 +1,6 @@
 from typing import List, Optional
 
 import numpy as np
-from torch import stack
 from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
@@ -122,7 +121,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         *args,
         add_bos_token: bool = True,
         add_document_token: bool = True,
-        use_seq_pos: bool = False,
         max_seq_pos: int = 1024,
         seq_struct_sep_token="|",
         **kwargs,
@@ -130,7 +128,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
         self.add_document_token = add_document_token
-        self.use_seq_pos = use_seq_pos
         self.max_seq_pos = max_seq_pos
         self.seq_struct_sep_token = seq_struct_sep_token
 
@@ -186,6 +183,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             padding=padding,
             add_special_tokens=False,
             max_length=max_length,
+            return_token_type_ids=False,
         )
         tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
@@ -194,26 +192,23 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert not (
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
-        if self.use_seq_pos:
-            if proteins.positions is None:
-                log.warning(
-                    "Using seq_pos but positions not provided. Using default positions."
-                )
-                # +1 to match convert_sequence_with_positions
-                # get_seq_pos_from_positions adds another offset
-                positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
-            else:
-                positions = proteins.positions
-            seq_pos = get_seq_pos_from_positions(
-                tokenized.input_ids,
-                positions,
-                pad_token_id=self.pad_token_id,
-                max_seq_pos=self.max_seq_pos,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
-            )
-            tokenized.data["seq_pos"] = seq_pos
-            assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
+        if proteins.positions is None:
+            log.warning("Positions not provided. Using default positions.")
+            # +1 to match convert_sequence_with_positions
+            # get_seq_pos_from_positions adds another offset
+            positions = [list(range(1, len(seq) + 1)) for seq in proteins.sequences]
+        else:
+            positions = proteins.positions
+        seq_pos = get_seq_pos_from_positions(
+            tokenized.input_ids,
+            positions,
+            pad_token_id=self.pad_token_id,
+            max_seq_pos=self.max_seq_pos,
+            num_start_tokens=self.num_start_tokens,
+            num_end_tokens=num_end_tokens,
+        )
+        tokenized.data["seq_pos"] = seq_pos
+        assert seq_pos.shape[0] == tokenized.input_ids.shape[0]
 
         if proteins.backbone_coords is not None:
             tokenized.data["coords"] = concatenate_pad_array(
@@ -246,6 +241,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_start_tokens=self.num_start_tokens,
                 num_end_tokens=num_end_tokens,
                 pad_to_length=max_length if padding == "max_length" else None,
+            )
+        elif proteins.backbone_coords is not None:
+            # still need to return something in case other batches have interleaved coords
+            tokenized.data["interleaved_coords_mask"] = np.zeros_like(
+                tokenized.data["coords_mask"]
             )
 
         modality_mask = concatenate_pad_array(
@@ -365,7 +365,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )
-            tokenized.data["seq_pos"] = stack(all_positions)
+            tokenized.data["seq_pos"] = np.stack(all_positions)
 
         return tokenized
 

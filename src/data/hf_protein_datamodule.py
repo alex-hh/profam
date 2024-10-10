@@ -8,7 +8,7 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
 from src.constants import SEQUENCE_FEATURE_NAMES
-from src.data.collators import CustomDataCollator, DataCollatorWithFlattening
+from src.data.collators import DocumentBatchCollator
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.family_classification import (
     load_classifier_dataset,
@@ -87,15 +87,13 @@ class ProteinDataMixture(LightningDataModule):
         self.use_filtered_gym_msas = use_filtered_gym_msas
         # feature names are only required for train collator, when we have different datasets
         self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
-        self.train_collator = CustomDataCollator(
+        self.train_collator = DocumentBatchCollator(
             self.tokenizer,
-            mlm=False,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
         )
-        self.val_collator = CustomDataCollator(
+        self.val_collator = DocumentBatchCollator(
             self.tokenizer,
-            mlm=False,
             ignore_gaps=ignore_gaps,
         )
         self._is_setup = False
@@ -107,8 +105,11 @@ class ProteinDataMixture(LightningDataModule):
             train_datasets = []
             train_data_weights = []
             train_dataset_names = []
-            world_size = self.trainer.world_size
-            print("World size", world_size)
+            if self.trainer is not None:
+                world_size = self.trainer.world_size
+                print("World size", world_size)
+            else:
+                world_size = 1
             for data_key, dataset_config in self.dataset_cfgs.items():
                 if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
@@ -150,6 +151,7 @@ class ProteinDataMixture(LightningDataModule):
                     seed=42,
                 )
             else:
+                print("Using single dataset", flush=True)
                 self.train_dataset = train_datasets[0]
 
             if isinstance(self.train_dataset, IterableDataset):
@@ -229,6 +231,7 @@ class ProteinDataMixture(LightningDataModule):
                     max_tokens_per_example=self.max_tokens,
                     world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
                     return_format=self.data_return_format,
+                    feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
                 )
                 if world_size > 1:
                     # https://github.com/huggingface/datasets/issues/6623
