@@ -63,7 +63,7 @@ def get_residue_index_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = flat_pos
+    seq_pos[:pad_start] = flat_indices
     return seq_pos
 
 
