@@ -10,3 +10,6 @@ config:
   attn_implementation: flash_attention_2  # eager/flash_attention_2/sdpa
 embed_coords: false
 embed_sequence_index: false
+embed_residue_index: true
+max_seq_pos_in_doc: 1024
+max_res_pos_in_seq: 4096

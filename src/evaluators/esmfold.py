@@ -57,7 +57,7 @@ def esmfold_output_to_proteins(output):
         backbone_atom_ids = [atom_order[atom] for atom in ["N", "CA", "C", "O"]]
         pred = Protein(
             sequence=sequence,
-            positions=list(resid),
+            residue_positions=list(resid),
             backbone_coords=pred_pos[:, backbone_atom_ids],
             backbone_coords_mask=mask[:, backbone_atom_ids],
             plddt=output["plddt"][i].mean(-1) * 100.0,  # average over atoms per residue

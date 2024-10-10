@@ -64,7 +64,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     input_ids = torch.from_numpy(tokenized.input_ids[None, :-2])
 
     model_kwargs = {
-        "seq_pos": input_seq_pos,
+        "residue_index": input_residue_index,
         "use_cache": True,
         "past_key_values": None,
     }
@@ -74,7 +74,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         input_ids, model_kwargs
     )
     # cache position is [0,1,2,3,4,5,6,7,8,9,10]
-    # seq_pos is [[0,0,2,3,4,0,2,3,4,5,0]]
+    # residue_index is [[0,0,2,3,4,0,2,3,4,5,0]]
 
     with torch.no_grad():
         outputs = model_seq_index.model(input_ids=input_ids, **model_kwargs)
@@ -100,9 +100,9 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         torch.from_numpy(tokenized.input_ids[None, :-1]),
         **model_kwargs,
     )
-    print(inputs["input_ids"], inputs["seq_pos"])
+    print(inputs["input_ids"], inputs["residue_index"])
     assert (inputs["start_sequence_index"] == 2).all()
-    assert (inputs["seq_pos"] == 2).all()
+    assert (inputs["residue_index"] == 2).all()
 
     # TODO: add next step.
 
@@ -118,6 +118,6 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         torch.from_numpy(tokenized.input_ids[None]),
         **model_kwargs,
     )
-    print(inputs["input_ids"], inputs["seq_pos"])
-    assert (inputs["seq_pos"] == 3).all()
+    print(inputs["input_ids"], inputs["residue_index"])
+    assert (inputs["residue_index"] == 3).all()
     assert (inputs["start_sequence_index"] == 2).all()
