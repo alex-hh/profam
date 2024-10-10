@@ -161,11 +161,11 @@ def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_f
                 'fam_id': '',
                 'accessions': [],
                 'sequences': [],
-                'sequence_names': [],
+                'matched_accessions': [],
                 'sequence_choppings': [],
                 'completion_accessions': [],
                 'completion_sequences': [],
-                'completion_sequence_names': [],
+                'completion_matched_accessions': [],
                 'completion_sequence_choppings': [],
             })
 
@@ -183,17 +183,16 @@ def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_f
                 if df_w_accs.empty:
                     continue
 
-                # Remove rows where 'Entry' is null
-                df_w_accs = df_w_accs[~df_w_accs['Entry'].isnull()]
+                # Remove rows where 'matched_accession' is null
+                df_w_accs = df_w_accs[~df_w_accs['matched_accession'].isnull()]
                 if df_w_accs.empty:
                     continue
 
                 # Extract necessary fields
-                df_w_accs['accession'] = df_w_accs['Entry']
+                df_w_accs['accession'] = df_w_accs['sequence_name']
                 df_w_accs['fam_id'] = df_w_accs['family_accession']
                 df_w_accs['split'] = eval_split
                 df_w_accs['is_completion'] = (within_family_split == 'test')
-                df_w_accs['sequence_name'] = df_w_accs['sequence_name']
                 df_w_accs['sequence'] = df_w_accs['sequence']
                 df_w_accs['aligned_sequence'] = df_w_accs['aligned_sequence']
                 df_w_accs['split_type'] = split_type
@@ -202,7 +201,7 @@ def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_f
                     df_w_accs[[
                         'fam_id',
                         'accession',
-                        'sequence_name',
+                        'matched_accession',
                         'split',
                         'split_type',
                         'is_completion',
@@ -213,18 +212,19 @@ def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_f
                 # Organize data for parquet files
                 for fam_id, group in df_w_accs.groupby('fam_id'):
                     sequence_names = group['sequence_name'].tolist()
+                    matched_accessions = group['matched_accession'].tolist()
                     sequence_choppings = [name.split('/')[1] for name in sequence_names]
                     if fam_id_to_data[fam_id]['fam_id'] == '':
                         fam_id_to_data[fam_id]['fam_id'] = fam_id
                     if within_family_split == 'train':
-                        fam_id_to_data[fam_id]['accessions'].extend(group['accession'].tolist())
+                        fam_id_to_data[fam_id]['accessions'].extend(sequence_names)
                         fam_id_to_data[fam_id]['sequences'].extend(group['aligned_sequence'].tolist())
-                        fam_id_to_data[fam_id]['sequence_names'].extend(sequence_names)
+                        fam_id_to_data[fam_id]['matched_accessions'].extend(matched_accessions)
                         fam_id_to_data[fam_id]['sequence_choppings'].extend(sequence_choppings)
                     else:  # Test split within family
                         fam_id_to_data[fam_id]['completion_sequences'].extend(group['aligned_sequence'].tolist())
-                        fam_id_to_data[fam_id]['completion_accessions'].extend(group['accession'].tolist())
-                        fam_id_to_data[fam_id]['completion_sequence_names'].extend(sequence_names)
+                        fam_id_to_data[fam_id]['completion_accessions'].extend(sequence_names)
+                        fam_id_to_data[fam_id]['completion_matched_accessions'].extend(matched_accessions)
                         fam_id_to_data[fam_id]['completion_sequence_choppings'].extend(sequence_choppings)
 
             # Convert fam_id_to_data to DataFrame and save as parquet
@@ -251,7 +251,6 @@ def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_f
 
 def filter_fams_without_up_accs(
     selected_families: pd.DataFrame,
-    n_families: int,
     pfam_save_dir: str,
     external_pfam_dir: str,
 ):
@@ -288,7 +287,7 @@ def filter_fams_without_up_accs(
                         continue
                 else:
                     combined = pd.read_csv(save_path)
-                families_with_null_accessions.extend(combined[combined['Entry'].isnull()]['family_accession'].unique())
+                families_with_null_accessions.extend(combined[combined['matched_accession'].isnull()]['family_accession'].unique())
     selected_families = selected_families[~selected_families['family_accession'].isin(families_with_null_accessions)]
 
     val_families = selected_families[selected_families['split'] == 'val']['family_accession'].values
@@ -422,15 +421,15 @@ def create_pfam_val_test_all_up_ids_json(
                 if df_w_accs.empty:
                     continue
 
-                # Remove rows where 'Entry' is null
-                df_w_accs = df_w_accs[~df_w_accs['Entry'].isnull()]
+                # Remove rows where 'matched_accession' is null
+                df_w_accs = df_w_accs[~df_w_accs['matched_accession'].isnull()]
                 if df_w_accs.empty:
                     continue
 
                 # Process each family
                 for fam_id in df_w_accs['family_accession'].unique():
                     fam_df = df_w_accs[df_w_accs['family_accession'] == fam_id]
-                    csv_uniprot = set(fam_df['Entry'].dropna().astype(str))
+                    csv_uniprot = set(fam_df['matched_accession'].dropna().astype(str))
                     json_uniprot = set(pfam_to_uniprot.get(fam_id, []))
 
                     if not csv_uniprot:
@@ -494,7 +493,6 @@ def select_families(
         selected_families = pd.read_csv(pfam_select_fam_path)
         selected_families = filter_fams_without_up_accs(
             selected_families,
-            n_families=n_families_total,
             pfam_save_dir=pfam_save_dir,
             external_pfam_dir=external_pfam_dir,
         )
