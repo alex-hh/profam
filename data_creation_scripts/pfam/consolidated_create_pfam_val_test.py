@@ -595,13 +595,11 @@ if __name__ == "__main__":
         )
 
 
-    if len(glob.glob(os.path.join(shuffled_parquet_dir, '*.parquet'))) == 0:
-        print("Shuffling parquet files...")
-        shuffle_pfam_parquets(
-            indir=pre_shuffled_parquet_dir,
-            outdir=shuffled_parquet_dir,
-            limit_mb=limit_mb_per_parquet,
-        )
+    shuffle_pfam_parquets(
+        indir=pre_shuffled_parquet_dir,
+        outdir=shuffled_parquet_dir,
+        limit_mb=limit_mb_per_parquet,
+    )
 
 
 
