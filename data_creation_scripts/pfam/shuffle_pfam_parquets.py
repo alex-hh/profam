@@ -28,19 +28,24 @@ def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):
     assert os.path.exists(indir)
     parquet_paths = glob.glob(f"{indir}/*.parquet")
     assert len(parquet_paths) > 0
-    for parquet_file in glob.glob(f"{indir}/*.parquet"):
-        df = pd.read_parquet(parquet_file)
-        for i, row in df.iterrows():
-            fam_id = row["pfam_acc"]
-            size_mb = sys.getsizeof(row["text"]) / 1024 / 1024
-            fname = os.path.basename(parquet_file)
-            df_rows.append(
-                {"pfam_acc": fam_id, "size_mb": size_mb, "parquet_file": fname}
-            )
-    df = pd.DataFrame(df_rows)
-    total_rows = df.shape[0]
-    print(f"total rows from all parquets: {total_rows}")
-    df.to_csv(f"{indir}/preshuffled_parquet_map.csv", index=False)
+    preshuffled_parquet_map = f"{outdir}/preshuffled_parquet_map.csv"
+    if os.path.exists(preshuffled_parquet_map):
+        print(f"loading preshuffled parquet map from {preshuffled_parquet_map}")
+        df = pd.read_csv(preshuffled_parquet_map)
+    else:
+        for parquet_file in glob.glob(f"{indir}/*.parquet"):
+            df = pd.read_parquet(parquet_file)
+            for i, row in df.iterrows():
+                fam_id = row["pfam_acc"]
+                size_mb = sys.getsizeof(row["text"]) / 1024 / 1024
+                fname = os.path.basename(parquet_file)
+                df_rows.append(
+                    {"pfam_acc": fam_id, "size_mb": size_mb, "parquet_file": fname}
+                )
+        df = pd.DataFrame(df_rows)
+        total_rows = df.shape[0]
+        print(f"total rows from all parquets: {total_rows}")
+        df.to_csv(preshuffled_parquet_map, index=False)
     df = df.sample(frac=1).reset_index(drop=True)
     parq_ix = 0
     current_size = 0
@@ -58,7 +63,6 @@ def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):
             parq_ix += 1
             current_size = 0
             new_mapping[parq_ix] = {}
-
     print(f"saved new mapping to {mapping_path}")
     with open(mapping_path, "w") as f:
         json.dump(f, new_mapping, indent=2)
