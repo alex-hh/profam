@@ -1,12 +1,12 @@
 #!/bin/bash
 #$ -P cath
 #$ -l tmem=64G
-##$ -l hostname=clifford*
+#$ -l hostname=clifford*
 #$ -l gpu=true
-#$ -l gpu_type=(a40|a10|a100|a100_80)
+# -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l gpu=true
 #$ -pe gpu 1
-#$ -l m_core=32
+#$ -l m_core=8
 #$ -l h_rt=72:55:30
 #$ -S /bin/bash
 #$ -N bit32
@@ -35,7 +35,7 @@ export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 export HYDRA_FULL_ERROR=1
 python ${ROOT_DIR}/src/train.py \
 data=pfam_mix \
-data.batch_size=2 \
+data.batch_size=5 \
 trainer=gpu \
 trainer.devices=auto \
 trainer.max_epochs=1000 \
@@ -46,7 +46,7 @@ model.config.attn_implementation="sdpa" \
 model.embed_sequence_index="true" \
 trainer.val_check_interval=1.0 \
 trainer.precision="bf16-mixed" \
-data.num_workers=10 \
+data.num_workers=3 \
 data.max_tokens=10000 \
 paths.data_dir="/SAN/orengolab/cath_plm/ProFam/data"  \
 float32_matmul_precision=high \
