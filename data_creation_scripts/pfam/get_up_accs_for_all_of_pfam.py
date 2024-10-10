@@ -2,11 +2,12 @@ import logging
 import os
 import sys
 import time
+import logging
 from io import StringIO
-
 import numpy as np
 import pandas as pd
 import requests
+import tqdm
 
 """
 Iterates through all of the Pfam parquet files and
@@ -180,7 +181,8 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
     id_chunks = [sequence_names[i:i + chunk_size] for i in range(0, n_unique_ids, chunk_size)]
     failed_ids = []
     name_to_accession_mapping = {}
-    for idx, ids_chunk in enumerate(id_chunks):
+    # Wrap the iteration with tqdm
+    for idx, ids_chunk in tqdm.tqdm(enumerate(id_chunks), total=len(id_chunks), desc="Processing chunks"):
         if idx > 2 and IS_DEBUGGING:
             break
         chunk_file = f'{map_save_dir}/mapping_chunk_{idx+1}.csv'
