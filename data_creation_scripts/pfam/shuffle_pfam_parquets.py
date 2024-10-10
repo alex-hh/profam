@@ -66,6 +66,7 @@ def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):
     print(f"saved new mapping to {mapping_path}")
     with open(mapping_path, "w") as f:
         json.dump(new_mapping, f, indent=2)
+    return new_mapping
 
 
 def reformat_df(df, max_mb_per_entry, name, outdir):
