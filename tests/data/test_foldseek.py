@@ -8,9 +8,9 @@ import torch
 
 from src.constants import ALL_FEATURE_NAMES, BASEDIR
 from src.data import preprocessing, transforms
+from src.data.collators import DocumentBatchCollator
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.preprocessing import backbone_coords_from_example
-from src.data.collators import DocumentBatchCollator
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 
 
