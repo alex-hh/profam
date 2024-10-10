@@ -53,12 +53,15 @@ def main(max_samples: int, loader_type: str, data_folder: str):
         train_loader = dm.train_dataset
 
     t_0 = time.time()
+    num_samples = 0
     for ix, batch in enumerate(train_loader):
+        num_samples += ix * dm.batch_size if loader_type == "loader" else 1
         if ix % 100 == 0:
-            print(f"batch {ix}", {k: type(v) for k, v in batch.items()})
-        if loader_type == "loader" and ix * dm.batch_size >= max_samples:
-            break
-        if loader_type == "dataset" and ix >= max_samples:
+            print(
+                f"batch: {ix} (samples {num_samples})",
+                {k: type(v) for k, v in batch.items()},
+            )
+        if num_samples >= max_samples:
             break
     t_1 = time.time()
     print(f"Total iteration time: {t_1 - t_0:.4f} seconds")

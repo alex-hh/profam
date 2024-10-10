@@ -280,11 +280,15 @@ def load_protein_dataset(
             shuffle=shuffle,
         )
 
-        dataset = dataset.filter(prefilter_example).map(
-            preprocess_fn,
-            batched=cfg.preprocessor.batched_map,
-            batch_size=cfg.preprocessor.map_batch_size,
-            remove_columns=remove_columns,
-        ).with_format(None)
+        dataset = (
+            dataset.filter(prefilter_example)
+            .map(
+                preprocess_fn,
+                batched=cfg.preprocessor.batched_map,
+                batch_size=cfg.preprocessor.map_batch_size,
+                remove_columns=remove_columns,
+            )
+            .with_format(None)
+        )
 
     return dataset
