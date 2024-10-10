@@ -41,8 +41,8 @@ def test_representative_inverse_folding(profam_tokenizer):
 
     expected_tokens = np.array(
         [
-            profam_tokenizer.convert_tokens_to_ids("[RAW]"),
             profam_tokenizer.bos_token_id,
+            profam_tokenizer.convert_tokens_to_ids("[RAW]"),
         ]
         + [profam_tokenizer.mask_token_id] * len(rep_seq)
         + [

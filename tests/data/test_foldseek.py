@@ -146,7 +146,7 @@ def test_foldseek_interleaved_tokenization(
         for s_3d in batch_3dis
     ]
     stitched_tokens = torch.tensor(
-        profam_tokenizer.convert_tokens_to_ids(["[RAW]", profam_tokenizer.bos_token])
+        profam_tokenizer.convert_tokens_to_ids([profam_tokenizer.bos_token, "[RAW]"])
     )
     stitched_tokens = torch.cat(
         [
