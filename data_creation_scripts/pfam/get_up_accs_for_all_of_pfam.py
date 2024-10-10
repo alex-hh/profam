@@ -181,7 +181,7 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
     id_chunks = [sequence_names[i:i + chunk_size] for i in range(0, n_unique_ids, chunk_size)]
     failed_ids = []
     name_to_accession_mapping = {}
-    # Wrap the iteration with tqdm
+    
     for idx, ids_chunk in tqdm.tqdm(enumerate(id_chunks), total=len(id_chunks), desc="Processing chunks"):
         if idx > 2 and IS_DEBUGGING:
             break
