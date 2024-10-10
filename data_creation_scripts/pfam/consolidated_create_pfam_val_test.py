@@ -176,8 +176,9 @@ def make_val_test_parquets(selected_families, parquet_save_dir, flat_file_path):
                 )
                 if not os.path.exists(save_path):
                     raise FileNotFoundError(f"File {save_path} does not exist.")
-
+                print(f"Reading file: {save_path}")
                 df_w_accs = pd.read_csv(save_path)
+                print(df_w_accs.head())
                 df_w_accs['family_accession'] = df_w_accs['family_accession'].apply(lambda x: x.split(".")[0])
                 df_w_accs = df_w_accs[df_w_accs['family_accession'].isin(eval_families)]
                 if df_w_accs.empty:
