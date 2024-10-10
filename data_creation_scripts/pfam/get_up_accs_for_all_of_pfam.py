@@ -81,9 +81,11 @@ def map_val_test_names_to_accessions(pfam_df, save_path):
     mappings_df = pd.concat(all_mappings, ignore_index=True)
     pfam_df['join_id'] = pfam_df['sequence_name'].apply(lambda x: x.split("/")[0])
 
-    merged_df = pfam_df.merge(mappings_df, left_on='join_id', right_on='sequence_name', how='left')
-    print(merged_df.columns)
-    print(merged_df.head())
+    # Rename the 'sequence_name' column in mappings_df to avoid duplicate column names
+    mappings_df = mappings_df.rename(columns={'sequence_name': 'mapped_sequence_name'})
+    merged_df = pfam_df.merge(mappings_df, left_on='join_id', right_on='mapped_sequence_name', how='left')
+    # Drop the 'mapped_sequence_name' and 'join_id' columns
+    merged_df = merged_df[['sequence_name', 'family_accession', 'matched_accession']]
     # Save the merged data
     merged_df.to_csv(save_path, index=False)
     print(f"Mapping completed and results saved to {save_path}.")
