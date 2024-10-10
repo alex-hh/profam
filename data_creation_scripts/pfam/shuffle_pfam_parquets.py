@@ -28,7 +28,7 @@ def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):
     assert os.path.exists(indir)
     parquet_paths = glob.glob(f"{indir}/*.parquet")
     assert len(parquet_paths) > 0
-    preshuffled_parquet_map = f"{outdir}/preshuffled_parquet_map.csv"
+    preshuffled_parquet_map = os.path.join(os.path.dirname(mapping_path), "preshuffled_parquet_map.csv")
     if os.path.exists(preshuffled_parquet_map):
         print(f"loading preshuffled parquet map from {preshuffled_parquet_map}")
         df = pd.read_csv(preshuffled_parquet_map)
