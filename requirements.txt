@@ -90,7 +90,7 @@ pytorch-lightning==2.2.4
 pytz==2024.1
 PyYAML==6.0.1
 regex==2024.5.15
-requests==2.31.0
+requests==2.32.2
 rich==13.7.1
 rootutils==1.0.7
 safetensors==0.4.3
