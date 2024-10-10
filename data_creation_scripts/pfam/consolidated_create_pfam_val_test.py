@@ -570,6 +570,9 @@ if __name__ == "__main__":
     shuffled_parquet_dir = "../data/pfam/shuffled_parquets"
     map_save_dir = "../data/pfam/sequence_name_to_uniprot_mapping"
 
+    if not os.path.exists(pfam_uniprot_json_path):
+        raise FileNotFoundError(f"File {pfam_uniprot_json_path} does not exist. Run get_up_accs_for_all_of_pfam.py first.")
+
     index_csv_path = os.path.join(split_parquet_save_dir, index_csv_filename)
     flat_file_path = os.path.join(split_parquet_save_dir, 'pfam_val_test_flat_file.csv')
     os.makedirs(split_parquet_save_dir, exist_ok=True)
@@ -604,6 +607,7 @@ if __name__ == "__main__":
             outdir=shuffled_parquet_dir,
             limit_mb=limit_mb_per_parquet,
         )
+
 
 
     # Remove validation and test families from the Pfam training data

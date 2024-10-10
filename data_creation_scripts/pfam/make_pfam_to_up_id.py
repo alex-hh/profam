@@ -1,5 +1,6 @@
 import csv
 import json
+import os.path
 from collections import defaultdict
 """
 Download file from pfam ftp site:
@@ -9,7 +10,16 @@ Pfam-A.regions.uniprot.tsv.gz
 This file reformats it into a json.
 """
 
-def convert_pfam_uniprot_to_json(input_file, output_file):
+input_file = '../data/pfam/Pfam-A.regions.uniprot.tsv'
+output_file = '../data/pfam/pfam_uniprot_mappings.json'
+def convert_pfam_uniprot_to_json(input_file=input_file, output_file=output_file):
+    if not os.path.exists(input_file):
+        raise FileNotFoundError(
+            f"Input file {input_file} not found"
+            "Download file from pfam ftp site: "
+            "https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/" 
+            "Pfam-A.regions.uniprot.tsv.gz"
+        )
     pfam_uniprot_dict = defaultdict(list)
     with open(input_file, 'r') as f:
         reader = csv.reader(f, delimiter='\t')
@@ -27,8 +37,7 @@ def convert_pfam_uniprot_to_json(input_file, output_file):
 
 
 # Usage
-input_file = '../data/pfam/Pfam-A.regions.uniprot.tsv'
-output_file = '../data/pfam/pfam_uniprot_mappings.json'
+
 convert_pfam_uniprot_to_json(input_file, output_file)
 
 print(f"Conversion complete. JSON file saved as {output_file}")
