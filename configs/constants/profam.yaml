@@ -15,7 +15,7 @@ sequence_features:
   - input_ids
   - attention_mask
   - original_size
-  - seq_pos
+  - residue_index
 
 structure_features:
   - ds_name
@@ -23,7 +23,7 @@ structure_features:
   - input_ids
   - attention_mask
   - original_size
-  - seq_pos
+  - residue_index
   - coords
   - coords_mask
   - interleaved_coords_mask

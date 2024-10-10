@@ -1,5 +1,6 @@
 import functools
 import glob
+import math
 import os
 from dataclasses import dataclass
 from typing import List, Optional
@@ -24,7 +25,7 @@ class ProteinDatasetConfig:
     minimum_sequences: Optional[int] = None
     is_parquet: bool = False
     shuffle: bool = True
-    length_filter: Optional[str] = None  # max_tokens, max_seq_pos
+    length_filter: Optional[str] = None  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     stream: bool = True
 
@@ -75,8 +76,10 @@ def wrapped_preprocess(
 def filter_on_length(example, cfg, max_tokens, tokenizer):
     if cfg.length_filter is None:
         return True
-    elif cfg.length_filter == "max_seq_pos":
-        return any([len(s) <= tokenizer.max_seq_pos - 1 for s in example["sequences"]])
+    elif cfg.length_filter == "max_res_pos_in_seq":
+        return any(
+            [len(s) <= tokenizer.max_res_pos_in_seq - 1 for s in example["sequences"]]
+        )
     elif cfg.length_filter == "max_tokens":
         if max_tokens is None:
             return True
@@ -148,6 +151,11 @@ def prepare_data_files(data_dir, cfg, world_size=1):
             )
         else:
             data_files = data_files[: (len(data_files) // world_size) * world_size]
+            leftover_files = data_files[len(data_files) // world_size * world_size :]
+            # worst case scenario is leftover_files=1: handle this or any other case by repeating maximal amount and slicing
+            repeated_leftovers = leftover_files * world_size
+            data_files = data_files + repeated_leftovers[:world_size]
+            assert len(data_files) % world_size == 0, "Data files not evenly divisible"
     return data_files
 
 
@@ -165,7 +173,6 @@ def load_protein_dataset(
     return_format: Optional[str] = "numpy",  # n.b. return format None is very slow
 ) -> Dataset:
     data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
-
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
@@ -214,7 +221,6 @@ def load_protein_dataset(
         ), "Need identifier column for identifier holdout"
 
     def prefilter_example(example):
-        # TODO: base this on max_seq_pos
         structure_tokens_col = getattr(cfg.preprocessor, "structure_tokens_col", None)
         if structure_tokens_col is not None and example[structure_tokens_col] is None:
             # TODO: refactor datasets will handle this more gracefully
@@ -285,8 +291,5 @@ def load_protein_dataset(
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
         )
-        # None here determines formatting applied to the OUTPUTS of the mapped function by IterableDataset.__iter__,
-        # not to the mapped function (MappedExamplesIterable will have original formatting)
-        dataset = dataset.with_format(None)
 
     return dataset

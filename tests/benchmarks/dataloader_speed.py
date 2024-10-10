@@ -35,14 +35,12 @@ def main(max_samples: int, loader_type: str, data_folder: str):
                 f"data.dataset_cfgs.foldseek.holdout_data_files=null",
                 f"data.dataset_cfgs.foldseek.data_path_pattern={data_folder}/*.parquet",
                 f"paths.root_dir={BASEDIR}",
+                f"paths.data_dir={BASEDIR}/data",
             ],
-        )
-        tokenizer_cfg = compose(
-            config_name="tokenizer/profam",
         )
 
     # TODO: look into batched iteration: https://github.com/huggingface/datasets/blob/3.0.1/src/datasets/iterable_dataset.py#L2844
-    tokenizer = hydra.utils.instantiate(tokenizer_cfg.tokenizer)
+    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     dm = hydra.utils.instantiate(cfg.data, tokenizer=tokenizer, _convert_="partial")
     dm.setup()
     if loader_type == "loader":
