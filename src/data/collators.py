@@ -222,11 +222,12 @@ class CustomDataCollator:
         self.feature_names = feature_names
 
     def __call__(self, examples):
-        # TODO: maybe I have an issue with blending data with different keys?
-        # need to handle either in collator or by standardising in tokenizer.
+        # use feature names to determine which keys to keep
+        # all datasets must have all of these keys in their samples
         def keep_feature(feature_name):
             return self.feature_names is None or feature_name in self.feature_names
 
+        # TODO: handle Nones
         non_string_data = [
             {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
             for e in examples

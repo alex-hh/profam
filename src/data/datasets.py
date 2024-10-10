@@ -5,10 +5,9 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-from datasets import Dataset, Features, load_dataset
+from datasets import Dataset, load_dataset
 from omegaconf.listconfig import ListConfig
 
-from src.constants import TOKENIZED_FEATURE_TYPES
 from src.data.preprocessing import BasePreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
