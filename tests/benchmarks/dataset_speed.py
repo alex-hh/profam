@@ -17,6 +17,8 @@ Solutions:
 * write our own interleave datasets function, and wrap hf datasets to handle mapping
 * fix hf dataset mapping
 * write a function wrapper that wraps any mapped function in a transform function.
+
+TODO: what would be performance difference if we applied filter / map before interleaving?
 """
 import argparse
 import cProfile
@@ -74,8 +76,8 @@ def main(
     if format is not None:
         dataset = dataset.with_format(format)
 
-    dataset = dataset.filter(lambda x: True)
-    print("Post filter", dataset._formatting, dataset.info.features)
+    if null_filter:
+        dataset = dataset.filter(lambda x: True)
 
     def null_map(x):
         return x
@@ -91,6 +93,7 @@ def main(
             batch_size=map_batch_size,
             batched=True if map_batch_size is not None else False,
             format_outputs=False,
+            features=dataset.info.features,  # needs to be set when using interleave_datasets
         )
 
     elif preprocess:
@@ -125,9 +128,9 @@ def main(
             shuffle=True,
         )
         if preprocess_map:
-            # features = Features(
-            #     **{f: TOKENIZED_FEATURE_TYPES[f] for f in ALL_FEATURE_NAMES}
-            # )
+            features = Features(
+                **{f: TOKENIZED_FEATURE_TYPES[f] for f in ALL_FEATURE_NAMES}
+            )
             # Does applying Map override formatting? that could be one issue...
             dataset = dataset.map(
                 preprocess_fn,
@@ -136,7 +139,8 @@ def main(
                     c for c in dataset.column_names if c not in ALL_FEATURE_NAMES
                 ],
                 batched=True if map_batch_size is not None else False,
-            ).with_format(None)
+                features=features,  # must be set when using interleave_datasets
+            )
 
     if interleave_n > 1:
         dataset = interleave_datasets([dataset] * interleave_n)
