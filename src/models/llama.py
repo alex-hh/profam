@@ -55,7 +55,9 @@ class LlamaLitModule(BaseFamilyLitModule):
         embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
-        max_sequence_index: int = 1024,
+        max_seq_pos_in_doc: int = 1024,
+        embed_residue_index: bool = True,
+        max_res_pos_in_seq: int = 4096,
     ) -> None:
         """
         From the paper:
@@ -64,9 +66,10 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        if (
-            tokenizer.use_seq_pos or embed_coords,
-        ):  # commenting out to check computation of inputs embeds is working
+        if (tokenizer.embed_residue_index or embed_coords,):
+            # had to remove these as they break testing
+            # assert embed_residue_index == tokenizer.embed_residue_index
+            # assert max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
             model = WrappedLlamaForCausalLM(
                 config,
                 token_embedder="model.embed_tokens",
@@ -74,7 +77,7 @@ class LlamaLitModule(BaseFamilyLitModule):
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,
                 embed_sequence_index=embed_sequence_index,
-                max_sequence_index=max_sequence_index,
+                max_seq_pos_in_doc=max_seq_pos_in_doc,
                 pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
                 pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
             )

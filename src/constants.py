@@ -40,13 +40,12 @@ PROFAM_DATA_DIR = os.environ.get("PROFAM_DATA_DIR", os.path.join(BASEDIR, "data"
 RESIDUE_LEVEL_FEATURES = [
     "input_ids",
     "attention_mask",
-    "seq_pos",
+    "residue_index",
     "coords",
     "coords_mask",
     "plddts",
     "plddt_mask",
     "aa_mask",
-    "seq_pos",
     "token_type_ids",
 ]
 
@@ -60,7 +59,7 @@ SEQUENCE_TENSOR_FEATURES = [
     "attention_mask",
     # "labels",  # added by collator
     "original_size",
-    "seq_pos",
+    "residue_index",
 ]
 
 
@@ -86,7 +85,7 @@ TOKENIZED_FEATURE_TYPES = {
     "input_ids": Sequence(feature=Value(dtype="int32"), length=-1),
     "attention_mask": Sequence(feature=Value(dtype="int32"), length=-1),
     # "labels": Sequence(feature=Value(dtype="int32"), length=-1),
-    "seq_pos": Sequence(feature=Value(dtype="int32"), length=-1),
+    "residue_index": Sequence(feature=Value(dtype="int32"), length=-1),
     "original_size": Value(dtype="int32"),
     "aa_mask": Sequence(feature=Value(dtype="bool"), length=-1),
     "structure_mask": Sequence(feature=Value(dtype="bool"), length=-1),
