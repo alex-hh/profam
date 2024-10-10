@@ -59,7 +59,7 @@ SEQUENCE_TENSOR_FEATURES = [
     "attention_mask",
     # "labels",  # added by collator
     "original_size",
-    "seq_pos",
+    "residue_index",
 ]
 
 
