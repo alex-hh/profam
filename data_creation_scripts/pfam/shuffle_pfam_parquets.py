@@ -13,9 +13,9 @@ import pickle
 import sys
 
 import pandas as pd
+from tqdm import tqdm
 
 from src.sequence.fasta import read_fasta_lines
-
 
 def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):
     """
@@ -66,6 +66,8 @@ def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):
     print(f"saved new mapping to {mapping_path}")
     with open(mapping_path, "w") as f:
         json.dump(new_mapping, f, indent=2)
+    # remove preshuffled parquet map
+    os.remove(preshuffled_parquet_map)
     return new_mapping
 
 
@@ -121,7 +123,9 @@ def shuffle_pfam_parquets(indir, outdir, limit_mb):
     else:
         with open(mapping_path, "r") as f:
             mapping = json.load(f)
-    for k, v in mapping.items():
+    
+    # Add tqdm progress bar
+    for k, v in tqdm(mapping.items(), desc="Processing parquets", unit="parquet"):
         new_dom_path = f"{outdir}/Domain_{str(k).zfill(3)}.parquet"
         new_fam_path = f"{outdir}/Family_{str(k).zfill(3)}.parquet"
         if os.path.exists(new_dom_path) and os.path.exists(new_fam_path):
