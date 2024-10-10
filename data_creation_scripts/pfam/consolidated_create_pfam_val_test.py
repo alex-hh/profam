@@ -559,7 +559,7 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir):
 
 if __name__ == "__main__":
     external_pfam_dir = '../data/pfam/pfam_eval_splits'  # data splits from other authors
-    split_parquet_save_dir = "../data/pfam/train_test_split_parquets"
+    split_parquet_save_dir = "../data/pfam/train_test_split_parquets_v2"
     index_csv_filename = "pfam_val_test_w_accessions.csv"
     pfam_uniprot_json_path = "../data/pfam/pfam_uniprot_mappings.json"
     output_json_path = os.path.join(
