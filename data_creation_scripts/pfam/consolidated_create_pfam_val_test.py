@@ -209,7 +209,7 @@ def make_val_test_parquets(selected_families, parquet_save_dir, flat_file_path):
 
                 # Organize data for parquet files
                 for fam_id, group in df_w_accs.groupby('fam_id'):
-                    accessions = group['accessions'].tolist()
+                    accessions = group['accession'].tolist()
                     matched_accessions = group['matched_accession'].tolist()
                     sequence_choppings = [name.split('/')[1] for name in accessions]
                     if fam_id_to_data[fam_id]['fam_id'] == '':
