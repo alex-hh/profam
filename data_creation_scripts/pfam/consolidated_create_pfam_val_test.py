@@ -1,24 +1,22 @@
-import os
-from io import StringIO
-import pandas as pd
-import logging
-import numpy as np
-from collections import defaultdict
-import random
-import requests
-import json
-import glob
-import sys
-import time
 import csv
+import glob
+import json
+import logging
+import os
+import random
+import sys
 from collections import defaultdict
-from data_creation_scripts.pfam.shuffle_pfam_parquets import shuffle_pfam_parquets
+
+import pandas as pd
 
 from data_creation_scripts.pfam.get_up_accs_for_all_of_pfam import (
     setup_logging,
-    get_sequence_name_to_uniprot_mapping,
-    process_parquet_files
+    get_name_to_accession_mapping,
+    process_parquet_files,
+    map_val_test_names_to_accessions
 )
+from data_creation_scripts.pfam.shuffle_pfam_parquets import shuffle_pfam_parquets
+
 """
 Consolidated script for Pfam data processing.
 
@@ -282,7 +280,7 @@ def filter_fams_without_up_accs(
                     if dfs:
                         combined = pd.concat(dfs)
 
-                        combined = get_uniprot_accessions_from_names(
+                        combined = map_val_test_names_to_accessions(
                             combined,
                             save_path=save_path
                         )
@@ -393,7 +391,6 @@ def create_pfam_val_test_all_up_ids_json(
 
     :param selected_families: DataFrame of selected families
     :param pfam_uniprot_json_path: Path to the Pfam-UniProt JSON mapping
-    :param output_json_path: Path to save the combined Pfam-UniProt mapping for selected families
     :param pfam_save_dir: Directory containing Pfam data
     :param min_overlap_threshold: Minimum required proportion of overlapping UniProt IDs
     :return: Filtered DataFrame of selected families
@@ -533,47 +530,52 @@ def select_families(
 
     return selected_families
 
-def add_accessions_to_parquets(split_parquet_save_dir):
+def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir):
     setup_logging()
     # Collect all unique sequence names from the parquet files
-    parq_paths = glob.glob(os.path.join(split_parquet_save_dir, '*.parquet'))
+    parq_paths = glob.glob(f"{split_parquet_save_dir}/*/*.parquet")
     all_sequence_names = set()
 
     for parq_path in parq_paths:
         logging.info(f"Reading parquet file: {parq_path}")
         df = pd.read_parquet(parq_path)
-        if 'accessions' in df.columns:
-            sequence_names = df['accessions'].explode().tolist()
-            all_sequence_names.update(sequence_names)
+
+        sequence_names = df['accessions'].explode().apply(lambda x: x.split("/")[0]).to_list()
+        all_sequence_names.update(sequence_names)
 
     logging.info(f"Total unique sequence names collected: {len(all_sequence_names)}")
 
     # Get the mapping from sequence names to UniProt accessions
     logging.info("Mapping sequence names to UniProt accessions...")
-    sequence_to_uniprot_mapping = get_sequence_name_to_uniprot_mapping(list(all_sequence_names))
+    name_to_accession_mapping = get_name_to_accession_mapping(
+        list(all_sequence_names),
+        map_save_dir=map_save_dir,
+    )
 
     # Process parquet files to add 'matched_accessions' column and overwrite them
     logging.info("Adding 'matched_accessions' column to parquet files...")
-    process_parquet_files(parq_paths, sequence_to_uniprot_mapping)
+    process_parquet_files(parq_paths, name_to_accession_mapping)
 
 
 if __name__ == "__main__":
-    external_pfam_dir = '../pfam_eval_splits'
+    external_pfam_dir = '../pfam_eval_splits'  # data splits from other authors
     split_parquet_save_dir = "../data/pfam/train_test_split_parquets"
     index_csv_filename = "pfam_val_test_w_accessions.csv"
-    index_csv_path = os.path.join(split_parquet_save_dir, index_csv_filename)
     pfam_uniprot_json_path = "../data/pfam/pfam_uniprot_mappings.json"
     output_json_path = os.path.join(
         split_parquet_save_dir,
         "pfam_val_test_all_up_ids.json"
     )
-    pre_shuffled_parquet_dir = "../data/pfam/combined_parquets"
+    pre_shuffled_parquet_dir = "../data/pfam/combined_parquets"  # created by array_job_split_pfam.py
     shuffled_parquet_dir = "../data/pfam/shuffled_parquets"
+    map_save_dir = "../data/pfam/sequence_name_to_uniprot_mapping"
 
+    index_csv_path = os.path.join(split_parquet_save_dir, index_csv_filename)
     flat_file_path = os.path.join(split_parquet_save_dir, 'pfam_val_test_flat_file.csv')
     os.makedirs(split_parquet_save_dir, exist_ok=True)
     os.makedirs(shuffled_parquet_dir, exist_ok=True)
-    n_families = 500
+    os.makedirs(map_save_dir, exist_ok=True)
+    n_families = 500  # Number of families to select for val + test
     limit_mb_per_parquet = 125
 
     print("Selecting pfam family IDs for val / test...")
@@ -605,20 +607,26 @@ if __name__ == "__main__":
 
 
     # Remove validation and test families from the Pfam training data
-    new_index = remove_val_test_rows(
-        val_test_df=selected_families,
-        old_parquet_dir=shuffled_parquet_dir,
-        new_parquet_dir=split_parquet_save_dir,
-        limit_mb=125,
-    )
+    if not len(glob.glob(f"{split_parquet_save_dir}/train/*.parquet")):
+        new_index = remove_val_test_rows(
+            val_test_df=selected_families,
+            old_parquet_dir=shuffled_parquet_dir,
+            new_parquet_dir=split_parquet_save_dir,
+            limit_mb=125,
+        )
 
-    # Write new index.csv
-    index_csv_output = os.path.join(split_parquet_save_dir, 'pfam_post_split_index.csv')
-    with open(index_csv_output, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['fam_id', 'parquet_file'])
-        writer.writerows(new_index)
-    print(f"New index CSV saved to {index_csv_output}")
+        # Write new index.csv
+        index_csv_output = os.path.join(split_parquet_save_dir, 'pfam_post_split_index.csv')
+        with open(index_csv_output, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['fam_id', 'parquet_file'])
+            writer.writerows(new_index)
+        print(f"New index CSV saved to {index_csv_output}")
+    else:
+        print("Train val test split of pfam training data already exists. Skipping...")
 
     print("Adding UniProt accessions to parquet files...")
-    add_accessions_to_parquets(split_parquet_save_dir)
+    add_accessions_to_parquets(
+        split_parquet_save_dir,
+        map_save_dir=map_save_dir
+    )
