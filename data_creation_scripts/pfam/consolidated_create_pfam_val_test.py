@@ -194,8 +194,6 @@ def make_val_test_parquets(selected_families, parquet_save_dir, flat_file_path):
                 df_w_accs['fam_id'] = df_w_accs['family_accession']
                 df_w_accs['split'] = eval_split
                 df_w_accs['is_completion'] = (within_family_split == 'test')
-                df_w_accs['sequence'] = df_w_accs['sequence']
-                df_w_accs['aligned_sequence'] = df_w_accs['aligned_sequence']
                 df_w_accs['split_type'] = split_type
                 # Add to flat file rows
                 flat_file_rows.extend(
@@ -206,7 +204,6 @@ def make_val_test_parquets(selected_families, parquet_save_dir, flat_file_path):
                         'split',
                         'split_type',
                         'is_completion',
-                        'sequence'
                     ]].to_dict('records')
                 )
 
