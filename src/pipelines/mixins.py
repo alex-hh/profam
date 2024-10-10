@@ -1,6 +1,9 @@
-from typing import Optional
+from typing import Dict, Optional
 
 import pandas as pd
+
+from src.data.preprocessing import BasePreprocessor
+from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 
 class ParquetMixin:
@@ -9,7 +12,8 @@ class ParquetMixin:
     def __init__(
         self,
         *args,
-        instance_id_col="cluster_id",
+        preprocessor: BasePreprocessor,
+        instance_id_col="fam_id",
         evaluation_parquet: str = None,
         evaluation_accessions_file: str = None,
         parquet_index: str = None,
@@ -17,19 +21,24 @@ class ParquetMixin:
         max_instances: Optional[int] = None,
         **kwargs,
     ):
+        """preprocessor: a bare preprocessor (no transform_fns), to build document from raw data."""
         super().__init__(*args, **kwargs)
         self.instance_id_col = instance_id_col
         self.max_instances = max_instances
+        self.preprocessor = preprocessor
+        # TODO: standardise parquet index - i.e. create in former case
+
         if evaluation_parquet is not None:
             assert evaluation_accessions_file is None
             self.evaluation_df = pd.read_parquet(evaluation_parquet).set_index(
-                self.instance_id_col
+                self.instance_id_col, drop=False
             )
             if evaluation_accessions is not None:
                 self.evaluation_df = self.evaluation_df.loc[evaluation_accessions]
-            self.evaluation_accessions = list(self.evaluation_df.index.values)
             self.parquet_index = None
+            self.evaluation_accessions = list(self.evaluation_df.index.values)
         else:
+            assert self.max_sequence_length is None
             assert (
                 evaluation_parquet is None
                 and evaluation_accessions is None
@@ -47,9 +56,14 @@ class ParquetMixin:
                 .to_dict()
             )
         if self.max_instances is not None:
+            # Limit the number of instances - parquets often pre-shuffled
             self.evaluation_accessions = self.evaluation_accessions[
                 : self.max_instances
             ]
+
+    def load_protein_document(self, instance_id):
+        example = self.get_protein_example(instance_id)
+        return self.preprocessor.build_document(example, max_tokens=None, shuffle=False)
 
     def get_protein_example(self, instance_id: str):
         if self.evaluation_df is not None:
@@ -59,3 +73,31 @@ class ParquetMixin:
             evaluation_df = pd.read_parquet(parquet_file)
         dict = evaluation_df.loc[instance_id].to_dict()
         return dict
+
+
+class ParquetGenerationsPipeline(ParquetMixin, GenerationsEvaluatorPipeline):
+    def __init__(
+        self,
+        *args,
+        cluster_id_col: str = "fam_id",
+        evaluation_parquet: str = None,
+        evaluation_accessions_file: str = None,
+        parquet_index: str = None,
+        evaluation_accessions: list = None,
+        **kwargs,
+    ):
+        super().__init__(
+            *args,
+            instance_id_col=cluster_id_col,
+            evaluation_parquet=evaluation_parquet,
+            evaluation_accessions_file=evaluation_accessions_file,
+            evaluation_accessions=evaluation_accessions,
+            parquet_index=parquet_index,
+            **kwargs,
+        )
+
+    def instance_ids(self):
+        return self.evaluation_accessions
+
+    def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
+        return {}

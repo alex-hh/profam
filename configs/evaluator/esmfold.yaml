@@ -1,11 +1,6 @@
 _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-device: "cuda:0"  # TODO: check this works in distributed.
-max_tokens: 8192
-seed: 52
 name: esmfold
 half_precision: False
-num_samples: 100
-keep_gaps: False
-keep_insertions: True
-to_upper: True
+num_samples: null
 save_structures: False
+max_length: 512  # filter applied when running esmfold on generations to avoid oom

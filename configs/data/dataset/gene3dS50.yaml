@@ -1,6 +1,6 @@
 defaults:
   - /preprocessor: "fasta_raw"
-_target_: src.data.hf_protein_datamodule.ProteinDatasetConfig
+_target_: src.data.datasets.ProteinDatasetConfig
 name: gene3dS50
 data_path_pattern: gene3d/all_sfams_4.3/*/*_s50_rep_seq.fasta
 holdout_data_files: null
