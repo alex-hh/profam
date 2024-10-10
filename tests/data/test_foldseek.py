@@ -87,7 +87,7 @@ def foldseek_interleaved_structure_sequence_batch(
         feature_names=ALL_FEATURE_NAMES,
     )
     datapoint = next(iter(data))
-    collator = DocumentBatchCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
 
 
@@ -245,7 +245,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         feature_names=ALL_FEATURE_NAMES,
     )
     datapoint = next(iter(data))
-    collator = DocumentBatchCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     batch = collator([datapoint])
 
     plddt_mask = (batch["plddts"] == 0.0) & batch["structure_mask"]

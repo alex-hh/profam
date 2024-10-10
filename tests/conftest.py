@@ -142,7 +142,7 @@ def proteingym_batch(profam_tokenizer):
         use_filtered_msa=True,
     )
     datapoint = next(iter(data))
-    collator = DocumentBatchCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
 
 
@@ -164,7 +164,7 @@ def pfam_batch(profam_tokenizer):
         shuffle=False,
     )
     datapoint = next(iter(data))
-    collator = DocumentBatchCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
 
 
@@ -186,7 +186,7 @@ def foldseek_batch(profam_tokenizer):
         shuffle=False,
     )
     datapoint = next(iter(data))
-    collator = DocumentBatchCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
 
 
