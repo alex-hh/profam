@@ -10,7 +10,7 @@ from src.constants import ALL_FEATURE_NAMES, BASEDIR
 from src.data import preprocessing, transforms
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.preprocessing import backbone_coords_from_example
-from src.data.utils import CustomDataCollator
+from src.data.utils import DocumentBatchCollator
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 
 
@@ -87,7 +87,7 @@ def foldseek_interleaved_structure_sequence_batch(
         feature_names=ALL_FEATURE_NAMES,
     )
     datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer, mlm=False)
     return collator([datapoint])
 
 
@@ -245,7 +245,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         feature_names=ALL_FEATURE_NAMES,
     )
     datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer, mlm=False)
     batch = collator([datapoint])
 
     plddt_mask = (batch["plddts"] == 0.0) & batch["structure_mask"]
