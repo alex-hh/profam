@@ -127,7 +127,7 @@ def sample_fams_by_size(
             f.write(f'{fam},test\n')
 
 
-def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_file_path):
+def make_val_test_parquets(selected_families, parquet_save_dir, flat_file_path):
     """
     Create parquet files for both split types in {random, clustered}
     Each split_type has val and test splits.
@@ -142,8 +142,8 @@ def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_f
     Additionally, create a single flat file (CSV) that has one row per sequence with the following columns:
     {
         "fam_id": PF00001,
-        "accession": P12345,  # UniProt accession
-        "sequence_name": Q5KPZ5_CRYNJ/238-462,  # From 'sequence_name' column
+        "mapped_accession": P12345,  # UniProt accession
+        "accession": Q5KPZ5_CRYNJ/238-462,  # From original pfam file
         "split": "val",
         "is_completion": False,
         "sequence": "MAG",  # From 'sequence' column
@@ -211,19 +211,19 @@ def make_val_test_parquets(selected_families, parquet_save_dir, pfam_dir, flat_f
 
                 # Organize data for parquet files
                 for fam_id, group in df_w_accs.groupby('fam_id'):
-                    sequence_names = group['sequence_name'].tolist()
+                    accessions = group['accessions'].tolist()
                     matched_accessions = group['matched_accession'].tolist()
-                    sequence_choppings = [name.split('/')[1] for name in sequence_names]
+                    sequence_choppings = [name.split('/')[1] for name in accessions]
                     if fam_id_to_data[fam_id]['fam_id'] == '':
                         fam_id_to_data[fam_id]['fam_id'] = fam_id
                     if within_family_split == 'train':
-                        fam_id_to_data[fam_id]['accessions'].extend(sequence_names)
+                        fam_id_to_data[fam_id]['accessions'].extend(accessions)
                         fam_id_to_data[fam_id]['sequences'].extend(group['aligned_sequence'].tolist())
                         fam_id_to_data[fam_id]['matched_accessions'].extend(matched_accessions)
                         fam_id_to_data[fam_id]['sequence_choppings'].extend(sequence_choppings)
                     else:  # Test split within family
                         fam_id_to_data[fam_id]['completion_sequences'].extend(group['aligned_sequence'].tolist())
-                        fam_id_to_data[fam_id]['completion_accessions'].extend(sequence_names)
+                        fam_id_to_data[fam_id]['completion_accessions'].extend(accessions)
                         fam_id_to_data[fam_id]['completion_matched_accessions'].extend(matched_accessions)
                         fam_id_to_data[fam_id]['completion_sequence_choppings'].extend(sequence_choppings)
 
@@ -593,7 +593,6 @@ if __name__ == "__main__":
         make_val_test_parquets(
             selected_families=selected_families,
             parquet_save_dir=split_parquet_save_dir,
-            pfam_dir=external_pfam_dir,
             flat_file_path=flat_file_path
         )
 
