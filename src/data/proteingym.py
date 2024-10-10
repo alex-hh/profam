@@ -13,7 +13,7 @@ from src.data import transforms
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
-from src.data.utils import DocumentBatchCollator
+from src.data.collators import DocumentBatchCollator
 from src.sequence import fasta
 from src.utils.tokenizers import ProFamTokenizer
 

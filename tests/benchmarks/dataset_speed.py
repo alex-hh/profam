@@ -39,7 +39,7 @@ from src.constants import (
 )
 from src.data.datasets import ProteinDatasetConfig, wrapped_preprocess
 from src.data.preprocessing import ParquetStructurePreprocessor, PreprocessingConfig
-from src.data.utils import DocumentBatchCollator
+from src.data.collators import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer
 
 
