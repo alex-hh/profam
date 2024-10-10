@@ -372,7 +372,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                         num_end_tokens=1 if eos_token else 0,
                     )
                 )
-            tokenized.data["seq_pos"] = np.stack(all_positions)
+            tokenized.data["residue_index"] = np.stack(all_residue_indices)
 
         return tokenized
 

@@ -111,7 +111,7 @@ def prepare_data_files(data_dir, cfg, world_size=1):
             data_files = data_files[: (len(data_files) // world_size) * world_size]
             leftover_files = data_files[len(data_files) // world_size * world_size :]
             # worst case scenario is leftover_files=1: handle this or any other case by repeating maximal amount and slicing
-            repeated_leftovers = [leftover_files] * world_size
+            repeated_leftovers = leftover_files * world_size
             data_files = data_files + repeated_leftovers[:world_size]
             assert len(data_files) % world_size == 0, "Data files not evenly divisible"
     return data_files
@@ -131,7 +131,6 @@ def load_protein_dataset(
     return_format: Optional[str] = "numpy",  # n.b. return format None is very slow
 ) -> Dataset:
     data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
-
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
@@ -180,6 +179,7 @@ def load_protein_dataset(
         ), "Need identifier column for identifier holdout"
 
     def prefilter_example(example):
+        print("prefilter_example", example, example.keys())
         structure_tokens_col = getattr(cfg.preprocessor, "structure_tokens_col", None)
         if structure_tokens_col is not None and example[structure_tokens_col] is None:
             # TODO: refactor datasets will handle this more gracefully

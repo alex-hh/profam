@@ -60,7 +60,7 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences), add_final_sep=False
     )
-    input_seq_pos = torch.from_numpy(tokenized.seq_pos[None, :-2])
+    input_residue_index = torch.from_numpy(tokenized.residue_index[None, :-2])
     input_ids = torch.from_numpy(tokenized.input_ids[None, :-2])
 
     model_kwargs = {
