@@ -280,15 +280,14 @@ def load_protein_dataset(
             shuffle=shuffle,
         )
 
-        dataset = (
-            dataset.filter(prefilter_example)
-            .map(
-                preprocess_fn,
-                batched=cfg.preprocessor.batched_map,
-                batch_size=cfg.preprocessor.map_batch_size,
-                remove_columns=remove_columns,
-            )
-            .with_format(None)
+        dataset = dataset.filter(prefilter_example).map(
+            preprocess_fn,
+            batched=cfg.preprocessor.batched_map,
+            batch_size=cfg.preprocessor.map_batch_size,
+            remove_columns=remove_columns,
         )
+        # None here determines formatting applied to the OUTPUTS of the mapped function by IterableDataset.__iter__,
+        # not to the mapped function (MappedExamplesIterable will have original formatting)
+        dataset = dataset.with_format(None)
 
     return dataset
