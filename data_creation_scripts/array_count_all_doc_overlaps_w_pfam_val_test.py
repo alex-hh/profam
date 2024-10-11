@@ -82,7 +82,7 @@ class BaseOverlapCounter:
         total_fams = len(fam_id_up_ids)
         logger.info(f"found {total_fams} families")
         for i, (fam_id, up_ids) in enumerate(fam_id_up_ids.items()):
-            if i % (total_fams // 50) == 0:
+            if i % max(1, (total_fams // 50)) == 0:
                 logger.info(f"Processed {i+1}/{total_fams} families")
             for pfam_fam, test_ids in self.pfam_val_test.items():
                 intersection = set(up_ids).intersection(test_ids)
@@ -201,7 +201,7 @@ def process_dataset(counter_class, pfam_val_test, task_index, num_tasks, **kwarg
     
     overlap_counts = {}
     for i, (fam_id, up_ids) in enumerate(sorted(list(fam_id_up_ids.items()))[start_index:end_index], start=start_index):
-        if i % (fams_per_task // 10) == 0:
+        if i % max(1, (fams_per_task // 10)) == 0:
             logger.info(f"Processed {i-start_index+1}/{end_index-start_index} families")
         for pfam_fam, test_ids in pfam_val_test.items():
             intersection = set(up_ids).intersection(test_ids)
