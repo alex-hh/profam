@@ -22,7 +22,9 @@ CATH_42_JSONL_FILE = os.path.join(
     constants.PROFAM_DATA_DIR, "cath/cath42/chain_set.jsonl"
 )
 CATH_43_SPLITS_FILE = os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json")
-CATH_42_SPLITS_FILE = os.path.join(constants.PROFAM_DATA_DIR, "cath/cath42/chain_set_splits.json")
+CATH_42_SPLITS_FILE = os.path.join(
+    constants.PROFAM_DATA_DIR, "cath/cath42/chain_set_splits.json"
+)
 
 
 def cath_43_splits():

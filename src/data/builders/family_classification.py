@@ -15,7 +15,6 @@ from datasets import Dataset
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
 
-
 family_columns = [
     "input_ids",
     "completion_ids",

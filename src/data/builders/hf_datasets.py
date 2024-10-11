@@ -64,6 +64,12 @@ class HFProteinDatasetConfig:
                 self.padding == "do_not_pad"
             ), "padding must be do_not_pad if concatenate_short_documents is True"
 
+        if self.return_format is None and self.file_type == "parquet":
+            print(
+                "Warning: using parquet files but using return_format None: "
+                "may lead to poor performance for array data"
+            )
+
 
 def random_subsample(arr, n, seed: Optional[int] = None):
     rnd = np_random(seed)
@@ -241,7 +247,9 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             split="train",  # just automatically assigns all files to train - get this 'split'
             streaming=True,
             **load_kwargs,
-        )
+        ).with_format(
+            self.cfg.return_format
+        )  # formatting needs to be set before filter/map
 
         print(f"Dataset n shards: {dataset.n_shards}")
         if verbose:
@@ -333,7 +341,6 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
         tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
-        return_format: Optional[str] = "numpy",
     ):
         """Speed issues:
 
@@ -376,19 +383,15 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 fn_kwargs={
                     "tokenizer": tokenizer,
                 },
-                features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
+                features=Features(
+                    **{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names}
+                )
                 if feature_names is not None
                 else None,
             )
         else:
             raise NotImplementedError("Must implement online processing method")
 
-        if return_format is not None:
-            dataset = dataset.with_format(type=return_format)
-        else:
-            print(
-                "WARNING: returning dataset without format; expect slow iteration and batching"
-            )
         return dataset
 
 
@@ -429,7 +432,6 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         tokenizer: ProFamTokenizer,
         max_tokens_per_example: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
-        return_format: Optional[str] = "numpy",
     ):
         """
         Process a dataset with a preprocessor.
@@ -456,12 +458,6 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
                     "feature_names": feature_names,
                     "max_tokens_per_example": max_tokens_per_example,
                 },
-            )
-        if return_format is not None:
-            dataset = dataset.with_format(type=return_format)
-        else:
-            print(
-                "WARNING: returning dataset without format; expect slow iteration and batching"
             )
         return dataset
 
