@@ -14,18 +14,16 @@ sequence_features:
   - identifier
   - input_ids
   - attention_mask
-  - labels
   - original_size
-  - seq_pos
+  - residue_index
 
 structure_features:
   - ds_name
   - identifier
   - input_ids
   - attention_mask
-  - labels
   - original_size
-  - seq_pos
+  - residue_index
   - coords
   - coords_mask
   - interleaved_coords_mask

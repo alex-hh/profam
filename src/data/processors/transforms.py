@@ -1,5 +1,3 @@
-import functools
-import itertools
 from typing import Callable, List, Optional
 
 import numpy as np
@@ -402,7 +400,7 @@ def interleave_structure_sequence(
             plddts = proteins.plddts[ix]
         else:
             plddts = np.full((len(seq),), 100.0)
-        positions = proteins.positions[ix]
+        positions = proteins.residue_positions[ix]
         # TODO: monitor max_tokens
         assert (
             len(seq) == len(xyz) == len(plddts)
@@ -498,7 +496,7 @@ def interleave_structure_sequence(
 
     return proteins.clone(
         sequences=interleaved_sequences,
-        positions=interleaved_positions,
+        residue_positions=interleaved_positions,
         plddts=interleaved_plddts,
         backbone_coords=interleaved_coords,
         backbone_coords_masks=interleaved_structure_coords_masks,

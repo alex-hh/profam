@@ -180,9 +180,7 @@ class ProteinDataMixture(LightningDataModule):
                     # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
                     # perhaps we could test similar to https://github.com/huggingface/datasets/issues/7156
                     print("Repeating dataset to avoid running out of samples")
-                    self.train_dataset = repeat(
-                        self.train_dataset, num_times=None
-                    ).take(max_train_samples)
+                    self.train_dataset = self.train_dataset.repeat(num_times=None).take(max_train_samples)
                 elif self.total_num_train_samples is None:
                     print(
                         "Warning: total_num_train_samples not needed for world size 1 and will be ignored"

@@ -4,7 +4,6 @@ These classes are different in that they are more focussed on preprocessing.
 It might be useful however to move towards the standardised splits.
 - although this is basically just directory-based
 """
-import copy
 import glob
 import math
 import os
@@ -12,11 +11,10 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-from datasets import Dataset, load_dataset
-from datasets.iterable_dataset import IterableDataset, _BaseExamplesIterable
+from datasets import Dataset, Features, load_dataset
 from omegaconf import ListConfig
 
-from src.constants import STRING_FEATURE_NAMES
+from src.constants import STRING_FEATURE_NAMES, TOKENIZED_FEATURE_TYPES
 from src.data.collators import DataCollatorWithFlattening
 from src.data.objects import ProteinDocument
 from src.data.processors import (
@@ -44,7 +42,7 @@ class HFProteinDatasetConfig:
     max_sequences_per_document: Optional[int] = None
     holdout_identifiers: Optional[List[str]] = None
     required_keys: Optional[List[str]] = None
-    length_filter: Optional[str] = None  # max_tokens, max_seq_pos
+    length_filter: Optional[str] = None  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     # processing
     return_format: Optional[str] = "numpy"
@@ -127,74 +125,6 @@ def prepare_data_files(
     print(f"Loading dataset from {len(data_files)} files ({cfg.file_repeats} repeats)")
 
     return data_files
-
-
-class RepeatExamplesIterable(_BaseExamplesIterable):
-    """
-    Iterable that repeats the underlying iterable a given number of times.
-    """
-
-    def __init__(
-        self,
-        ex_iterable: _BaseExamplesIterable,
-        num_times: int,
-    ):
-        super().__init__()
-        self.ex_iterable = ex_iterable
-        self.num_times = num_times
-
-    def _init_state_dict(self) -> dict:
-        self._state_dict = {
-            "repeat_index": 0,
-            "ex_iterable": self.ex_iterable._init_state_dict(),
-        }
-        return self._state_dict
-
-    def __iter__(self):
-        repeat_index = self._state_dict["repeat_index"] if self._state_dict else 0
-        while True:
-            if self.num_times and repeat_index >= max(self.num_times, 0):
-                break
-            yield from self.ex_iterable
-            repeat_index += 1
-            if self._state_dict:
-                self._state_dict["repeat_index"] = repeat_index
-                self._state_dict["ex_iterable"] = self.ex_iterable._init_state_dict()
-
-    def shuffle_data_sources(
-        self, generator: np.random.Generator
-    ) -> "RepeatExamplesIterable":
-        """Shuffle the underlying iterable, then repeat."""
-        return RepeatExamplesIterable(
-            self.ex_iterable.shuffle_data_sources(generator), num_times=self.num_times
-        )
-
-    def shard_data_sources(
-        self, worker_id: int, num_workers: int
-    ) -> "RepeatExamplesIterable":
-        """Shard, then repeat shards."""
-        return RepeatExamplesIterable(
-            self.ex_iterable.shard_data_sources(worker_id, num_workers),
-            num_times=self.num_times,
-        )
-
-    @property
-    def n_shards(self) -> int:
-        return self.ex_iterable.n_shards
-
-
-def repeat(
-    dataset: IterableDataset, num_times: Optional[int] = None
-) -> IterableDataset:
-    return IterableDataset(
-        ex_iterable=RepeatExamplesIterable(dataset._ex_iterable, num_times=num_times),
-        info=dataset._info,
-        split=dataset._split,
-        formatting=dataset._formatting,
-        shuffling=copy.deepcopy(dataset._shuffling),
-        distributed=copy.deepcopy(dataset._distributed),
-        token_per_repo_id=dataset._token_per_repo_id,
-    )
 
 
 def concatenate_short_documents(
@@ -341,7 +271,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
     ):
         if self.cfg.required_keys is not None:
             for k in self.cfg.required_keys:
-                if k not in example or not example[k]:
+                if k not in example or example[k] is None:
                     return False
 
         sequence_count = len(example[self.cfg.sequence_col])
@@ -446,6 +376,9 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 fn_kwargs={
                     "tokenizer": tokenizer,
                 },
+                features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
+                if feature_names is not None
+                else None,
             )
         else:
             raise NotImplementedError("Must implement online processing method")
@@ -479,9 +412,14 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
             )
             data_files = data_files * math.ceil(world_size / len(data_files))
 
+        leftover_files = data_files[len(data_files) // world_size * world_size :]
         data_files = data_files[: (len(data_files) // world_size) * world_size]
+        # worst case scenario is leftover_files=1: handle this or any other case by repeating maximal amount and slicing
+        repeated_leftovers = leftover_files * world_size
+        data_files = data_files + repeated_leftovers[:world_size]
+        assert len(data_files) % world_size == 0, "Data files not evenly divisible"
         print(
-            f"Ensuring even partition of shards across devices by subsampling to {len(data_files)} shards"
+            f"Ensuring even partition of shards across devices by upsampling to {len(data_files)} shards"
         )
         return data_files
 
@@ -526,9 +464,6 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
                 "WARNING: returning dataset without format; expect slow iteration and batching"
             )
         return dataset
-
-    def repeat(self, dataset, num_times: Optional[int] = None):
-        return repeat(dataset, num_times)
 
 
 class SequenceDocumentDataset(IterableHFProteinDataset):

@@ -15,7 +15,6 @@ from datasets import Dataset
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
 
-from .proteingym import tokenize
 
 family_columns = [
     "input_ids",
@@ -31,7 +30,7 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
     dataset = Dataset.from_pandas(pd.DataFrame(dataset_list))
     dataset = dataset.map(  #  todo 20 lines almost identical to src/data/proteingym.py
         partial(
-            tokenize,
+            tokenize_seqs_for_scoring,
             tokenizer=tokenizer,
             mutant_bos_token="sep",  # todo check this
             document_token="[RAW]",
@@ -40,8 +39,8 @@ def family_dataset_from_dict_list(dataset_list, tokenizer):
         remove_columns=["MSA", "completion_seqs"],
     )
     columns = family_columns
-    if tokenizer.use_seq_pos:
-        columns += ["seq_pos", "completion_seq_pos"]
+    if tokenizer.embed_residue_index:
+        columns += ["residue_index", "completion_residue_index"]
 
     dataset.set_format(
         type="torch",
