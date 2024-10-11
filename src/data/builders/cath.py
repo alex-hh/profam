@@ -187,7 +187,6 @@ class CATHTorchDataset(BaseCATHDataset):
         self,
         dataset: ListDataset,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
     ):
@@ -196,10 +195,13 @@ class CATHTorchDataset(BaseCATHDataset):
         for protein in tqdm.tqdm(dataset, disable=False):
             if (
                 self.interleave_structure_sequence
-                and len(protein.sequence) > (max_tokens_per_example // 2) - 3
+                and len(protein.sequence)
+                > (self.preprocessor.cfg.max_tokens_per_example // 2) - 3
             ):
                 continue
-            elif len(protein.sequence) > max_tokens_per_example - 3:
+            elif len(protein.sequence) > (
+                self.preprocessor.cfg.max_tokens_per_example - 3
+            ):
                 continue
             proteins = ProteinDocument.from_proteins(
                 [protein],
@@ -209,7 +211,6 @@ class CATHTorchDataset(BaseCATHDataset):
             example = self.preprocessor.preprocess_protein_data(
                 proteins,
                 tokenizer,
-                max_tokens=max_tokens_per_example,  # handles padding
                 shuffle=False,
                 return_tensors=True,
             )
@@ -309,7 +310,6 @@ class CATHHFDataset(BaseCATHDataset):
         self,
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
         return_format: str = "numpy",
     ):
@@ -318,9 +318,9 @@ class CATHHFDataset(BaseCATHDataset):
         # https://discuss.huggingface.co/t/progress-bar-of-dataset-map-with-num-proc-1-hangs/64776/2
         def filter_fn(x):
             return len(x["seq"]) <= (
-                max_tokens_per_example // 2
+                self.preprocessor.cfg.max_tokens_per_example // 2
                 if self.interleave_structure_sequence
-                else max_tokens_per_example
+                else self.preprocessor.cfg.max_tokens_per_example
             )
 
         dataset = dataset.filter(

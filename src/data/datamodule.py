@@ -40,7 +40,6 @@ class ProteinDataMixture(LightningDataModule):
         data_dir: str,
         val_dataset_batch_sizes: Dict[str, int],
         batch_size: int = 8,
-        max_tokens: int = 8192,
         num_workers: Optional[int] = None,
         shuffle: bool = True,
         ignore_gaps: bool = False,
@@ -56,7 +55,6 @@ class ProteinDataMixture(LightningDataModule):
         self.val_dataset_batch_sizes = val_dataset_batch_sizes
         print("Val dataset batch sizes", self.val_dataset_batch_sizes)
         self.num_workers = num_workers
-        self.max_tokens = max_tokens
         self.shuffle = shuffle
         self.tokenizer = tokenizer
         # N.B. feature names only needs to be applied for training
@@ -98,7 +96,6 @@ class ProteinDataMixture(LightningDataModule):
                     dataset = dataset_builder.process(
                         dataset,
                         tokenizer=self.tokenizer,
-                        max_tokens_per_example=self.max_tokens,
                         shuffle_proteins_in_document=self.shuffle,
                         feature_names=self.feature_names,
                     )
@@ -228,7 +225,6 @@ class ProteinDataMixture(LightningDataModule):
                 dataset = dataset_builder.process(
                     dataset,
                     tokenizer=self.tokenizer,
-                    max_tokens_per_example=self.max_tokens,
                     shuffle_proteins_in_document=self.shuffle,
                     feature_names=self.feature_names,
                     return_format=self.data_return_format,

@@ -149,7 +149,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         self,
         example_or_examples,
         tokenizer,
-        max_tokens_per_example: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
     ):
         if self.cfg.batched_map:
@@ -207,7 +206,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         self,
         example,
         tokenizer: ProFamTokenizer = None,
-        max_tokens_per_example: Optional[int] = None,
     ):
         if self.cfg.required_keys is not None:
             for k in self.cfg.required_keys:
@@ -224,7 +222,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             filter_on_length(
                 example,
                 filter_type=self.cfg.length_filter,
-                max_tokens=max_tokens_per_example,
+                max_tokens=self.preprocessor.cfg.max_tokens_per_example,
                 tokenizer=tokenizer,
                 sequence_col=self.cfg.sequence_col,
                 identifier_col=self.cfg.identifier_col,
@@ -238,13 +236,11 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         self,
         dataset,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
     ):
         return dataset.filter(
             self.filter_fn,
             fn_kwargs={
                 "tokenizer": tokenizer,
-                "max_tokens_per_example": max_tokens_per_example,
             },
         )
 
@@ -271,7 +267,6 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
         self,
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
     ):
         """Speed issues:
@@ -296,9 +291,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
         my_iterable_dataset = my_dataset.to_iterable_dataset(num_shards=1024)
         my_iterable_dataset.n_shards  # 1024
         """
-        dataset = self.filter(
-            dataset, tokenizer, max_tokens_per_example=max_tokens_per_example
-        )
+        dataset = self.filter(dataset, tokenizer)
         if self.preprocessor is not None and not self.cfg.process_online:
             if dataset.column_names is not None:
                 # Q: what causes None? maybe loading text rather than parquet
@@ -362,7 +355,6 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         self,
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
     ):
         """
@@ -388,7 +380,6 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
                 fn_kwargs={
                     "tokenizer": tokenizer,
                     "feature_names": feature_names,
-                    "max_tokens_per_example": max_tokens_per_example,
                 },
             )
         return dataset

@@ -241,7 +241,6 @@ class ProteinGymDataset(BaseProteinDataset):
         self,
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_example: Optional[int] = None,
         shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
     ):
