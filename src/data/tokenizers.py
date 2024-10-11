@@ -198,29 +198,28 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert not (
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
-        if self.embed_residue_index:
-            if proteins.residue_positions is None:
-                log.warning(
-                    "Using res_pos_in_seq but residue_positions not provided. "
-                    "Using default residue_positions."
-                )
-                # +1 to match convert_sequence_with_positions
-                # get_res_pos_in_seq_from_positions adds another offset
-                residue_positions = [
-                    list(range(1, len(seq) + 1)) for seq in proteins.sequences
-                ]
-            else:
-                residue_positions = proteins.residue_positions
-            res_pos_in_seq = get_residue_index_from_positions(
-                tokenized.input_ids,
-                residue_positions,
-                pad_token_id=self.pad_token_id,
-                max_res_pos_in_seq=self.max_res_pos_in_seq,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
+        if proteins.residue_positions is None:
+            log.warning(
+                "Using res_pos_in_seq but residue_positions not provided. "
+                "Using default residue_positions."
             )
-            tokenized.data["residue_index"] = res_pos_in_seq
-            assert res_pos_in_seq.shape[0] == tokenized.input_ids.shape[0]
+            # +1 to match convert_sequence_with_positions
+            # get_res_pos_in_seq_from_positions adds another offset
+            residue_positions = [
+                list(range(1, len(seq) + 1)) for seq in proteins.sequences
+            ]
+        else:
+            residue_positions = proteins.residue_positions
+        res_pos_in_seq = get_residue_index_from_positions(
+            tokenized.input_ids,
+            residue_positions,
+            pad_token_id=self.pad_token_id,
+            max_res_pos_in_seq=self.max_res_pos_in_seq,
+            num_start_tokens=self.num_start_tokens,
+            num_end_tokens=num_end_tokens,
+        )
+        tokenized.data["residue_index"] = res_pos_in_seq
+        assert res_pos_in_seq.shape[0] == tokenized.input_ids.shape[0]
 
         if proteins.backbone_coords is not None:
             tokenized.data["coords"] = concatenate_pad_array(
@@ -253,6 +252,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_start_tokens=self.num_start_tokens,
                 num_end_tokens=num_end_tokens,
                 pad_to_length=max_length if padding == "max_length" else None,
+            )
+        elif proteins.backbone_coords is not None:
+            # still need to return something in case other batches have interleaved coords
+            tokenized.data["interleaved_coords_mask"] = np.zeros_like(
+                tokenized.data["coords_mask"]
             )
 
         modality_mask = concatenate_pad_array(

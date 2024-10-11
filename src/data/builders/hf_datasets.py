@@ -45,7 +45,6 @@ class HFProteinDatasetConfig:
     length_filter: Optional[str] = None  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     # processing
-    return_format: Optional[str] = "numpy"
     batched_map: bool = False
     map_batch_size: int = 100
     process_online: bool = True
@@ -63,12 +62,6 @@ class HFProteinDatasetConfig:
             assert (
                 self.padding == "do_not_pad"
             ), "padding must be do_not_pad if concatenate_short_documents is True"
-
-        if self.return_format is None and self.file_type == "parquet":
-            print(
-                "Warning: using parquet files but using return_format None: "
-                "may lead to poor performance for array data"
-            )
 
 
 def random_subsample(arr, n, seed: Optional[int] = None):

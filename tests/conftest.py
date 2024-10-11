@@ -1,22 +1,13 @@
 """This file prepares config fixtures for other tests."""
 import os
-from pathlib import Path
 
 import hydra
-import pandas as pd
 import pytest
-import rootutils
 from hydra import compose, initialize, initialize_config_dir
-from hydra.core.global_hydra import GlobalHydra
-from omegaconf import DictConfig, open_dict
 
 from src.constants import BASEDIR
-from src.data.builders import (
-    HFProteinDatasetConfig,
-    IterableHFProteinDataset,
-    ProteinGymDataset,
-)
-from src.data.collators import CustomDataCollator
+from src.data.builders import ProteinGymDataset
+from src.data.collators import DocumentBatchCollator
 from src.data.processors import preprocessing, transforms
 from src.data.tokenizers import ProFamTokenizer
 
@@ -148,5 +139,5 @@ def proteingym_batch(profam_tokenizer):
         shuffle_proteins_in_document=False,
     )
     datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
