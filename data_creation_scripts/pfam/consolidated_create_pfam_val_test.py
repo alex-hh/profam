@@ -565,12 +565,14 @@ if __name__ == "__main__":
     pre_shuffled_parquet_dir = "../data/pfam/combined_parquets"  # created by array_job_split_pfam.py
     shuffled_parquet_dir = "../data/pfam/shuffled_parquets"
     map_save_dir = "../data/pfam/sequence_name_to_uniprot_mapping"
+    flat_file_save_dir = "data/val_test/pfam"
 
     if not os.path.exists(pfam_uniprot_json_path):
         raise FileNotFoundError(f"File {pfam_uniprot_json_path} does not exist. Run get_up_accs_for_all_of_pfam.py first.")
 
     index_csv_path = os.path.join(split_parquet_save_dir, index_csv_filename)
-    flat_file_path = os.path.join(split_parquet_save_dir, 'pfam_val_test_flat_file.csv')
+    flat_file_path = os.path.join(flat_file_save_dir, 'pfam_val_test_flat_file.csv')
+    os.makedirs(flat_file_save_dir, exist_ok=True)
     os.makedirs(split_parquet_save_dir, exist_ok=True)
     os.makedirs(shuffled_parquet_dir, exist_ok=True)
     os.makedirs(map_save_dir, exist_ok=True)
