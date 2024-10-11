@@ -82,7 +82,7 @@ class BaseOverlapCounter:
         total_fams = len(fam_id_up_ids)
         logger.info(f"found {total_fams} families")
         for i, (fam_id, up_ids) in enumerate(fam_id_up_ids.items()):
-            if i % (total_fams // 50) == 0:
+            if i % max(1, (total_fams // 50)) == 0:
                 logger.info(f"Processed {i+1}/{total_fams} families")
             for pfam_fam, test_ids in self.pfam_val_test.items():
                 intersection = set(up_ids).intersection(test_ids)
