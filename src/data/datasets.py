@@ -1,12 +1,10 @@
-import functools
 import glob
-import math
 import os
 from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-from datasets import Dataset, Features, load_dataset
+from datasets import Dataset, Features, Value, load_dataset
 from omegaconf.listconfig import ListConfig
 
 from src.constants import TOKENIZED_FEATURE_TYPES
@@ -195,6 +193,7 @@ def load_protein_dataset(
             split=split,
             streaming=cfg.stream,
             sample_by="document",
+            features=Features(text=Value("string")),
         )
 
     print("Dataset n shards", dataset.n_shards)
@@ -291,6 +290,9 @@ def load_protein_dataset(
             batched=cfg.preprocessor.batched_map,
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
+            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
+            if feature_names is not None
+            else None,
         )
 
     return dataset
