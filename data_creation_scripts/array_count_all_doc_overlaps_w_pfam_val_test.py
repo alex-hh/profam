@@ -7,9 +7,12 @@ import pandas as pd
 from collections import defaultdict
 
 def load_pfam_val_test():
-    pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_accessions_w_unip_accs.csv"
+    pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_flat_file.csv"
     pfam_uniprot_json = "../data/pfam/pfam_uniprot_mappings.json"
     pfam_val_test_all_up_ids_json = "../data/pfam/pfam_val_test_all_up_ids.json"
+    assert os.path.exists(pfam_val_test_csv)
+    assert os.path.exists(pfam_uniprot_json)
+    assert os.path.exists(pfam_val_test_all_up_ids_json)
     null_counter = 0
     proportion_in_json = []
     proportion_by_fam = {}
