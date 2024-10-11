@@ -167,6 +167,7 @@ class ProteinDocumentPreprocessor:
         values are lists, where the length of the lists determines the size of the new set of examples.
         """
         if self.single_protein_documents:
+            # TODO: get rid of this condition
             transform_fns = default_transforms_single_protein(self.sequence_converter)
         else:
             transform_fns = default_transforms(self.cfg, self.sequence_converter)
@@ -189,6 +190,9 @@ class ProteinDocumentPreprocessor:
             allow_unk=getattr(self.cfg, "allow_unk", False),
         )
         if pack_to_max_tokens is not None:
+            assert (
+                self.cfg.padding == "do_not_pad"
+            ), "padding must be do_not_pad if pack_to_max_tokens is used"
             examples = pack_batches(examples, pack_to_max_tokens, tokenizer)
         return examples
 

@@ -45,6 +45,7 @@ def pack_examples(examples: List[Dict]):
     return packed_example
 
 
+# TODO: accept a batch_sampler (see below)
 def pack_batches(
     batch_examples: Dict[str, List],
     max_tokens_per_batch: int,
