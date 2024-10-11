@@ -4,12 +4,17 @@ import sys
 import os
 import json
 import pandas as pd
+import logging
 from collections import defaultdict
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def load_pfam_val_test():
     pfam_val_test_csv = "data/val_test/pfam/pfam_val_test_flat_file.csv"
     pfam_uniprot_json = "../data/pfam/pfam_uniprot_mappings.json"
-    pfam_val_test_all_up_ids_json = "../data/pfam/pfam_val_test_all_up_ids.json"
+    pfam_val_test_all_up_ids_json = "../data/pfam/train_test_split_parquets_v2/pfam_val_test_all_up_ids.json"
     assert os.path.exists(pfam_val_test_csv)
     assert os.path.exists(pfam_uniprot_json)
     assert os.path.exists(pfam_val_test_all_up_ids_json)
@@ -17,7 +22,7 @@ def load_pfam_val_test():
     proportion_in_json = []
     proportion_by_fam = {}
     df = pd.read_csv(pfam_val_test_csv)
-    print(f"Loaded pfam val test csv with {len(df)} rows")
+    logger.info(f"Loaded pfam val test csv with {len(df)} rows")
     if not os.path.exists(pfam_val_test_all_up_ids_json):
         # Load the JSON file
         with open(pfam_uniprot_json, 'r') as f:
@@ -53,12 +58,12 @@ def load_pfam_val_test():
     
         with open(pfam_val_test_all_up_ids_json, "w") as f:
             json.dump({k: list(v) for k,v in fam_to_up.items()}, f, indent=2)
-        print(f"Null counter: {null_counter} of {len(df)}")
-        print(f"complete: {len([i for i in proportion_in_json if i == 1])}")
-        print(f"incomplete: {len([i for i in proportion_in_json if i != 1])}")
+        logger.info(f"Null counter: {null_counter} of {len(df)}")
+        logger.info(f"complete: {len([i for i in proportion_in_json if i == 1])}")
+        logger.info(f"incomplete: {len([i for i in proportion_in_json if i != 1])}")
         family_props = {k: sum(v) / len(v) for k,v in proportion_by_fam.items()}
-        print(f"num families with 0 matches: {len([i for i in family_props.values() if i == 0])}")
-        print(f"num families with more than 85% matches: {len([i for i in family_props.values() if i > 0.85])}")
+        logger.info(f"num families with 0 matches: {len([i for i in family_props.values() if i == 0])}")
+        logger.info(f"num families with more than 85% matches: {len([i for i in family_props.values() if i > 0.85])}")
         # plt.hist(list(family_props.values()), bins=100)
         # plt.show()
     else:
@@ -75,10 +80,10 @@ class BaseOverlapCounter:
         fam_id_up_ids = self.get_fam_id_up_ids()
         overlap_counts = {}
         total_fams = len(fam_id_up_ids)
-        print(f"found {total_fams} families")
+        logger.info(f"found {total_fams} families")
         for i, (fam_id, up_ids) in enumerate(fam_id_up_ids.items()):
             if i % (total_fams // 50) == 0:
-                print(f"Processed {i+1}/{total_fams} families")
+                logger.info(f"Processed {i+1}/{total_fams} families")
             for pfam_fam, test_ids in self.pfam_val_test.items():
                 intersection = set(up_ids).intersection(test_ids)
                 if len(intersection) > 0:
@@ -107,9 +112,9 @@ class FastaOverlapCounter(BaseOverlapCounter):
 
     def get_fam_id_up_ids(self):
         fam_id_up_ids = {}
-        print("Processing fasta files in", self.fasta_dir)
+        logger.info(f"Processing fasta files in {self.fasta_dir}")
         fasta_files = [f for f in os.listdir(self.fasta_dir) if f.endswith(".fasta")]
-        print(f"Found {len(fasta_files)} fasta files")
+        logger.info(f"Found {len(fasta_files)} fasta files")
         for filename in fasta_files:
             fam_id = self.get_fam_id_from_docpath(filename)
             with open(os.path.join(self.fasta_dir, filename), 'r') as f:
@@ -138,6 +143,7 @@ class FoldseekOverlapCounter(BaseOverlapCounter):
     def get_fam_id_up_ids(self):
         json_path = self.foldseek_cluster_index_file.replace(".tsv", ".json")
         if not os.path.exists(json_path):
+            logger.info(f"Processing Foldseek cluster index file: {self.foldseek_cluster_index_file}")
             id_clust_tax = pd.read_csv(
                     self.foldseek_cluster_index_file,
                     sep="\t",
@@ -149,7 +155,9 @@ class FoldseekOverlapCounter(BaseOverlapCounter):
                 clust_to_up_ids[row["clust"]].append(row["id"])
             with open(json_path, "w") as json_file:
                 json.dump(clust_to_up_ids, json_file, indent=4)
+            logger.info(f"Foldseek cluster index processed and saved to {json_path}")
         else:
+            logger.info(f"Loading pre-processed Foldseek cluster index from {json_path}")
             with open(json_path) as json_file:
                 clust_to_up_ids = json.load(json_file)
         return dict(clust_to_up_ids)
@@ -163,35 +171,38 @@ class ParquetOverlapCounter(BaseOverlapCounter):
 
     def get_fam_id_up_ids(self):
         fam_id_up_ids = defaultdict(set)
-        for filename in os.listdir(self.parquet_dir):
-            if filename.endswith(".parquet"):
-                df = pd.read_parquet(os.path.join(self.parquet_dir, filename))
-                for _, row in df.iterrows():
-                    fam_id = row[self.fam_id_col]
-                    up_ids = set(upid.split("/")[0] for upid in row[self.up_id_col])
-                    fam_id_up_ids[fam_id].update(up_ids)
+        parquet_files = [f for f in os.listdir(self.parquet_dir) if f.endswith(".parquet")]
+        logger.info(f"Processing {len(parquet_files)} parquet files in {self.parquet_dir}")
+        for filename in parquet_files:
+            logger.info(f"Processing {filename}")
+            df = pd.read_parquet(os.path.join(self.parquet_dir, filename))
+            for _, row in df.iterrows():
+                fam_id = row[self.fam_id_col]
+                up_ids = set(upid.split("/")[0] for upid in row[self.up_id_col])
+                fam_id_up_ids[fam_id].update(up_ids)
+        logger.info(f"Processed {len(fam_id_up_ids)} families from parquet files")
         return dict(fam_id_up_ids)
 
 
 
 def process_dataset(counter_class, pfam_val_test, task_index, num_tasks, **kwargs):
     counter = counter_class(pfam_val_test=pfam_val_test, **kwargs)
-    print("counter initialised for", counter_class.__name__)
-    print("kwargs:")
+    logger.info(f"Counter initialized for {counter_class.__name__}")
+    logger.info("kwargs:")
     for k,v in kwargs.items():
-        print(f"{k}: {v}")
+        logger.info(f"{k}: {v}")
     fam_id_up_ids = counter.get_fam_id_up_ids()
     total_fams = len(fam_id_up_ids)
     fams_per_task = math.ceil(total_fams / num_tasks)
     start_index = task_index * fams_per_task
     end_index = min((task_index + 1) * fams_per_task, total_fams)
     
-    print(f"Processing families {start_index} to {end_index} out of {total_fams}")
+    logger.info(f"Processing families {start_index} to {end_index} out of {total_fams}")
     
     overlap_counts = {}
     for i, (fam_id, up_ids) in enumerate(sorted(list(fam_id_up_ids.items()))[start_index:end_index], start=start_index):
         if i % (fams_per_task // 10) == 0:
-            print(f"Processed {i-start_index+1}/{end_index-start_index} families")
+            logger.info(f"Processed {i-start_index+1}/{end_index-start_index} families")
         for pfam_fam, test_ids in pfam_val_test.items():
             intersection = set(up_ids).intersection(test_ids)
             if len(intersection) > 0:
@@ -207,10 +218,13 @@ if __name__ == "__main__":
     parser.add_argument("--num_tasks", type=int, required=True)
     args = parser.parse_args()
 
+    logger.info(f"Starting script with task_index={args.task_index}, num_tasks={args.num_tasks}")
+
     base_data_dir = "../data"
     base_save_dir = "data/val_test/overlap_counts"
     os.makedirs(base_save_dir, exist_ok=True)
 
+    logger.info("Loading Pfam validation and test data")
     pfam_val_test = load_pfam_val_test()
 
     datasets = [
@@ -265,7 +279,7 @@ if __name__ == "__main__":
         os.makedirs(save_dir, exist_ok=True)
         save_path = os.path.join(save_dir, f"{dataset['name']}_pfam_overlap_counts_task_{args.task_index}.json")
         if not os.path.exists(save_path):
-            print(f"Processing {dataset['name']} dataset")
+            logger.info(f"Processing {dataset['name']} dataset")
             counts = process_dataset(
                 counter_class=dataset["counter_class"],
                 pfam_val_test=pfam_val_test,
@@ -275,6 +289,8 @@ if __name__ == "__main__":
             )
             with open(save_path, 'w') as f:
                 json.dump(counts, f, indent=2)
-            print(f"{dataset['name']} counts saved to {save_path}")
+            logger.info(f"{dataset['name']} counts saved to {save_path}")
         else:
-            print(f"{dataset['name']} counts already exist at {save_path}")
+            logger.info(f"{dataset['name']} counts already exist at {save_path}")
+    
+    logger.info("Script completed successfully")
