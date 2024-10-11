@@ -11,6 +11,10 @@ dataset_builders:
     cfg:
       holdout_data_files: foldseek_representatives/0.parquet
       minimum_mean_plddt: 0.6
+    preprocessor:
+      cfg:
+        max_tokens_per_example: 1536
+        padding: "max_length"
     name: foldseek
   foldseek_val:
     # i guess really we should just make this 0-8
@@ -19,6 +23,10 @@ dataset_builders:
       minimum_mean_plddt: 0.6
       shuffle: false
       file_repeats: 8  # for ddp
+    preprocessor:
+      cfg:
+        max_tokens_per_example: 1536
+        padding: "max_length"
     name: foldseek_val
 batch_size: 18
 max_tokens: 1536

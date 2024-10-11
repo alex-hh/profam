@@ -10,8 +10,11 @@ dataset_builders:
   pfam_val:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
     name: pfam_val
+    preprocessor:
+      cfg:
+        max_tokens_per_example: 8192
+        padding: "max_length"
 batch_size: 22
-max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   pfam_val: ${data.batch_size}

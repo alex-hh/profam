@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from src.data.tokenizers import ProFamTokenizer
-from src.data.utils import examples_dict_to_list, examples_list_to_dict
+from src.data.utils import examples_list_to_dict, examples_to_list_of_dicts
 
 
 def pack_examples(examples: List[Dict]):
@@ -57,7 +57,7 @@ def pack_batches(
     bos_token_id = tokenizer.bos_token_id
     packed_examples = []
     examples_to_pack = []
-    examples = examples_dict_to_list(batch_examples)
+    examples = examples_to_list_of_dicts(batch_examples)
     total_packed_tokens = 0
     for example in examples:
         if example["input_ids"][0] != bos_token_id:

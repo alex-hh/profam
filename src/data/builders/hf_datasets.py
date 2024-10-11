@@ -43,6 +43,7 @@ class HFProteinDatasetConfig:
     length_filter: Optional[str] = None  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     # processing
+    return_format: str = "numpy"
     batched_map: bool = False
     map_batch_size: int = 100
     process_online: bool = True
@@ -58,7 +59,7 @@ class HFProteinDatasetConfig:
     # for different datasets
     pack_to_max_tokens: Optional[
         int
-    ] = None  # only really compatible with map so specific to HF for now
+    ] = 8192  # only really compatible with map so specific to HF for now
 
     def __post_init__(self):
         if self.concatenate_short_documents:

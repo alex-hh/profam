@@ -14,11 +14,14 @@ dataset_builders:
   ec:
     cfg:
       shuffle: false
+    preprocessor:
+      cfg:
+        padding: "max_length"
+        max_tokens_per_example: 2048
   proteingym:
     dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
 
 batch_size: 2
-max_tokens: 3000
 data_dir: data/example_data # example data is in repo main dir
 val_dataset_batch_sizes:
   ec: ${data.batch_size}

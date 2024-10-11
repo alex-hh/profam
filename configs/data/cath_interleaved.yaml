@@ -9,11 +9,16 @@ dataset_builders:
   cath43:
     name: cath43
     split_name: train
+    preprocessor:
+      cfg:
+        max_tokens_per_example: 1026
   cath43_val:
     name: cath43_val
     split_name: validation
+    preprocessor:
+      cfg:
+        max_tokens_per_example: 1026
 batch_size: 48
-max_tokens: 1026
 data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   cath43_val: ${data.batch_size}

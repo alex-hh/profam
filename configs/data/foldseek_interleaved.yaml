@@ -11,16 +11,23 @@ dataset_builders:
     cfg:
       holdout_data_files: foldseek_struct/0.parquet
       minimum_mean_plddt: 0.6
+    preprocessor:
+      cfg:
+        max_tokens_per_example: 8192
+        padding: "max_length"
     name: foldseek
   foldseek_val:
     cfg:
       data_path_pattern: foldseek_struct/0.parquet
       minimum_mean_plddt: 0.6
-    shuffle: false
-    file_repeats: 8  # for ddp
+      shuffle: false
+      file_repeats: 8  # for ddp
+    preprocessor:
+      cfg:
+        max_tokens_per_example: 8192
+        padding: "max_length"
     name: foldseek_val
 batch_size: 6
-max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   foldseek_val: ${data.batch_size}
