@@ -322,10 +322,9 @@ class BasePreprocessor:
         tokenizer,
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
+        extra_tokens_per_document: int = 2,
     ):
         """We assume that documents should be concatenated up to max_tokens.
-
-        TODO: implement document-aware attention masking
         """
         example_dicts = examples_to_list_of_dicts(examples)
         proteins_list = [
@@ -337,12 +336,12 @@ class BasePreprocessor:
         ]
         merged_documents = []
         current_document = None
-        total_sequence_length = 0
+        total_sequence_length = extra_tokens_per_document
         for proteins, length in zip(proteins_list, document_lengths):
             if current_document is None:
                 current_document = proteins.clone()
             else:
-                if sum(current_document.sequence_lengths) + length <= (
+                if sum(current_document.sequence_lengths) + length + 1 <= (
                     max_tokens or 1e8
                 ):
                     current_document = current_document.extend(proteins)
