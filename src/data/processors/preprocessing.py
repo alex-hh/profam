@@ -10,6 +10,7 @@ from hydra.utils import instantiate
 from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
+from src.data.processors.batch_transforms import pack_batches
 from src.data.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
@@ -158,6 +159,7 @@ class ProteinDocumentPreprocessor:
         self,
         proteins_list: List[ProteinDocument],
         tokenizer: ProFamTokenizer,
+        pack_to_max_tokens: Optional[int] = None,
     ) -> Dict[str, List[Any]]:
         """
         a batched map is an instruction for converting a set of examples to a
@@ -186,6 +188,8 @@ class ProteinDocumentPreprocessor:
             add_final_sep=True,
             allow_unk=getattr(self.cfg, "allow_unk", False),
         )
+        if pack_to_max_tokens is not None:
+            examples = pack_batches(examples, pack_to_max_tokens, tokenizer)
         return examples
 
     def preprocess_protein_data(

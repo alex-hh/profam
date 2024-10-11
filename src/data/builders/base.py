@@ -57,6 +57,7 @@ class BaseProteinDataset:
         self,
         examples: List[Any],
         tokenizer: ProFamTokenizer,
+        pack_to_max_tokens: Optional[int] = None,
     ) -> Dict[str, List[Any]]:
         """Function to be mapped.
 
@@ -71,6 +72,7 @@ class BaseProteinDataset:
         examples = self.preprocessor.batched_preprocess_protein_data(
             proteins_list,
             tokenizer,
+            pack_to_max_tokens=pack_to_max_tokens,
         )
         examples["ds_name"] = [self.name] * len(examples["input_ids"])
         if "identifier" in examples:

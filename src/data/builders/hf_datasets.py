@@ -55,6 +55,12 @@ class HFProteinDatasetConfig:
     infer_representative_from_identifier: bool = False
     sample_uniformly_from_col: Optional[str] = None  # for redundancy-aware sampling
     concatenate_short_documents: bool = False
+    # n.b. pack_to_max_tokens could be applied either before or after interleaving
+    # doing it before is a bit more flexible because it allows for different max tokens
+    # for different datasets
+    pack_to_max_tokens: Optional[
+        int
+    ] = None  # only really compatible with map so specific to HF for now
 
     def __post_init__(self):
         if self.concatenate_short_documents:
@@ -206,7 +212,11 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
     ):
         if self.cfg.batched_map:
             # Assert that tokenizer isn't padding to fixed length
-            examples = self.batched_preprocess_examples(example_or_examples, tokenizer)
+            examples = self.batched_preprocess_examples(
+                example_or_examples,
+                tokenizer,
+                pack_to_max_tokens=self.cfg.pack_to_max_tokens,
+            )
             if self.cfg.concatenate_short_documents:
                 assert (
                     feature_names is not None

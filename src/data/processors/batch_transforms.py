@@ -1,8 +1,10 @@
-import torch
+from typing import Dict, List
+
 import numpy as np
-from typing import Dict, List, Optional
+import torch
+
 from src.data.tokenizers import ProFamTokenizer
-from src.data.utils import examples_dict_to_list
+from src.data.utils import examples_dict_to_list, examples_list_to_dict
 
 
 def pack_examples(examples: List[Dict]):
@@ -12,12 +14,16 @@ def pack_examples(examples: List[Dict]):
         for k in keys:
             if isinstance(example[k], torch.Tensor):
                 if packed_example[k]:
-                    packed_example[k] = torch.cat([packed_example[k], example[k]], dim=-1)
+                    packed_example[k] = torch.cat(
+                        [packed_example[k], example[k]], dim=-1
+                    )
                 else:
                     packed_example[k] = example[k].clone()
             elif isinstance(example[k], np.ndarray):
                 if packed_example[k]:
-                    packed_example[k] = np.concatenate([packed_example[k], example[k]], axis=-1)
+                    packed_example[k] = np.concatenate(
+                        [packed_example[k], example[k]], axis=-1
+                    )
                 else:
                     packed_example[k] = example[k].copy()
             elif isinstance(example[k], list):
@@ -39,7 +45,7 @@ def pack_examples(examples: List[Dict]):
     return packed_example
 
 
-def pack_documents(
+def pack_batches(
     batch_examples: Dict[str, List],
     max_tokens_per_batch: int,
     tokenizer: ProFamTokenizer,
@@ -62,5 +68,5 @@ def pack_documents(
         examples_to_pack.append(example)
         total_packed_tokens += example["input_ids"].shape[-1]
     if examples_to_pack:
-        packed_examples.append(pack_examples(examples_to_pack, tokenizer))
-    return packed_examples
+        packed_examples.append(pack_examples(examples_to_pack))
+    return examples_list_to_dict(packed_examples)
