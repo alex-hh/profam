@@ -107,10 +107,10 @@ def get_sequence_of_sequences(
     concatenated_seqs = sep_token.join(proteins.sequences)
     if add_final_sep:
         concatenated_seqs += sep_token
-    if bos_token is not None:
-        concatenated_seqs = bos_token + concatenated_seqs
     if document_token is not None:
         concatenated_seqs = document_token + concatenated_seqs
+    if bos_token is not None:
+        concatenated_seqs = bos_token + concatenated_seqs
     return concatenated_seqs
 
 
