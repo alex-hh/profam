@@ -3,6 +3,7 @@ from typing import Dict, List
 import numpy as np
 import torch
 
+from src.constants import TOKENIZED_FEATURE_TYPES
 from src.data.tokenizers import ProFamTokenizer
 from src.data.utils import examples_list_to_dict, examples_to_list_of_dicts
 
@@ -45,14 +46,31 @@ def pack_examples(examples: List[Dict]):
     return packed_example
 
 
+def split_example(example, split_at_num_tokens):
+    split_example = {}
+    for k, v in example.items():
+        if k in TOKENIZED_FEATURE_TYPES and (
+            isinstance(TOKENIZED_FEATURE_TYPES[k], ARRAY_TYPES)
+        ):
+            split_example[k] = v[:split_at_num_tokens]
+            example[k] = v[split_at_num_tokens:]
+        else:
+            split_example[k] = v
+    return split_example, example
+
+
 # TODO: accept a batch_sampler (see below)
 def pack_batches(
     batch_examples: Dict[str, List],
     max_tokens_per_batch: int,
     tokenizer: ProFamTokenizer,
+    allow_split_packed_documents: bool = True,
 ):
     """Designed to be last step in batched map.
     Documents must start with a bos token.
+
+    full_examples_only: if True, only pack examples that are full (i.e. don't split documents across batches)
+    if False, split documents across batches to create packed examples with exactly max_tokens_per_batch tokens
     """
     bos_token_id = tokenizer.bos_token_id
     packed_examples = []
@@ -63,9 +81,16 @@ def pack_batches(
         if example["input_ids"][0] != bos_token_id:
             raise ValueError("Documents must start with a bos token")
         if total_packed_tokens + example["input_ids"].shape[-1] > max_tokens_per_batch:
+            if allow_split_packed_documents:
+                overhang_tokens = max_tokens_per_batch - total_packed_tokens
+                split_example, example = split_example(
+                    example, split_at_num_tokens=overhang_tokens
+                )
+                examples_to_pack.append(split_example)
             packed_examples.append(pack_examples(examples_to_pack, tokenizer))
             examples_to_pack = []
             total_packed_tokens = 0
+
         examples_to_pack.append(example)
         total_packed_tokens += example["input_ids"].shape[-1]
     if examples_to_pack:

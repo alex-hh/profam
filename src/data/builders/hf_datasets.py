@@ -36,6 +36,7 @@ class HFProteinDatasetConfig:
     minimum_sequences: Optional[int] = None
     file_repeats: int = 1
     file_type: str = "parquet"  # or "text", "json"
+    limit_num_files: Optional[int] = None
     # filters
     max_sequences_per_document: Optional[int] = None
     holdout_identifiers: Optional[List[str]] = None
@@ -60,6 +61,7 @@ class HFProteinDatasetConfig:
     pack_to_max_tokens: Optional[
         int
     ] = 8192  # only really compatible with map so specific to HF for now
+    allow_split_packed_documents: bool = True
 
     def __post_init__(self):
         if self.concatenate_short_documents:
@@ -127,6 +129,8 @@ def prepare_data_files(
     # Prepare final list of data files
     data_files = sorted(data_files) * cfg.file_repeats
     print(f"Loading dataset from {len(data_files)} files ({cfg.file_repeats} repeats)")
+    if cfg.limit_num_files:
+        data_files = data_files[: cfg.limit_num_files]
 
     return data_files
 
@@ -158,6 +162,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
                 example_or_examples,
                 tokenizer,
                 pack_to_max_tokens=self.cfg.pack_to_max_tokens,
+                allow_split_packed_documents=self.cfg.allow_split_packed_documents,
             )
             return examples
         else:

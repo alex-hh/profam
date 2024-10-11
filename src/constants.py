@@ -1,6 +1,6 @@
 import os
 
-from datasets.features import Array3D, Sequence, Value
+from datasets.features import Array3D, Sequence, Value, _ArrayXD
 
 BASEDIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 BENCHMARK_RESULTS_DIR_NAME = "benchmark_results"
@@ -94,3 +94,5 @@ TOKENIZED_FEATURE_TYPES = {
     "ds_name": Value(dtype="string"),
     "identifier": Value(dtype="string"),
 }
+
+ARRAY_TYPES = (Sequence, _ArrayXD)
