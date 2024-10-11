@@ -108,10 +108,15 @@ class ProteinDataMixture(LightningDataModule):
                     # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                     # https://github.com/huggingface/datasets/pull/5735
                     print(
-                        f"Dataset {data_key} keys in example datapoint",
-                        list(next(iter(dataset)).keys())
-                        if isinstance(dataset, IterableDataset)
-                        else list(dataset[0].keys()),
+                        f"Dataset {data_key} example batch types",
+                        {
+                            k: type(v)
+                            for k, v in (
+                                next(iter(dataset)).items()
+                                if isinstance(dataset, IterableDataset)
+                                else dataset[0]
+                            )
+                        },
                     )
                     train_datasets.append(dataset)
                     # TODO: we could also shuffle individual datasets here - is there a reason we might want to?
@@ -130,6 +135,10 @@ class ProteinDataMixture(LightningDataModule):
                     stopping_strategy="all_exhausted",
                     split="train",
                     seed=42,
+                )
+                print(
+                    "Interleaved train dataset example types",
+                    {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
                 )
             else:
                 print("Using single dataset", flush=True)
@@ -242,6 +251,10 @@ class ProteinDataMixture(LightningDataModule):
                     )
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
+                print(
+                    f"{v_ds_name} val dataset example types",
+                    {k: type(v) for k, v in next(iter(val_dataset)).items()},
+                )
 
             self._is_setup = True
 
