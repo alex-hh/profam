@@ -72,6 +72,11 @@ def create_parquet_map(indir: str, mapping_path: str, limit_mb=250):
 
 
 def reformat_df(df, max_mb_per_entry, name, outdir):
+    """
+    Reformats the pfam parquet tables from having text column with
+    raw fasta data into the format with columns for fam_id, accessions, and sequences.
+    also handles splitting of very large families into multiple parquets.
+    """
     new_rows = []
     for i, row in df.iterrows():
         fam_id = row["pfam_acc"]
@@ -90,10 +95,11 @@ def reformat_df(df, max_mb_per_entry, name, outdir):
             seqs.append(seq)
             seqs_mb += sys.getsizeof(seq) / 1024 / 1024
             if seqs_mb > max_mb_per_entry:
+                # save the partial family as a separate parquet
                 save_path = (
                     f"{outdir}/{name.split('_')[0]}_{fam_id}_{sub_fam_counter}.parquet"
                 )
-                # save to parquet and reset
+                # save to parquet with only 1 row and reset
                 df = pd.DataFrame(
                     [
                         {

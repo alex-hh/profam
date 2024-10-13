@@ -177,7 +177,7 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
     logging.info(f"Total unique sequence IDs to map: {n_unique_ids}")
     failed_id_path = f"{map_save_dir}/failed_ids.csv"
     # Split IDs into chunks of up to 100,000 IDs
-    chunk_size = 99000
+    chunk_size = 99999
     id_chunks = [sequence_names[i:i + chunk_size] for i in range(0, n_unique_ids, chunk_size)]
     failed_ids = []
     name_to_accession_mapping = {}
@@ -219,6 +219,9 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
                 logging.error(f"An exception occurred while processing chunk {idx+1}: {e}")
                 failed_ids.extend(ids_chunk)
                 chunk_fail_counter += 1
+                if chunk_fail_counter >= n_chunk_fails_to_quit:
+                    logging.error(f"Failed to process {n_chunk_fails_to_quit} chunks. Exiting...")
+                    raise Exception("Failed to process chunks")
                 time.sleep(300)
                 continue
         if failed_ids:
