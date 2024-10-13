@@ -15,11 +15,13 @@ dataset_cfgs:
   foldseek_val:
     data_path_pattern: foldseek_struct/0.parquet
     holdout_data_files: foldseek_struct/0.parquet
+    shuffle: false
   foldseek_3di:
     data_path_pattern: foldseek_struct/*.parquet
   foldseek_3di_val:
     data_path_pattern: foldseek_struct/0.parquet
     holdout_data_files: foldseek_struct/0.parquet
+    shuffle: false
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
