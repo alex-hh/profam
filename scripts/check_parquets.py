@@ -6,27 +6,49 @@ text in the text column
 import glob
 import os
 
-import pyarrow as pa
 import pyarrow.parquet as pq
 from tqdm import tqdm
 
-if __name__ == "__main__":
-    foldseek_dir = "../data/foldseek"
-    pfam_dom_dir = "../data/pfam/parquets/Domain"
-    pfam_fam_dir = "../data/pfam/parquets/Family"
 
-    for d in [foldseek_dir, pfam_dom_dir, pfam_fam_dir]:
+def check_parquet(parq_path):
+    try:
+        table = pq.read_table(parq_path)
+        failed = False
+
+        required_columns = ["sequences", "accessions", "fam_id"]
+        for col in required_columns:
+            if col not in table.column_names:
+                print(f"{parq_path} does not have {col} column")
+                failed = True
+
+        if not failed:
+            seq_lengths = table["sequences"].lengths()
+            acc_lengths = table["accessions"].lengths()
+
+            if (seq_lengths == 0).any():
+                print(f"{parq_path} has empty sequences")
+                failed = True
+            if (acc_lengths == 0).any():
+                print(f"{parq_path} has empty accessions")
+                failed = True
+            if not (seq_lengths == acc_lengths).all():
+                print(f"{parq_path} has different number of sequences and accessions")
+                failed = True
+
+        return failed
+    except Exception as e:
+        print(f"Error processing {parq_path}: {str(e)}")
+        return True
+
+
+if __name__ == "__main__":
+    parquet_dirs = ["/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mfparquets"]
+    fail_counter = 0
+    for d in parquet_dirs:
         parquet_files = glob.glob(os.path.join(d, "*.parquet"))
         print(f"Found {len(parquet_files)} parquet files in {d}")
         for parquet_file in tqdm(parquet_files):
-            table = pq.read_table(parquet_file)
-            df = table.to_pandas()
-            assert "text" in df.columns
-
-            if not df["text"].apply(lambda x: len(x) > 0).all():
-                orig_len = len(df)
-                # remove empty text rows
-                df = df[df["text"].apply(lambda x: len(x) > 5)]
-                print(f"Removed {orig_len - len(df)} rows from {parquet_file}")
-            table = pa.Table.from_pandas(df, preserve_index=False)
-            pq.write_table(table, parquet_file)
+            failed = check_parquet(parquet_file)
+            if failed:
+                fail_counter += 1
+    print(f"Found {fail_counter} failed parquets")
