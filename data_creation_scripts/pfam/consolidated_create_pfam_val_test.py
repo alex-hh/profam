@@ -531,17 +531,23 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir):
     assert os.path.exists(split_parquet_save_dir)
     assert os.path.exists(map_save_dir)
     setup_logging()
-    # Collect all unique sequence names from the parquet files
+    all_sequence_names_path = os.path.join(split_parquet_save_dir, 'pfam_all_sequence_names.txt')
     parq_paths = glob.glob(f"{split_parquet_save_dir}/*/*.parquet")
-    all_sequence_names = set()
+    # Collect all unique sequence names from the parquet files
+    if not os.path.exists(all_sequence_names_path):
+        all_sequence_names = set()
+        for parq_path in parq_paths:
+            logging.info(f"Reading parquet file: {parq_path}")
+            df = pd.read_parquet(parq_path)
 
-    for parq_path in parq_paths:
-        logging.info(f"Reading parquet file: {parq_path}")
-        df = pd.read_parquet(parq_path)
+            sequence_names = df['accessions'].explode().apply(lambda x: x.split("/")[0]).to_list()
+            all_sequence_names.update(sequence_names)
 
-        sequence_names = df['accessions'].explode().apply(lambda x: x.split("/")[0]).to_list()
-        all_sequence_names.update(sequence_names)
-
+        with open(all_sequence_names_path, 'w') as f:
+            f.write("\n".join(all_sequence_names))
+    else:
+        with open(all_sequence_names_path, 'r') as f:
+            all_sequence_names = set(f.read().splitlines())
     logging.info(f"Total unique sequence names collected: {len(all_sequence_names)}")
 
     # Get the mapping from sequence names to UniProt accessions
