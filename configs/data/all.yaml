@@ -4,7 +4,7 @@ defaults:
   - dataset@dataset_cfgs.pfam_raw: pfam_raw
   - dataset@dataset_cfgs.go_raw: go_raw
   - dataset@dataset_cfgs.ec_raw: ec
-  # - dataset@dataset_cfgs.foldseek: foldseek
+  - dataset@dataset_cfgs.foldseek: foldseek
   - dataset@dataset_cfgs.foldseek_reps: foldseek_representatives
   - dataset@dataset_cfgs.foldseek_interleaved: foldseek_interleaved
   - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved
@@ -21,7 +21,7 @@ data_weights:
   pfam_raw: 0.1
   go_raw: 0.1
   ec_raw: 0.1
-  # foldseek: 0.1
+  foldseek: 0.1
   foldseek_reps: 0.1
   foldseek_interleaved: 0.1
   foldseek_reps_interleaved: 0.1
