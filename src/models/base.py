@@ -1,7 +1,8 @@
 import os
 import time
 import warnings
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 import hydra
 import numpy as np
@@ -1073,13 +1074,18 @@ class BaseFamilyLitModule(BaseLitModule):
         self.doc_id_counts = {}
 
     def on_train_epoch_end(self):
-        self.log_dict(
-            {
-                f"{k}_max_sampled_doc": max(v.values())
-                for k, v in self.doc_id_counts.items()
-            },
-            sync_dist=True,
+        # Commenting out as may cause deadlock in DDP
+        # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
+        print(
+            "Train epoch end", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True
         )
+        # self.log_dict(
+        #     {
+        #         f"{k}_max_sampled_doc": max(v.values())
+        #         for k, v in self.doc_id_counts.items()
+        #     },
+        #     sync_dist=True,
+        # )
 
     def log_ds_sample_counts(self, batch):
         """Log statistics about dataset usage.

@@ -1,21 +1,21 @@
 import glob
+import math
 import os
-import random
 from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
 import torch
-from datasets import Dataset, load_dataset
+from datasets import Dataset, Features, load_dataset
 from omegaconf.listconfig import ListConfig
 
+from src.constants import TOKENIZED_FEATURE_TYPES
 from src.data.preprocessing import BasePreprocessor
 from src.utils.tokenizers import ProFamTokenizer
 
 
 @dataclass
 class ProteinDatasetConfig:
-    name: str
     preprocessor: Optional[BasePreprocessor] = None
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
@@ -55,16 +55,7 @@ def filter_on_length(example, cfg, max_tokens, tokenizer):
         raise ValueError(f"Unknown length filter {cfg.length_filter}")
 
 
-def load_protein_dataset(
-    cfg: ProteinDatasetConfig,
-    tokenizer: ProFamTokenizer,
-    data_dir="data",
-    split="train",
-    max_tokens: Optional[int] = None,
-    shuffle: bool = True,
-    verbose: bool = False,
-    feature_names: Optional[List[str]] = None,
-) -> Dataset:
+def prepare_data_files(data_dir, cfg, world_size=1):
     if cfg.data_path_pattern is not None:
         # replace hf path resolution with manual glob, to allow repetition
         # https://github.com/huggingface/datasets/blob/98fdc9e78e6d057ca66e58a37f49d6618aab8130/src/datasets/data_files.py#L323
@@ -100,13 +91,46 @@ def load_protein_dataset(
         assert len(data_files) > 0, "No files left after holdout"
 
     assert isinstance(data_files, list)
-    data_files = data_files * cfg.file_repeats
-    random.shuffle(data_files)  # TODO: seed explicitly?
+    data_files = sorted(data_files) * cfg.file_repeats
     print(
-        f"Loading {cfg.name} dataset from {len(data_files)} files, "
+        f"Loading dataset from {len(data_files)} files, "
         f"({cfg.file_repeats} repeats), "
         f"{os.path.join(data_dir, cfg.data_path_pattern)}"
     )
+
+    if cfg.stream:
+        # ensure no issues with ddp by skipping shards
+        # should result in each worker using the same number of shards
+        # https://github.com/huggingface/datasets/issues/6623
+        # print("Slicing data files to ensure equal distribution across workers")
+        if len(data_files) // world_size == 0:
+            raise ValueError(
+                f"Fewer data files ({len(data_files)}) than world size ({world_size}), difficult to handle in ddp"
+            )
+        else:
+            data_files = data_files[: (len(data_files) // world_size) * world_size]
+            leftover_files = data_files[len(data_files) // world_size * world_size :]
+            # worst case scenario is leftover_files=1: handle this or any other case by repeating maximal amount and slicing
+            repeated_leftovers = leftover_files * world_size
+            data_files = data_files + repeated_leftovers[:world_size]
+            assert len(data_files) % world_size == 0, "Data files not evenly divisible"
+    return data_files
+
+
+def load_protein_dataset(
+    cfg: ProteinDatasetConfig,
+    tokenizer: ProFamTokenizer,
+    dataset_name: str,
+    feature_names: Optional[List[str]] = None,
+    data_dir="data",
+    split="train",
+    max_tokens_per_example: Optional[int] = None,
+    shuffle: bool = True,
+    world_size: int = 1,
+    verbose: bool = False,
+    return_format: Optional[str] = "numpy",  # n.b. return format None is very slow
+) -> Dataset:
+    data_files = prepare_data_files(data_dir, cfg, world_size=world_size)
     if cfg.is_parquet:
         dataset = load_dataset(
             path="parquet",
@@ -121,6 +145,7 @@ def load_protein_dataset(
         assert (
             cfg.holdout_identifiers is None
         ), "Holdout identifiers not supported for fasta"
+        # https://github.com/huggingface/datasets/issues/5806
         dataset = load_dataset(
             "text",
             data_files=data_files,
@@ -128,6 +153,7 @@ def load_protein_dataset(
             streaming=cfg.stream,
             sample_by="document",
         )
+
     print("Dataset n shards", dataset.n_shards)
     if verbose:
         print("Verifying dataset content:")
@@ -153,6 +179,7 @@ def load_protein_dataset(
         ), "Need identifier column for identifier holdout"
 
     def prefilter_example(example):
+        # print("prefilter_example", example, example.keys())
         structure_tokens_col = getattr(cfg.preprocessor, "structure_tokens_col", None)
         if structure_tokens_col is not None and example[structure_tokens_col] is None:
             # TODO: refactor datasets will handle this more gracefully
@@ -170,7 +197,7 @@ def load_protein_dataset(
             or example[cfg.identifier_col] not in cfg.holdout_identifiers
         )
         length_filter = filter_on_length(
-            example, cfg=cfg, max_tokens=max_tokens, tokenizer=tokenizer
+            example, cfg=cfg, max_tokens=max_tokens_per_example, tokenizer=tokenizer
         )
         if cfg.preprocessor.required_keys is not None:
             for k in cfg.preprocessor.required_keys:
@@ -199,13 +226,17 @@ def load_protein_dataset(
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
+        if not cfg.stream:
+            raise NotImplementedError(
+                "Dataset preprocessing assumes streaming: (e.g. use of on-the-fly map to subsample data)"
+            )
         if cfg.identifier_col is not None and not cfg.preprocessor.batched_map:
             # when batched mapping, we cat multiple identifiers together...
             identifier = example[cfg.identifier_col]
         example = cfg.preprocessor.preprocess_protein_data(
             example,
             tokenizer=tokenizer,
-            max_tokens=max_tokens,
+            max_tokens=max_tokens_per_example,
             shuffle=shuffle,
         )
 
@@ -214,28 +245,14 @@ def load_protein_dataset(
             if torch.is_tensor(example["input_ids"]):
                 assert example["input_ids"].ndim == 2
             batch_size = len(example["input_ids"])
-            example["ds_name"] = [cfg.name] * batch_size
-            if "coords" in example:
-                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = [c.tolist() for c in example["coords"]]
-                example["coords_mask"] = [m.tolist() for m in example["coords_mask"]]
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = [
-                        m.tolist() for m in example["interleaved_coords_mask"]
-                    ]
+            example["ds_name"] = [dataset_name] * batch_size
         else:
-            example["ds_name"] = cfg.name
+            example["ds_name"] = dataset_name
             # TODO: get identifier for fasta files...
             if cfg.identifier_col is not None:
-                example["identifier"] = cfg.name + "/" + identifier
-            if "coords" in example:
-                # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-                example["coords"] = example["coords"].tolist()
-                example["coords_mask"] = example["coords_mask"].tolist()
-                if "interleaved_coords_mask" in example:
-                    example["interleaved_coords_mask"] = example[
-                        "interleaved_coords_mask"
-                    ].tolist()
+                example["identifier"] = dataset_name + "/" + identifier
+            else:
+                example["identifier"] = dataset_name  # just a default value...
 
         return example
 
@@ -254,7 +271,15 @@ def load_protein_dataset(
             batched=cfg.preprocessor.batched_map,
             batch_size=cfg.preprocessor.map_batch_size,
             remove_columns=remove_columns,
+            features=Features(**{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names})
+            if feature_names is not None
+            else None,
         )
-        # n.b. coords is returned as a list...
+        if return_format is not None:
+            dataset = dataset.with_format(type=return_format)
+        else:
+            print(
+                "WARNING: returning dataset without format; expect slow iteration and batching"
+            )
 
     return dataset

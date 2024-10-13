@@ -12,14 +12,14 @@ from src.data.utils import examples_list_to_dict
 @pytest.fixture()
 def foldseek_datapoint(profam_tokenizer):
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         data_path_pattern="foldseek_struct/0.parquet",
         is_parquet=True,
     )
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=2048,
+        dataset_name="foldseek",
+        max_tokens_per_example=2048,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
@@ -56,14 +56,14 @@ def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
 # for inverse folding, we want a single document with all sequences concatenated
 def test_concat_representatives_into_single_document(profam_tokenizer):
     cfg = ProteinDatasetConfig(
-        name="foldseek",
         data_path_pattern="foldseek_representatives/0.parquet",
         is_parquet=True,
     )
     data = load_protein_dataset(
         cfg,
         tokenizer=profam_tokenizer,
-        max_tokens=None,
+        dataset_name="foldseek",
+        max_tokens_per_example=None,
         data_dir=os.path.join(BASEDIR, "data/example_data"),
         shuffle=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],

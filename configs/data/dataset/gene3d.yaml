@@ -1,9 +1,8 @@
 defaults:
-  - /preprocessor: "gym_msa"
+  - /preprocessor: "fasta_raw"
 _target_: src.data.datasets.ProteinDatasetConfig
-data_path_pattern: ProteinGym/DMS_msa_files/*.a2m
+data_path_pattern: "g3d/*/[0-9]*.[0-9]*.[0-9]*.[0-9]*.fasta"
 holdout_data_files: null
 holdout_identifiers: null
 identifier_col: null
 is_parquet: false
-file_repeats: 1

@@ -17,16 +17,19 @@ dataset_cfgs:
     holdout_data_files: foldseek_struct/0.parquet
   foldseek_val:
     data_path_pattern: foldseek_struct/0.parquet
+    shuffle: false
   foldseek_3di:
     data_path_pattern: foldseek_struct/*.parquet
     holdout_data_files: foldseek_struct/0.parquet
   foldseek_3di_val:
     data_path_pattern: foldseek_struct/0.parquet
+    shuffle: false
   foldseek_3di_msa:
     data_path_pattern: foldseek_struct/*.parquet
     holdout_data_files: foldseek_struct/0.parquet
   foldseek_3di_msa_val:
     holdout_data_files: foldseek_struct/0.parquet
+    shuffle: false
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}
@@ -40,4 +43,4 @@ evaluate_ec_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
 use_filtered_gym_msas: true
-feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "total_num_sequences", "aa_mask"]
+feature_names: ${constants.sequence_features}
