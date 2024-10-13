@@ -1,38 +1,30 @@
-"""
-Iterate through all the parquet files
-and make sure that there is some minimum
-text in the text column
-"""
-import glob
-import os
-
 import pyarrow.parquet as pq
-from tqdm import tqdm
-import pyarrow.compute as pc
+import pandas as pd
 
 
 def check_parquet(parq_path):
     try:
         table = pq.read_table(parq_path)
+        df = table.to_pandas()
         failed = False
 
         required_columns = ["sequences", "accessions", "fam_id"]
         for col in required_columns:
-            if col not in table.column_names:
+            if col not in df.columns:
                 print(f"{parq_path} does not have {col} column")
                 failed = True
 
         if not failed:
-            seq_lengths = pc.utf8_length(table["sequences"])
-            acc_lengths = pc.utf8_length(table["accessions"])
+            seq_lens = df["sequences"].str.len()
+            accessions_lens = df["accessions"].str.len()
 
-            if pc.any(seq_lengths == 0):
+            if (seq_lens == 0).any():
                 print(f"{parq_path} has empty sequences")
                 failed = True
-            if pc.any(acc_lengths == 0):
+            if (accessions_lens == 0).any():
                 print(f"{parq_path} has empty accessions")
                 failed = True
-            if not pc.all(seq_lengths == acc_lengths):
+            if not (seq_lens == accessions_lens).all():
                 print(f"{parq_path} has different number of sequences and accessions")
                 failed = True
 
@@ -42,8 +34,11 @@ def check_parquet(parq_path):
         return True
 
 
+# Main script remains the same
 if __name__ == "__main__":
-    parquet_dirs = ["/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mfparquets"]
+    parquet_dirs = [
+        '/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mfparquets'
+    ]
     fail_counter = 0
     for d in parquet_dirs:
         parquet_files = glob.glob(os.path.join(d, "*.parquet"))
