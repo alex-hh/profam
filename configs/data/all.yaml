@@ -8,7 +8,7 @@ defaults:
   - dataset@dataset_cfgs.foldseek_reps: foldseek_representatives
   - dataset@dataset_cfgs.foldseek_interleaved: foldseek_interleaved
   - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved
-  - dataset@dataset_cfgs.ted_raw: ted_raw
+  - dataset@dataset_cfgs.ted_raw: ted
   - dataset@dataset_cfgs.gene3dS50_raw: gene3dS50
   # validation sets
   - dataset@dataset_cfgs.pfam_val: pfam
