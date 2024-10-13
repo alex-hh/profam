@@ -9,6 +9,7 @@ defaults:
   # - dataset@dataset_cfgs.foldseek_interleaved: foldseek_interleaved
   # - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved
   - dataset@dataset_cfgs.ted_raw: ted
+  - dataset@dataset_cfgs.gene3d_raw: gene3d
   - dataset@dataset_cfgs.gene3dS50_raw: gene3dS50
   # validation sets
   - dataset@dataset_cfgs.pfam_val: pfam
@@ -25,6 +26,7 @@ data_weights:
   # foldseek_interleaved: 0.1
   # foldseek_reps_interleaved: 0.1
   ted_raw: 0.1
+  gene3d_raw: 0.1
   gene3dS50_raw: 0.1
 dataset_cfgs:
   pfam_val:
