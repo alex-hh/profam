@@ -44,9 +44,9 @@ val_dataset_names:
   - pfam_val_raw
 
 evaluate_gym: true
-evaluate_ec_class: true
-evaluate_ec_cluster_class: true
-evaluate_pfam_class: true
+evaluate_ec_class: false
+evaluate_ec_cluster_class: false
+evaluate_pfam_class: false
 
 num_workers: 4
 gym_data_dir: ProteinGym
