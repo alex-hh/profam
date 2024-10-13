@@ -8,6 +8,7 @@ import os
 
 import pyarrow.parquet as pq
 from tqdm import tqdm
+import pyarrow.compute as pc
 
 
 def check_parquet(parq_path):
@@ -22,16 +23,16 @@ def check_parquet(parq_path):
                 failed = True
 
         if not failed:
-            seq_lengths = table["sequences"].lengths()
-            acc_lengths = table["accessions"].lengths()
+            seq_lengths = pc.utf8_length(table["sequences"])
+            acc_lengths = pc.utf8_length(table["accessions"])
 
-            if (seq_lengths == 0).any():
+            if pc.any(seq_lengths == 0):
                 print(f"{parq_path} has empty sequences")
                 failed = True
-            if (acc_lengths == 0).any():
+            if pc.any(acc_lengths == 0):
                 print(f"{parq_path} has empty accessions")
                 failed = True
-            if not (seq_lengths == acc_lengths).all():
+            if not pc.all(seq_lengths == acc_lengths):
                 print(f"{parq_path} has different number of sequences and accessions")
                 failed = True
 
