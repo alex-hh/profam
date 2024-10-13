@@ -129,6 +129,8 @@ class Protein:
         for res_ix, (aa, res_coords) in enumerate(
             zip(self.sequence, self.backbone_coords)
         ):
+            if aa in ["?", "|"]:
+                aa = "X"
             res_name = ProteinSequence.convert_letter_1to3(aa)
             for atom_ix, atom_name in enumerate(BACKBONE_ATOMS):
                 annots = (
@@ -478,6 +480,7 @@ class ProteinDocument:
                 original_size=self.original_size,
             )
         elif isinstance(key, np.ndarray) or isinstance(key, list):
+            assert len(key) > 0, "Empty key"
             return ProteinDocument(
                 identifier=self.identifier,
                 sequences=[self.sequences[i] for i in key],
