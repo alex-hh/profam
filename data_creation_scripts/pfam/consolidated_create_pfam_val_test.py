@@ -16,6 +16,7 @@ from data_creation_scripts.pfam.get_up_accs_for_all_of_pfam import (
     map_val_test_names_to_accessions
 )
 from data_creation_scripts.pfam.shuffle_pfam_parquets import shuffle_pfam_parquets
+from data_creation_scripts.pfam.deduplicate_pfam import deduplicate_families
 
 """
 Consolidated script for Pfam data processing.
@@ -527,6 +528,8 @@ def select_families(
     return selected_families
 
 def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir):
+    assert os.path.exists(split_parquet_save_dir)
+    assert os.path.exists(map_save_dir)
     setup_logging()
     # Collect all unique sequence names from the parquet files
     parq_paths = glob.glob(f"{split_parquet_save_dir}/*/*.parquet")
@@ -596,13 +599,21 @@ if __name__ == "__main__":
             flat_file_path=flat_file_path
         )
 
+    if len(glob.glob(f"{shuffled_parquet_dir}/*.parquet")) < 50:
+        print("Shuffling Pfam parquets")
+        shuffle_pfam_parquets(
+            indir=pre_shuffled_parquet_dir,
+            outdir=shuffled_parquet_dir,
+            limit_mb=limit_mb_per_parquet,
+        )
 
-    shuffle_pfam_parquets(
-        indir=pre_shuffled_parquet_dir,
-        outdir=shuffled_parquet_dir,
-        limit_mb=limit_mb_per_parquet,
-    )
-
+    print("removing duplicated entries from shuffled parquets")
+    dropped_rows = deduplicate_families(shuffled_parquet_dir)
+    try:
+        with open(os.path.join(shuffled_parquet_dir, 'duplicated_dropped_rows.json'), 'w') as f:
+            json.dump(dropped_rows, f, indent=2)
+    except Exception as e:
+        print(f"Failed to write dropped rows to JSON: {e}")
 
 
     # Remove validation and test families from the Pfam training data

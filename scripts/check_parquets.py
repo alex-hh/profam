@@ -1,8 +1,3 @@
-"""
-Iterate through all the parquet files
-and make sure that there is some minimum
-text in the text column
-"""
 import glob
 import os
 
@@ -13,25 +8,26 @@ from tqdm import tqdm
 def check_parquet(parq_path):
     try:
         table = pq.read_table(parq_path)
+        df = table.to_pandas()
         failed = False
 
         required_columns = ["sequences", "accessions", "fam_id"]
         for col in required_columns:
-            if col not in table.column_names:
+            if col not in df.columns:
                 print(f"{parq_path} does not have {col} column")
                 failed = True
 
         if not failed:
-            seq_lengths = table["sequences"].lengths()
-            acc_lengths = table["accessions"].lengths()
+            seq_lens = df["sequences"].str.len()
+            accessions_lens = df["accessions"].str.len()
 
-            if (seq_lengths == 0).any():
+            if (seq_lens == 0).any():
                 print(f"{parq_path} has empty sequences")
                 failed = True
-            if (acc_lengths == 0).any():
+            if (accessions_lens == 0).any():
                 print(f"{parq_path} has empty accessions")
                 failed = True
-            if not (seq_lengths == acc_lengths).all():
+            if not (seq_lens == accessions_lens).all():
                 print(f"{parq_path} has different number of sequences and accessions")
                 failed = True
 
@@ -41,6 +37,7 @@ def check_parquet(parq_path):
         return True
 
 
+# Main script remains the same
 if __name__ == "__main__":
     parquet_dirs = ["/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mfparquets"]
     fail_counter = 0

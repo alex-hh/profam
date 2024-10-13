@@ -181,7 +181,8 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
     id_chunks = [sequence_names[i:i + chunk_size] for i in range(0, n_unique_ids, chunk_size)]
     failed_ids = []
     name_to_accession_mapping = {}
-    
+    n_chunk_fails_to_quit = 3
+    chunk_fail_counter = 0
     for idx, ids_chunk in tqdm.tqdm(enumerate(id_chunks), total=len(id_chunks), desc="Processing chunks"):
         if idx > 2 and IS_DEBUGGING:
             break
@@ -208,17 +209,25 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
                     if failed_this_chunk:
                         failed_ids.extend(failed_this_chunk)
                     logging.info(f"Saved mapping data for chunk {idx+1} to {chunk_file}")
+                    chunk_fail_counter = 0
                 else:
                     logging.error(f"Job {job_id} failed.")
                     failed_ids.extend(ids_chunk)
+                    chunk_fail_counter += 1
+                    time.sleep(300)
             except Exception as e:
                 logging.error(f"An exception occurred while processing chunk {idx+1}: {e}")
                 failed_ids.extend(ids_chunk)
+                chunk_fail_counter += 1
+                time.sleep(300)
                 continue
         if failed_ids:
             with open(failed_id_path, 'a') as f:
                 f.write('\n'.join(failed_ids) + '\n')
         failed_ids = []
+        if chunk_fail_counter >= n_chunk_fails_to_quit:
+            logging.error(f"Failed to process {n_chunk_fails_to_quit} chunks. Exiting...")
+            raise Exception("Failed to process chunks")
     print(f"Mapping completed and results saved to {map_save_dir}.")
     return name_to_accession_mapping
 
