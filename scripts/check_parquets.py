@@ -1,7 +1,9 @@
-import pyarrow.parquet as pq
-import os
 import glob
+import os
+
+import pyarrow.parquet as pq
 from tqdm import tqdm
+
 
 def check_parquet(parq_path):
     try:
@@ -37,9 +39,7 @@ def check_parquet(parq_path):
 
 # Main script remains the same
 if __name__ == "__main__":
-    parquet_dirs = [
-        '/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mfparquets'
-    ]
+    parquet_dirs = ["/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mfparquets"]
     fail_counter = 0
     for d in parquet_dirs:
         parquet_files = glob.glob(os.path.join(d, "*.parquet"))
