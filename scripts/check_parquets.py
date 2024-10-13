@@ -1,6 +1,7 @@
 import pyarrow.parquet as pq
-import pandas as pd
-
+import os
+import glob
+from tqdm import tqdm
 
 def check_parquet(parq_path):
     try:
