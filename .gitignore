@@ -21,4 +21,3 @@ data/val_test/pfam/val/random_split_fastas/
 src/models/tranception
 commit_hash.txt
 data/val_test/overlap_counts/
-
