@@ -18,6 +18,40 @@ creates a mapping that maps from the sequence name
 API_URL = "https://rest.uniprot.org"
 IS_DEBUGGING = "judewells" in os.getcwd()
 
+def filter_id_mapping_flat_file(sequence_names, in_file, out_file):
+    name2accession = {}
+    with open(in_file, 'r') as infile, open(out_file, 'w') as outfile:
+        for i, line in enumerate(infile):
+            parts = line.strip().split('\t')
+            if len(parts) == 3 and parts[1] == 'UniProtKB-ID' and parts[2] in sequence_names:
+                accession = parts[0]
+                entry_name = parts[2]
+                outfile.write(f"{entry_name}\t{accession}\n")
+                name2accession[entry_name] = accession
+            if i % 100000 == 0:
+                print(f"Processed {i} lines")
+    return name2accession
+
+
+def offline_get_name_to_accession_mapping(sequence_names, map_save_dir):
+    mapping_path = f"{map_save_dir}/filtered_id_mapping.tsv"
+    if not os.path.exists(mapping_path):
+        gz_save_path = f"{map_save_dir}/idmapping.dat.gz"
+        if not os.path.exists(gz_save_path):
+            flat_file_url = "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/idmapping.dat.gz"
+            os.system(f"wget {flat_file_url} -O {gz_save_path}")
+        assert os.path.exists(gz_save_path)
+        os.system(f"gunzip {gz_save_path}")
+        assert os.path.exists(f"{map_save_dir}/idmapping.dat")
+        name_to_accession = filter_id_mapping_flat_file(sequence_names, f"{map_save_dir}/idmapping.dat", mapping_path)
+    else:
+        with open(mapping_path, 'r') as f:
+            name_to_accession = {line.strip().split('\t')[0]: line.strip().split('\t')[1] for line in f}
+    return name_to_accession
+
+
+
+
 def extract_uniprotkb_ids(sequence_names):
     uniprotkb_ids = []
     for name in sequence_names:
@@ -177,15 +211,15 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
     logging.info(f"Total unique sequence IDs to map: {n_unique_ids}")
     failed_id_path = f"{map_save_dir}/failed_ids.csv"
     # Split IDs into chunks of up to 100,000 IDs
-    chunk_size = 99000
+    chunk_size = 99999
     id_chunks = [sequence_names[i:i + chunk_size] for i in range(0, n_unique_ids, chunk_size)]
     failed_ids = []
     name_to_accession_mapping = {}
     n_chunk_fails_to_quit = 3
     chunk_fail_counter = 0
     for idx, ids_chunk in tqdm.tqdm(enumerate(id_chunks), total=len(id_chunks), desc="Processing chunks"):
-        if idx > 2 and IS_DEBUGGING:
-            break
+        # if idx > 2 and IS_DEBUGGING:
+        #     break
         chunk_file = f'{map_save_dir}/mapping_chunk_{idx+1}.csv'
         if os.path.exists(chunk_file):
             logging.info(f"Chunk {idx+1}/{len(id_chunks)} already exists")
@@ -219,6 +253,9 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
                 logging.error(f"An exception occurred while processing chunk {idx+1}: {e}")
                 failed_ids.extend(ids_chunk)
                 chunk_fail_counter += 1
+                if chunk_fail_counter >= n_chunk_fails_to_quit:
+                    logging.error(f"Failed to process {n_chunk_fails_to_quit} chunks. Exiting...")
+                    raise Exception("Failed to process chunks")
                 time.sleep(300)
                 continue
         if failed_ids:
