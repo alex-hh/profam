@@ -572,7 +572,14 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir, use_id_mapp
 
     # Process parquet files to add 'matched_accessions' column and overwrite them
     logging.info("Adding 'matched_accessions' column to parquet files...")
-    process_parquet_files(parq_paths, name_to_accession_mapping)
+    unmatched_names = process_parquet_files(parq_paths, name_to_accession_mapping)
+    # Save unmatched names to a file
+    unmatched_names_path = os.path.join(map_save_dir, "unmatched_sequence_names.txt")
+    with open(unmatched_names_path, 'w') as f:
+        for name in unmatched_names:
+            f.write(f"{name}\n")
+    logging.info(f"Saved {len(unmatched_names)} unmatched sequence names to {unmatched_names_path}")
+    return unmatched_names
 
 
 if __name__ == "__main__":
@@ -639,7 +646,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Failed to write dropped rows to JSON: {e}")
     else:
-        print("Dropped rows JSON so skipping deduplication...")
+        print("Dropped rows JSON already exists so skipping deduplication...")
 
 
     # Remove validation and test families from the Pfam training data
@@ -662,8 +669,10 @@ if __name__ == "__main__":
         print("Train val test split of pfam training data already exists. Skipping...")
 
     print("Adding UniProt accessions to parquet files...")
-    add_accessions_to_parquets(
+    unmatched_names = add_accessions_to_parquets(
         split_parquet_save_dir,
         map_save_dir=map_save_dir,
         use_id_mapping_api=use_id_mapping_api,
     )
+
+

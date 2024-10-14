@@ -272,6 +272,7 @@ def get_name_to_accession_mapping(sequence_names, map_save_dir):
 def process_parquet_files(parq_paths, name_to_accession_mapping):
     total_sequences = 0
     unmatched_sequences = 0
+    unmatched_names = set()
 
     for parq_path in parq_paths:
         logging.info(f"Processing parquet file: {parq_path}")
@@ -285,13 +286,19 @@ def process_parquet_files(parq_paths, name_to_accession_mapping):
         )
         total = df['accessions'].apply(len).sum()
         unmatched = df['accessions'].apply(
-            lambda seq_ls: sum(
-                1 for seq_name in seq_ls if name_to_accession_mapping.get(seq_name.split("/")[0]) is None)
-        ).sum()
-
-        unmatched_sequences += unmatched
+            lambda seq_ls: [
+                seq_name.split("/")[0] for seq_name in seq_ls 
+                if name_to_accession_mapping.get(seq_name.split("/")[0]) is None
+            ]
+        )
+        
+        unmatched_count = unmatched.apply(len).sum()
+        unmatched_sequences += unmatched_count
         total_sequences += total
-        logging.info(f"Unmatched sequences in this file: {unmatched}/{total}")
+        logging.info(f"Unmatched sequences in this file: {unmatched_count}/{total}")
+        
+        # Add unmatched names to the set
+        unmatched_names.update([name for sublist in unmatched for name in sublist])
 
         df.to_parquet(parq_path, index=False)
         logging.info(f"Overwritten parquet file: {parq_path}")
@@ -303,3 +310,5 @@ def process_parquet_files(parq_paths, name_to_accession_mapping):
         logging.info(f"Proportion of unmatched sequences: {proportion_unmatched}")
     else:
         logging.warning("No sequences were processed.")
+    
+    return unmatched_names
