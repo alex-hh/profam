@@ -43,14 +43,16 @@ def main():
     results.append({'Dataset': 'EC', 'NumFamilies': num_families})
     logger.info(f"EC number of families: {num_families}")
 
-    # FunFam dataset
+
     logger.info("Processing FunFam dataset")
     funfam_dir = os.path.join(base_data_dir, "funfams/parquets")
-    parquet_files = [f for f in os.listdir(funfam_dir) if f.endswith('.parquet')]
+    json_files = glob.glob(f"{funfam_dir}/funfam_data_*_fname2famid.json")
     fam_ids = set()
-    for filename in parquet_files:
-        df = pd.read_parquet(os.path.join(funfam_dir, filename))
-        fam_ids.update(df['fam_id'].unique())
+    for json_file in json_files:
+        with open(json_file, 'r') as f:
+            data = json.load(f)
+            for fam_list in data.values():
+                fam_ids.update(fam_list)
     num_families = len(fam_ids)
     results.append({'Dataset': 'funfam', 'NumFamilies': num_families})
     logger.info(f"FunFam number of families: {num_families}")
