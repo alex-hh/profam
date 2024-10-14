@@ -60,7 +60,7 @@ def process_batch(batch, txn):
             })
     return results, failed_seqs, successful_seqs
 
-def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
+def process_go_terms(go_tsv_path, lmdb_path, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     env = setup_lmdb(lmdb_path)
     
@@ -110,7 +110,7 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
                         if writer:
                             writer.close()
                         file_counter += 1
-                        file_name = f"{file_prefix}_{file_counter}.parquet"
+                        file_name = f"go_term_{file_counter}.parquet"
                         writer = pq.ParquetWriter(os.path.join(save_dir, file_name), schema)
                         record_counter = 0
                     
@@ -147,7 +147,7 @@ def process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix):
                     if writer:
                         writer.close()
                     file_counter += 1
-                    file_name = f"{file_prefix}_{file_counter}.parquet"
+                    file_name = f"go_term_{file_counter}.parquet"
                     writer = pq.ParquetWriter(os.path.join(save_dir, file_name), schema)
                     record_counter = 0
                 
@@ -189,10 +189,10 @@ def log_memory_usage():
     mem_info = process.memory_info()
     logging.info(f"Current memory usage: {mem_info.rss / 1024 / 1024:.2f} MiB")
 
-def main(go_tsv_path, save_dir, lmdb_path, file_prefix):
+def main(go_tsv_path, save_dir, lmdb_path):
     start_time = pd.Timestamp.now()
     try:
-        process_go_terms(go_tsv_path, lmdb_path, save_dir, file_prefix)
+        process_go_terms(go_tsv_path, lmdb_path, save_dir)
     except Exception as e:
         logging.error(f"An error occurred: {str(e)}")
     finally:
@@ -205,7 +205,6 @@ if __name__ == "__main__":
     parser.add_argument("--go_tsv_path", type=str, required=True, help="Path to the GO term TSV file")
     parser.add_argument("--save_dir", type=str, required=True, help="Directory to save the parquet files")
     parser.add_argument("--lmdb_path", type=str, required=True, help="Path to the LMDB directory containing sequence data")
-    parser.add_argument("--file_prefix", type=str, default="GO", help="Prefix for output Parquet files")
     args = parser.parse_args()
 
-    main(args.go_tsv_path, args.save_dir, args.lmdb_path, args.file_prefix)
+    main(args.go_tsv_path, args.save_dir, args.lmdb_path)

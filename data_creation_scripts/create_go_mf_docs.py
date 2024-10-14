@@ -17,15 +17,14 @@ UNIPROT_ID_IDX = 1
 QUALIFIER_IDX = 3
 GO_TERM_IDX = 4
 ASPECT_IDX = 8
-DB_OBJECT_TYPE_IDX = 11
+DB_OBJECT_TYPE_IDX = 11 
 INPUT_URL = 'ftp://ftp.ebi.ac.uk/pub/databases/GO/goa/UNIPROT/goa_uniprot_all.gaf.gz'
 GOA_FILE = 'data/GO_MF/goa_uniprot_all.gaf.gz'
+GO_OBO_URL = 'http://purl.obolibrary.org/obo/go.obo'
+GO_OBO_FILE = 'data/GO_MF/go.obo'
 OUTPUT_FILE = 'data/GO_MF/mf_to_uniprot_mapping_ic.tsv.gz'
 #MAX_UNIPROT_IDS = 100000  # 100k seems most reasonable
 MIN_UNIPROT_IDS = 2
-
-GO_OBO_URL = 'http://purl.obolibrary.org/obo/go.obo'
-GO_OBO_FILE = 'data/GO_MF/go.obo'
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
