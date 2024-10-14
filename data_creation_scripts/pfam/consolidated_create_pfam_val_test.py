@@ -581,7 +581,7 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir, use_id_mapp
     logging.info(f"Saved {len(unmatched_names)} unmatched sequence names to {unmatched_names_path}")
 
     if not use_id_mapping_api and len(unmatched_names) > 0:
-        print("Retrying unmatched names with ID mapping API...")
+        logging.info("Retrying unmatched names with ID mapping API...")
         retry_save_dir = f"{map_save_dir}/retry_api_mapping"
         os.makedirs(retry_save_dir, exist_ok=True)
         retried_name_to_accession_mapping = get_name_to_accession_mapping(
@@ -589,7 +589,7 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir, use_id_mapp
             map_save_dir=retry_save_dir,
         )
         mapping_path = f"{map_save_dir}/filtered_id_mapping.tsv"
-        print(f"Appending new mappings to {mapping_path}")
+        logging.info(f"Appending new mappings to {mapping_path}")
         with open(mapping_path, 'a') as f:
             for name, acc in retried_name_to_accession_mapping.items():
                 f.write(f"{name}\t{acc}\n")
