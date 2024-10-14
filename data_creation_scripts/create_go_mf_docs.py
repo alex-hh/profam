@@ -9,9 +9,19 @@ from tqdm import tqdm
 import argparse
 import math
 
-# download and process go uniprot file : https://www.ebi.ac.uk/GOA/downloads.html
-# goa_uniprot_all.gaf.gz : 19GB file contains all GO annotations for proteins in UniProtKB
-# this script requires ~36 GB of RAM and maps GO terms to UniProt IDs that 'enable' a molecular function (MF)
+"""
+This script processes the Gene Ontology Annotation (GOA) database to create a mapping of
+Molecular Function (MF) GO terms to UniProt IDs. It performs the following tasks:
+
+1. Downloads the GOA UniProt file (goa_uniprot_all.gaf.gz, ~19GB) from EBI
+2. Parses the file to extract MF GO terms and their associated UniProt IDs
+3. Calculates Information Content (IC) for each GO term
+4. Filters and processes the data to create a mapping of GO terms to UniProt IDs
+5. Outputs the processed data to a compressed TSV file
+
+The script focuses on GO terms that 'enable' molecular functions and requires
+approximately 36GB of RAM to run efficiently due to the large dataset size.
+"""
 
 UNIPROT_ID_IDX = 1
 QUALIFIER_IDX = 3

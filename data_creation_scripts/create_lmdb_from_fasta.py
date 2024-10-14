@@ -8,7 +8,11 @@ import gzip
 from tqdm import tqdm
 from Bio import SeqIO
 
-# Set up logging
+"""
+This script creates an LMDB database from one or more FASTA files.
+It supports both gzipped and uncompressed FASTA files and processes records in batches
+"""
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 

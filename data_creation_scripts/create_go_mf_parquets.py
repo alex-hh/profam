@@ -8,6 +8,22 @@ import pyarrow.parquet as pq
 import os
 from collections import defaultdict
 
+"""
+This script processes GO-MF terms and UniProt IDs, fetches protein sequences from LMDB,
+and creates Parquet files with GO terms, sequences, and accessions. It efficiently handles
+large datasets using batch processing and filters GO terms based on Information Content.
+
+Key features:
+- Reads GO-MF to UniProt ID mappings from a compressed TSV file
+- Retrieves protein sequences from an LMDB database
+- Filters GO terms based on a minimum IC threshold
+- Creates Parquet files with GO terms, protein sequences, and accessions
+- Implements batch processing and caching for improved performance
+
+Usage:
+python create_go_mf_parquets.py [options]
+"""
+
 def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
