@@ -11,39 +11,6 @@ def main():
     base_data_dir = "../data"
     results = []
 
-    # Foldseek dataset
-    logger.info("Processing Foldseek dataset")
-    foldseek_file = os.path.join(base_data_dir, "afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
-    df_foldseek = pd.read_csv(foldseek_file, sep='\t', header=None, names=["id", "clust", "tax"])
-    num_families = df_foldseek['clust'].nunique()
-    results.append({'Dataset': 'foldseek', 'NumFamilies': num_families})
-    logger.info(f"Foldseek number of families: {num_families}")
-
-    # TED dataset
-    logger.info("Processing TED dataset")
-    ted_dir = os.path.join(base_data_dir, "ted/ted_s50_by_sfam")
-    ted_files = [f for f in os.listdir(ted_dir) if f.endswith('.fasta')]
-    fam_ids = set()
-    for filename in ted_files:
-        fam_id = ".".join(filename.split(".")[:-1])
-        fam_ids.add(fam_id)
-    num_families = len(fam_ids)
-    results.append({'Dataset': 'TED', 'NumFamilies': num_families})
-    logger.info(f"TED number of families: {num_families}")
-
-    # EC dataset
-    logger.info("Processing EC dataset")
-    ec_dir = os.path.join(base_data_dir, "ec/ec_fastas")
-    ec_files = [f for f in os.listdir(ec_dir) if f.endswith('.fasta')]
-    fam_ids = set()
-    for filename in ec_files:
-        fam_id = ".".join(filename.split(".")[:-1])
-        fam_ids.add(fam_id)
-    num_families = len(fam_ids)
-    results.append({'Dataset': 'EC', 'NumFamilies': num_families})
-    logger.info(f"EC number of families: {num_families}")
-
-
     logger.info("Processing FunFam dataset")
     funfam_dir = os.path.join(base_data_dir, "funfams/parquets")
     json_files = glob.glob(f"{funfam_dir}/funfam_data_*_fname2famid.json")
@@ -80,6 +47,38 @@ def main():
     num_families = len(fam_ids)
     results.append({'Dataset': 'Pfam', 'NumFamilies': num_families})
     logger.info(f"Pfam number of families: {num_families}")
+
+        # Foldseek dataset
+    logger.info("Processing Foldseek dataset")
+    foldseek_file = os.path.join(base_data_dir, "afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
+    df_foldseek = pd.read_csv(foldseek_file, sep='\t', header=None, names=["id", "clust", "tax"])
+    num_families = df_foldseek['clust'].nunique()
+    results.append({'Dataset': 'foldseek', 'NumFamilies': num_families})
+    logger.info(f"Foldseek number of families: {num_families}")
+
+    # TED dataset
+    logger.info("Processing TED dataset")
+    ted_dir = os.path.join(base_data_dir, "ted/ted_s50_by_sfam")
+    ted_files = [f for f in os.listdir(ted_dir) if f.endswith('.fasta')]
+    fam_ids = set()
+    for filename in ted_files:
+        fam_id = ".".join(filename.split(".")[:-1])
+        fam_ids.add(fam_id)
+    num_families = len(fam_ids)
+    results.append({'Dataset': 'TED', 'NumFamilies': num_families})
+    logger.info(f"TED number of families: {num_families}")
+
+    # EC dataset
+    logger.info("Processing EC dataset")
+    ec_dir = os.path.join(base_data_dir, "ec/ec_fastas")
+    ec_files = [f for f in os.listdir(ec_dir) if f.endswith('.fasta')]
+    fam_ids = set()
+    for filename in ec_files:
+        fam_id = ".".join(filename.split(".")[:-1])
+        fam_ids.add(fam_id)
+    num_families = len(fam_ids)
+    results.append({'Dataset': 'EC', 'NumFamilies': num_families})
+    logger.info(f"EC number of families: {num_families}")
 
     # Save results to CSV
     output_file = os.path.join(base_data_dir, "n_families_per_dataset.csv")
