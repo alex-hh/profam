@@ -11,7 +11,44 @@ def main():
     base_data_dir = "../data"
     results = []
 
-    # Foldseek dataset
+    logger.info("Processing FunFam dataset")
+    funfam_dir = os.path.join(base_data_dir, "funfams/parquets")
+    json_files = glob.glob(f"{funfam_dir}/funfam_data_*_fname2famid.json")
+    fam_ids = set()
+    for json_file in json_files:
+        with open(json_file, 'r') as f:
+            data = json.load(f)
+            for fam_list in data.values():
+                fam_ids.update(fam_list)
+    num_families = len(fam_ids)
+    results.append({'Dataset': 'funfam', 'NumFamilies': num_families})
+    logger.info(f"FunFam number of families: {num_families}")
+
+    # GO_MF dataset
+    logger.info("Processing GO_MF dataset")
+    go_mf_dir = os.path.join(base_data_dir, "GO_MF/mfparquets")
+    parquet_files = [f for f in os.listdir(go_mf_dir) if f.endswith('.parquet')]
+    fam_ids = set()
+    for filename in parquet_files:
+        df = pd.read_parquet(os.path.join(go_mf_dir, filename))
+        fam_ids.update(df['fam_id'].unique())
+    num_families = len(fam_ids)
+    results.append({'Dataset': 'GO_MF', 'NumFamilies': num_families})
+    logger.info(f"GO_MF number of families: {num_families}")
+
+    # Pfam dataset
+    logger.info("Processing Pfam dataset")
+    pfam_dir = os.path.join(base_data_dir, "pfam/combined_parquets")
+    parquet_files = [f for f in os.listdir(pfam_dir) if f.endswith('.parquet')]
+    fam_ids = set()
+    for filename in parquet_files:
+        df = pd.read_parquet(os.path.join(pfam_dir, filename))
+        fam_ids.update(df['fam_id'].unique())
+    num_families = len(fam_ids)
+    results.append({'Dataset': 'Pfam', 'NumFamilies': num_families})
+    logger.info(f"Pfam number of families: {num_families}")
+
+        # Foldseek dataset
     logger.info("Processing Foldseek dataset")
     foldseek_file = os.path.join(base_data_dir, "afdb/1-AFDBClusters-entryId_repId_taxId.tsv")
     df_foldseek = pd.read_csv(foldseek_file, sep='\t', header=None, names=["id", "clust", "tax"])
@@ -42,42 +79,6 @@ def main():
     num_families = len(fam_ids)
     results.append({'Dataset': 'EC', 'NumFamilies': num_families})
     logger.info(f"EC number of families: {num_families}")
-
-    # FunFam dataset
-    logger.info("Processing FunFam dataset")
-    funfam_dir = os.path.join(base_data_dir, "funfams/parquets")
-    parquet_files = [f for f in os.listdir(funfam_dir) if f.endswith('.parquet')]
-    fam_ids = set()
-    for filename in parquet_files:
-        df = pd.read_parquet(os.path.join(funfam_dir, filename))
-        fam_ids.update(df['fam_id'].unique())
-    num_families = len(fam_ids)
-    results.append({'Dataset': 'funfam', 'NumFamilies': num_families})
-    logger.info(f"FunFam number of families: {num_families}")
-
-    # GO_MF dataset
-    logger.info("Processing GO_MF dataset")
-    go_mf_dir = os.path.join(base_data_dir, "GO_MF/mfparquets")
-    parquet_files = [f for f in os.listdir(go_mf_dir) if f.endswith('.parquet')]
-    fam_ids = set()
-    for filename in parquet_files:
-        df = pd.read_parquet(os.path.join(go_mf_dir, filename))
-        fam_ids.update(df['fam_id'].unique())
-    num_families = len(fam_ids)
-    results.append({'Dataset': 'GO_MF', 'NumFamilies': num_families})
-    logger.info(f"GO_MF number of families: {num_families}")
-
-    # Pfam dataset
-    logger.info("Processing Pfam dataset")
-    pfam_dir = os.path.join(base_data_dir, "pfam/combined_parquets")
-    parquet_files = [f for f in os.listdir(pfam_dir) if f.endswith('.parquet')]
-    fam_ids = set()
-    for filename in parquet_files:
-        df = pd.read_parquet(os.path.join(pfam_dir, filename))
-        fam_ids.update(df['fam_id'].unique())
-    num_families = len(fam_ids)
-    results.append({'Dataset': 'Pfam', 'NumFamilies': num_families})
-    logger.info(f"Pfam number of families: {num_families}")
 
     # Save results to CSV
     output_file = os.path.join(base_data_dir, "n_families_per_dataset.csv")
