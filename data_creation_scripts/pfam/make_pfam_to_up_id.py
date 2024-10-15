@@ -7,7 +7,8 @@ Download file from pfam ftp site:
 https://ftp.ebi.ac.uk/pub/databases/Pfam/current_release/
 Pfam-A.regions.uniprot.tsv.gz
 
-This file reformats it into a json.
+This file reformats it into a json:
+pfam_family_id: [uniprot_acc1, uniprot_acc2, ...]
 """
 
 input_file = '../data/pfam/Pfam-A.regions.uniprot.tsv'
