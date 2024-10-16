@@ -23,15 +23,5 @@ echo "####################  QSUB SCRIPT END  ####################"
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 conda activate venvPF
-python ${ROOT_DIR}/src/train.py \
-data=all \
-trainer=gpu \
-trainer.devices=auto \
-trainer.max_epochs=1000 \
-model=llama_medium \
-model.lr=2e-3 \
-paths.data_dir="../data" \
-logger=wandb \
-trainer.val_check_interval=2000 \
-data.batch_size=9
+python ${ROOT_DIR}/src/train.py experiment=train_all_hpc
 date
