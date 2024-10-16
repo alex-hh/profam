@@ -8,7 +8,6 @@ from src.constants import BACKBONE_ATOMS
 from src.data.objects import Protein, ProteinDocument
 from src.sequence.fasta import convert_sequence_with_positions
 from src.utils.tokenizers import ProFamTokenizer
-from src.utils.utils import np_random
 
 
 def convert_sequences_adding_positions(
@@ -45,7 +44,7 @@ def sample_to_max_tokens(
     max_tokens: int,
     tokenizer: Optional[ProFamTokenizer] = None,
     shuffle: bool = True,
-    seed: Optional[int] = None,
+    rng: Optional[np.random.Generator] = None,
     drop_first: bool = False,
     keep_first: bool = False,
     extra_tokens_per_document: Optional[int] = None,
@@ -58,7 +57,7 @@ def sample_to_max_tokens(
         assert extra_tokens_per_document is not None
         extra_tokens_per_document = 2
     # extra_arrays = [positions, proteins.coords, proteins.plddts, proteins.structure_tokens]
-    rnd = np_random(seed)
+    rnd = np.random if rng is None else rng
     if drop_first:
         proteins = proteins[1:]
     if shuffle:
@@ -80,7 +79,12 @@ def sample_to_max_tokens(
     return proteins
 
 
-def noise_backbones(proteins: ProteinDocument, std: float = 0.1, **kwargs):
+def noise_backbones(
+    proteins: ProteinDocument,
+    std: float = 0.1,
+    rng: Optional[np.random.Generator] = None,
+    **kwargs,
+):
     """Add Gaussian noise to the backbone coordinates.
 
     ProteinMPNN:
@@ -146,7 +150,9 @@ def rescale_backbones(proteins: ProteinDocument, scale: float = 6.0, **kwargs):
     return proteins.clone(backbone_coords=new_coords)
 
 
-def rotate_backbones(proteins: ProteinDocument, **kwargs):
+def rotate_backbones(
+    proteins: ProteinDocument, rng: Optional[np.random.Generator] = None, **kwargs
+):
     new_coords = []
     for coords in proteins.backbone_coords:
         # apply a separate random rotation to each protein
@@ -155,7 +161,7 @@ def rotate_backbones(proteins: ProteinDocument, **kwargs):
         if np.isnan(coords).all():
             new_coords.append(coords)
         else:
-            rotation = R.random()
+            rotation = R.random(random_state=rng)
             flat_coords = coords.reshape(-1, 3)
             flat_nan_mask = np.isnan(flat_coords).any(axis=1)
             flat_coords[~flat_nan_mask] = rotation.apply(flat_coords[~flat_nan_mask])
@@ -293,13 +299,15 @@ def interleave_structure_sequence(
     tokenizer: ProFamTokenizer,
     structure_first_prob: float = 1.0,
     max_tokens: Optional[int] = None,
+    rng: Optional[np.random.Generator] = None,
     repeat_coords: bool = False,  # in first runs we used repeat coords - this requires modified sampling code.
 ):
     """Automatically reduces the number of proteinss to fit within max_tokens.
 
     N.B. we hard-code coords padding as 0.
     """
-    coin_flip = np.random.rand()
+    rnd = np.random if rng is None else rng
+    coin_flip = rnd.rand()
     interleaved_sequences = []
     interleaved_positions = []
     interleaved_plddts = []
@@ -436,7 +444,15 @@ def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
     return proteins.clone(sequences=new_sequences)
 
 
-def apply_transforms(transforms, proteins, tokenizer, max_tokens: Optional[int] = None):
+def apply_transforms(
+    transforms,
+    proteins,
+    tokenizer,
+    max_tokens: Optional[int] = None,
+    rng: Optional[np.random.Generator] = None,
+):
     for transform in transforms or []:
-        proteins = transform(proteins, tokenizer=tokenizer, max_tokens=max_tokens)
+        proteins = transform(
+            proteins, tokenizer=tokenizer, max_tokens=max_tokens, rng=rng
+        )
     return proteins
