@@ -7,7 +7,7 @@ defaults:
   - dataset@dataset_cfgs.foldseek: foldseek
   - dataset@dataset_cfgs.foldseek_reps: foldseek_representatives
   - dataset@dataset_cfgs.foldseek_interleaved: foldseek_interleaved
-  - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved
+  - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved_batch
   - dataset@dataset_cfgs.ted_raw: ted
   - dataset@dataset_cfgs.gene3d_raw: gene3d
   - dataset@dataset_cfgs.gene3dS50_raw: gene3dS50
@@ -36,7 +36,7 @@ dataset_cfgs:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
     shuffle: false
 
-batch_size: 9
+batch_size: 6
 max_tokens: 10000
 data_dir: ${paths.data_dir}
 val_dataset_names:
@@ -52,3 +52,4 @@ num_workers: 4
 gym_data_dir: ProteinGym
 gym_dms_ids: ${constants.gym_val_assay_list}
 ignore_gaps: false
+feature_names: ${constants.structure_features}
