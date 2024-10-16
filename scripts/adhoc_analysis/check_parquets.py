@@ -1,14 +1,12 @@
 import glob
 import os
-
-import pyarrow.parquet as pq
+import pandas as pd
 from tqdm import tqdm
 
 
 def check_parquet(parq_path):
     try:
-        table = pq.read_table(parq_path)
-        df = table.to_pandas()
+        df = pd.read_parquet(parq_path)
         failed = False
 
         required_columns = ["sequences", "accessions", "fam_id"]
@@ -18,18 +16,33 @@ def check_parquet(parq_path):
                 failed = True
 
         if not failed:
-            seq_lens = df["sequences"].str.len()
-            accessions_lens = df["accessions"].str.len()
+            for idx, row in df.iterrows():
+                sequences = row['sequences']
+                accessions = row['accessions']
 
-            if (seq_lens == 0).any():
-                print(f"{parq_path} has empty sequences")
-                failed = True
-            if (accessions_lens == 0).any():
-                print(f"{parq_path} has empty accessions")
-                failed = True
-            if not (seq_lens == accessions_lens).all():
-                print(f"{parq_path} has different number of sequences and accessions")
-                failed = True
+                if len(sequences) != len(accessions):
+                    print(f"{parq_path} has different number of sequences and accessions in row {idx}")
+                    failed = True
+                    break
+
+                for seq in sequences:
+                    if not isinstance(seq, str) or len(seq) < 3:
+                        print(f"{parq_path} has invalid sequence in row {idx}: {seq}")
+                        failed = True
+                        break
+
+                if failed:
+                    break
+
+                if len(sequences) == 0:
+                    print(f"{parq_path} has empty sequences in row {idx}")
+                    failed = True
+                    break
+
+                if len(accessions) == 0:
+                    print(f"{parq_path} has empty accessions in row {idx}")
+                    failed = True
+                    break
 
         return failed
     except Exception as e:
@@ -37,15 +50,30 @@ def check_parquet(parq_path):
         return True
 
 
-# Main script remains the same
+# Main script
 if __name__ == "__main__":
-    parquet_dirs = ["/SAN/orengolab/cath_plm/ProFam/data/GO_MF/mfparquets"]
+    glob_patterns = [
+        ("../foldseek_struct/*.parquet", "Foldseek struct"),
+        ("../foldseek_representatives/*.parquets", "Foldseek representatives"),
+        ("../data/pfam/train_test_split_parquets_v2/**/*.parquet", "Pfam"),
+        ("../data/GO_MF/mfparquets/*.parquet", "GO MF"),
+        ("../data/funfams/parquets/*.parquet", "Funfams")
+    ]
+
+    parquet_filepaths = []
+    for pattern, name in glob_patterns:
+        files = glob.glob(pattern, recursive=True)
+        print(f"Found {len(files)} parquet files for {name}")
+        parquet_filepaths.extend(files)
+
+    # ted_parquets = None # currently TED is fasta format
+    # gene3d = None # currently gene3d is fasta format
+    # ec = None # currently ec is fasta format
+
     fail_counter = 0
-    for d in parquet_dirs:
-        parquet_files = glob.glob(os.path.join(d, "*.parquet"))
-        print(f"Found {len(parquet_files)} parquet files in {d}")
-        for parquet_file in tqdm(parquet_files):
-            failed = check_parquet(parquet_file)
-            if failed:
-                fail_counter += 1
+    print(f"Found {len(parquet_filepaths)} parquet files in total")
+    for parquet_file in tqdm(parquet_filepaths):
+        failed = check_parquet(parquet_file)
+        if failed:
+            fail_counter += 1
     print(f"Found {fail_counter} failed parquets")
