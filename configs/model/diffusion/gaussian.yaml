@@ -1,0 +1,10 @@
+_target_: src.models.diffusion.gaussian_diffusion.create_gaussian_diffusion
+steps: 1000
+learn_sigma: false
+sigma_small: false
+noise_schedule: linear  # Try cosine
+use_kl: false
+predict_xstart: false
+rescale_timesteps: false
+rescale_learned_sigmas: false
+timestep_respacing: ""  # TODO: look into this

@@ -11,8 +11,11 @@ dataset_cfgs:
     holdout_data_files: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
   foldseek_val:
+    # i guess really we should just make this 0-8
     data_path_pattern: foldseek_representatives/0.parquet
     minimum_mean_plddt: 0.6
+    shuffle: false
+    file_repeats: 8  # for ddp
 batch_size: 18
 max_tokens: 1536
 data_dir: ${paths.data_dir}
@@ -26,4 +29,5 @@ evaluate_ec_cluster_class: false
 num_workers: null # None means use all available CPU cores
 gym_data_dir: ProteinGym
 use_filtered_gym_msas: true
-feature_names: ["input_ids", "attention_mask", "labels", "seq_pos", "ds_name", "identifier", "original_size", "aa_mask", "coords", "coords_mask", "interleaved_coords_mask", "structure_mask", "plddts", "high_plddt_mask"]
+feature_names: ${constants.structure_features}
+total_num_train_samples: 1900000

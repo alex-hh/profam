@@ -121,7 +121,7 @@ def preprocess_protein_sequences(
     assert isinstance(proteins, ProteinDocument), type(proteins)
     transform_fns = transform_fns or []
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if tokenizer.use_seq_pos:
+    if tokenizer.embed_residue_index:
         proteins = transforms.convert_sequences_adding_positions(
             proteins,
             keep_gaps=cfg.keep_gaps,
@@ -372,6 +372,7 @@ class FastaPreprocessor(BasePreprocessor):
                 max_fasta_lines_to_preprocess,
                 shuffle=shuffle,
             )
+
         sequences = [
             seq
             for seq in read_fasta_sequences(
@@ -382,6 +383,7 @@ class FastaPreprocessor(BasePreprocessor):
                 to_upper=False,
             )
         ]
+
         return ProteinDocument(
             sequences=sequences, original_size=len(lines) // 2
         )  # upper bound estimate of number of sequences
@@ -400,6 +402,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         self,
         config: PreprocessingConfig,
         sequence_col: str = "sequences",
+        identifier_col: str = "fam_id",
         transform_fns: Optional[List[Callable]] = None,
         infer_representative_from_identifier: bool = False,
         batched_map: bool = False,  # should map be called with batched=True
@@ -418,6 +421,7 @@ class ParquetSequencePreprocessor(BasePreprocessor):
             sample_uniformly_from_col=sample_uniformly_from_col,
         )
         self.sequence_col = sequence_col
+        self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
 
     @property

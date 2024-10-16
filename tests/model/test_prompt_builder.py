@@ -39,7 +39,7 @@ def test_representative_inverse_folding(profam_tokenizer):
         add_final_sep=False,
     )
 
-    expected_tokens = torch.tensor(
+    expected_tokens = np.array(
         [
             profam_tokenizer.convert_tokens_to_ids("[RAW]"),
             profam_tokenizer.bos_token_id,
@@ -50,8 +50,6 @@ def test_representative_inverse_folding(profam_tokenizer):
         ]
     )
     assert (example["input_ids"] == expected_tokens).all(), expected_tokens
-    assert (
-        example["coords"].double().numpy() == expected_coords
-    ).all(), expected_coords
+    assert (example["coords"] == expected_coords).all(), expected_coords
     # TODO: test the coords etc.
     # TODO: actually write a test of the sliced prompt input ids (e.g. all mask token ids here.)

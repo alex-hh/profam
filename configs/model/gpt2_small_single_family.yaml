@@ -8,6 +8,10 @@ config:
   n_head: 12
   n_layer: 12
   n_positions: 2048
+  attn_implementation: flash_attention_2  # eager/flash_attention_2/sdpa
 embed_coords: false
 embed_sequence_index: false
 attention_mask_type: null
+embed_residue_index: true
+max_seq_pos_in_doc: 1024
+max_res_pos_in_seq: 4096

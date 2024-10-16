@@ -27,7 +27,7 @@ from src.utils.utils import nested_getattr
 
 
 def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
-    # as long as we pad after sep, it doesn't matter what seq_pos is associated with sep
+    # as long as we pad after sep, it doesn't matter what residue_index is associated with sep
     sep_counts = (input_ids == eos_token_id).cumsum(dim=-1)
     assert sep_counts.max() <= 1
     should_pad = sep_counts.cumsum(-1) > 1
@@ -61,8 +61,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 
     args:
-        use_seq_pos: embed position of amino acid within sequence (TODO: standardise variable naming)
-        embed_sequence_index: if True, embed index of sequence within sequence of sequences (TODO: rename)
+        embed_residue_index: embed position of amino acid within sequence
+        embed_sequence_index: if True, embed index of sequence within sequence of sequences
         pass_constant_position_ids_for_global_index: if True, pass constant position ids to model (for e.g. inbuilt ROPE embeddings)
         pass_sequence_position_ids_for_global_index: if True, pass sequence position ids to model
     """
@@ -75,25 +75,36 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         token_embedder: str,
         embedding_dim: int,
         tokenizer: ProFamTokenizer,
-        require_seq_pos: bool = True,
+        require_residue_index: bool = True,
         embed_coords: bool = False,
-        start_seq_pos: int = 2,
+        start_residue_index: int = 2,
         embed_sequence_index: bool = False,
         pass_constant_position_ids_for_global_index: bool = False,
         pass_sequence_position_ids_for_global_index: bool = False,
-        max_sequence_index: int = 1024,
+        max_seq_pos_in_doc: int = 1024,
+        embed_residue_index: bool = True,
+        max_res_pos_in_seq: int = 1024,
     ):
         # TODO: move all this to config? or wrapper part of config?
         self.tokenizer = tokenizer
-        self.use_seq_pos = tokenizer.use_seq_pos
-        self.start_seq_pos = start_seq_pos  # TODO: double-check this is consistent
-        self.require_seq_pos = require_seq_pos
-        self.tokenizer = tokenizer
+        self.embed_residue_index = embed_residue_index
+        self.max_res_pos_in_seq = max_res_pos_in_seq
+        if self.embed_residue_index:
+            assert self.tokenizer.embed_residue_index
+            assert self.max_res_pos_in_seq == self.tokenizer.max_res_pos_in_seq
+        self.start_residue_index = (
+            start_residue_index  # TODO: double-check this is consistent
+        )
+        # TODO: avoid re-tracking - does this happen automatically?
+        self.token_embedder = nested_getattr(
+            self, token_embedder
+        )  # TODO: use self.embed_tokens or sthg
+        self.require_residue_index = require_residue_index
         self.embed_coords = embed_coords
-        self.start_seq_pos = start_seq_pos
+        self.start_residue_index = start_residue_index
         self.num_atoms = 4
         self.embed_sequence_index = embed_sequence_index
-        self.max_sequence_index = max_sequence_index
+        self.max_seq_pos_in_doc = max_seq_pos_in_doc
         self.pass_constant_position_ids_for_global_index = (
             pass_constant_position_ids_for_global_index
         )
@@ -107,15 +118,18 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         )  # TODO: use self.embed_tokens or sthg
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
-                self.num_atoms * 3, embedding_dim, bias=False
+                self.num_atoms * 3,
+                embedding_dim,
+                bias=False,
             )
-        if self.tokenizer.use_seq_pos:
-            self.seq_pos_embedding = nn.Embedding(
-                self.tokenizer.max_seq_pos, embedding_dim
+        if self.tokenizer.embed_residue_index:
+            self.residue_index_embedding = nn.Embedding(
+                self.max_res_pos_in_seq, embedding_dim
             )
         if self.embed_sequence_index:
             self.sequence_index_embedding = nn.Embedding(
-                self.max_sequence_index, embedding_dim
+                self.max_seq_pos_in_doc,
+                embedding_dim,
             )
 
     def _prepare_cache_for_generation(
@@ -137,13 +151,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         model_kwargs[cache_name] = InputAwareDynamicCache()
 
-    # This needs to be the instantiation target if using seq pos... or wrapped hf model needs to handle properly
     def prepare_inputs_for_generation(
         self,
         input_ids,
         attention_mask=None,
         past_key_values=None,
-        seq_pos=None,
+        residue_index=None,
         cache_position=None,
         use_cache=True,
         coords=None,
@@ -159,6 +172,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         Q. at what point do input ids get tiled out to batch size?
         Q. can we use generation_config.cache_implementation?
+        Inputs are then incremented in _update_model_kwargs_for_generation.
+        For some inputs, we currently have to update here (residue_index, sequence_index) -
+        https://github.com/huggingface/transformers/issues/33548
 
         n.b. we need to be aware of main steps of generation pipeline (self.generate)
         0. kwargs passed to generate get separated into generation config and model_kwargs
@@ -195,8 +211,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # in sample loop 'input_ids' gets incremented with generated tokens
 
         assert input_ids.ndim == 2
-        if self.use_seq_pos:
-            assert seq_pos is not None
+        if self.embed_residue_index:
+            assert residue_index is not None
 
         # if None is passed to forward, default will be created.
         # we shouldn't pass a 4d mask - this is handled by forward method (_update_causal_mask)
@@ -211,7 +227,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             **kwargs,
         )  # slices out prompt and uses cache typically.
 
-        generated_tokens = input_ids[:, seq_pos.shape[-1] :]
+        generated_tokens = input_ids[:, past_seen_tokens :]
         if (generated_tokens == self.tokenizer.sep_token_id).any() or (
             generated_tokens == self.tokenizer.seq_struct_sep_token_id
         ).any():
@@ -220,13 +236,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 "This code does not handle generation of sequences with separators."
             )
 
-        # input_ids is prompt + generated tokens
-        # kwargs["seq_pos"] is prompt only
+        # input_ids, residue_index, coords are prompt + generated tokens (updated in _update_model_kwargs_for_generation)
         # inputs["input_ids"] is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
-        if self.use_seq_pos:
-            inputs["seq_pos"] = (
-                seq_pos[:, cache_position] if past_key_values is not None else seq_pos
+        # we do the same for extra inputs here
+        if self.embed_residue_index:
+            inputs["residue_index"] = (
+                residue_index[:, cache_position] if past_key_values is not None else residue_index
             )
 
         if self.embed_coords:
@@ -280,8 +296,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             assert num_new_tokens == 1
             # we assume we only increment by one, which makes things easier
             assert model_kwargs["cache_position"].shape[-1] == 1
-            prev_seq_pos = model_kwargs["seq_pos"][:, -1:]
-            new_seq_pos = torch.where(
+            prev_residue_index = model_kwargs["residue_index"][:, -1:]
+            new_residue_index = torch.where(
                 torch.isin(
                     past_key_values.input_ids_cache[:, -1:],
                     torch.tensor(
@@ -291,11 +307,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                         ]
                     ),
                 ),
-                torch.full_like(prev_seq_pos, self.start_seq_pos),
-                prev_seq_pos + 1,
+                torch.full_like(prev_residue_index, self.start_residue_index),
+                prev_residue_index + 1,
             )
-            model_kwargs["seq_pos"] = torch.cat(
-                [model_kwargs["seq_pos"], new_seq_pos], dim=-1
+            model_kwargs["residue_index"] = torch.cat(
+                [model_kwargs["residue_index"], new_residue_index], dim=-1
             )
 
         if "coords" in model_kwargs:
@@ -345,7 +361,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     def embed_inputs(
         self,
         input_ids: Optional[torch.LongTensor],
-        seq_pos: Optional[torch.LongTensor] = None,
+        residue_index: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
         start_sequence_index: Optional[Union[int, torch.Tensor]] = None,
     ):
@@ -355,12 +371,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
-        if self.tokenizer.use_seq_pos:
-            if self.require_seq_pos:
-                assert seq_pos is not None
-            if seq_pos is not None:
-                pos_embeds = self.seq_pos_embedding(seq_pos)
-                inputs_embeds = inputs_embeds + pos_embeds
+        if self.tokenizer.embed_residue_index:
+            if self.require_residue_index:
+                assert residue_index is not None
+            if residue_index is not None:
+                res_ix_embeds = self.residue_index_embedding(residue_index)
+                inputs_embeds = inputs_embeds + res_ix_embeds
 
         # TODO: might want to embed coords mask to allow for masked coords
         if self.embed_coords:
@@ -377,22 +393,24 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         return inputs_embeds
 
-    def get_position_ids_for_model_forward(self, input_ids, seq_pos, position_ids):
+    def get_position_ids_for_model_forward(
+        self, input_ids, residue_index, position_ids
+    ):
         # TODO: test these; make sure they get called during generation for example.
         if self.pass_constant_position_ids_for_global_index:
             assert position_ids is None
             position_ids = torch.full_like(input_ids, 10).long()
         if self.pass_sequence_position_ids_for_global_index:
             assert position_ids is None
-            assert seq_pos is not None
-            position_ids = seq_pos
+            assert residue_index is not None
+            position_ids = residue_index
         return position_ids
 
     def forward(
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.Tensor] = None,
-        seq_pos: Optional[torch.LongTensor] = None,  # added this line for PFLM
+        residue_index: Optional[torch.LongTensor] = None,  # added this line for PFLM
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -422,12 +440,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         inputs_embeds = self.embed_inputs(
             input_ids,
-            seq_pos=seq_pos,
+            residue_index=residue_index,
             coords=coords,
             start_sequence_index=start_sequence_index,
         )
         position_ids = self.get_position_ids_for_model_forward(
-            input_ids, seq_pos, position_ids
+            input_ids, residue_index, position_ids
         )
         if past_key_values is not None and use_cache:
             # n.b. it's slight hack to do this before forward, but it
