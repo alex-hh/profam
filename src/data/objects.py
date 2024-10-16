@@ -683,7 +683,6 @@ class ProteinDocument:
             end (int): The ending index of the truncation.
         """
         self.sequences[index] = self.sequences[index][start:end]
-        self.sequence_lengths[index] = len(self.sequences[index])
         if self.residue_positions is not None:
             self.residue_positions[index] = self.residue_positions[index][start:end]
         if self.plddts is not None:
