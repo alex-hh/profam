@@ -6,6 +6,9 @@ defaults:
   - override /trainer: gpu
   - _self_
 
+experiment_group: "train_all"
+tags: ["llama_med", "${experiment_group}"]
+
 seed: 12345
 
 trainer:
