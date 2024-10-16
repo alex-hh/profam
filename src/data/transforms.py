@@ -70,11 +70,19 @@ def sample_to_max_tokens(
     if max_tokens is not None:
         total_length = 0
         sampled_protein_ids = []
+
         for ix, seq in enumerate(proteins.sequences):
+            if len(seq) > max_tokens - extra_tokens_per_document:
+                # truncate from start or end
+                if rnd.random() < 0.5:
+                    seq = seq[-(max_tokens - extra_tokens_per_document):]
+                else:
+                    seq = seq[:max_tokens - extra_tokens_per_document]
             total_length += len(seq) + extra_tokens_per_sequence
             if total_length > max_tokens - extra_tokens_per_document:
                 break
             sampled_protein_ids.append(ix)
+        assert len(sampled_protein_ids) > 0, "No sequences sampled"
         return proteins[sampled_protein_ids]
 
     return proteins
