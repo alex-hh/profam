@@ -17,12 +17,11 @@ def protein_document():
         np.random.rand(200, 4, 3),
     ]
     backbone_coords_masks = [
-        np.ones((100, 4, 3)),
-        np.ones((150, 4, 3)),
-        np.ones((200, 4, 3)),
+        np.ones((100, 4)),
+        np.ones((150, 4)),
+        np.ones((200, 4)),
     ]
     structure_tokens = ["X" * 100, "Y" * 150, "Z" * 200]
-    document_ids = [np.arange(100), np.arange(150), np.arange(200)]
 
     return ProteinDocument(
         sequences=sequences,
@@ -31,25 +30,26 @@ def protein_document():
         backbone_coords=backbone_coords,
         backbone_coords_masks=backbone_coords_masks,
         structure_tokens=structure_tokens,
-        document_ids=document_ids,
     )
 
 
 def test_sample_to_max_tokens_exceeds_max(protein_document, profam_tokenizer):
     max_tokens = 50  # Set max_tokens less than any sequence length
-    sampled_proteins = sample_to_max_tokens(
-        protein_document, max_tokens, tokenizer=profam_tokenizer
-    )
+    for _ in range(10):
+        # 10 times to cover random differences in algo
+        sampled_proteins = sample_to_max_tokens(
+            protein_document, max_tokens, tokenizer=profam_tokenizer
+        )
 
-    # Check that the sampled_proteins contains only one truncated sequence
-    assert len(sampled_proteins) == 1
-    assert (
-        len(sampled_proteins.sequences[0])
-        == max_tokens - profam_tokenizer.num_start_tokens
-    )
-    sequence_lengths = check_array_lengths(
-        sampled_proteins.sequences,
-        sampled_proteins.document_ids,
-        sampled_proteins.modality_masks,
-    )
-    assert sequence_lengths[0][0] == max_tokens - profam_tokenizer.num_start_tokens
+        # Check that the sampled_proteins contains only one truncated sequence
+        assert len(sampled_proteins) == 1
+        assert (
+            len(sampled_proteins.sequences[0])
+            == max_tokens - profam_tokenizer.num_start_tokens
+        )
+        sequence_lengths = check_array_lengths(
+            sampled_proteins.sequences,
+            sampled_proteins.document_ids,
+            sampled_proteins.modality_masks,
+        )
+        assert sequence_lengths[0][0] == max_tokens - profam_tokenizer.num_start_tokens
