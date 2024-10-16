@@ -15,6 +15,7 @@ nohup.out
 .pytest_cache
 data/val_test/pfam/test/clustered_split_fastas/
 data/val_test/pfam/val/clustered_split_fastas/
+data/val_test/overlap_counts/
 data/val_test/pfam/test/random_split_fastas/
 data/val_test/pfam/val/random_split_fastas/
 src/models/tranception
