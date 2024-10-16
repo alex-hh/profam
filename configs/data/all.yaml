@@ -7,7 +7,7 @@ defaults:
   - dataset@dataset_cfgs.foldseek: foldseek
   - dataset@dataset_cfgs.foldseek_reps: foldseek_representatives
   - dataset@dataset_cfgs.foldseek_interleaved: foldseek_interleaved
-  - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved_batch
+  - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved
   - dataset@dataset_cfgs.ted_raw: ted
   - dataset@dataset_cfgs.gene3d_raw: gene3d
   - dataset@dataset_cfgs.gene3dS50_raw: gene3dS50
@@ -29,6 +29,11 @@ data_weights:
   gene3d_raw: 0.1
   gene3dS50_raw: 0.1
 dataset_cfgs:
+  foldseek_reps_interleaved:
+    minimum_mean_plddt: 0.6
+    preprocessor:
+      batched_map: true
+      map_batch_size: 250
   pfam_val:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
     shuffle: false
