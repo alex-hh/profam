@@ -59,7 +59,7 @@ def sample_to_max_tokens(
         extra_tokens_per_document = 2
     # extra_arrays = [positions, proteins.coords, proteins.plddts, proteins.structure_tokens]
     rnd = np_random(seed)
-    if drop_first:
+    if drop_first and len(proteins) > 1:
         proteins = proteins[1:]
     if shuffle:
         perm = rnd.permutation(len(proteins))
