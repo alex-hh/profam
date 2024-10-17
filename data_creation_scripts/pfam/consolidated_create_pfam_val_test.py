@@ -23,13 +23,14 @@ from data_creation_scripts.pfam.deduplicate_pfam import deduplicate_families
 """
 Consolidated script for Pfam data processing.
 
-Priot to running this script follow the instructions in:
+Prior to running this script follow the instructions in:
 data_creation_scripts/pfam/README_pfam.md
 
 This script performs the following:
 
-1. Selects Pfam families that occur in both train and test splits for both clustered and random splits, 
-excluding families with more than 10,000 members or fewer than 10 members, 
+1. Selects Pfam families that occur in both train (input seqs) and test (completion seqs) splits 
+for both clustered and random splits, excluding families that do not occur in pfamA.full,
+also excluding families with more than 10,000 members or fewer than 10 members, 
 and families where the UniProt IDs are not present in the provided JSON mapping.
 
 2. Creates parquet files for the validation and test datasets
@@ -53,32 +54,19 @@ train_test_split_parquets_v3
 ├── eval_families_filtered_w_unip_accs.csv # 500 pfam families and whether in val or test
 ├── pfam_all_sequence_names.txt  # ~59M sequence names in pfam (used to look up uniprot accessions)
 ├── pfam_post_split_index.csv   # fam_id -> parquet file mapping
-├── pfam_val_test_all_up_ids.json # pfam family -> uniprot accessions mapping (ALL accs associated with the pfam not just those actually used in the val/test set)
-├── pfam_val_test_flat_file.csv  # one row per sequence with columns: fam_id,accession,matched_accession,split,split_type,is_completion
-├── selected_clustered_split_test_test_uniprot_mapped.csv  │
-├── selected_clustered_split_test_val_uniprot_mapped.csv   │
-├── selected_clustered_split_train_test_uniprot_mapped.csv │
-├── selected_clustered_split_train_val_uniprot_mapped.csv  ├── # contains aligned sequences for all val/ test sequences (redundant info with parquets)
-├── selected_random_split_test_test_uniprot_mapped.csv     │
-├── selected_random_split_test_val_uniprot_mapped.csv      │
-├── selected_random_split_train_test_uniprot_mapped.csv    │
-├── selected_random_split_train_val_uniprot_mapped.csv     │
-├── test                                    │
-│   ├── test_000.parquet                    │
-│   ├── test_001.parquet                    │
+├── pfam_val_test_all_up_ids.json # pfam family -> uniprot accessions mapping (ALL accs associated with the pfam 
+│                                    not just those actually used in the val/test set)
+├── pfam_val_test_flat_file.csv  # one row per sequence with columns: 
+│                                   fam_id,accession,matched_accession,split,split_type,is_completion
 ├── train                                   │
 │   ├── train_Domain_006.parquet            │
-│   ├── train_Domain_007.parquet            ├── original training data now split into train, val, test
+│   ├── train_Domain_007.parquet            ├── seqs from pfamA.full with val/test families removed
 │   ├── train_Family_000.parquet            │
 │   └── train_X0BZJ7_PF00067.27_0.parquet   │
-├── val                                     │
-│   ├── val_000.parquet                     │
-│   ├── val_001.parquet                     │
-│   └── val_002.parquet                     │
-├── test_clustered_split.parquet │
-├── test_random_split.parquet    │
-├── val_clustered_split.parquet  ├── special parquet files that include completion sequences for val/test
-└── val_random_split.parquet     │
+├── test_clustered_split_combined.parquet │
+├── test_random_split_combined.parquet    ├── special parquet files that include input & completion sequences
+├── val_clustered_split_combined.parquet  │    for val/test in addtion to the sequences from pfamA.full
+└── val_random_split_combined.parquet     │
 
 
 Usage:
