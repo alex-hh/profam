@@ -49,7 +49,7 @@ UniProt ID mapping, which gets 98% of sequences, second pass uses API calls to g
 
 This creates the following files: 
 
-train_test_split_parquets_v2
+train_test_split_parquets_v3
 ├── eval_families_filtered_w_unip_accs.csv # 500 pfam families and whether in val or test
 ├── pfam_all_sequence_names.txt  # ~59M sequence names in pfam (used to look up uniprot accessions)
 ├── pfam_post_split_index.csv   # fam_id -> parquet file mapping
@@ -87,9 +87,10 @@ Usage:
 API_URL = "https://rest.uniprot.org"
 setup_logging()
 
-def sample_fams_by_size(
+def initial_filter_fams(
     pfam_select_fam_path,
     pfam_uniprot_json_path,
+    fams_in_pfamA_full,
     n_families=1000,
     min_seq_len=50,
     min_famsize=10,
@@ -97,6 +98,7 @@ def sample_fams_by_size(
 ):
     """
     Select families that occur in train AND test for BOTH clustered AND random splits,
+    and 
     exclude families with more than 10,000 members or fewer than 10 members,
     take twice as many families as needed to account for filtering missing accessions.
     """
@@ -118,6 +120,10 @@ def sample_fams_by_size(
                     split_fam['family_accession'] = split_fam['family_accession'].apply(lambda x: x.split(".")[0])
                     dfs.append(split_fam)
             combined = pd.concat(dfs)
+            pre_filter = len(combined)
+            combined = combined[combined['family_accession'].isin(fams_in_pfamA_full)]
+            post_filter = len(combined)
+            print(f"Filtered {pre_filter - post_filter} rows not present in pfamA_full")
             fam_counts = combined['family_accession'].value_counts().to_dict()
             if not aggregated_fam_counts:
                 aggregated_fam_counts = fam_counts
@@ -508,6 +514,7 @@ def select_families(
     pfam_uniprot_json_path,
     output_json_path,
     n_families_total,
+    pre_split_pfam_pfamily_to_file_index,
 ):
     """
     Filter the Pfam families so that they meet the following criteria:
@@ -526,13 +533,19 @@ def select_families(
     # Paths for intermediate files
     pfam_select_fam_path = os.path.join(pfam_save_dir, 'eval_families_filtered.csv')
     pfam_select_fam_w_up_accs_path = pfam_select_fam_path.replace(".csv", "_w_unip_accs.csv")
+    assert os.path.exists(pre_split_pfam_pfamily_to_file_index)
+
+    fams_present_in_pfamA_full = pd.read_csv(
+        pre_split_pfam_pfamily_to_file_index
+        ).fam_id.unique().apply(lambda x: x.split(".")[0]).to_list()
 
     if not os.path.exists(pfam_select_fam_w_up_accs_path):
         if not os.path.exists(pfam_select_fam_path):
             print("Selecting families for val and test splits...")
-            sample_fams_by_size(
-                pfam_select_fam_path,
-                pfam_uniprot_json_path,
+            initial_filter_fams(
+                pfam_select_fam_path=pfam_select_fam_path,
+                pfam_uniprot_json_path=pfam_uniprot_json_path,
+                fams_in_pfamA_full=fams_present_in_pfamA_full,
                 n_families=n_families_total,
             )
         selected_families = pd.read_csv(pfam_select_fam_path)
@@ -715,7 +728,7 @@ def combine_val_test_parquets(split_parquet_save_dir):
 if __name__ == "__main__":
     use_id_mapping_api = False # if false download ID mapping flat file from uniprot
     external_pfam_dir = '../data/pfam/pfam_eval_splits'  # data splits from other authors
-    split_parquet_save_dir = "../data/pfam/train_test_split_parquets_v2"
+    split_parquet_save_dir = "../data/pfam/train_test_split_parquets_v3"
     index_csv_filename = "pfam_val_test_w_accessions.csv"
     pfam_uniprot_json_path = "../data/pfam/pfam_uniprot_mappings.json"
     output_json_path = os.path.join(
@@ -724,6 +737,7 @@ if __name__ == "__main__":
     )
     pre_shuffled_parquet_dir = "../data/pfam/combined_parquets"  # created by array_job_split_pfam.py
     shuffled_parquet_dir = "../data/pfam/shuffled_parquets"
+    pre_split_pfam_pfamily_to_file_index = f"{shuffled_parquet_dir}/new_index.csv"
     map_save_dir = "../data/pfam/sequence_name_to_uniprot_mapping"
     flat_file_save_dir = "data/val_test/pfam"
 
@@ -739,12 +753,35 @@ if __name__ == "__main__":
     n_families = 500  # Number of families to select for val + test
     limit_mb_per_parquet = 125
 
+    if len(glob.glob(f"{shuffled_parquet_dir}/*.parquet")) < 50:
+        print("Shuffling Pfam parquets")
+        shuffle_pfam_parquets(
+            indir=pre_shuffled_parquet_dir,
+            outdir=shuffled_parquet_dir,
+            limit_mb=limit_mb_per_parquet,
+        )
+    else:
+        print("Shuffled parquets already exist. Skipping...")
+    dropped_rows_json_path = os.path.join(shuffled_parquet_dir, 'duplicated_dropped_rows.json')
+    
+    if not os.path.exists(dropped_rows_json_path):
+        print("removing duplicated entries from shuffled parquets")
+        dropped_rows = deduplicate_families(shuffled_parquet_dir)
+        try:
+            with open(dropped_rows_json_path, 'w') as f:
+                json.dump(dropped_rows, f, indent=2)
+        except Exception as e:
+            print(f"Failed to write dropped rows to JSON: {e}")
+    else:
+        print("Dropped rows JSON already exists so skipping deduplication...")
+
     selected_families = select_families(
         external_pfam_dir=external_pfam_dir,
         pfam_save_dir=split_parquet_save_dir,
         pfam_uniprot_json_path=pfam_uniprot_json_path,
         n_families_total=n_families,
         output_json_path=output_json_path,
+        pre_split_pfam_pfamily_to_file_index=pre_split_pfam_pfamily_to_file_index,
     )
     print(f"Selected {len(selected_families)} families for val and test splits.")
 
@@ -756,27 +793,6 @@ if __name__ == "__main__":
             parquet_save_dir=split_parquet_save_dir,
             flat_file_path=flat_file_path
         )
-
-    if len(glob.glob(f"{shuffled_parquet_dir}/*.parquet")) < 50:
-        print("Shuffling Pfam parquets")
-        shuffle_pfam_parquets(
-            indir=pre_shuffled_parquet_dir,
-            outdir=shuffled_parquet_dir,
-            limit_mb=limit_mb_per_parquet,
-        )
-    else:
-        print("Shuffled parquets already exist. Skipping...")
-    dropped_rows_json_path = os.path.join(shuffled_parquet_dir, 'duplicated_dropped_rows.json')
-    if not os.path.exists(dropped_rows_json_path):
-        print("removing duplicated entries from shuffled parquets")
-        dropped_rows = deduplicate_families(shuffled_parquet_dir)
-        try:
-            with open(dropped_rows_json_path, 'w') as f:
-                json.dump(dropped_rows, f, indent=2)
-        except Exception as e:
-            print(f"Failed to write dropped rows to JSON: {e}")
-    else:
-        print("Dropped rows JSON already exists so skipping deduplication...")
 
 
     # Remove validation and test families from the Pfam training data
