@@ -17,7 +17,6 @@ from src.data.utils import CustomDataCollator
 from src.models.llama import LlamaLitModule
 from src.models.utils import load_named_model
 
-
 # TODO: rewrite this - test cached and uncached versions.
 # def test_prepare_4d_causal_attention_mask_with_cache_position():
 #     # PASSING NOTHING AS INPUT ATTENTION MASK
@@ -230,24 +229,25 @@ def test_attention_masks(
         output_attentions=True,
         use_cache=True,
     )
+    raise NotImplementedError("TODO")
     # do this by manually concatenating bidirectional and causal masks,
     # starting from the non-interleaved batch...
-    expected_attention_mask = 
-    print(outputs.attentions[-1].shape)
+    # expected_attention_mask =
+    # print(outputs.attentions[-1].shape)
 
-    causal_model = load_named_model(
-        "llama_tiny",
-        overrides=["model.config.attention_mask_type=causal"],
-        tokenizer=profam_tokenizer_noseqpos,
-    )
-    causal_model.eval()
-    outputs = causal_model.forward(
-        input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"],
-        output_attentions=True,
-        use_cache=True,
-    )
-    print(outputs.attentions[-1])
-    assert 1 == 0
+    # causal_model = load_named_model(
+    #     "llama_tiny",
+    #     overrides=["model.config.attention_mask_type=causal"],
+    #     tokenizer=profam_tokenizer_noseqpos,
+    # )
+    # causal_model.eval()
+    # outputs = causal_model.forward(
+    #     input_ids=foldseek_interleaved_structure_sequence_batch["input_ids"],
+    #     output_attentions=True,
+    #     use_cache=True,
+    # )
+    # print(outputs.attentions[-1])
+    # assert 1 == 0
 
 
 def test_attention_masks_with_cache(
@@ -274,7 +274,6 @@ def test_attention_masks_with_cache(
         output_attentions=True,
     )
     print(outputs.attentions[-1])
-
 
     causal_model = load_named_model(
         "llama_tiny",

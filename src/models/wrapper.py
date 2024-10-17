@@ -20,11 +20,6 @@ from src.models.utils import InputAwareDynamicCache
 from src.utils.tokenizers import ProFamTokenizer
 from src.utils.utils import nested_getattr
 
-# TODO: really we want to write our own cache class.
-# we can just overwrite update and add relevant attributes.
-# we then need to make sure that we instantiate the right type of cache
-# in relevant places (e.g. in the model forward with use_cache True.)
-
 
 def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
     # as long as we pad after sep, it doesn't matter what residue_index is associated with sep
@@ -32,15 +27,6 @@ def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
     assert sep_counts.max() <= 1
     should_pad = sep_counts.cumsum(-1) > 1
     assert (input_ids[should_pad] == padding_token_id).all()
-
-
-# Question: how do we configure the cache type used by a model? can we?
-
-# Ideally we just want to write a modified cache class that also holds input ids
-# and probably also attention mask
-
-# llama model forward. n.b. mistral model forward has same even though it could use sliding window cache.
-# gpt doesn't use dynamic cache.
 
 
 # TODO: try to modularise...
@@ -227,7 +213,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             **kwargs,
         )  # slices out prompt and uses cache typically.
 
-        generated_tokens = input_ids[:, past_seen_tokens :]
+        generated_tokens = input_ids[:, -inputs["input_ids"].shape[-1] :]
+        print("Generated tokens length:", generated_tokens.shape[-1])
         if (generated_tokens == self.tokenizer.sep_token_id).any() or (
             generated_tokens == self.tokenizer.seq_struct_sep_token_id
         ).any():
@@ -242,7 +229,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # we do the same for extra inputs here
         if self.embed_residue_index:
             inputs["residue_index"] = (
-                residue_index[:, cache_position] if past_key_values is not None else residue_index
+                residue_index[:, cache_position]
+                if past_key_values is not None
+                else residue_index
             )
 
         if self.embed_coords:

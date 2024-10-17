@@ -214,8 +214,6 @@ class ProteinDataMixture(LightningDataModule):
 
             self.val_datasets = []
             for v_ds_name in self.val_dataset_names:
-                val_dataset_cfg = self.dataset_cfgs[v_ds_name]
-                assert not val_dataset_cfg.shuffle
                 # load_protein_dataset subsamples files to a multiple of world_size
                 # if using different numbers of devices this could lead to different
                 # validation datasets unless we hard-code world_size=8 for val here

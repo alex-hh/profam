@@ -194,11 +194,11 @@ class LlamaLitModule(BaseFamilyLitModule):
         of 2000 steps, and decay final learning rate down to 10% of the peak learning rate (3e-4-1.5e-4).
         We use a weight decay of 0.1 and gradient clipping of 1.0.
         """
-        should_wrap = tokenizer.embed_residue_index or embed_coords or embed_sequence_index
+        should_wrap = (
+            tokenizer.embed_residue_index or embed_coords or embed_sequence_index
+        )
         should_wrap = should_wrap or config.attention_mask_type is not None
-        if (
-            should_wrap
-        ):
+        if should_wrap:
             # TODO: move to yaml file...
             config.seq_struct_sep_token_id = tokenizer.seq_struct_sep_token_id
             config.sep_token_id = tokenizer.sep_token_id
