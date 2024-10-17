@@ -1,5 +1,6 @@
 import glob
 import os
+
 import pandas as pd
 from tqdm import tqdm
 
@@ -17,11 +18,13 @@ def check_parquet(parq_path):
 
         if not failed:
             for idx, row in df.iterrows():
-                sequences = row['sequences']
-                accessions = row['accessions']
+                sequences = row["sequences"]
+                accessions = row["accessions"]
 
                 if len(sequences) != len(accessions):
-                    print(f"{parq_path} has different number of sequences and accessions in row {idx}")
+                    print(
+                        f"{parq_path} has different number of sequences and accessions in row {idx}"
+                    )
                     failed = True
                     break
 
@@ -57,7 +60,7 @@ if __name__ == "__main__":
         ("../foldseek_representatives/*.parquets", "Foldseek representatives"),
         ("../data/pfam/train_test_split_parquets_v2/**/*.parquet", "Pfam"),
         ("../data/GO_MF/mfparquets/*.parquet", "GO MF"),
-        ("../data/funfams/parquets/*.parquet", "Funfams")
+        ("../data/funfams/parquets/*.parquet", "Funfams"),
     ]
 
     parquet_filepaths = []

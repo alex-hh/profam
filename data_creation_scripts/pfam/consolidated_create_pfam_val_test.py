@@ -581,6 +581,10 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir, use_id_mapp
     assert os.path.exists(split_parquet_save_dir)
     assert os.path.exists(map_save_dir)
     setup_logging()
+    unmatched_names_path = os.path.join(map_save_dir, "unmatched_sequence_names.txt")
+    if os.path.exists(unmatched_names_path):
+        logging.info(f"Unmatched names file already exists: skipping add accessions step")
+        return []
     all_sequence_names_path = os.path.join(split_parquet_save_dir, 'pfam_all_sequence_names.txt')
     parq_paths = glob.glob(f"{split_parquet_save_dir}/*/*.parquet")
     # Collect all unique sequence names from the parquet files
@@ -620,7 +624,6 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir, use_id_mapp
     logging.info("Adding 'matched_accessions' column to parquet files...")
     unmatched_names = process_parquet_files(parq_paths, name_to_accession_mapping)
     # Save unmatched names to a file
-    unmatched_names_path = os.path.join(map_save_dir, "unmatched_sequence_names.txt")
     with open(unmatched_names_path, 'w') as f:
         for name in unmatched_names:
             f.write(f"{name}\n")
@@ -644,8 +647,66 @@ def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir, use_id_mapp
             map_save_dir=map_save_dir,
         )
         unmatched_names = process_parquet_files(parq_paths, name_to_accession_mapping)
+        with open(unmatched_names_path, 'w') as f:
+            for name in unmatched_names:
+                f.write(f"{name}\n")
+        logging.info(f"Saved {len(unmatched_names)} unmatched sequence names to {unmatched_names_path}")
 
     return unmatched_names
+
+def concat_parquets_rowwise(parquet_paths):
+    dfs = []
+    for parquet_path in parquet_paths:
+        df = pd.read_parquet(parquet_path)
+        dfs.append(df)
+    return pd.concat(dfs, axis=0)
+
+
+def combine_val_test_parquets(split_parquet_save_dir):
+    """
+    Combine the val and test parquet files which are
+    generated from the Pfam-A.full file and those
+    which are downloaded in the csv with clustered splits
+
+    csv sequences and accessions will be renamed to:
+    input_accessions and input_sequences.
+    """
+    csv_full_missing = {}
+    for split in ['val', 'test']:
+        csv_full_missing[split] = {}
+        pfam_full_parquet_paths = glob.glob(f"{split_parquet_save_dir}/{split}/*.parquet")
+        pfam_full_df = concat_parquets_rowwise(pfam_full_parquet_paths)
+        assert len(pfam_full_parquet_paths) > 0
+        for split_type in ['clustered_split', 'random_split']:
+            csv_full_missing[split][split_type] = {}
+            csv_parquet_path = f"{split_parquet_save_dir}/{split}_{split_type}.parquet"
+            assert os.path.exists(csv_parquet_path)
+            csv_df = pd.read_parquet(csv_parquet_path)
+            rename_map = {
+                'fam_id': 'fam_id',
+                'accessions': 'input_accessions',
+                'sequences': 'input_sequences',
+                'matched_accessions': 'input_matched_accessions',
+                'sequence_choppings': 'input_sequence_choppings',
+                'completion_accessions': 'completion_accessions',
+                'completion_sequences': 'completion_sequences',
+                'completion_matched_accessions': 'completion_matched_accessions',
+                'completion_sequence_choppings': 'completion_sequence_choppings'
+            }
+            csv_df.rename(columns=rename_map, inplace=True)
+            # join on fam_id
+            combined_df = pd.merge(pfam_full_df, csv_df, on='fam_id', how='inner')
+            fams_missing_from_csv = set(pfam_full_df.fam_id) - set(csv_df.fam_id)
+            fams_missing_from_pfam_full = set(csv_df.fam_id) - set(pfam_full_df.fam_id)
+            print(f"Families missing from CSV: {len(fams_missing_from_csv)}")
+            print(f"Families missing from Pfam full: {len(fams_missing_from_pfam_full)}")
+            csv_full_missing[split][split_type] = {
+                'families_missing_from_csv': list(fams_missing_from_csv),
+                'families_missing_from_pfam_full': list(fams_missing_from_pfam_full),
+            }
+            combined_df.to_parquet(csv_parquet_path.replace(".parquet", "_combined.parquet"), index=False)
+    with open(f"{split_parquet_save_dir}/csv_full_missing.json", 'w') as f:
+        json.dump(csv_full_missing, f, indent=2)
 
 
 if __name__ == "__main__":
@@ -751,6 +812,9 @@ if __name__ == "__main__":
         # logging.info(f"Copying {f} to {metadata_dir}")
         shutil.copy(f, metadata_dir)
 
+    print("Combining val and test parquets...")
+    combine_val_test_parquets(split_parquet_save_dir)
+    print("Done!")
 
 
 
