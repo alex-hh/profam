@@ -537,8 +537,9 @@ def select_families(
 
     fams_present_in_pfamA_full = pd.read_csv(
         pre_split_pfam_pfamily_to_file_index
-        ).fam_id.unique().apply(lambda x: x.split(".")[0]).to_list()
-
+        ).fam_id.apply(lambda x: x.split(".")[0]).unique().to_list()
+    logging.info(f"Number of families in pfamA_full: {len(fams_present_in_pfamA_full)}")
+    print(fams_present_in_pfamA_full[:5])
     if not os.path.exists(pfam_select_fam_w_up_accs_path):
         if not os.path.exists(pfam_select_fam_path):
             print("Selecting families for val and test splits...")
