@@ -535,9 +535,9 @@ def select_families(
     pfam_select_fam_w_up_accs_path = pfam_select_fam_path.replace(".csv", "_w_unip_accs.csv")
     assert os.path.exists(pre_split_pfam_pfamily_to_file_index)
 
-    fams_present_in_pfamA_full = pd.read_csv(
+    fams_present_in_pfamA_full = list(pd.read_csv(
         pre_split_pfam_pfamily_to_file_index
-        ).fam_id.apply(lambda x: x.split(".")[0]).unique().to_list()
+        ).fam_id.apply(lambda x: x.split(".")[0]).unique())
     logging.info(f"Number of families in pfamA_full: {len(fams_present_in_pfamA_full)}")
     print(fams_present_in_pfamA_full[:5])
     if not os.path.exists(pfam_select_fam_w_up_accs_path):
