@@ -85,7 +85,7 @@ Usage:
     python consolidated_pfam_processing.py
 """
 API_URL = "https://rest.uniprot.org"
-
+setup_logging()
 
 def sample_fams_by_size(
     pfam_select_fam_path,
@@ -580,7 +580,6 @@ def select_families(
 def add_accessions_to_parquets(split_parquet_save_dir, map_save_dir, use_id_mapping_api=False):
     assert os.path.exists(split_parquet_save_dir)
     assert os.path.exists(map_save_dir)
-    setup_logging()
     unmatched_names_path = os.path.join(map_save_dir, "unmatched_sequence_names.txt")
     if os.path.exists(unmatched_names_path):
         logging.info(f"Unmatched names file already exists: skipping add accessions step")
@@ -677,11 +676,15 @@ def combine_val_test_parquets(split_parquet_save_dir):
         pfam_full_parquet_paths = glob.glob(f"{split_parquet_save_dir}/{split}/*.parquet")
         pfam_full_df = concat_parquets_rowwise(pfam_full_parquet_paths)
         assert len(pfam_full_parquet_paths) > 0
+        logging.info(f"Combined {len(pfam_full_parquet_paths)} parquet files for {split}")
+        logging.info(f"Found {pfam_full_df.fam_id.nunique()} unique families in Pfam-full {split}")
         for split_type in ['clustered_split', 'random_split']:
             csv_full_missing[split][split_type] = {}
             csv_parquet_path = f"{split_parquet_save_dir}/{split}_{split_type}.parquet"
             assert os.path.exists(csv_parquet_path)
             csv_df = pd.read_parquet(csv_parquet_path)
+            logging.info(f"Read {len(csv_df)} rows from {csv_parquet_path}")
+            logging.info(f"Found {csv_df.fam_id.nunique()} unique families in {split_type} {split}")
             rename_map = {
                 'fam_id': 'fam_id',
                 'accessions': 'input_accessions',
