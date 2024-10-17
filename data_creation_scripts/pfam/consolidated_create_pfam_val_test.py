@@ -826,7 +826,7 @@ if __name__ == "__main__":
     metadata_dir = "data/val_test/pfam/"
     os.makedirs(metadata_dir, exist_ok=True)
     val_test_fam_path = os.path.join(split_parquet_save_dir, "eval_families_filtered_w_unip_accs.csv")
-    for f in [val_test_fam_path, flat_file_path]:
+    for f in [val_test_fam_path]:
         assert os.path.exists(f)
         logging.info(f"Copying {f} to {metadata_dir}")
         shutil.copy(f, metadata_dir)
