@@ -695,7 +695,7 @@ def combine_val_test_parquets(split_parquet_save_dir):
         for split_type in ['clustered_split', 'random_split']:
             csv_full_missing[split][split_type] = {}
             csv_parquet_path = f"{split_parquet_save_dir}/{split}_{split_type}.parquet"
-            assert os.path.exists(csv_parquet_path)
+            assert os.path.exists(csv_parquet_path), f"File {csv_parquet_path} does not exist."
             csv_df = pd.read_parquet(csv_parquet_path)
             logging.info(f"Read {len(csv_df)} rows from {csv_parquet_path}")
             logging.info(f"Found {csv_df.fam_id.nunique()} unique families in {split_type} {split}")
@@ -725,6 +725,36 @@ def combine_val_test_parquets(split_parquet_save_dir):
     with open(f"{split_parquet_save_dir}/csv_full_missing.json", 'w') as f:
         json.dump(csv_full_missing, f, indent=2)
 
+
+def remove_intermediate_files(split_parquet_save_dir):
+    files_to_remove = [
+        "selected_clustered_split_test_test_uniprot_mapped.csv",
+        "selected_clustered_split_test_val_uniprot_mapped.csv",
+        "selected_clustered_split_train_test_uniprot_mapped.csv",
+        "selected_clustered_split_train_val_uniprot_mapped.csv",
+        "selected_random_split_test_test_uniprot_mapped.csv",
+        "selected_random_split_test_val_uniprot_mapped.csv",
+        "selected_random_split_train_test_uniprot_mapped.csv",
+        "selected_random_split_train_val_uniprot_mapped.csv",
+        "test_random_split.parquet",
+        "test_clustered_split.parquet",
+        "val_random_split.parquet",
+        "val_clustered_split.parquet",
+    ]
+    dirs_to_remove = [
+        os.path.join(split_parquet_save_dir, 'val'),
+        os.path.join(split_parquet_save_dir, 'test'),
+    ]
+    for f in files_to_remove:
+        logging.info(f"Removing file: {f}")
+        fpath = os.path.join(split_parquet_save_dir, f)
+        if os.path.exists(fpath):
+            os.remove(fpath)
+
+    for d in dirs_to_remove:
+        logging.info(f"Removing dir: {d}")
+        if os.path.exists(d):
+            shutil.rmtree(d)
 
 if __name__ == "__main__":
     use_id_mapping_api = False # if false download ID mapping flat file from uniprot
@@ -833,7 +863,8 @@ if __name__ == "__main__":
 
     print("Combining val and test parquets...")
     combine_val_test_parquets(split_parquet_save_dir)
+
+    print("Removing intermediate files...")
+    remove_intermediate_files(split_parquet_save_dir)
     print("Done!")
-
-
 
