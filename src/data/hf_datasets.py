@@ -1,8 +1,15 @@
 import copy
-from typing import Optional
+from typing import List, Optional
 
 import numpy as np
-from datasets.iterable_dataset import IterableDataset, _BaseExamplesIterable
+from datasets.info import DatasetInfo
+from datasets.iterable_dataset import (
+    CyclingMultiSourcesExamplesIterable,
+    IterableDataset,
+    RandomlyCyclingMultiSourcesExamplesIterable,
+    _BaseExamplesIterable,
+)
+from datasets.splits import NamedSplit
 
 
 class RepeatExamplesIterable(_BaseExamplesIterable):

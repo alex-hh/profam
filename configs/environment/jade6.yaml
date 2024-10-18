@@ -5,11 +5,15 @@ defaults:
   - override /trainer: ddp
 
 data:
-  num_workers: 4  # per gpu
+  num_workers: 6  # per gpu
 
 trainer:
   precision: 16-mixed
   devices: 6
+
+model:
+  config:
+    attn_implementation: null
 
 logger:
   wandb:

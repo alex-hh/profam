@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 import numpy as np
-from transformers import DataCollatorForLanguageModeling
+from torch.utils.data import default_collate
 
 from src.data.objects import StringObject
 
@@ -19,22 +19,18 @@ def examples_list_to_dict(examples):
     return {k: [example[k] for example in examples] for k in keys}
 
 
-class CustomDataCollator:
+class DocumentBatchCollator:
     """
-    Wraps DataCollatorForLanguageModeling
-    allows us to include elements which are not
-    tensors with seq_len dimension, eg. dataset names
+    N.B. HF collator was very slow for some reason (calling tolist on numpy arrays...)
     """
 
     def __init__(
         self,
         tokenizer,
-        mlm=False,
         ignore_gaps: bool = False,
         feature_names: Optional[List[str]] = None,
     ):
         self.tokenizer = tokenizer
-        self.base_collator = DataCollatorForLanguageModeling(tokenizer, mlm=mlm)
         self.ignore_gaps = ignore_gaps
         self.feature_names = feature_names
 
@@ -48,24 +44,27 @@ class CustomDataCollator:
             {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
             for e in examples
         ]
+        # TODO: handle Nones
         string_data = [
             {k: v for k, v in e.items() if isinstance(v, str) and keep_feature(k)}
             for e in examples
         ]
         string_data_keys = set(k for obs in string_data for k in obs.keys())
         try:
-            batch = self.base_collator(non_string_data)
+            batch = default_collate(non_string_data)
         except Exception as e:
             print("Error in collator")
             print(string_data)
             # print(non_string_data)
             raise e
+        labels = batch["input_ids"].clone()
+        if self.tokenizer.pad_token_id is not None:
+            labels[labels == self.tokenizer.pad_token_id] = -100
         if self.ignore_gaps:
-            batch["labels"][
-                batch["labels"] == self.tokenizer.convert_tokens_to_ids("-")
-            ] = -100
+            labels[labels == self.tokenizer.convert_tokens_to_ids("-")] = -100
         # dont predict mask tokens.
-        batch["labels"][batch["labels"] == self.tokenizer.mask_token_id] = -100
+        labels[labels == self.tokenizer.mask_token_id] = -100
+        batch["labels"] = labels
         # n.b. padding tokens should already be -100 due to base collator.
         for str_key in string_data_keys:
             str_vals = [obs.get(str_key, "") for obs in string_data]

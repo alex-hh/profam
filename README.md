@@ -124,7 +124,7 @@ instances of the ProteinDocument dataclass.
 
 During training, data loading involves a few steps:
   1. A protein document instance is extracted from raw (e.g. parquet/fasta) data
-  2. The protein document is preprocessed, with standardisations and other transformatins
+  2. The protein document is preprocessed, with standardisations and other transformations
      applied to its contents (e.g. subsampling of sequences, calculation of MSA-aware sequence
      positions, rotation of backbone coordinates...)
   3. The protein document is encoded into a dictionary of numpy arrays by the ProFamTokenizer

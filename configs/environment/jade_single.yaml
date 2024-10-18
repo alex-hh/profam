@@ -10,6 +10,10 @@ data:
 trainer:
   precision: 16-mixed
 
+model:
+  config:
+    attn_implementation: null
+
 logger:
   wandb:
     mode: "offline"

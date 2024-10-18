@@ -16,7 +16,7 @@ from src.data.family_classification import (
 from src.data.hf_datasets import repeat
 from src.data.pfam_classification import load_pfam_classification_dataset
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import CustomDataCollator
+from src.data.utils import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -87,15 +87,13 @@ class ProteinDataMixture(LightningDataModule):
         self.use_filtered_gym_msas = use_filtered_gym_msas
         # feature names are only required for train collator, when we have different datasets
         self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
-        self.train_collator = CustomDataCollator(
+        self.train_collator = DocumentBatchCollator(
             self.tokenizer,
-            mlm=False,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
         )
-        self.val_collator = CustomDataCollator(
+        self.val_collator = DocumentBatchCollator(
             self.tokenizer,
-            mlm=False,
             ignore_gaps=ignore_gaps,
         )
         self._is_setup = False
@@ -107,8 +105,11 @@ class ProteinDataMixture(LightningDataModule):
             train_datasets = []
             train_data_weights = []
             train_dataset_names = []
-            world_size = self.trainer.world_size
-            print("World size", world_size)
+            if self.trainer is not None:
+                world_size = self.trainer.world_size
+                print("World size", world_size)
+            else:
+                world_size = 1
             for data_key, dataset_config in self.dataset_cfgs.items():
                 if data_key not in self.val_dataset_names:
                     dataset = load_protein_dataset(
@@ -128,8 +129,8 @@ class ProteinDataMixture(LightningDataModule):
                     # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                     # https://github.com/huggingface/datasets/pull/5735
                     print(
-                        f"Dataset {data_key} keys in example batch",
-                        list(next(iter(dataset)).keys()),
+                        f"Dataset {data_key} example batch types",
+                        {k: type(v) for k, v in next(iter(dataset)).items()},
                     )
                     train_datasets.append(dataset)
                     # TODO: we could also shuffle individual datasets here - is there a reason we might want to?
@@ -149,7 +150,12 @@ class ProteinDataMixture(LightningDataModule):
                     split="train",
                     seed=42,
                 )
+                print(
+                    "Interleaved train dataset example types",
+                    {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
+                )
             else:
+                print("Using single dataset", flush=True)
                 self.train_dataset = train_datasets[0]
 
             if isinstance(self.train_dataset, IterableDataset):
@@ -248,6 +254,10 @@ class ProteinDataMixture(LightningDataModule):
                         world_size=world_size,
                     )
                 self.val_datasets.append(val_dataset)
+                print(
+                    f"{v_ds_name} val dataset example types",
+                    {k: type(v) for k, v in next(iter(val_dataset)).items()},
+                )
 
             if self.evaluate_gym:
                 # https://huggingface.co/docs/datasets/use_with_pytorch#distributed
@@ -323,7 +333,7 @@ class ProteinDataMixture(LightningDataModule):
                     )
             self._is_setup = True
 
-    def train_dataloader(self) -> List[DataLoader]:
+    def train_dataloader(self) -> DataLoader:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,

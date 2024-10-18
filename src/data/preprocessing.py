@@ -14,7 +14,6 @@ from src.data.objects import ProteinDocument
 from src.data.utils import examples_to_list_of_dicts
 from src.sequence.fasta import convert_sequence_with_positions, read_fasta_sequences
 from src.utils.tokenizers import ProFamTokenizer
-from src.utils.utils import np_random
 
 
 def load_named_preprocessor(preprocessor_name, overrides: Optional[List[str]] = None):
@@ -26,8 +25,13 @@ def load_named_preprocessor(preprocessor_name, overrides: Optional[List[str]] = 
 
 
 def uniformly_sample_clusters(
-    sequences, cluster_ids, max_total_length, tokens_per_sequence=1
+    sequences,
+    cluster_ids,
+    max_total_length,
+    tokens_per_sequence=1,
+    rng: Optional[np.random.Generator] = None,
 ):
+    rnd = np.random if rng is None else rng
     # Step 1: Group sequences by their attributes
     clusters = defaultdict(list)
     for ix, (seq, cl_id) in enumerate(zip(sequences, cluster_ids)):
@@ -39,9 +43,9 @@ def uniformly_sample_clusters(
     # Step 2: Sample the same number of items from each stratum
     while True:
         unique_cluster_ids = list(clusters.keys())
-        cluster = np.random.choice(unique_cluster_ids)
+        cluster = rng.choice(unique_cluster_ids)
         candidates = clusters[cluster]
-        ix, seq = candidates.pop(np.random.choice(len(candidates)))
+        ix, seq = candidates.pop(rng.choice(len(candidates)))
 
         if (
             total_length + len(seq) + tokens_per_sequence > max_total_length
@@ -70,14 +74,17 @@ class PreprocessingConfig:
     allow_unk: bool = False
 
 
-def subsample_fasta_lines(lines, n_lines, shuffle=True):
+def subsample_fasta_lines(
+    lines, n_lines, shuffle=True, rng: Optional[np.random.Generator] = None
+):
+    rnd = np.random if rng is None else rng
     start_ix = np.array([i for i, l in enumerate(lines) if l[0] == ">"])
     end_ix = start_ix[1:]
     end_ix = np.append(end_ix, len(lines))
     lines_per_seq = len(lines) // len(start_ix)
     n_samples = min(n_lines // lines_per_seq, len(start_ix))
     if shuffle:
-        sample_indices = np.random.choice(len(start_ix), n_samples, replace=False)
+        sample_indices = rnd.choice(len(start_ix), n_samples, replace=False)
     else:
         sample_indices = np.arange(n_samples)
     starts = start_ix[sample_indices]
@@ -89,22 +96,17 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
     return sampled_lines
 
 
-def random_subsample(arr, n, seed: Optional[int] = None):
-    rnd = np_random(seed)
-    return rnd.choice(arr, min(n, len(arr)), replace=False)
-
-
 def default_transforms(
     max_tokens: Optional[int] = None,
     shuffle: bool = True,
-    seed: Optional[int] = None,
+    rng: Optional[np.random.Generator] = None,
 ):
     return [
         functools.partial(
             transforms.sample_to_max_tokens,
             max_tokens=max_tokens,
             shuffle=shuffle,
-            seed=seed,
+            rng=rng,
         ),
         transforms.fill_missing_fields,
         transforms.replace_selenocysteine_pyrrolysine,
@@ -117,23 +119,21 @@ def preprocess_protein_sequences(
     tokenizer: ProFamTokenizer,
     max_tokens: Optional[int] = None,
     transform_fns: Optional[List[Callable]] = None,
+    rng: Optional[np.random.Generator] = None,
 ):
     assert isinstance(proteins, ProteinDocument), type(proteins)
     transform_fns = transform_fns or []
     # TODO: assert that structure tokens, coords, plddt are all same shape as sequences post conversion or handle if not
-    if tokenizer.embed_residue_index:
-        proteins = transforms.convert_sequences_adding_positions(
-            proteins,
-            keep_gaps=cfg.keep_gaps,
-            keep_insertions=cfg.keep_insertions,
-            to_upper=cfg.to_upper,
-            use_msa_pos=cfg.use_msa_pos,
-            truncate_after_n_sequences=cfg.truncate_after_n_sequences,
-        )
-    else:
-        proteins = proteins[: cfg.truncate_after_n_sequences or len(proteins)]
+    proteins = transforms.convert_sequences_adding_positions(
+        proteins,
+        keep_gaps=cfg.keep_gaps,
+        keep_insertions=cfg.keep_insertions,
+        to_upper=cfg.to_upper,
+        use_msa_pos=cfg.use_msa_pos,
+        truncate_after_n_sequences=cfg.truncate_after_n_sequences,
+    )
     proteins = transforms.apply_transforms(
-        transform_fns, proteins, tokenizer, max_tokens=max_tokens
+        transform_fns, proteins, tokenizer, max_tokens=max_tokens, rng=rng
     )
     return proteins
 
@@ -143,24 +143,38 @@ def backbone_coords_from_example(
     selected_ids: Optional[List[int]] = None,
     sequence_col="sequences",
     use_pdb_if_available_prob: float = 0.0,
+    rng: Optional[np.random.Generator] = None,
 ):
+    # print("seq", example[sequence_col], type(example[sequence_col]), example[sequence_col].dtype, example["plddts"].shape, example["backbone_coords"].shape)
+    example_len = len(example[sequence_col])
+    prot_has_pdb = (
+        example["pdb_index_mask"]
+        if "pdb_index_mask" in example
+        else [False] * example_len
+    )
+    if "backbone_coords" in example:
+        if use_pdb_if_available_prob:
+            raise NotImplementedError()
+        return [example["backbone_coords"][i] for i in selected_ids], [
+            prot_has_pdb[i] for i in selected_ids
+        ]
     ns = example["N"]
     cas = example["CA"]
     cs = example["C"]
     oxys = example["O"]
     sequences = example[sequence_col]
-    prot_has_pdb = (
-        example["pdb_index_mask"] if "pdb_index_mask" in example else [False] * len(ns)
-    )
+
     coords = []
     is_pdb = []
     if selected_ids is None:
-        selected_ids = range(len(ns))
+        selected_ids = range(example_len)
+
+    rnd = np.random if rng is None else rng
 
     for ix in selected_ids:
         seq = sequences[ix]
         has_pdb = prot_has_pdb[ix]
-        use_pdb = has_pdb and np_random().rand() < use_pdb_if_available_prob
+        use_pdb = has_pdb and rnd.rand() < use_pdb_if_available_prob
 
         if use_pdb:
             # I guess test that this is working is that lengths line up
@@ -201,6 +215,7 @@ class BasePreprocessor:
             str
         ] = None,  # for redundancy-aware sampling
         max_sequences_per_document: Optional[int] = None,
+        seed: Optional[int] = None,
     ):
         self.cfg = config
         self.transform_fns = transform_fns
@@ -211,6 +226,7 @@ class BasePreprocessor:
         self.map_batch_size = map_batch_size
         self.sample_uniformly_from_col = sample_uniformly_from_col
         self.max_sequences = max_sequences_per_document
+        self.seed = seed
         if self.sample_uniformly_from_col is not None:
             # instead of sampling sequences uniformly, we sample from unique values in this column
             # then sample within those values uniformly to build a batch.
@@ -227,6 +243,7 @@ class BasePreprocessor:
         tokenizer: ProFamTokenizer,
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
+        rng: Optional[np.random.Generator] = None,
     ) -> Dict[str, Any]:
         """
         a batched map is an instruction for converting a set of examples to a
@@ -235,9 +252,11 @@ class BasePreprocessor:
         """
         # TODO: remove max tokens from build document?
         proteins_list = self.build_documents(
-            examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+            examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle, rng=rng
         )
-        transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+        transform_fns = default_transforms(
+            max_tokens=max_tokens, shuffle=shuffle, rng=rng
+        )
         transform_fns += self.transform_fns or []
         proteins_list = [
             preprocess_protein_sequences(
@@ -246,6 +265,7 @@ class BasePreprocessor:
                 tokenizer,
                 max_tokens=max_tokens,
                 transform_fns=transform_fns,
+                rng=rng,
             )
             for proteins in proteins_list
         ]
@@ -264,11 +284,16 @@ class BasePreprocessor:
         tokenizer: ProFamTokenizer,
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
+        rng: Optional[np.random.Generator] = None,
     ) -> Dict[str, Any]:
         # N.B. for stockholm format we need to check that sequences aren't split over
         # multiple lines
-        proteins = self.build_document(example, max_tokens=max_tokens, shuffle=shuffle)
-        transform_fns = default_transforms(max_tokens=max_tokens, shuffle=shuffle)
+        proteins = self.build_document(
+            example, max_tokens=max_tokens, shuffle=shuffle, rng=rng
+        )
+        transform_fns = default_transforms(
+            max_tokens=max_tokens, shuffle=shuffle, rng=rng
+        )
         transform_fns += self.transform_fns or []
         proteins = preprocess_protein_sequences(
             proteins,
@@ -276,6 +301,7 @@ class BasePreprocessor:
             tokenizer,
             max_tokens=max_tokens,
             transform_fns=transform_fns,
+            rng=rng,
         )
         tokenized = tokenizer.encode(
             proteins,
@@ -299,13 +325,14 @@ class BasePreprocessor:
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
     ) -> Dict[str, Any]:
+        rng = np.random.default_rng(self.seed) if self.seed is not None else None
         if self.batched_map:
             return self._batched_preprocess_protein_data(
-                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle, rng=rng
             )
         else:
             return self._preprocess_protein_data(
-                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle
+                examples, tokenizer, max_tokens=max_tokens, shuffle=shuffle, rng=rng
             )
 
     def build_documents(
@@ -314,6 +341,7 @@ class BasePreprocessor:
         tokenizer,
         max_tokens: Optional[int] = None,
         shuffle: bool = True,
+        rng: Optional[np.random.Generator] = None,
     ):
         """We assume that documents should be concatenated up to max_tokens.
 
@@ -321,7 +349,9 @@ class BasePreprocessor:
         """
         example_dicts = examples_to_list_of_dicts(examples)
         proteins_list = [
-            self.build_document(example_dict, max_tokens=max_tokens, shuffle=shuffle)
+            self.build_document(
+                example_dict, max_tokens=max_tokens, shuffle=shuffle, rng=rng
+            )
             for example_dict in example_dicts
         ]
         document_lengths = [
@@ -355,7 +385,11 @@ class FastaPreprocessor(BasePreprocessor):
         return ["text"]
 
     def build_document_from_text(
-        self, text, max_tokens: Optional[int] = None, shuffle: bool = True
+        self,
+        text,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+        rng: Optional[np.random.Generator] = None,
     ):
         lines = text.split("\n")
         if not len(lines[-1]):
@@ -371,6 +405,7 @@ class FastaPreprocessor(BasePreprocessor):
                 lines,
                 max_fasta_lines_to_preprocess,
                 shuffle=shuffle,
+                rng=rng,
             )
 
         sequences = [
@@ -389,12 +424,18 @@ class FastaPreprocessor(BasePreprocessor):
         )  # upper bound estimate of number of sequences
 
     def build_document(
-        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
+        self,
+        example,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+        rng: Optional[np.random.Generator] = None,
     ):
         if isinstance(example, str):
-            return self.build_document_from_text(example, max_tokens, shuffle)
+            return self.build_document_from_text(example, max_tokens, shuffle, rng=rng)
         else:
-            return self.build_document_from_text(example["text"], max_tokens, shuffle)
+            return self.build_document_from_text(
+                example["text"], max_tokens, shuffle, rng=rng
+            )
 
 
 class ParquetSequencePreprocessor(BasePreprocessor):
@@ -429,17 +470,23 @@ class ParquetSequencePreprocessor(BasePreprocessor):
         return [self.sequence_col]
 
     def build_document(
-        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
+        self,
+        example,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+        rng: Optional[np.random.Generator] = None,
     ):
         sequence_iterator = example[self.sequence_col]
         max_sequences_to_preprocess = (
             (max_tokens // 40) if self.max_sequences is None else self.max_sequences
         )
+        rnd = np.random if rng is None else rng
         # n.b. this also shuffles
         if shuffle:
-            sequences = random_subsample(
+            sequences = rnd.choice(
                 sequence_iterator,
-                max_sequences_to_preprocess,
+                min(max_sequences_to_preprocess, len(sequence_iterator)),
+                replace=False,
             )
         else:
             sequences = sequence_iterator[:max_sequences_to_preprocess]
@@ -509,7 +556,11 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         return [self.sequence_col, self.structure_tokens_col]
 
     def build_document(
-        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
+        self,
+        example,
+        max_tokens: Optional[int] = None,
+        shuffle: bool = True,
+        rng: Optional[np.random.Generator] = None,
     ):
         # TODO: configure whether or not to use alignments, structure tokens col, PDB, etc.
         has_pdb = "pdb_ids" in example
@@ -518,17 +569,20 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             if self.max_sequences is None
             else self.max_sequences
         )
+        rnd = np.random if rng is None else rng
         if self.sample_uniformly_from_col is not None:
             assert shuffle
             sequence_ids = uniformly_sample_clusters(
                 example["sequences"],
                 example[self.sample_uniformly_from_col],
                 max_tokens - 3,
+                rnd=rnd,
             )
         elif shuffle:
-            sequence_ids = random_subsample(
+            sequence_ids = rnd.choice(
                 np.arange(len(example["sequences"])),
-                max_sequences_to_preprocess,
+                min(max_sequences_to_preprocess, len(example["sequences"])),
+                replace=False,
             )
         else:
             sequence_ids = np.arange(
@@ -542,7 +596,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
                 if ix not in sequence_ids
             ]
             if shuffle:
-                extra_pdb_ids = list(np.random.shuffle(extra_pdb_ids))
+                rnd.shuffle(extra_pdb_ids)
 
             sequence_ids = (
                 sequence_ids
@@ -571,7 +625,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             # in fill missing values this gets set to mask, which in collate gets set to -100 in labels
             structure_tokens = None
 
-        if "N" in example and not self.cfg.keep_gaps:
+        if ("N" in example or "backbone_coords" in example) and not self.cfg.keep_gaps:
             assert not any(["-" in seq for seq in sequences])
             if structure_tokens is not None:
                 assert not any(["-" in seq for seq in structure_tokens])
@@ -596,6 +650,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             # TODO: support aligned coords, plddts
             coords = None
             plddts = None
+            struct_is_pdb = None
 
         return ProteinDocument(
             sequences=sequences,

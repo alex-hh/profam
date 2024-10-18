@@ -20,7 +20,8 @@ cmd2==2.4.3
 colorama==0.4.6
 colorlog==6.8.2
 dask==2024.8.1
-datasets==2.19.1
+# git+https://github.com/huggingface/datasets.git@d72e9a4#egg=datasets
+git+https://github.com/alex-hh/datasets.git@iterable-dataset-fixes#egg=datasets
 decorator==5.1.1
 dill==0.3.8
 distlib==0.3.8
@@ -89,7 +90,7 @@ pytorch-lightning==2.2.4
 pytz==2024.1
 PyYAML==6.0.1
 regex==2024.5.15
-requests==2.31.0
+requests==2.32.2
 rich==13.7.1
 rootutils==1.0.7
 safetensors==0.4.3
