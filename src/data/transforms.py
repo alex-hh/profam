@@ -58,7 +58,7 @@ def sample_to_max_tokens(
         extra_tokens_per_document = 2
     # extra_arrays = [positions, proteins.coords, proteins.plddts, proteins.structure_tokens]
     rnd = np.random if rng is None else rng
-    if drop_first:
+    if drop_first and len(proteins) > 1:
         proteins = proteins[1:]
     if shuffle:
         perm = rnd.permutation(len(proteins))
@@ -69,11 +69,24 @@ def sample_to_max_tokens(
     if max_tokens is not None:
         total_length = 0
         sampled_protein_ids = []
+        adj_max_tokens = max_tokens - extra_tokens_per_document
         for ix, seq in enumerate(proteins.sequences):
+            if ix == 0 and len(seq) > adj_max_tokens:
+                # truncate from start or end
+                if rnd.random() < 0.5:
+                    start = -adj_max_tokens
+                    end = len(seq)
+                else:
+                    start = 0
+                    end = adj_max_tokens
+                proteins.truncate_single(ix, start, end)
+                sampled_protein_ids.append(ix)
+                break
             total_length += len(seq) + extra_tokens_per_sequence
-            if total_length > max_tokens - extra_tokens_per_document:
+            if total_length > adj_max_tokens:
                 break
             sampled_protein_ids.append(ix)
+        assert len(sampled_protein_ids) > 0, "No sequences sampled"
         return proteins[sampled_protein_ids]
 
     return proteins

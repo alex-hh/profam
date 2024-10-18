@@ -6,5 +6,5 @@ holdout_data_files: null
 holdout_identifiers: null
 identifier_col: fam_id
 is_parquet: true
-/preprocessor:
+preprocessor:
   structure_tokens_col: null
