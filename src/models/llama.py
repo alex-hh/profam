@@ -18,6 +18,7 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 64000,
+        optimizer: str = "adamw",
     ) -> None:
         model = LlamaForCausalLM(config)
 
@@ -58,6 +59,8 @@ class LlamaLitModule(BaseFamilyLitModule):
         max_seq_pos_in_doc: int = 1024,
         embed_residue_index: bool = True,
         max_res_pos_in_seq: int = 4096,
+        max_sequence_index: int = 1024,
+        optimizer: str = "adamw",
     ) -> None:
         """
         From the paper:
