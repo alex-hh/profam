@@ -31,6 +31,7 @@ class MistralLitModule(BaseFamilyLitModule):
         max_seq_pos_in_doc: int = 1024,
         embed_residue_index: bool = True,
         max_res_pos_in_seq: int = 4096,
+        optimizer: str = "adamw",
     ) -> None:
         if tokenizer.embed_residue_index or embed_coords:
             # had to remove these as they break testing

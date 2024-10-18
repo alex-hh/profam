@@ -21,6 +21,7 @@ class GPT2SingleSequenceLitModule(BaseSingleSequenceLitModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 64000,
+        optimizer: str = "adamw",
     ) -> None:
         model = GPT2LMHeadModel(config)
         super().__init__(
