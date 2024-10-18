@@ -220,8 +220,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # in sample loop 'input_ids' gets incremented with generated tokens
 
         assert input_ids.ndim == 2
-        if self.use_seq_pos:
-            assert seq_pos is not None
+        if self.embed_residue_index:
+            assert residue_index is not None
 
         inputs = super().prepare_inputs_for_generation(
             input_ids,
