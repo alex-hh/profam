@@ -34,7 +34,8 @@ def create_lmdb_from_fasta(fasta_files, lmdb_path: str, batch_size: int = 100000
                     for record in tqdm(SeqIO.parse(handle, "fasta"), 
                                        desc=f"Processing {fasta_file}", 
                                        total=total_records):
-                        batch.append((record.id.encode(), str(record.seq).encode()))
+                        uniprot_accession = record.id.split('|')[1]
+                        batch.append((uniprot_accession.encode(), str(record.seq).encode()))
                         
                         if len(batch) >= batch_size:
                             cursor.putmulti(batch)
