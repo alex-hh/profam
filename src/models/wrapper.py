@@ -359,7 +359,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if past_key_values is None or past_key_values.input_ids_cache is None:
             return 0
         # model will automatically do compute_sequence_index on new tokens
-        # so we just need to tell it the sequence index of the new tokens
+        # so we just need to tell it the relative sequence index of the new tokens
         # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
         # to previous sequence, and in forward will just pass through start_sequence_index
         full_sequence_index = self.compute_sequence_index(
