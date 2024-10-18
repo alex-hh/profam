@@ -32,14 +32,14 @@ def tokenize_msa(
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     proteins = ProteinDocument(
         sequences=sample["MSA"],
-        positions=sample["seq_pos"],
+        residue_positions=sample["res_pos_in_seq"],
     )
     tokenized = tokenizer.encode(
         proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
-    if tokenizer.use_seq_pos:
-        sample["seq_pos"] = tokenized.data["seq_pos"]
+    if tokenizer.embed_residue_index:
+        sample["residue_index"] = tokenized.data["residue_index"]
     return sample
 
 
@@ -59,16 +59,16 @@ def tokenize_completions(
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
-        positions=sample["completion_seq_pos"],
+        residue_positions=sample["completion_res_pos_in_seq"],
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
-    if tokenizer.use_seq_pos:
-        sample["completion_seq_pos"] = tokenized.data["seq_pos"]
+    if tokenizer.embed_residue_index:
+        sample["completion_residue_index"] = tokenized.data["residue_index"]
     return sample
 
 
-def tokenize(
+def tokenize_seqs_for_scoring(
     sample,
     tokenizer: PreTrainedTokenizerFast,
     mutant_bos_token="sep",
@@ -115,7 +115,7 @@ def load_msa_for_row(
         sequences=seqs,
         accessions=None,
         identifier=None,
-        positions=None,
+        residue_positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
@@ -141,7 +141,7 @@ def load_msa_for_row(
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
     row["MSA"] = proteins.sequences
-    row["seq_pos"] = proteins.positions
+    row["res_pos_in_seq"] = proteins.residue_positions
     return row
 
 
@@ -165,7 +165,7 @@ def load_comp_seq_dms_for_row(
         sequences=completion_seqs,
         accessions=None,
         identifier=None,
-        positions=None,
+        residue_positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
@@ -180,7 +180,7 @@ def load_comp_seq_dms_for_row(
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
-    row["completion_seq_pos"] = proteins.positions
+    row["completion_res_pos_in_seq"] = proteins.residue_positions
     return row
 
 
@@ -228,10 +228,10 @@ def build_gym_df(
         [
             "DMS_id",
             "MSA",
-            "seq_pos",
+            "res_pos_in_seq",
             "DMS_scores",
             "completion_seqs",
-            "completion_seq_pos",
+            "completion_res_pos_in_seq",
             "ds_name",
         ]
     ]
@@ -269,11 +269,12 @@ def load_gym_dataset(
         extra_tokens_per_document=tokenizer.num_start_tokens,
         use_msa_pos=use_msa_pos,
     )
+    # n.b. this isn't streamed
     dataset = Dataset.from_pandas(df, preserve_index=False)
     print("Loading gym dataset")
     dataset = dataset.map(
         functools.partial(
-            tokenize,
+            tokenize_seqs_for_scoring,
             tokenizer=tokenizer,
             mutant_bos_token=mutant_bos_token,
             document_token="[MSA]" if keep_gaps else "[RAW]",
@@ -284,8 +285,8 @@ def load_gym_dataset(
     )
     # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
     columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
-    if tokenizer.use_seq_pos:
-        columns += ["seq_pos", "completion_seq_pos"]
+    if tokenizer.embed_residue_index:
+        columns += ["residue_index", "completion_residue_index"]
 
     dataset.set_format(
         type="torch",
@@ -351,7 +352,7 @@ class GymSingleMSADataModule(LightningDataModule):
         max_gym_sequences: Optional[int] = None,
         num_workers: int = 0,
         keep_gaps: bool = True,
-        use_seq_pos: bool = False,
+        embed_residue_index: bool = False,
     ):
         super().__init__()
         self.gym_data_dir = gym_data_dir
@@ -360,7 +361,7 @@ class GymSingleMSADataModule(LightningDataModule):
         self.gym_dms_id = gym_dms_id
         self.num_workers = num_workers
         self.keep_gaps = keep_gaps
-        self.use_seq_pos = use_seq_pos
+        self.embed_residue_index = embed_residue_index
         self.tokenizer = tokenizer
         self.collator = CustomDataCollator(self.tokenizer, mlm=False)
         # TODO: fix to avoid hardcoding
@@ -496,7 +497,7 @@ class GymMultiMSADataModule(LightningDataModule):
         self.train_dataset = load_protein_dataset(
             dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=self.max_tokens,
+            max_tokens_per_example=self.max_tokens,
             data_dir=self.data_dir,
         )
         self.train_dataset = self.train_dataset.shuffle(
@@ -507,13 +508,13 @@ class GymMultiMSADataModule(LightningDataModule):
         self.val_dataset = load_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=self.max_tokens,
+            max_tokens_per_example=self.max_tokens,
             data_dir=self.data_dir,
         )
         self.test_dataset = load_protein_dataset(
             val_dataset_cfg,
             tokenizer=self.tokenizer,
-            max_tokens=self.max_tokens,
+            max_tokens_per_example=self.max_tokens,
             data_dir=self.data_dir,
         )
 

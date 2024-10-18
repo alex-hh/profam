@@ -1,5 +1,6 @@
 **/__pycache__/
 **/*.pyc
+.vscode/
 benchmark_results/
 logs/
 .idea/
@@ -7,6 +8,7 @@ logs/
 *.egg-info/
 build/
 venvPF/
+.vscode/
 wandb
 outputs
 .git
@@ -14,5 +16,11 @@ nohup.out
 .pytest_cache
 data/val_test/pfam/test/clustered_split_fastas/
 data/val_test/pfam/val/clustered_split_fastas/
+data/val_test/overlap_counts/
 data/val_test/pfam/test/random_split_fastas/
 data/val_test/pfam/val/random_split_fastas/
+src/models/tranception
+data/val_test/overlap_counts/
+src/models/tranception
+commit_hash.txt
+data/val_test/overlap_counts/

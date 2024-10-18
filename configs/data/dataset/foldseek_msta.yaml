@@ -1,7 +1,6 @@
 defaults:
   - /preprocessor: parquet_3di_msa
 _target_: src.data.datasets.ProteinDatasetConfig
-name: foldseek_with_3di_msa
 data_path_pattern: foldseek_struct/*.parquet
 holdout_data_files: null
 holdout_identifiers: null

@@ -1,7 +1,8 @@
 import os
 import time
 import warnings
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 import hydra
 import numpy as np
@@ -66,6 +67,7 @@ class BaseLitModule(LightningModule):
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
+        optimizer: str = "adamw",
     ) -> None:
         super().__init__()
         self.model = model
@@ -80,13 +82,37 @@ class BaseLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        optimizer = torch.optim.AdamW(
-            self.parameters(),
-            lr=self.lr,
-            weight_decay=self.weight_decay,
-            betas=(0.9, 0.95),
-            eps=self.eps,
-        )
+        optimizer_name = self.hparams.get("optimizer", "adamw")
+        print(f"Using optimizer {optimizer_name}")
+        if optimizer_name == "adamw":
+            optimizer = torch.optim.AdamW(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+                betas=(0.9, 0.95),
+                eps=self.eps,
+            )
+        elif optimizer_name == "lion":
+            from bitsandbytes.optim import Lion
+
+            optimizer = Lion(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+                betas=(0.9, 0.99),
+            )
+        elif optimizer_name == "lion8bit":
+            from bitsandbytes.optim import Lion8bit
+
+            optimizer = Lion8bit(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+                betas=(0.9, 0.99),
+            )
+        else:
+            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+
         optim_dict = {"optimizer": optimizer}
         if self.scheduler_name is not None:
             scheduler = get_scheduler(
@@ -128,6 +154,7 @@ class BaseLitModule(LightningModule):
         self._t0 = time.time()
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int):
+        # TODO: handle ddp.
         self._t1 = time.time()
         self.log(
             "train/batch_time",
@@ -362,6 +389,7 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         completion_ids,
         batch_size: int = 1,
     ):
+        assert batch_size > 0
         assert (
             input_ids.shape[0] == 1
         ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
@@ -400,10 +428,11 @@ class BaseSingleSequenceLitModule(BaseLitModule):
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
+        batch_size = max(1, self.scoring_max_tokens // L)
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            batch_size=self.scoring_max_tokens // L,
+            batch_size=batch_size,
         )
         spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
         # TODO: log the specific landscape name
@@ -444,22 +473,19 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
-        self.use_seq_pos = self.tokenizer.use_seq_pos
-        self.max_seq_pos = self.tokenizer.max_seq_pos
+        self.embed_residue_index = self.tokenizer.embed_residue_index
+        self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
         self.embed_coords = embed_coords
-        if self.use_seq_pos:
-            self.embed_sequence_index = self.model.embed_sequence_index
-        else:
-            self.embed_sequence_index = False
+        self.embed_sequence_index = self.model.embed_sequence_index
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
         if self.embed_coords:
             assert batch["coords"] is not None
             forward_kwargs["coords"] = batch["coords"]
-        if self.use_seq_pos:
-            assert batch["seq_pos"] is not None
-            forward_kwargs["seq_pos"] = batch["seq_pos"]
+        if self.embed_residue_index:
+            assert batch["residue_index"] is not None
+            forward_kwargs["residue_index"] = batch["residue_index"]
         return forward_kwargs
 
     def trim_eval_batch(self, seqs_ids):
@@ -481,9 +507,9 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         input_ids,
         completion_ids,
-        seq_pos: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
-        completion_seq_pos: Optional[torch.LongTensor] = None,
+        completion_residue_index: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
     ):
@@ -492,7 +518,9 @@ class BaseFamilyLitModule(BaseLitModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        forward_kwargs = self.get_forward_kwargs({"seq_pos": seq_pos, "coords": coords})
+        forward_kwargs = self.get_forward_kwargs(
+            {"residue_index": input_residue_index, "coords": coords}
+        )
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -512,13 +540,13 @@ class BaseFamilyLitModule(BaseLitModule):
             this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
             L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
-            if self.use_seq_pos:
+            if self.embed_residue_index:
                 # fmt: off
-                this_seq_pos = completion_seq_pos[
+                this_res_ix = completion_residue_index[
                     :, batch_start: batch_start + batch_size, :L_mini_batch
-                ].reshape(-1, L_mini_batch)
+                               ].reshape(-1, L_mini_batch)
                 # fmt: on
-                forward_kwargs["seq_pos"] = this_seq_pos
+                forward_kwargs["residue_index"] = this_res_ix
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
@@ -551,9 +579,9 @@ class BaseFamilyLitModule(BaseLitModule):
         input_ids,
         completion_ids,
         batch_size: int = 1,
-        seq_pos: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
-        completion_seq_pos: Optional[torch.LongTensor] = None,
+        completion_residue_index: Optional[torch.LongTensor] = None,
         verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
@@ -583,12 +611,12 @@ class BaseFamilyLitModule(BaseLitModule):
             assert (
                 this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
             )  # SEP token which signals end of last prompt seq
-            if self.use_seq_pos:
-                this_seq_pos = torch.cat(
-                    [seq_pos, completion_seq_pos[:, completion_ix]],
+            if self.embed_residue_index:
+                this_res_ix = torch.cat(
+                    [input_residue_index, completion_residue_index[:, completion_ix]],
                     dim=1,
                 )[..., :L_mini_batch]
-                forward_kwargs["seq_pos"] = this_seq_pos
+                forward_kwargs["residue_index"] = this_res_ix
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
@@ -613,8 +641,8 @@ class BaseFamilyLitModule(BaseLitModule):
         use_cache: bool = True,
         batch_size: int = 1,
         coords: Optional[torch.FloatTensor] = None,
-        input_seq_pos: Optional[torch.LongTensor] = None,
-        completion_seq_pos: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
+        completion_residue_index: Optional[torch.LongTensor] = None,
     ):
         assert (
             input_ids.shape[0] == 1
@@ -628,8 +656,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 completion_ids,
                 batch_size=batch_size,
                 coords=coords,
-                seq_pos=input_seq_pos,
-                completion_seq_pos=completion_seq_pos,
+                input_residue_index=input_residue_index,
+                completion_residue_index=completion_residue_index,
             )
         else:
             return self._score_seqs_no_cache(
@@ -637,8 +665,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 completion_ids,
                 batch_size=batch_size,
                 coords=coords,
-                seq_pos=input_seq_pos,
-                completion_seq_pos=completion_seq_pos,
+                input_residue_index=input_residue_index,
+                completion_residue_index=completion_residue_index,
             )
 
     def _sample_seqs(
@@ -651,7 +679,7 @@ class BaseFamilyLitModule(BaseLitModule):
         max_total_length: Optional[
             int
         ] = None,  # maximum length of inputs plus completions
-        input_seq_pos: Optional[torch.LongTensor] = None,
+        input_residue_index: Optional[torch.LongTensor] = None,
         input_coords: Optional[torch.FloatTensor] = None,
         include_prompt_in_output: bool = False,
         fixed_length: Optional[int] = None,
@@ -672,10 +700,10 @@ class BaseFamilyLitModule(BaseLitModule):
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
         if max_total_length is None:
-            if self.use_seq_pos:
+            if self.embed_residue_index:
                 max_total_length = min(
                     max_tokens,
-                    input_ids.shape[1] + self.tokenizer.max_seq_pos,
+                    input_ids.shape[1] + self.tokenizer.max_res_pos_in_seq,
                 )
             else:
                 max_total_length = max_tokens
@@ -725,13 +753,13 @@ class BaseFamilyLitModule(BaseLitModule):
             self.tokenizer.sep_token_id,
             self.tokenizer.seq_struct_sep_token_id,
         ]
-        assert input_seq_pos.shape == input_ids.shape
+        assert input_residue_index.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
             forward_kwargs = self.get_forward_kwargs(
-                {"seq_pos": input_seq_pos, "coords": input_coords}
+                {"residue_index": input_residue_index, "coords": input_coords}
             )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
@@ -781,14 +809,14 @@ class BaseFamilyLitModule(BaseLitModule):
     # tokenized = self.tokenizer.encode_sequences(
     #     sequence_prompt, positions=position_indices, document_token=document_token
     # )
-    # if "seq_pos" in tokenized.data:
-    #     seq_pos = tokenized.data["seq_pos"].unsqueeze(0).to(self.device)
+    # if "residue_index" in tokenized.data:
+    #     res_pos_in_seq = tokenized.data["residue_index"].unsqueeze(0).to(self.device)
     # else:
-    #     seq_pos = None
+    #     res_pos_in_seq = None
     # encoded = self._sample_seqs(
     #     tokenized.input_ids.unsqueeze(0).to(self.device),
     #     num_samples,
-    #     input_seq_pos=seq_pos,
+    #     input_res_pos_in_seq=res_pos_in_seq,
     #     batch_size=batch_size,
     #     include_prompt_in_output=include_prompt_in_output,
     #     greedy=greedy,
@@ -815,15 +843,17 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            input_seq_pos=batch.get("seq_pos", None),
-            completion_seq_pos=batch.get("completion_seq_pos", None),
+            input_residue_index=batch.get("residue_index", None),
+            completion_residue_index=batch.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=1,
-            # batch_size=(self.scoring_max_tokens - L_prompt) // L
-            # if self.use_kv_cache_for_scoring
-            # else 1,
+            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
+            if self.use_kv_cache_for_scoring
+            else 1,
         )
-        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
+        spearman_corr, _ = spearmanr(
+            lls.astype(np.float32),
+            batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
+        )
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman",
@@ -855,8 +885,8 @@ class BaseFamilyLitModule(BaseLitModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            input_seq_pos=batch.get("seq_pos", None),
-            completion_seq_pos=batch.get("completion_seq_pos", None),
+            input_residue_index=batch.get("residue_index", None),
+            completion_residue_index=batch.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=1,
             # (self.scoring_max_tokens - L_prompt) // L
@@ -1001,6 +1031,8 @@ class BaseFamilyLitModule(BaseLitModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
+        # uncomment for debugging ddp (train.py +experiment=ddp_test)
+        # print(f"Rank: {self.trainer.global_rank}", batch["identifier"].text, flush=True)
         forward_kwargs = self.get_forward_kwargs(batch)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
@@ -1032,13 +1064,18 @@ class BaseFamilyLitModule(BaseLitModule):
         self.doc_id_counts = {}
 
     def on_train_epoch_end(self):
-        self.log_dict(
-            {
-                f"{k}_max_sampled_doc": max(v.values())
-                for k, v in self.doc_id_counts.items()
-            },
-            sync_dist=True,
+        # Commenting out as may cause deadlock in DDP
+        # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
+        print(
+            "Train epoch end", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True
         )
+        # self.log_dict(
+        #     {
+        #         f"{k}_max_sampled_doc": max(v.values())
+        #         for k, v in self.doc_id_counts.items()
+        #     },
+        #     sync_dist=True,
+        # )
 
     def log_ds_sample_counts(self, batch):
         """Log statistics about dataset usage.

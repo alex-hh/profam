@@ -9,6 +9,7 @@ data_weights:
 dataset_cfgs:
   pfam_val:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
+    shuffle: false
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}

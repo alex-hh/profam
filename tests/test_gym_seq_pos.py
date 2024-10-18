@@ -1,8 +1,8 @@
-import torch
+import numpy as np
 
 from src.data.objects import ProteinDocument
 from src.data.transforms import convert_sequences_adding_positions
-from src.utils.tokenizers import get_seq_pos_from_positions
+from src.utils.tokenizers import get_residue_index_from_positions
 
 """
 replicates the pre-processing and
@@ -112,27 +112,27 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
             bos_token=profam_tokenizer.sep_token,
         )
 
-        msa_seq_pos = get_seq_pos_from_positions(
+        msa_seq_pos = get_residue_index_from_positions(
             msa_tokenized.input_ids,
-            msa_proteins.positions,
+            msa_proteins.residue_positions,
             pad_token_id=profam_tokenizer.pad_token_id,
-            max_seq_pos=profam_tokenizer.max_seq_pos,
+            max_res_pos_in_seq=profam_tokenizer.max_res_pos_in_seq,
             num_start_tokens=profam_tokenizer.num_start_tokens,
             num_end_tokens=0,  # No end tokens for MSA
         )
 
         # Check MSA positions
         assert (
-            msa_seq_pos == torch.tensor(case["msa_pos"])
+            msa_seq_pos == np.array(case["msa_pos"])
         ).all(), (
             f"MSA positions mismatch: {msa_proteins.positions} != {case['msa_pos']}"
         )
 
         for i, comp in enumerate(case["completion_pos"]):
             assert (
-                completion_tokenized.seq_pos[i] == torch.tensor(comp)
-            ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos[i]} != {comp}"
+                completion_tokenized.residue_index[i] == np.array(comp)
+            ).all(), f"Completion positions mismatch: {completion_tokenized.residue_index[i]} != {comp}"
 
         assert (
-            completion_tokenized.seq_pos == torch.tensor(case["completion_pos"])
-        ).all(), f"Completion positions mismatch: {completion_tokenized.seq_pos} != {case['completion_pos']}"
+            completion_tokenized.residue_index == np.array(case["completion_pos"])
+        ).all(), f"Completion positions mismatch: {completion_tokenized.residue_index} != {case['completion_pos']}"

@@ -3,20 +3,21 @@ name: Train Model
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - '*'
+    branches: [master, main]
 
 jobs:
   train:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: '**/requirements.txt'
 
     - name: Install dependencies
       run: |
@@ -29,19 +30,4 @@ jobs:
         pytest -k "not example"
     - name: Train model
       run: |
-        HYDRA_FULL_ERROR=1 python src/train.py \
-          model=llama_test \
-          trainer=cpu \
-          trainer.max_epochs=1 \
-          data=example_data \
-          data.batch_size=2 \
-          data.num_workers=1 \
-          data.max_tokens=2000 \
-          data.gym_data_dir="../tiny_data/ProteinGym" \
-          data.evaluate_gym=true \
-          data.evaluate_ec_class=false \
-          data.evaluate_ec_cluster_class=false \
-          logger=null_logger \
-          +trainer.num_sanity_val_steps=0 \
-          trainer.val_check_interval=1.0 \
-          trainer.target_tokens_per_batch=null
+        HYDRA_FULL_ERROR=1 python src/train.py experiment=train_test

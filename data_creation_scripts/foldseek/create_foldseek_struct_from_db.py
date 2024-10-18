@@ -38,6 +38,7 @@ def save_pdbs_to_parquet(
     run_foldmason=False,
     max_cluster_size_for_foldmason=None,
     convert_to_3di: bool = False,
+    keep_pdbs: bool = False,
 ):
     # TODO: it would be cleaner for clusters_to_save values to be metadata-augmented dicts
     # Save the pdbs to parquet
@@ -74,13 +75,13 @@ def save_pdbs_to_parquet(
                 all_coords[atom_name].append(coords[:, ix, :].flatten().astype("float16"))
             
         # Run FoldMason on the cluster
+        has_foldmason_results = False
         if run_foldmason:
             if (
                     (max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason)
                     or len(cluster_filelist) < 3
             ):
                 print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
-                has_foldmason_results = False
             else:
                 foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
                 os.makedirs(foldmason_outdir)
@@ -96,11 +97,12 @@ def save_pdbs_to_parquet(
                 shutil.rmtree(foldmason_outdir)
                 has_foldmason_results = True
 
-        for pdb in cluster_filelist:
-            os.remove(pdb)
+        if not keep_pdbs:
+            for pdb in cluster_filelist:
+                os.remove(pdb)
 
         if convert_to_3di:
-            sequences_3di = convert_pdbs_to_3di(cluster_filelist)
+            sequences_3di = convert_pdbs_to_3di(cluster_filelist, os.path.join(pdbs_dir, f"{cluster_id}_3di.tsv"))
 
         # TODO: save representative?
         res = {
@@ -199,6 +201,7 @@ def create_foldseek_parquets(
     show_tqdm=False,
     run_foldmason=False,
     max_cluster_size_for_foldmason=None,
+    keep_pdbs=False,
 ):
     print("Creating foldseek parquets", parquet_ids, flush=True)
     if parquet_ids is None:
@@ -245,10 +248,13 @@ def create_foldseek_parquets(
     print("Pdb lookup", pdb_lookup, flush=True)
 
     job_prefix = f"{parquet_ids[0]}-{parquet_ids[-1]}"
-    os.makedirs(os.path.join(scratch_dir, job_prefix), exist_ok=True)
+    if not keep_pdbs:
+        os.makedirs(os.path.join(scratch_dir, job_prefix), exist_ok=True)
+    else:
+        os.makedirs(os.path.join(save_dir, job_prefix), exist_ok=True)
     extract_pdbs_from_zips(
         pdb_lookup=pdb_lookup,
-        output_dir=os.path.join(scratch_dir, job_prefix),
+        output_dir=os.path.join(scratch_dir, job_prefix) if not keep_pdbs else os.path.join(save_dir, job_prefix),
         num_processes=num_processes,
     )
 
@@ -258,15 +264,17 @@ def create_foldseek_parquets(
         parquet_metadata_lookup = metadata_lookups[ix]
         save_pdbs_to_parquet(
             save_dir=save_dir,
-            pdbs_dir=os.path.join(scratch_dir, job_prefix),
+            pdbs_dir=os.path.join(scratch_dir, job_prefix) if not keep_pdbs else os.path.join(save_dir, job_prefix),
             clusters_to_save=parquet_cluster_membership,
             parquet_id=parquet_id,
             metadata_lookup=parquet_metadata_lookup,
             max_cluster_size_for_foldmason=max_cluster_size_for_foldmason,
             run_foldmason=run_foldmason and not (representative_only or af50_representative_only),
             convert_to_3di=(representative_only or af50_representative_only),
+            keep_pdbs=keep_pdbs,
         )
-    shutil.rmtree(os.path.join(scratch_dir, job_prefix))
+    if not keep_pdbs:
+        shutil.rmtree(os.path.join(scratch_dir, job_prefix))
 
 
 if __name__ == "__main__":
@@ -282,6 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("--representative_only", action="store_true")
     parser.add_argument("--af50_representative_only", action="store_true")
     parser.add_argument("--max_cluster_size_for_foldmason", type=int, default=None)
+    parser.add_argument("--keep_pdbs", action="store_true")
     args = parser.parse_args()
 
     if args.save_dir is None:
@@ -311,4 +320,5 @@ if __name__ == "__main__":
         representative_only=args.representative_only,
         af50_representative_only=args.af50_representative_only,
         max_cluster_size_for_foldmason=args.max_cluster_size_for_foldmason,
+        keep_pdbs=args.keep_pdbs,
     )

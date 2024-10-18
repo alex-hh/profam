@@ -20,7 +20,7 @@ def test_encode_decode(profam_tokenizer, pfam_fasta_text):
     )
     # n.b. encode_sequences encodes as a sequence of sequences
     encoded = profam_tokenizer.encode(proteins).input_ids
-    decoded = profam_tokenizer.decode_tokens(encoded.unsqueeze(0))[
+    decoded = profam_tokenizer.decode_tokens(encoded[None, :])[
         0
     ]  # decode_tokens returns a list of lists
     for input_seq, decoded_seq in zip(proteins.sequences, decoded):
