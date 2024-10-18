@@ -21,6 +21,7 @@ dataset_cfgs:
     to_upper: false
     keep_insertions: false
     minimum_sequences: 10
+    shuffle: false
 batch_size: 22
 max_tokens: 8192
 data_dir: ${paths.data_dir}

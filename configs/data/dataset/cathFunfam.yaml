@@ -1,8 +1,8 @@
 defaults:
-  - /preprocessor: "fasta_raw"
+  - /preprocessor: "parquet_msa_pos"
 _target_: src.data.datasets.ProteinDatasetConfig
-data_path_pattern: funfams/full_alignments/*/*.fa
+data_path_pattern: /funfams/parquets/*.parquet
 holdout_data_files: null
 holdout_identifiers: null
-identifier_col: null
-is_parquet: false
+identifier_col: fam_id
+is_parquet: true

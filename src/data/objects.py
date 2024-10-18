@@ -672,3 +672,30 @@ class ProteinDocument:
                 self.original_size + proteins.original_size
             )
         return ProteinDocument(**constructor_kwargs)
+
+    def truncate_single(self, index: int, start: int, end: int):
+        """
+        Truncate the sequence and associated fields at the given index from start to end indices.
+
+        Args:
+            index (int): The index of the sequence to truncate.
+            start (int): The starting index of the truncation.
+            end (int): The ending index of the truncation.
+        """
+        self.sequences[index] = self.sequences[index][start:end]
+        if self.residue_positions is not None:
+            self.residue_positions[index] = self.residue_positions[index][start:end]
+        if self.plddts is not None:
+            self.plddts[index] = self.plddts[index][start:end]
+        if self.backbone_coords is not None:
+            self.backbone_coords[index] = self.backbone_coords[index][start:end]
+        if self.backbone_coords_masks is not None:
+            self.backbone_coords_masks[index] = self.backbone_coords_masks[index][
+                start:end
+            ]
+        if self.structure_tokens is not None:
+            self.structure_tokens[index] = self.structure_tokens[index][start:end]
+        if self.document_ids is not None:
+            self.document_ids[index] = self.document_ids[index][start:end]
+        if self.modality_masks is not None:
+            self.modality_masks[index] = self.modality_masks[index][start:end]
