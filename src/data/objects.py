@@ -318,6 +318,7 @@ class ProteinDocument:
             # amother alternative: use > as beginning of document
             self.document_ids = [np.ones(l) for l in self.sequence_lengths]
 
+        print("Checking array lengths", self.sequences, self.plddts)
         check_array_lengths(
             self.sequences,
             self.plddts,
@@ -605,53 +606,54 @@ class ProteinDocument:
 
     def clone(self, **kwargs):
         return ProteinDocument(
-            identifier=kwargs.get("identifier", self.identifier),
-            sequences=kwargs.get("sequences", self.sequences.copy()),
-            accessions=kwargs.get(
+            identifier=kwargs.pop("identifier", self.identifier),
+            sequences=kwargs.pop("sequences", self.sequences.copy()),
+            accessions=kwargs.pop(
                 "accessions",
                 self.accessions.copy() if self.accessions is not None else None,
             ),
-            residue_positions=kwargs.get(
+            residue_positions=kwargs.pop(
                 "residue_positions",
                 self.residue_positions.copy()
                 if self.residue_positions is not None
                 else None,
             ),
-            plddts=kwargs.get(
+            plddts=kwargs.pop(
                 "plddts", self.plddts.copy() if self.plddts is not None else None
             ),
-            backbone_coords=kwargs.get(
+            backbone_coords=kwargs.pop(
                 "backbone_coords",
                 self.backbone_coords.copy()
                 if self.backbone_coords is not None
                 else None,
             ),
-            backbone_coords_masks=kwargs.get(
+            backbone_coords_masks=kwargs.pop(
                 "backbone_coords_masks",
                 self.backbone_coords_masks.copy()
                 if self.backbone_coords_masks is not None
                 else None,
             ),
-            interleaved_coords_masks=kwargs.get(
+            interleaved_coords_masks=kwargs.pop(
                 "interleaved_coords_masks",
                 self.interleaved_coords_masks.copy()
                 if self.interleaved_coords_masks is not None
                 else None,
             ),
-            structure_tokens=kwargs.get(
+            structure_tokens=kwargs.pop(
                 "structure_tokens",
                 self.structure_tokens.copy()
                 if self.structure_tokens is not None
                 else None,
             ),
-            representative_accession=kwargs.get(
+            representative_accession=kwargs.pop(
                 "representative_accession", self.representative_accession
             ),
-            original_size=kwargs.get("original_size", self.original_size),
-            modality_masks=kwargs.get(
+            original_size=kwargs.pop("original_size", self.original_size),
+            modality_masks=kwargs.pop(
                 "modality_masks",
                 self.modality_masks.copy() if self.modality_masks is not None else None,
             ),
+            **kwargs,
         )
 
     def extend(self, proteins: "ProteinDocument"):

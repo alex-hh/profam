@@ -93,12 +93,7 @@ def model_seq_index(profam_tokenizer):
 
 @pytest.fixture(scope="package")
 def parquet_raw_sequence_processor():
-    preprocessing_cfg = preprocessing.PreprocessingConfig(
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
-    )
+    preprocessing_cfg = preprocessing.PreprocessingConfig()
     return preprocessing.ParquetSequencePreprocessor(
         config=preprocessing_cfg,
     )
@@ -106,12 +101,7 @@ def parquet_raw_sequence_processor():
 
 @pytest.fixture(scope="package")
 def parquet_3di_processor():
-    preprocessing_cfg = preprocessing.PreprocessingConfig(
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
-    )
+    preprocessing_cfg = preprocessing.PreprocessingConfig()
     return preprocessing.ParquetStructurePreprocessor(
         config=preprocessing_cfg,
         structure_tokens_col="msta_3di",
@@ -127,6 +117,7 @@ def proteingym_batch(profam_tokenizer):
         keep_gaps=False,
         use_filtered_msa=True,
         seed=42,
+        max_tokens_per_example=2048,
         num_proc=None,
     )
     data = builder.load(
@@ -135,8 +126,6 @@ def proteingym_batch(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        max_tokens_per_example=2048,
-        shuffle_proteins_in_document=False,
     )
     datapoint = next(iter(data))
     collator = DocumentBatchCollator(tokenizer=profam_tokenizer)

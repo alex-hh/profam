@@ -54,8 +54,9 @@ class LlamaLitModule(BaseFamilyLitModule):
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
         embed_sequence_index: bool = False,
-        pass_constant_position_ids_for_global_index: bool = False,
-        pass_sequence_position_ids_for_global_index: bool = False,
+        pass_constant_position_ids: bool = False,
+        pass_seq_pos_in_doc_as_position_ids: bool = False,
+        pass_res_pos_in_doc_as_position_ids: bool = False,
         max_seq_pos_in_doc: int = 1024,
         embed_residue_index: bool = True,
         max_res_pos_in_seq: int = 4096,
@@ -81,8 +82,9 @@ class LlamaLitModule(BaseFamilyLitModule):
                 embed_coords=embed_coords,
                 embed_sequence_index=embed_sequence_index,
                 max_seq_pos_in_doc=max_seq_pos_in_doc,
-                pass_constant_position_ids_for_global_index=pass_constant_position_ids_for_global_index,
-                pass_sequence_position_ids_for_global_index=pass_sequence_position_ids_for_global_index,
+                pass_constant_position_ids=pass_constant_position_ids,
+                pass_seq_pos_in_doc_as_position_ids=pass_seq_pos_in_doc_as_position_ids,
+                pass_res_pos_in_doc_as_position_ids=pass_res_pos_in_doc_as_position_ids,
             )
         else:
             model = LlamaForCausalLM(config)

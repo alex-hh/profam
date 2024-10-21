@@ -59,7 +59,7 @@ class HFProteinDatasetConfig:
     # for different datasets
     pack_to_max_tokens: Optional[
         int
-    ] = 8192  # only really compatible with map so specific to HF for now
+    ] = None  # only really compatible with map so specific to HF for now
     allow_split_packed_documents: bool = True
 
     def __post_init__(self):
@@ -227,7 +227,9 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             filter_on_length(
                 example,
                 filter_type=self.cfg.length_filter,
-                max_tokens=self.preprocessor.cfg.max_tokens_per_example,
+                max_tokens=self.preprocessor.cfg.max_tokens_per_example
+                if self.preprocessor is not None
+                else None,
                 tokenizer=tokenizer,
                 sequence_col=self.cfg.sequence_col,
                 identifier_col=self.cfg.identifier_col,
@@ -367,6 +369,7 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
 
         feature_names: names of features to keep
         """
+        # TODO: handle batched filter?
         dataset = self.filter(dataset, tokenizer)
         if self.preprocessor is not None:
             # Q. how does batched map interact with interleave datasets?
@@ -556,9 +559,9 @@ class StructureDocumentDataset(IterableHFProteinDataset):
         return proteins
 
     # TODO: write a test for this
-    def filter(self, example, tokenizer: ProFamTokenizer = None):
+    def filter_fn(self, example, tokenizer: ProFamTokenizer = None):
         # Apply base class filter
-        if not super().filter(example, tokenizer=tokenizer):
+        if not super().filter_fn(example, tokenizer=tokenizer):
             return False
 
         # Check for structure tokens
@@ -569,7 +572,7 @@ class StructureDocumentDataset(IterableHFProteinDataset):
             return False
 
         # Apply pLDDT filter if configured
-        if self.minimum_mean_plddt is not None:
+        if self.cfg.minimum_mean_plddt is not None:
             if "plddts" not in example:
                 return True
 

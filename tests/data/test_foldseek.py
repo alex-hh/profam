@@ -62,7 +62,7 @@ def foldseek_interleaved_structure_sequence_batch(
     profam_tokenizer,
 ):
     max_tokens = 2048
-    preprocessing_cfg = preprocessing.PreprocessingConfig(
+    preprocessing_cfg = preprocessing.AlignedProteinPreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
@@ -74,13 +74,13 @@ def foldseek_interleaved_structure_sequence_batch(
     )
     cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
+        infer_representative_from_identifier=True,
         file_type="parquet",
     )
     builder = StructureDocumentDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=parquet_3di_processor,
-        infer_representative_from_identifier=True,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
@@ -100,20 +100,20 @@ def foldseek_datapoint(profam_tokenizer):
     cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
+        infer_representative_from_identifier=True,
         structure_tokens_col="msta_3di",
+        max_tokens_per_example=2048,
+        shuffle_proteins_in_document=False,
     )
     builder = StructureDocumentDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
-        infer_representative_from_identifier=True,
     )
     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        max_tokens_per_example=2048,
-        shuffle_proteins_in_document=False,
         feature_names=ALL_FEATURE_NAMES,
     )
     # bc preprocessor is none we have to filter out the datapoint manually
@@ -223,11 +223,13 @@ def test_foldseek_interleaved_tokenization(
 
 
 def test_foldseek_plddt_masking(profam_tokenizer):
-    preprocessing_cfg = preprocessing.PreprocessingConfig(
+    preprocessing_cfg = preprocessing.AlignedProteinPreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
+        max_tokens_per_example=2048,
+        shuffle_proteins_in_document=False,
     )
     plddt_cutoff = 80.0
     preprocessor = preprocessing.ProteinDocumentPreprocessor(
@@ -253,8 +255,6 @@ def test_foldseek_plddt_masking(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        max_tokens_per_example=2048,
-        shuffle_proteins_in_document=False,
         feature_names=ALL_FEATURE_NAMES,
     )
 
@@ -289,11 +289,13 @@ def test_foldseek_plddt_masking(profam_tokenizer):
 def test_foldseek_representative_concatenation(profam_tokenizer):
     max_tokens = 2048
     # verify that building representatives into a single document is successful
-    preprocessing_cfg = preprocessing.PreprocessingConfig(
+    preprocessing_cfg = preprocessing.AlignedProteinPreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
+        shuffle_proteins_in_document=False,
+        max_tokens_per_example=max_tokens,
     )
     parquet_3di_processor = preprocessing.ProteinDocumentPreprocessor(
         config=preprocessing_cfg,
@@ -302,7 +304,6 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
     cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
-        shuffle=False,
         structure_tokens_col=None,
     )
     builder = StructureDocumentDataset(
@@ -314,8 +315,6 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        max_tokens_per_example=2048,
-        shuffle_proteins_in_document=False,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     example = next(iter(data))

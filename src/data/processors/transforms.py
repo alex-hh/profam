@@ -89,7 +89,7 @@ def preprocess_sequences(
         seq, pos, is_match = sequence_converter(seq)
         sequences.append(seq)
         positions.append(pos)
-    return proteins.clone(sequences=sequences, positions=positions)
+    return proteins.clone(sequences=sequences, residue_positions=positions)
 
 
 def preprocess_sequences_sampling_to_max_tokens(
@@ -138,11 +138,16 @@ def preprocess_sequences_sampling_to_max_tokens(
     sampled_protein_ids = []
     sampled_protein_sequences = []
     sampled_protein_positions = []
-    max_protein_tokens = max_tokens - extra_tokens_per_document
+    if max_tokens is not None:
+        max_protein_tokens = max_tokens - extra_tokens_per_document
+    else:
+        max_protein_tokens = None
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
         seq_length = len(seq) + extra_tokens_per_protein
-        if max_tokens is not None and (total_length + seq_length > max_tokens):
+        if max_protein_tokens is not None and (
+            total_length + seq_length > max_protein_tokens
+        ):
             # truncate from start or end
             if rnd.random() < 0.5:
                 start = -max_protein_tokens
@@ -159,7 +164,7 @@ def preprocess_sequences_sampling_to_max_tokens(
         sampled_protein_positions.append(pos)
 
     return proteins[sampled_protein_ids].clone(
-        positions=sampled_protein_positions,
+        residue_positions=sampled_protein_positions,
         sequences=sampled_protein_sequences,
     )
 

@@ -86,7 +86,7 @@ class TestSequencePositions:
         sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
         positions = [[1, 2, 3], [1, 2, 3], [1, 2, 3, 4, 5, 6, 7]]
         for seq, pos in zip(sequences, positions):
-            inferred_pos = convert_sequence_with_positions(
+            inferred_pos = convert_aligned_sequence_adding_positions(
                 seq,
                 keep_gaps=True,
                 keep_insertions=False,
@@ -98,7 +98,7 @@ class TestSequencePositions:
         sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
         positions = [[1, 2, 3], [1, 2, 3], [1, 2, 3, 4, 5, 6, 7, 8, 9]]
         for seq, pos in zip(sequences, positions):
-            inferred_pos = convert_sequence_with_positions(
+            inferred_pos = convert_aligned_sequence_adding_positions(
                 seq,
                 keep_gaps=False,
                 keep_insertions=True,
@@ -111,7 +111,7 @@ class TestSequencePositions:
         sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
         positions = [[1, 2, 3], [1, 2, 3], [1, 2, 3, 4, 5, 6, 7]]
         for seq, pos in zip(sequences, positions):
-            inferred_pos = convert_sequence_with_positions(
+            inferred_pos = convert_aligned_sequence_adding_positions(
                 seq,
                 keep_gaps=True,
                 keep_insertions=False,

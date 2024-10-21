@@ -9,7 +9,6 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
-from src.data.processors.preprocessing import PreprocessingConfig
 from src.data.processors.transforms import preprocess_sequences_sampling_to_max_tokens
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
@@ -110,7 +109,7 @@ def load_msa_for_row(
         sequences=seqs,
         accessions=None,
         identifier=row["DMS_id"],
-        positions=None,
+        residue_positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
@@ -215,6 +214,7 @@ class ProteinGymDataset(BaseProteinDataset):
         use_msa_pos: bool = True,
         num_proc: Optional[int] = None,
         gym_data_dir: Optional[str] = None,
+        max_tokens_per_example: Optional[int] = None,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -236,12 +236,12 @@ class ProteinGymDataset(BaseProteinDataset):
         self.use_msa_pos = use_msa_pos
         self.num_proc = num_proc
         self.gym_data_dir = gym_data_dir
+        self.max_tokens_per_example = max_tokens_per_example
 
     def process(
         self,
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
-        shuffle_proteins_in_document: bool = True,
         feature_names: Optional[List[str]] = None,
     ):
         """mutant_bos_token should almost always be sep.
@@ -254,7 +254,7 @@ class ProteinGymDataset(BaseProteinDataset):
             functools.partial(
                 load_msa_for_row,
                 seed=self.seed,  # For what?
-                max_tokens=max_tokens_per_example,
+                max_tokens=self.max_tokens_per_example,
                 keep_gaps=self.keep_gaps,
                 use_filtered_msa=self.use_filtered_msa,
                 extra_tokens_per_document=self.extra_tokens_per_document,
