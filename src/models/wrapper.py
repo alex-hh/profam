@@ -455,7 +455,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             input_ids,
             residue_index=residue_index,
             coords=coords,
-            start_sequence_index=start_sequence_index[:, None] if start_sequence_index is not None else None,  # broadcast to input ids
+            start_sequence_index=start_sequence_index[:, None]
+            if start_sequence_index is not None
+            else None,  # broadcast to input ids
         )
         position_ids = self.get_position_ids_for_model_forward(
             input_ids, residue_index, position_ids
