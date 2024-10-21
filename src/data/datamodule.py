@@ -254,7 +254,7 @@ class ProteinDataMixture(LightningDataModule):
 
             self._is_setup = True
 
-    def train_dataloader(self) -> List[DataLoader]:
+    def train_dataloader(self) -> DataLoader:
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,

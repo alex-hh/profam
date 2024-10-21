@@ -14,7 +14,7 @@ trainer:
 
 data:
   batch_size: 2
-  num_workers: 1
+  num_workers: 0
   max_tokens: 2000
 
 dataset_builders:
