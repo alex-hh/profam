@@ -99,9 +99,7 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
     # next run forward pass, caching the kv states
     # input_ids = torch.cat([batch["input_ids"], batch["completion_ids"][:, 0]], dim=1)
     past_key_values = None
-    n_seps = int(
-        (proteingym_batch.data["input_ids"] == model.tokenizer.sep_token_id).sum()
-    )
+    n_seps = int((proteingym_batch["input_ids"] == model.tokenizer.sep_token_id).sum())
     with torch.no_grad():
         outputs = model(
             proteingym_batch["input_ids"],

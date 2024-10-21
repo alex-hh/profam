@@ -14,7 +14,7 @@ from src.constants import BASEDIR
 from src.data import preprocessing, transforms
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.proteingym import load_gym_dataset
-from src.data.utils import CustomDataCollator
+from src.data.utils import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer
 
 
@@ -142,7 +142,7 @@ def proteingym_batch(profam_tokenizer):
         use_filtered_msa=True,
     )
     datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
 
 
@@ -164,7 +164,7 @@ def pfam_batch(profam_tokenizer):
         shuffle=False,
     )
     datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
 
 
@@ -186,7 +186,7 @@ def foldseek_batch(profam_tokenizer):
         shuffle=False,
     )
     datapoint = next(iter(data))
-    collator = CustomDataCollator(tokenizer=profam_tokenizer, mlm=False)
+    collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
 
 
