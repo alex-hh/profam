@@ -8,7 +8,6 @@ from src.data.processors import transforms
 from src.data.processors.preprocessing import (
     ProteinDocumentPreprocessor,
     default_transforms,
-    preprocess_protein_sequences,
 )
 from src.data.tokenizers import ProFamTokenizer
 from src.models.base import BaseFamilyLitModule
@@ -20,20 +19,22 @@ class PromptBuilder:
         preprocessor: ProteinDocumentPreprocessor,
         max_tokens: int,
         seed: Optional[int] = None,
+        prompt_is_aligned: bool = False,
     ):
         self.preprocessor = preprocessor
         assert preprocessor is not None
         self.seed = seed
         self.max_tokens = max_tokens
+        self.prompt_is_aligned = prompt_is_aligned
 
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
         max_length = max(len(seq) for seq in proteins.sequences)
         transform_fns = default_transforms(
-            max_tokens=self.max_tokens - max_length, shuffle=True, seed=self.seed
+            cfg=self.preprocessor.cfg,
+            sequence_converter=transforms.convert_aligned_sequence_adding_positions
+            if self.prompt_is_aligned
+            else transforms.convert_sequence_adding_positions,
         ) + (self.preprocessor.transform_fns or [])
-        proteins = preprocess_protein_sequences(
-            proteins, self.preprocessor.cfg, tokenizer
-        )
         proteins = transforms.apply_transforms(
             transform_fns, proteins, tokenizer, max_tokens=self.max_tokens - max_length
         )
@@ -72,14 +73,12 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         representative_doc = ProteinDocument.from_proteins(
             [representative], representative_accession=representative.accession
         )
-        transform_fns = default_transforms(max_tokens=None, shuffle=False) + (
-            self.preprocessor.transform_fns or []
-        )
-        representative_doc = preprocess_protein_sequences(
-            representative_doc,
-            self.preprocessor.cfg,
-            tokenizer,
-        )
+        transform_fns = default_transforms(
+            cfg=self.preprocessor.cfg,
+            sequence_converter=transforms.convert_aligned_sequence_adding_positions
+            if self.prompt_is_aligned
+            else transforms.convert_sequence_adding_positions,
+        ) + (self.preprocessor.transform_fns or [])
         representative_doc = transforms.apply_transforms(
             transform_fns, representative_doc, tokenizer, max_tokens=None
         )

@@ -7,9 +7,9 @@ import pytest
 import torch
 
 from src.constants import ALL_FEATURE_NAMES, BASEDIR
-from src.data.builders import HFProteinDatasetConfig, ParquetStructureDataset
-from src.data.preprocessing import backbone_coords_from_example
-from src.data.utils import DocumentBatchCollator
+from src.data.builders import HFProteinDatasetConfig, StructureDocumentDataset
+from src.data.collators import DocumentBatchCollator
+from src.data.processors import preprocessing, transforms
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 
 
@@ -24,7 +24,9 @@ def test_foldseek_backbone_loading(foldseek_df):
     for _, row in foldseek_df.head(3).iterrows():
         foldseek_example = row.to_dict()
         # Q. why does this successfully load the backbone coordinates as arrays?
-        backbone_coords, _ = backbone_coords_from_example(foldseek_example)
+        backbone_coords, _ = preprocessing.backbone_coords_from_example(
+            foldseek_example
+        )
         for seq, acc, recons_coords in zip(
             foldseek_example["sequences"],
             foldseek_example["accessions"],
@@ -74,7 +76,7 @@ def foldseek_interleaved_structure_sequence_batch(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = ParquetStructureDataset(
+    builder = StructureDocumentDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=parquet_3di_processor,
@@ -100,7 +102,7 @@ def foldseek_datapoint(profam_tokenizer):
         file_type="parquet",
         structure_tokens_col="msta_3di",
     )
-    builder = ParquetStructureDataset(
+    builder = StructureDocumentDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -132,7 +134,7 @@ def test_foldseek_interleaved_tokenization(
     ).sum()
 
     batch_seqs = foldseek_datapoint["sequences"][:num_sequences_in_batch]
-    batch_coords, _ = backbone_coords_from_example(foldseek_datapoint)[
+    batch_coords, _ = preprocessing.backbone_coords_from_example(foldseek_datapoint)[
         :num_sequences_in_batch
     ]
     batch_plddts = foldseek_datapoint["plddts"][:num_sequences_in_batch]
@@ -242,7 +244,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         file_type="parquet",
         structure_tokens_col="msta_3di",
     )
-    builder = ParquetStructureDataset(
+    builder = StructureDocumentDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=preprocessor,
@@ -303,7 +305,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         shuffle=False,
         structure_tokens_col=None,
     )
-    builder = ParquetStructureDataset(
+    builder = StructureDocumentDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=parquet_3di_processor,

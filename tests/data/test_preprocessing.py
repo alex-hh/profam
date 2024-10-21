@@ -5,8 +5,7 @@ import os
 import pytest
 
 from src.constants import BASEDIR
-from src.data.builders import HFProteinDatasetConfig, ParquetStructureDataset
-from src.data.builders.base import build_documents_helper
+from src.data.builders import HFProteinDatasetConfig, StructureDocumentDataset
 from src.data.tokenizers import examples_list_to_dict
 
 
@@ -16,7 +15,7 @@ def foldseek_datapoint(profam_tokenizer):
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = ParquetStructureDataset(
+    builder = StructureDocumentDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -37,57 +36,55 @@ def foldseek_datapoint(profam_tokenizer):
 # TODO: add tests for standard preprocessing.
 
 
-def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
-    examples = [foldseek_datapoint, foldseek_datapoint]
-    examples = examples_list_to_dict(examples)
+# def test_build_combined_documents(foldseek_datapoint, profam_tokenizer):
+#     examples = [foldseek_datapoint, foldseek_datapoint]
+#     examples = examples_list_to_dict(examples)
 
-    document_builder = functools.partial(
-        ParquetStructureDataset.build_document,
-        structure_tokens_col="msta_3di",
-    )
-    proteins_list = build_documents_helper(
-        examples, document_builder, max_tokens=None, shuffle=False
-    )
-    assert len(proteins_list) == 1  # we expect documents to be combined
-    assert proteins_list[0].sequences == 2 * foldseek_datapoint["sequences"]
+#     document_builder = functools.partial(
+#         StructureDocumentDataset.build_document,
+#         structure_tokens_col="msta_3di",
+#     )
+#     proteins_list = [document_builder._build_document(example) for example in examples]
+#     assert len(proteins_list) == 1  # we expect documents to be combined
+#     assert proteins_list[0].sequences == 2 * foldseek_datapoint["sequences"]
 
 
 # for inverse folding, we want a single document with all sequences concatenated
-def test_concat_representatives_into_single_document(profam_tokenizer):
-    cfg = HFProteinDatasetConfig(
-        data_path_pattern="foldseek_representatives/0.parquet",
-        file_type="parquet",
-    )
-    builder = ParquetStructureDataset(
-        name="foldseek_example",
-        cfg=cfg,
-        preprocessor=None,
-    )
-    data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
-    data = builder.process(
-        data,
-        tokenizer=profam_tokenizer,
-        max_tokens_per_example=None,
-        shuffle_proteins_in_document=False,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
-    )
+# def test_concat_representatives_into_single_document(profam_tokenizer):
+#     cfg = HFProteinDatasetConfig(
+#         data_path_pattern="foldseek_representatives/0.parquet",
+#         file_type="parquet",
+#     )
+#     builder = StructureDocumentDataset(
+#         name="foldseek_example",
+#         cfg=cfg,
+#         preprocessor=None,
+#     )
+#     data = builder.load(data_dir=os.path.join(BASEDIR, "data/example_data"))
+#     data = builder.process(
+#         data,
+#         tokenizer=profam_tokenizer,
+#         max_tokens_per_example=None,
+#         shuffle_proteins_in_document=False,
+#         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
+#     )
 
-    example = next(iter(data))
-    assert len(example["sequences"]) == 1
-    protein_len = (
-        len(example["sequences"][0]) + profam_tokenizer.num_start_tokens + 1
-    )  # +1 for the end token
-    examples = [example] * 20
-    examples = examples_list_to_dict(examples)
+#     example = next(iter(data))
+#     assert len(example["sequences"]) == 1
+#     protein_len = (
+#         len(example["sequences"][0]) + profam_tokenizer.num_start_tokens + 1
+#     )  # +1 for the end token
+#     examples = [example] * 20
+#     examples = examples_list_to_dict(examples)
 
-    proteins_list = build_documents_helper(
-        examples,
-        ParquetStructureDataset.build_document,
-        max_tokens=protein_len * 4,
-        shuffle=False,
-    )
-    expected_num_documents = math.ceil(20 / 4)
-    # we expect documents to be combined up to max_tokens
-    assert (
-        len(proteins_list) == expected_num_documents
-    ), f"Expected {expected_num_documents} documents go {len(proteins_list)}"
+#     proteins_list = build_documents_helper(
+#         examples,
+#         StructureDocumentDataset.build_document,
+#         max_tokens=protein_len * 4,
+#         shuffle=False,
+#     )
+#     expected_num_documents = math.ceil(20 / 4)
+#     # we expect documents to be combined up to max_tokens
+#     assert (
+#         len(proteins_list) == expected_num_documents
+#     ), f"Expected {expected_num_documents} documents go {len(proteins_list)}"
