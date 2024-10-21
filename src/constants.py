@@ -1,6 +1,7 @@
 import os
 
-from datasets.features import Array3D, Sequence, Value, _ArrayXD
+from datasets.features import Array3D, Sequence, Value
+from datasets.features.features import _ArrayXD
 
 BASEDIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 BENCHMARK_RESULTS_DIR_NAME = "benchmark_results"

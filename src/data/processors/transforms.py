@@ -105,7 +105,9 @@ def preprocess_sequences_sampling_to_max_tokens(
     **kwargs,
 ) -> ProteinDocument:
     """
-    Sample proteins to fit within a maximum token limit.
+    Sample proteins to fit within a maximum token limit while adding positions and standardising sequences.
+
+    Sequence converter may need to differ depening on whether raw sequences are in a2m/a3m format or standard fasta format.
 
     Args:
         proteins: ProteinDocument containing the proteins to sample from.
@@ -134,28 +136,24 @@ def preprocess_sequences_sampling_to_max_tokens(
     else:
         perm = range(len(proteins))
 
-    if max_tokens is None:
-        return proteins[perm]
-
     total_length = extra_tokens_per_document
     sampled_protein_ids = []
     sampled_protein_sequences = []
     sampled_protein_positions = []
+    max_protein_tokens = max_tokens - extra_tokens_per_document
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
         seq_length = len(seq) + extra_tokens_per_protein
-        if total_length + seq_length > max_tokens:
-            # if ix == 0 and len(seq) > adj_max_tokens:
-            #     # truncate from start or end
-            #     if rnd.random() < 0.5:
-            #         start = -adj_max_tokens
-            #         end = len(seq)
-            #     else:
-            #         start = 0
-            #         end = adj_max_tokens
-            #     proteins.truncate_single(ix, start, end)
-            #     sampled_protein_ids.append(ix)
-            #     break
+        if max_tokens is not None and (total_length + seq_length > max_tokens):
+            # truncate from start or end
+            if rnd.random() < 0.5:
+                start = -max_protein_tokens
+                end = len(seq)
+            else:
+                start = 0
+                end = max_protein_tokens
+            proteins.truncate_single(ix, start, end)
+            sampled_protein_ids.append(ix)
             break
         total_length += seq_length
         sampled_protein_ids.append(ix)

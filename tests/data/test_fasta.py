@@ -1,7 +1,11 @@
 import pandas as pd
 import pytest
 
-from src.sequence.fasta import convert_sequence_with_positions, read_fasta_sequences
+from src.data.processors.transforms import (
+    convert_aligned_sequence_adding_positions,
+    convert_raw_sequence_adding_positions,
+)
+from src.sequence.fasta import read_fasta_sequences
 
 
 @pytest.fixture
@@ -31,15 +35,23 @@ def test_match_state_positions(pfam_example_text):
             to_upper=False,
         )
     )
-    _, positions, is_match = convert_sequence_with_positions(
-        sequences[0], keep_gaps=True, keep_insertions=True, to_upper=True
+    _, positions, is_match = convert_aligned_sequence_adding_positions(
+        sequences[0],
+        keep_gaps=True,
+        keep_insertions=True,
+        to_upper=True,
+        use_msa_pos=True,
     )
     # n.b. these start from 1 because 0 represents pre-match inserts
     match_positions = [pos for pos, is_match in zip(positions, is_match) if is_match]
     for raw_seq in sequences:
         # we need keep_gaps=True to test in this way (i.e. via a match mask)
-        _, positions, is_match = convert_sequence_with_positions(
-            raw_seq, keep_gaps=True, keep_insertions=True, to_upper=True
+        _, positions, is_match = convert_aligned_sequence_adding_positions(
+            raw_seq,
+            keep_gaps=True,
+            keep_insertions=True,
+            to_upper=True,
+            use_msa_pos=True,
         )
         _match_positions = [
             pos for pos, is_match in zip(positions, is_match) if is_match
@@ -52,16 +64,8 @@ class TestSequencePositions:
         sequences = ["ABC", "DEFD", "GHIJMEKJF"]
         positions = [[1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5, 6, 7, 8, 9]]
         for seq, pos in zip(sequences, positions):
-            inferred_pos = convert_sequence_with_positions(
-                seq, keep_gaps=False, keep_insertions=True, to_upper=True
-            )[1]
-            inferred_pos_nomsa = convert_sequence_with_positions(
-                seq,
-                keep_gaps=False,
-                keep_insertions=True,
-                to_upper=True,
-                use_msa_pos=False,
-            )[1]
+            inferred_pos = convert_raw_sequence_adding_positions(seq)[1]
+            inferred_pos_nomsa = convert_raw_sequence_adding_positions(seq)[1]
             assert tuple(inferred_pos) == tuple(pos)
             assert tuple(inferred_pos_nomsa) == tuple(pos)
 
@@ -69,7 +73,7 @@ class TestSequencePositions:
         sequences = ["aB..-C", "DEF", "GdfkHIJm--F"]
         positions = [[0, 1, 3], [1, 2, 3], [1, 1, 1, 1, 2, 3, 4, 4, 7]]
         for seq, pos in zip(sequences, positions):
-            inferred_pos = convert_sequence_with_positions(
+            inferred_pos = convert_aligned_sequence_adding_positions(
                 seq,
                 keep_gaps=False,
                 keep_insertions=True,

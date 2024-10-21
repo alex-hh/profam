@@ -54,7 +54,6 @@ class HFProteinDatasetConfig:
     structure_tokens_col: Optional[str] = None
     infer_representative_from_identifier: bool = False
     sample_uniformly_from_col: Optional[str] = None  # for redundancy-aware sampling
-    concatenate_short_documents: bool = False
     # n.b. pack_to_max_tokens could be applied either before or after interleaving
     # doing it before is a bit more flexible because it allows for different max tokens
     # for different datasets
@@ -64,11 +63,11 @@ class HFProteinDatasetConfig:
     allow_split_packed_documents: bool = True
 
     def __post_init__(self):
-        if self.concatenate_short_documents:
-            assert self.batched_map, "concatenate_short_documents requires batched_map"
+        if self.pack_to_max_tokens:
+            assert self.batched_map, "pack_to_max_tokens requires batched_map"
             assert (
                 self.padding == "do_not_pad"
-            ), "padding must be do_not_pad if concatenate_short_documents is True"
+            ), "padding must be do_not_pad if pack_to_max_tokens is True"
 
 
 def random_subsample(arr, n, seed: Optional[int] = None):
