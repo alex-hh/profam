@@ -4,7 +4,7 @@ import os
 import datasets
 import torch
 
-from src.constants import BASEDIR
+from src.constants import BASEDIR, SEQUENCE_FEATURE_NAMES
 from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.preprocessing import FastaPreprocessor, PreprocessingConfig
 from src.utils.tokenizers import ProFamTokenizer
@@ -20,16 +20,16 @@ def test_non_interleaved_shuffle():
         pad_token="[PAD]",
     )
     cfg = ProteinDatasetConfig(
-        "ec_example",
         data_path_pattern=os.path.join(BASEDIR, "data/example_data/expasy_ec/*.fasta"),
-        preprocessor=FastaPreprocessor(PreprocessingConfig()),
+        preprocessor=None,
         shuffle=False,
         stream=True,
     )
     data = load_protein_dataset(
         cfg,
         tokenizer=tokenizer,
-        max_tokens_per_item=1000,
+        dataset_name="ec_example",
+        max_tokens_per_example=1000,
         shuffle=False,
     )
     data = data.shuffle()
@@ -59,21 +59,22 @@ def test_interleaved_shuffle():
         pad_token="[PAD]",
     )
     cfg = ProteinDatasetConfig(
-        "ec_example",
         data_path_pattern=os.path.join(BASEDIR, "data/example_data/expasy_ec/*.fasta"),
-        preprocessor=FastaPreprocessor(PreprocessingConfig()),
+        preprocessor=None,
         shuffle=False,
         stream=True,
     )
     data1 = load_protein_dataset(
         cfg,
+        dataset_name="ec_example",
         tokenizer=tokenizer,
-        max_tokens_per_item=1000,
+        max_tokens_per_example=1000,
     )
     data2 = load_protein_dataset(
         cfg,
+        dataset_name="ec_example",
         tokenizer=tokenizer,
-        max_tokens_per_item=1000,
+        max_tokens_per_example=1000,
     )
     # interestingly this seems to sample with replacement...
     data = datasets.interleave_datasets(
