@@ -264,9 +264,8 @@ def load_protein_dataset(
                 c for c in dataset.column_names if c not in (feature_names or [])
             ]  # shouldnt be necessary but is for plddts - bug?
         else:
-            remove_columns = ["text"]
+            remove_columns = None
 
-        print("Removing columns", remove_columns)
         dataset = dataset.filter(prefilter_example).map(
             wrapped_preprocess,
             batched=cfg.preprocessor.batched_map,
