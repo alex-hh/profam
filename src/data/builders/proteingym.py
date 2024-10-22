@@ -30,14 +30,14 @@ def tokenize_msa(
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     proteins = ProteinDocument(
         sequences=sample["MSA"],
-        positions=sample["seq_pos"],
+        residue_positions=sample["seq_pos"],
     )
     tokenized = tokenizer.encode(
         proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
-    if tokenizer.use_seq_pos:
-        sample["seq_pos"] = tokenized.data["seq_pos"]
+    if tokenizer.embed_residue_index:
+        sample["residue_index"] = tokenized.data["residue_index"]
     return sample
 
 
@@ -57,12 +57,12 @@ def tokenize_completions(
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
-        positions=sample["completion_seq_pos"],
+        residue_positions=sample["completion_residue_positions"],
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
-    if tokenizer.use_seq_pos:
-        sample["completion_seq_pos"] = tokenized.data["seq_pos"]
+    if tokenizer.embed_residue_index:
+        sample["completion_residue_index"] = tokenized.data["residue_index"]
     return sample
 
 
@@ -138,13 +138,14 @@ def load_msa_for_row(
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     print(f"Sampled {len(proteins.sequences)} sequences for MSA")
     row["MSA"] = proteins.sequences
-    row["seq_pos"] = proteins.positions
+    row["seq_pos"] = proteins.residue_positions
     return row
 
 
 def load_comp_seq_dms_for_row(
     row,
     seed,
+    tokenizer,
     max_mutated_sequences,
     use_msa_pos: bool = True,
     keep_gaps: bool = False,
@@ -159,22 +160,25 @@ def load_comp_seq_dms_for_row(
         sequences=completion_seqs,
         accessions=None,
         identifier=None,
-        positions=None,
+        residue_positions=None,
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
     )
-    proteins = transforms.convert_sequences_adding_positions(
+    proteins = transforms.preprocess_sequences(
         proteins,
-        keep_gaps=keep_gaps,  # no gaps in DMS sequences
-        keep_insertions=True,  # no insertions in DMS sequences
-        to_upper=True,
-        use_msa_pos=use_msa_pos,
-        truncate_after_n_sequences=None,
+        tokenizer,
+        sequence_converter=functools.partial(
+            transforms.convert_aligned_sequence_adding_positions,
+            keep_gaps=keep_gaps,  # no gaps in DMS sequences
+            keep_insertions=True,  # no insertions in DMS sequences
+            to_upper=True,
+            use_msa_pos=use_msa_pos,
+        ),
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
-    row["completion_seq_pos"] = proteins.positions
+    row["completion_residue_positions"] = proteins.residue_positions
     return row
 
 
@@ -267,6 +271,7 @@ class ProteinGymDataset(BaseProteinDataset):
             functools.partial(
                 load_comp_seq_dms_for_row,
                 seed=self.seed,
+                tokenizer=tokenizer,
                 use_msa_pos=self.use_msa_pos,
                 keep_gaps=self.keep_gaps,
                 max_mutated_sequences=self.max_mutated_sequences,
@@ -293,8 +298,8 @@ class ProteinGymDataset(BaseProteinDataset):
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
         columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
-        if tokenizer.use_seq_pos:
-            columns += ["seq_pos", "completion_seq_pos"]
+        if tokenizer.embed_residue_index:
+            columns += ["residue_index", "completion_residue_index"]
 
         # TODO: what is right here?
         dataset.set_format(
