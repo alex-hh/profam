@@ -24,8 +24,6 @@ def test_representative_inverse_folding(profam_tokenizer):
     )
     proteins = StructureDocumentDataset.build_document(
         example,
-        max_tokens=1536,
-        shuffle=False,
         infer_representative_from_identifier=True,
         structure_tokens_col=None,
     )

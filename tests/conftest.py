@@ -1,6 +1,7 @@
 """This file prepares config fixtures for other tests."""
 import os
 
+import pandas as pd
 import hydra
 import pytest
 from hydra import compose, initialize, initialize_config_dir
@@ -97,6 +98,13 @@ def parquet_raw_sequence_processor():
     return preprocessing.ParquetSequencePreprocessor(
         config=preprocessing_cfg,
     )
+
+
+@pytest.fixture
+def pfam_fasta_text():
+    return pd.read_parquet(
+        "data/example_data/pfam/Domain_60429258_61033370.parquet"
+    ).iloc[0]["text"]
 
 
 @pytest.fixture(scope="package")

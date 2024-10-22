@@ -101,8 +101,6 @@ def foldseek_datapoint(profam_tokenizer):
         file_type="parquet",
         infer_representative_from_identifier=True,
         structure_tokens_col="msta_3di",
-        max_tokens_per_example=2048,
-        shuffle_proteins_in_document=False,
     )
     builder = StructureDocumentDataset(
         name="foldseek_example",
