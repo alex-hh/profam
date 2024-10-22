@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
+from torch.utils.data import default_collate
 from transformers.data.data_collator import DefaultDataCollator, default_data_collator
 
 from src.data.objects import StringObject

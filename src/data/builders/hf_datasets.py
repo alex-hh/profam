@@ -232,7 +232,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
                 else None,
                 tokenizer=tokenizer,
                 sequence_col=self.cfg.sequence_col,
-                identifier_col=self.cfg.identifier_col,
                 interleave_structure_sequence=self.interleave_structure_sequence,
             ),
         ]

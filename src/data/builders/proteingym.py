@@ -88,6 +88,7 @@ def tokenize(
 def load_msa_for_row(
     row,
     seed,
+    tokenizer,
     max_tokens,
     keep_wt=True,
     drop_wt=False,
@@ -119,21 +120,19 @@ def load_msa_for_row(
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
     proteins = preprocess_sequences_sampling_to_max_tokens(
         proteins,
+        tokenizer=tokenizer,
         seed=seed,
         drop_first=drop_wt,
         keep_first=keep_wt,
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
-        sequence_converter=transforms.convert_aligned_sequence_adding_positions,
-    )
-
-    proteins = transforms.convert_sequences_adding_positions(
-        proteins,
-        keep_gaps=keep_gaps,
-        keep_insertions=True,
-        to_upper=True,
-        use_msa_pos=use_msa_pos,
-        truncate_after_n_sequences=None,
+        sequence_converter=functools.partial(
+            transforms.convert_aligned_sequence_adding_positions,
+            use_msa_pos=use_msa_pos,
+            to_upper=True,
+            keep_insertions=True,
+            keep_gaps=keep_gaps,
+        ),
     )
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
@@ -253,6 +252,7 @@ class ProteinGymDataset(BaseProteinDataset):
         dataset = dataset.map(
             functools.partial(
                 load_msa_for_row,
+                tokenizer=tokenizer,
                 seed=self.seed,  # For what?
                 max_tokens=self.max_tokens_per_example,
                 keep_gaps=self.keep_gaps,

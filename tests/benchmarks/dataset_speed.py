@@ -106,9 +106,7 @@ def main(
             ),
         )
         tokenizer = ProFamTokenizer(
-            tokenizer_file=os.path.join(
-                BASEDIR, "src/data/components/profam_tokenizer.json"
-            ),
+            tokenizer_file=os.path.join(BASEDIR, "data/profam_tokenizer.json"),
             unk_token="[UNK]",
             pad_token="[PAD]",
             bos_token="[start-of-document]",

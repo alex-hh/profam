@@ -298,37 +298,32 @@ class ProteinDocument:
             if attr is not None and isinstance(attr[0], list):
                 setattr(self, field, [np.array(arr) for arr in getattr(self, field)])
 
-        if self.modality_masks is None:
-            assert (
-                self.interleaved_coords_masks is None
-            ), "Must pass modality masks if interleaved coords are present"
-            sequences_masks = [np.ones(len(seq)) for seq in self.sequences]
-            has_struct = (
-                self.structure_tokens is not None or self.backbone_coords is not None
-            )
-            structure_masks = [
-                np.ones(len(seq)) if has_struct else np.zeros(len(seq))
-                for seq in self.sequences
-            ]
-            self.modality_masks = [
-                np.stack([seq_mask, struct_mask], axis=1).astype(bool)
-                for seq_mask, struct_mask in zip(sequences_masks, structure_masks)
-            ]
         if self.document_ids is None:
             # amother alternative: use > as beginning of document
             self.document_ids = [np.ones(l) for l in self.sequence_lengths]
 
-        print("Checking array lengths", self.sequences, self.plddts)
-        check_array_lengths(
-            self.sequences,
-            self.plddts,
-            self.backbone_coords,
-            self.backbone_coords_masks,
-            self.structure_tokens,
-            self.interleaved_coords_masks,
-            self.modality_masks,
-            self.document_ids,
-        )
+        try:
+            check_array_lengths(
+                self.sequences,
+                self.plddts,
+                self.backbone_coords,
+                self.backbone_coords_masks,
+                self.structure_tokens,
+                self.interleaved_coords_masks,
+                self.document_ids,
+            )
+        except AssertionError:
+            print(
+                f"Error in protein document {self.identifier}:",
+                f"sequences: {self.sequences}",
+                f"plddts: {self.plddts}",
+                f"backbone_coords: {self.backbone_coords}",
+                f"backbone_coords_masks: {self.backbone_coords_masks}",
+                f"structure_tokens: {self.structure_tokens}",
+                f"interleaved_coords_masks: {self.interleaved_coords_masks}",
+                f"document_ids: {self.document_ids}",
+            )
+            raise
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
             self.backbone_coords_masks = [
                 np.ones_like(xyz) for xyz in self.backbone_coords

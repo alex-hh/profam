@@ -16,6 +16,8 @@ def convert_aligned_sequence_adding_positions(
     use_msa_pos: bool = True,
 ):
     """
+    # N.B. defaults currently raise an exception.
+
     Get positions relative to sequence.
     For alignments, if use_msa_pos is True, the positions are relative to the alignment columns
     (match states). Insertions have the same position index as the previous match state.
@@ -145,6 +147,7 @@ def preprocess_sequences_sampling_to_max_tokens(
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
         seq_length = len(seq) + extra_tokens_per_protein
+        # TODO: be careful about mapping coords etc when using aligned sequences.
         if max_protein_tokens is not None and (
             total_length + seq_length > max_protein_tokens
         ):
@@ -155,9 +158,13 @@ def preprocess_sequences_sampling_to_max_tokens(
             else:
                 start = 0
                 end = max_protein_tokens
+
             proteins.truncate_single(ix, start, end)
             sampled_protein_ids.append(ix)
+            sampled_protein_sequences.append(seq[start:end])
+            sampled_protein_positions.append(pos[start:end])
             break
+
         total_length += seq_length
         sampled_protein_ids.append(ix)
         sampled_protein_sequences.append(seq)
