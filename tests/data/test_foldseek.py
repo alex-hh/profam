@@ -61,12 +61,13 @@ def stitch_tokens(tokenizer, struct_tokens, seq_tokens):
 def foldseek_interleaved_structure_sequence_batch(
     profam_tokenizer,
 ):
-    max_tokens = 2048
     preprocessing_cfg = preprocessing.AlignedProteinPreprocessingConfig(
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
+        max_tokens_per_example=2048,
+        shuffle_proteins_in_document=False,
     )
     parquet_3di_processor = preprocessing.ProteinDocumentPreprocessor(
         config=preprocessing_cfg,
@@ -86,8 +87,6 @@ def foldseek_interleaved_structure_sequence_batch(
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
-        max_tokens_per_example=max_tokens,
-        shuffle_proteins_in_document=False,
         feature_names=ALL_FEATURE_NAMES,
     )
     datapoint = next(iter(data))

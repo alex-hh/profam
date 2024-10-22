@@ -96,7 +96,6 @@ class ProteinDataMixture(LightningDataModule):
                     dataset = dataset_builder.process(
                         dataset,
                         tokenizer=self.tokenizer,
-                        shuffle_proteins_in_document=self.shuffle,
                         feature_names=self.feature_names,
                     )
                     # unclear how to get a sharded dataset for use with num workers?

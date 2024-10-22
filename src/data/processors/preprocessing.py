@@ -153,7 +153,16 @@ class ProteinDocumentPreprocessor:
         self.single_protein_documents = single_protein_documents
 
     def sequence_converter(self, sequence):
-        return transforms.convert_raw_sequence_adding_positions(sequence)
+        if isinstance(self.cfg, AlignedProteinPreprocessingConfig):
+            return transforms.convert_aligned_sequence_adding_positions(
+                sequence,
+                keep_gaps=self.cfg.keep_gaps,
+                keep_insertions=self.cfg.keep_insertions,
+                to_upper=self.cfg.to_upper,
+                use_msa_pos=self.cfg.use_msa_pos,
+            )
+        else:
+            return transforms.convert_raw_sequence_adding_positions(sequence)
 
     def batched_preprocess_protein_data(
         self,
@@ -203,9 +212,9 @@ class ProteinDocumentPreprocessor:
     ) -> Dict[str, Any]:
         if self.single_protein_documents:
             # maybe handle padding differently? probably not
-            transform_fns = default_transforms_single_protein()
+            transform_fns = default_transforms_single_protein(self.sequence_converter)
         else:
-            transform_fns = default_transforms(self.cfg)
+            transform_fns = default_transforms(self.cfg, self.sequence_converter)
         transform_fns += self.transform_fns or []
         proteins = transforms.apply_transforms(
             transform_fns,
@@ -227,14 +236,3 @@ class ProteinDocumentPreprocessor:
                 self.cfg.max_tokens_per_example,
             )
         return example
-
-
-class AlignedProteinDocumentPreprocessor(ProteinDocumentPreprocessor):
-    def sequence_converter(self, sequence):
-        return transforms.convert_aligned_sequence_adding_positions(
-            sequence,
-            keep_gaps=self.cfg.keep_gaps,
-            keep_insertions=self.cfg.keep_insertions,
-            to_upper=self.cfg.to_upper,
-            use_msa_pos=self.cfg.use_msa_pos,
-        )

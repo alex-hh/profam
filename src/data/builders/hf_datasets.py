@@ -334,8 +334,9 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
     ):
-        super().__init__(name, preprocessor, required_keys=required_keys)
-        self.cfg = cfg
+        super().__init__(
+            name=name, cfg=cfg, preprocessor=preprocessor, required_keys=required_keys
+        )
 
     def get_data_files(self, data_dir: str, world_size: int):
         data_files = super().get_data_files(data_dir, world_size)
@@ -409,8 +410,6 @@ class SequenceDocumentDataset(IterableHFProteinDataset):
     @staticmethod
     def build_document(
         example,
-        # max_tokens: Optional[int] = None,
-        # shuffle_proteins_in_document: bool = True,
         sequence_col: str = "sequences",
         identifier_col: str = "fam_id",
         max_sequences: Optional[int] = None,
@@ -463,35 +462,16 @@ class StructureDocumentDataset(IterableHFProteinDataset):
     @staticmethod
     def build_document(
         example,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
         max_sequences: Optional[int] = None,
-        sample_uniformly_from_col: Optional[str] = None,
         structure_tokens_col: Optional[str] = None,
         sequence_col: str = "sequences",
         identifier_col: str = "fam_id",
         infer_representative_from_identifier: bool = False,
     ):
-        # TODO: configure whether or not to use alignments, structure tokens col, etc.
-        max_sequences_to_preprocess = (
-            (max_tokens or 1e8) // 40 if max_sequences is None else max_sequences
+        max_sequences = min(
+            max_sequences or len(example[sequence_col]), len(example[sequence_col])
         )
-        if sample_uniformly_from_col is not None:
-            assert shuffle
-            sequence_ids = uniformly_sample_clusters(
-                example[sequence_col],
-                example[sample_uniformly_from_col],
-                max_tokens - 3,
-            )
-        elif shuffle:
-            sequence_ids = random_subsample(
-                np.arange(len(example[sequence_col])),
-                max_sequences_to_preprocess,
-            )
-        else:
-            sequence_ids = np.arange(
-                min(max_sequences_to_preprocess, len(example[sequence_col]))
-            )
+        sequence_ids = np.arange(max_sequences)
         sequences = [example[sequence_col][i] for i in sequence_ids]
         accessions = [example["accessions"][i] for i in sequence_ids]
         # we assume sequence processing and structure token processing are consistent.
@@ -537,18 +517,10 @@ class StructureDocumentDataset(IterableHFProteinDataset):
             identifier=example[identifier_col],
         )
 
-    def _build_document(
-        self,
-        example,
-        max_tokens: Optional[int] = None,
-        shuffle_proteins_in_document: bool = True,
-    ):
+    def _build_document(self, example):
         proteins = self.build_document(
             example,
-            max_tokens=max_tokens,
-            shuffle_proteins_in_document=shuffle_proteins_in_document,
             max_sequences=self.cfg.max_sequences_per_document,
-            sample_uniformly_from_col=self.cfg.sample_uniformly_from_col,
             structure_tokens_col=self.cfg.structure_tokens_col,
             sequence_col=self.cfg.sequence_col,
             identifier_col=self.cfg.identifier_col,
