@@ -16,18 +16,19 @@ dataset_builders:
       cfg:
         padding: "max_length"
         max_tokens_per_example: 2048
-  openfold_aligned_example:
+  openfold_aligned:
     preprocessor:
       cfg:
         padding: "max_length"
         max_tokens_per_example: 2048
-  openfold_raw_example:
+  openfold_raw:
     preprocessor:
       cfg:
         padding: "max_length"
         max_tokens_per_example: 2048
   proteingym:
     dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
+    max_tokens_per_example: 2048
 
 batch_size: 2
 data_dir: data/example_data # example data is in repo main dir
