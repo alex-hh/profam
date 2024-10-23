@@ -277,7 +277,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             tokenized.data["aa_mask"] = np.ones_like(tokenized.input_ids).astype(bool)
             if proteins.backbone_coords is not None:
                 tokenized.data["structure_mask"] = tokenized.data["coords_mask"].any(
-                    axis=-1
+                    axis=(-1, -2)
                 )
             else:
                 tokenized.data["structure_mask"] = np.zeros_like(
