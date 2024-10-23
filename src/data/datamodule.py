@@ -8,7 +8,11 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
 from src.constants import SEQUENCE_FEATURE_NAMES
-from src.data.builders import BaseProteinDatasetBuilder
+from src.data.builders import (
+    BaseProteinDataset,
+    IterableHFProteinDataset,
+    MemoryMappedHFProteinDataset,
+)
 from src.data.collators import DocumentBatchCollator
 from src.data.tokenizers import ProFamTokenizer
 
@@ -34,7 +38,7 @@ class ProteinDataMixture(LightningDataModule):
 
     def __init__(
         self,
-        dataset_builders: Dict[str, BaseProteinDatasetBuilder],
+        dataset_builders: Dict[str, BaseProteinDataset],
         data_weights: Dict[str, float],
         tokenizer: ProFamTokenizer,
         data_dir: str,
@@ -212,33 +216,36 @@ class ProteinDataMixture(LightningDataModule):
                 assert (
                     dataset_builder.name == v_ds_name
                 ), f"Dataset builder name {dataset_builder.name} must match data key {v_ds_name}"
-                # world_size=8 if world_size > 1 else 1,  # HACK: hard-coded for now
-                raise NotImplementedError(
-                    "Need to safely handle world size for val dataset implemented"
-                )
+                # n.b. this is still going to produce val metrics that are somewhat world-size dependent
+                # because of repeating samples to ensure even number of samples per device
+                assert isinstance(
+                    dataset_builder, MemoryMappedHFProteinDataset
+                ), "Only MemoryMappedHFProteinDataset supported for val"
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,
                     world_size=world_size,
                     verbose=False,
                 )
+                # N.B. processing (map) will happen once up front for val datasets, not on the fly
                 dataset = dataset_builder.process(
                     dataset,
                     tokenizer=self.tokenizer,
                     shuffle_proteins_in_document=self.shuffle,
-                    feature_names=self.feature_names,
                     return_format=self.data_return_format,
                     feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
                 )
                 if world_size > 1:
-                    # https://github.com/huggingface/datasets/issues/6623
-                    assert 8 % world_size == 0, (
-                        f"HACK: To ensure consistent val we are currently hard-coding world_size=8 for val in"
-                        f"load_protein_dataset to ensure n_shards % 8 == 0"
-                        f"This will produce consistent val datasets for world sizes that are factors of 8."
-                    )
-                    assert (
-                        dataset.n_shards % world_size == 0 and dataset.n_shards % 8 == 0
-                    )
+                    if isinstance(dataset, IterableHFProteinDataset):
+                        # https://github.com/huggingface/datasets/issues/6623
+                        assert world_size % 8 == 0, (
+                            f"HACK: To ensure consistent val we are currently hard-coding world_size=8 for val in"
+                            f"load_protein_dataset to ensure n_shards % 8 == 0"
+                            f"This will produce consistent val datasets for world sizes that are factors of 8."
+                        )
+                        assert (
+                            dataset.n_shards % world_size == 0
+                            and dataset.n_shards % 8 == 0
+                        )
                     dataset = split_dataset_by_node(
                         dataset,
                         rank=self.trainer.global_rank,
@@ -248,7 +255,7 @@ class ProteinDataMixture(LightningDataModule):
                 self.val_dataset_names.append(v_ds_name)
                 print(
                     f"{v_ds_name} val dataset example types",
-                    {k: type(v) for k, v in next(iter(val_dataset)).items()},
+                    {k: type(v) for k, v in next(iter(dataset)).items()},
                 )
 
             self._is_setup = True

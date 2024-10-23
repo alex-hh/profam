@@ -144,6 +144,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         self.required_keys = required_keys
 
     def get_data_files(self, data_dir: str, world_size: int):
+        # n.b. overridden in IterableHFProteinDataset to handle splitting shards across devices
         return prepare_data_files(data_dir, self.cfg)
 
     def map_fn(
