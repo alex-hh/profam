@@ -60,7 +60,7 @@ class HFProteinDatasetConfig:
     pack_to_max_tokens: Optional[
         int
     ] = None  # only really compatible with map so specific to HF for now
-    allow_split_packed_documents: bool = True
+    allow_split_packed_documents: bool = False
 
     def __post_init__(self):
         if self.pack_to_max_tokens:

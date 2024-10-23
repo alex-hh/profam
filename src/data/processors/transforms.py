@@ -144,6 +144,7 @@ def preprocess_sequences_sampling_to_max_tokens(
         max_protein_tokens = max_tokens - extra_tokens_per_document
     else:
         max_protein_tokens = None
+
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
         seq_length = len(seq) + extra_tokens_per_protein
@@ -151,13 +152,14 @@ def preprocess_sequences_sampling_to_max_tokens(
         if max_protein_tokens is not None and (
             total_length + seq_length > max_protein_tokens
         ):
+            leftover_tokens = max_protein_tokens - total_length
             # truncate from start or end
             if rnd.random() < 0.5:
-                start = -max_protein_tokens
+                start = -leftover_tokens
                 end = len(seq)
             else:
                 start = 0
-                end = max_protein_tokens
+                end = leftover_tokens
 
             proteins.truncate_single(ix, start, end)
             sampled_protein_ids.append(ix)

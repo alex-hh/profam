@@ -282,7 +282,6 @@ class ProteinDocument:
         str
     ] = None  # e.g. seed or cluster representative
     original_size: Optional[int] = None  # total number of proteins in original set
-    document_ids: Optional[List[int]] = None
 
     def __post_init__(self):
         for field in [
@@ -292,15 +291,10 @@ class ProteinDocument:
             "struct_is_pdb",
             "interleaved_coords_masks",
             "modality_masks",
-            "document_ids",
         ]:
             attr = getattr(self, field)
             if attr is not None and isinstance(attr[0], list):
                 setattr(self, field, [np.array(arr) for arr in getattr(self, field)])
-
-        if self.document_ids is None:
-            # amother alternative: use > as beginning of document
-            self.document_ids = [np.ones(l) for l in self.sequence_lengths]
 
         try:
             check_array_lengths(
@@ -310,7 +304,6 @@ class ProteinDocument:
                 self.backbone_coords_masks,
                 self.structure_tokens,
                 self.interleaved_coords_masks,
-                self.document_ids,
             )
         except AssertionError:
             print(
@@ -321,7 +314,6 @@ class ProteinDocument:
                 f"backbone_coords_masks: {self.backbone_coords_masks}",
                 f"structure_tokens: {self.structure_tokens}",
                 f"interleaved_coords_masks: {self.interleaved_coords_masks}",
-                f"document_ids: {self.document_ids}",
             )
             raise
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
@@ -692,7 +684,5 @@ class ProteinDocument:
             ]
         if self.structure_tokens is not None:
             self.structure_tokens[index] = self.structure_tokens[index][start:end]
-        if self.document_ids is not None:
-            self.document_ids[index] = self.document_ids[index][start:end]
         if self.modality_masks is not None:
             self.modality_masks[index] = self.modality_masks[index][start:end]
