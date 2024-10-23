@@ -162,6 +162,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             )
             return examples
         else:
+            print("mapping", example_or_examples["sequences"])
             example = self.preprocess_example(example_or_examples, tokenizer)
             return example
 

@@ -64,6 +64,7 @@ def foldseek_interleaved_structure_sequence_batch_and_datapoint(
     request,
     profam_tokenizer,
 ):
+    has_structure_tokens = request.param["structure_tokens_col"] is not None
     print("structure_tokens_col", request.param["structure_tokens_col"])
     preprocessing_cfg = preprocessing.PreprocessingConfig(
         max_tokens_per_example=2048,
@@ -106,7 +107,7 @@ def foldseek_interleaved_structure_sequence_batch_and_datapoint(
         tokenizer=profam_tokenizer,
         feature_names=ALL_FEATURE_NAMES,
     )
-    return collator([datapoint]), next(iter(raw_data))
+    return (collator([datapoint]), next(iter(raw_data)), has_structure_tokens)
 
 
 # TODO: write full manual test for coords concatenation and padding etc.
@@ -114,7 +115,11 @@ def test_foldseek_interleaved_tokenization(
     foldseek_interleaved_structure_sequence_batch_and_datapoint,
     profam_tokenizer,
 ):
-    batch, datapoint = foldseek_interleaved_structure_sequence_batch_and_datapoint
+    (
+        batch,
+        datapoint,
+        has_structure_tokens,
+    ) = foldseek_interleaved_structure_sequence_batch_and_datapoint
     num_sequences_in_batch = (batch["input_ids"] == profam_tokenizer.sep_token_id).sum()
 
     batch_seqs = datapoint["sequences"][:num_sequences_in_batch]
@@ -129,16 +134,22 @@ def test_foldseek_interleaved_tokenization(
         ]
         for s in batch_seqs
     ]
-    # batch_3dis = [
-    #     s.replace("-", "").lower()
-    #     for s in foldseek_datapoint["msta_3di"][:num_sequences_in_batch]
-    # ]
-    # individual_3d_tokens = [
-    #     profam_tokenizer.encode_completions(
-    #         [s_3d], bos_token="", eos_token=""
-    #     ).input_ids[0]
-    #     for s_3d in batch_3dis
-    # ]
+    if has_structure_tokens:
+        batch_3dis = [
+            s.replace("-", "").lower()
+            for s in datapoint["msta_3di"][:num_sequences_in_batch]
+        ]
+        individual_3d_tokens = [
+            profam_tokenizer.encode_completions(
+                [s_3d], bos_token="", eos_token=""
+            ).input_ids[0]
+            for s_3d in batch_3dis
+        ]
+    else:
+        individual_3d_tokens = [
+            np.full_like(toks, profam_tokenizer.mask_token_id)
+            for toks in individual_seq_tokens
+        ]
     stitched_tokens = np.array(
         profam_tokenizer.convert_tokens_to_ids([profam_tokenizer.bos_token, "[RAW]"])
     )
@@ -147,10 +158,7 @@ def test_foldseek_interleaved_tokenization(
             stitched_tokens,
             stitch_tokens(
                 profam_tokenizer,
-                [
-                    np.full_like(toks, profam_tokenizer.mask_token_id)
-                    for toks in individual_seq_tokens
-                ],
+                individual_3d_tokens,
                 individual_seq_tokens,
             ),
         ],
@@ -296,4 +304,5 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     example = next(iter(data))
+    print(example["input_ids"])
     assert (example["input_ids"] == profam_tokenizer.sep_token_id).sum() > 1
