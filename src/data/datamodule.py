@@ -12,6 +12,7 @@ from src.data.builders import (
     BaseProteinDataset,
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
+    ProteinGymDataset,
 )
 from src.data.collators import DocumentBatchCollator
 from src.data.tokenizers import ProFamTokenizer
@@ -216,9 +217,10 @@ class ProteinDataMixture(LightningDataModule):
                 ), f"Dataset builder name {dataset_builder.name} must match data key {v_ds_name}"
                 # n.b. this is still going to produce val metrics that are somewhat world-size dependent
                 # because of repeating samples to ensure even number of samples per device
+                # TODO: ProteinGymDataset should inherit from MemoryMappedHFProteinDataset
                 assert isinstance(
-                    dataset_builder, MemoryMappedHFProteinDataset
-                ), "Only MemoryMappedHFProteinDataset supported for val"
+                    dataset_builder, (MemoryMappedHFProteinDataset, ProteinGymDataset)
+                ), f"Only MemoryMappedHFProteinDataset supported for val: {v_ds_name} {type(dataset_builder)}"
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,
                     world_size=world_size,
@@ -228,8 +230,6 @@ class ProteinDataMixture(LightningDataModule):
                 dataset = dataset_builder.process(
                     dataset,
                     tokenizer=self.tokenizer,
-                    shuffle_proteins_in_document=self.shuffle,
-                    return_format=self.data_return_format,
                     feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
                 )
                 if world_size > 1:
@@ -266,7 +266,6 @@ class ProteinDataMixture(LightningDataModule):
             num_workers=self.num_workers,
             persistent_workers=self.num_workers
             > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
-            shuffle=True,  # presumably does not affect iterable datasets
         )
 
     def val_dataloader(self) -> List[DataLoader]:

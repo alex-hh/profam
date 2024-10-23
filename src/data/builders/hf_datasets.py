@@ -305,6 +305,8 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 remove_columns = [
                     c for c in dataset.column_names if c not in (feature_names or [])
                 ]  # shouldnt be necessary but is for plddts - bug?
+            elif self.cfg.file_type == "text":
+                remove_columns = ["text"]
             else:
                 remove_columns = None
             dataset = dataset.map(

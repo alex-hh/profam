@@ -119,5 +119,5 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
                 max_sequences=self.cfg.max_sequences_per_document,
                 identifier=self.name + "/" + example[self.cfg.identifier_col]
                 if self.cfg.identifier_col is not None
-                else None,
+                else self.name + "/None",  # avoid Nones
             )
