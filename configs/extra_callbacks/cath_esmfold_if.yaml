@@ -6,7 +6,6 @@ defaults:
   - /prompt_builder: interleaved_inverse_folding  # must be set
   - /preprocessor@prompt_builder.preprocessor: null  # must be set
 prompt_builder:
-  max_tokens: ${data.max_tokens}
   seed: 42
 sampling_kwargs:
   batch_size: 48

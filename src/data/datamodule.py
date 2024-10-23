@@ -49,7 +49,7 @@ class ProteinDataMixture(LightningDataModule):
         ignore_gaps: bool = False,
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
-        data_return_format: str = "numpy",
+        # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
         self.dataset_builders = dataset_builders
@@ -64,7 +64,6 @@ class ProteinDataMixture(LightningDataModule):
         # N.B. feature names only needs to be applied for training
         # i.e. to standardise features across interleaved datasets
         self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
-        self.data_return_format = data_return_format
         self.train_collator = DocumentBatchCollator(
             self.tokenizer,
             ignore_gaps=ignore_gaps,
@@ -95,7 +94,6 @@ class ProteinDataMixture(LightningDataModule):
                         data_dir=self.data_dir,
                         world_size=world_size,
                         verbose=False,
-                        return_format=self.data_return_format,
                     )
                     dataset = dataset_builder.process(
                         dataset,

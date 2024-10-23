@@ -47,7 +47,7 @@ class HFProteinDatasetConfig:
     return_format: str = "numpy"
     batched_map: bool = False
     map_batch_size: int = 100
-    process_online: bool = True
+    process_online: bool = False  # only for map datasets
     # document-building
     sequence_col: str = "sequences"
     identifier_col: Optional[str] = "fam_id"
@@ -163,7 +163,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             )
             return examples
         else:
-            print("mapping", example_or_examples["sequences"])
             example = self.preprocess_example(example_or_examples, tokenizer)
             return example
 
@@ -216,7 +215,10 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
                 if k not in example or example[k] is None:
                     return False
 
-        sequence_count = len(example[self.cfg.sequence_col])
+        if self.cfg.file_type == "parquet":
+            sequence_count = len(example[self.cfg.sequence_col])
+        else:
+            sequence_count = len(example["text"].split("\n")) // 2  # approximate
         min_required = self.cfg.minimum_sequences or 1
 
         filters = [
@@ -263,7 +265,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
     ):
-        """process_online defaults to true for consistency with StreamedProteinDatasetBuilder."""
+        """process_online (default False) configures whether to use map or format."""
         super().__init__(
             name, cfg=cfg, preprocessor=preprocessor, required_keys=required_keys
         )

@@ -5,7 +5,6 @@ defaults:
   - /prompt_builder: default
   - /preprocessor@prompt_builder.preprocessor: null  # must be set
 prompt_builder:
-  max_tokens: ${data.max_tokens}
   seed: 42
 evaluator:
   num_samples: null
