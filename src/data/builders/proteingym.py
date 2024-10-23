@@ -136,7 +136,6 @@ def load_msa_for_row(
     )
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
-    print(f"Sampled {len(proteins.sequences)} sequences for MSA")
     row["MSA"] = proteins.sequences
     row["seq_pos"] = proteins.residue_positions
     return row
@@ -212,7 +211,7 @@ class ProteinGymDataset(BaseProteinDataset):
         max_mutated_sequences: Optional[int] = None,
         mutant_bos_token: str = "sep",
         keep_gaps: bool = False,
-        use_filtered_msa: bool = False,
+        use_filtered_msa: bool = True,
         extra_tokens_per_document: int = 2,
         use_msa_pos: bool = True,
         num_proc: Optional[int] = None,
@@ -252,7 +251,6 @@ class ProteinGymDataset(BaseProteinDataset):
         when using a BaseSingleSequenceLitModule, however, we want it
         to be bos, since no context sequences are passed during scoring.
         """
-        print(f"Processing gym dataset for evaluation, keeping gaps: {self.keep_gaps}")
         dataset = dataset.map(
             functools.partial(
                 load_msa_for_row,
