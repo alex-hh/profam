@@ -169,12 +169,17 @@ class ProteinDocumentPreprocessor:
         proteins_list: List[ProteinDocument],
         tokenizer: ProFamTokenizer,
         pack_to_max_tokens: Optional[int] = None,
+        allow_split_packed_documents: bool = False,
     ) -> Dict[str, List[Any]]:
         """
         a batched map is an instruction for converting a set of examples to a
         new set of examples (not necessarily of the same size). it should return a dict whose
         values are lists, where the length of the lists determines the size of the new set of examples.
         """
+        if pack_to_max_tokens is not None:
+            assert (
+                self.cfg.padding == "do_not_pad"
+            ), "padding must be do_not_pad if pack_to_max_tokens is used"
         if self.single_protein_documents:
             # TODO: get rid of this condition
             transform_fns = default_transforms_single_protein(self.sequence_converter)
@@ -202,7 +207,12 @@ class ProteinDocumentPreprocessor:
             assert (
                 self.cfg.padding == "do_not_pad"
             ), "padding must be do_not_pad if pack_to_max_tokens is used"
-            examples = pack_batches(examples, pack_to_max_tokens, tokenizer)
+            examples = pack_batches(
+                examples,
+                max_tokens_per_batch=pack_to_max_tokens,
+                tokenizer=tokenizer,
+                allow_split_packed_documents=allow_split_packed_documents,
+            )
         return examples
 
     def preprocess_protein_data(

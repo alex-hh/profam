@@ -3,43 +3,46 @@ from typing import Dict, List
 import numpy as np
 import torch
 
-from src.constants import TOKENIZED_FEATURE_TYPES
+from src.constants import ARRAY_TYPES, TOKENIZED_FEATURE_TYPES
 from src.data.tokenizers import ProFamTokenizer
 from src.data.utils import examples_list_to_dict, examples_to_list_of_dicts
 
 
 def pack_examples(examples: List[Dict]):
     keys = examples[0].keys()
-    packed_example = {k: [] for k in keys}
+    packed_example = {}
     for example in examples:
         for k in keys:
             if isinstance(example[k], torch.Tensor):
-                if packed_example[k]:
+                if k in packed_example:
                     packed_example[k] = torch.cat(
-                        [packed_example[k], example[k]], dim=-1
+                        [packed_example[k], example[k]], dim=0
                     )
                 else:
                     packed_example[k] = example[k].clone()
             elif isinstance(example[k], np.ndarray):
-                if packed_example[k]:
+                if k in packed_example:
                     packed_example[k] = np.concatenate(
-                        [packed_example[k], example[k]], axis=-1
+                        [packed_example[k], example[k]], axis=0
                     )
                 else:
                     packed_example[k] = example[k].copy()
             elif isinstance(example[k], list):
-                if packed_example[k]:
+                if k in packed_example:
                     packed_example[k] += example[k]
                 else:
                     packed_example[k] = example[k][:]
             elif isinstance(example[k], str):
                 # n.b. this will break document metrics based on these strings
-                if packed_example[k]:
+                if k in packed_example:
                     packed_example[k] += "-" + example[k]
                 else:
                     packed_example[k] = str(example[k])
             elif k in ["original_size"]:
-                packed_example[k].append(example[k])
+                if k in packed_example:
+                    packed_example[k].append(example[k])
+                else:
+                    packed_example[k] = [example[k]]
             else:
                 raise ValueError(f"Unsupported type: {type(example[k])}")
     packed_example["original_size"] = np.mean(packed_example["original_size"])
@@ -64,7 +67,7 @@ def pack_batches(
     batch_examples: Dict[str, List],
     max_tokens_per_batch: int,
     tokenizer: ProFamTokenizer,
-    allow_split_packed_documents: bool = True,
+    allow_split_packed_documents: bool = False,
 ):
     """Designed to be last step in batched map.
     Documents must start with a bos token.
@@ -83,11 +86,11 @@ def pack_batches(
         if total_packed_tokens + example["input_ids"].shape[-1] > max_tokens_per_batch:
             if allow_split_packed_documents:
                 overhang_tokens = max_tokens_per_batch - total_packed_tokens
-                split_example, example = split_example(
+                truncated_example, example = split_example(
                     example, split_at_num_tokens=overhang_tokens
                 )
-                examples_to_pack.append(split_example)
-            packed_examples.append(pack_examples(examples_to_pack, tokenizer))
+                examples_to_pack.append(truncated_example)
+            packed_examples.append(pack_examples(examples_to_pack))
             examples_to_pack = []
             total_packed_tokens = 0
 

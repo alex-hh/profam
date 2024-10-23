@@ -65,9 +65,6 @@ class HFProteinDatasetConfig:
     def __post_init__(self):
         if self.pack_to_max_tokens:
             assert self.batched_map, "pack_to_max_tokens requires batched_map"
-            assert (
-                self.padding == "do_not_pad"
-            ), "padding must be do_not_pad if pack_to_max_tokens is True"
 
 
 def random_subsample(arr, n, seed: Optional[int] = None):

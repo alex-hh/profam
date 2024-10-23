@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from src.data.processors import ProteinDocumentPreprocessor
 from src.data.tokenizers import ProFamTokenizer
+from src.data.utils import examples_to_list_of_dicts
 
 
 class BaseProteinDataset:
@@ -58,6 +59,7 @@ class BaseProteinDataset:
         examples: List[Any],
         tokenizer: ProFamTokenizer,
         pack_to_max_tokens: Optional[int] = None,
+        allow_split_packed_documents: bool = False,
     ) -> Dict[str, List[Any]]:
         """Function to be mapped.
 
@@ -68,11 +70,13 @@ class BaseProteinDataset:
         new set of examples (not necessarily of the same size). it should return a dict of lists,
         where the length of the lists determines the size of the new set of examples.
         """
+        examples = examples_to_list_of_dicts(examples)
         proteins_list = [self._build_document(example) for example in examples]
         examples = self.preprocessor.batched_preprocess_protein_data(
             proteins_list,
             tokenizer,
             pack_to_max_tokens=pack_to_max_tokens,
+            allow_split_packed_documents=allow_split_packed_documents,
         )
         examples["ds_name"] = [self.name] * len(examples["input_ids"])
         if "identifier" in examples:

@@ -1,8 +1,8 @@
 """This file prepares config fixtures for other tests."""
 import os
 
-import pandas as pd
 import hydra
+import pandas as pd
 import pytest
 from hydra import compose, initialize, initialize_config_dir
 
