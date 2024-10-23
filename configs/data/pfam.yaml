@@ -19,4 +19,4 @@ data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   pfam_val: ${data.batch_size}
 num_workers: null # None means use all available CPU cores
-feature_names: ${constants.sequence_feature_names}
+feature_names: ${constants.sequence_features}

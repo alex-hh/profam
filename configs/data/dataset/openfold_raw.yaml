@@ -1,4 +1,4 @@
-_target_: src.data.builders.FastaProteinDataset
+_target_: src.data.builders.SequenceDocumentDataset
 name: openfold_raw
 defaults:
   - /preprocessor: raw
@@ -9,6 +9,5 @@ cfg:
   holdout_data_files: null
   holdout_identifiers: null
   identifier_col: fam_id
-  is_parquet: true
-  file_type: text
+  file_type: parquet
   minimum_sequences: null

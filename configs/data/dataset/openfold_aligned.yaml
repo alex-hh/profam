@@ -1,4 +1,4 @@
-_target_: src.data.builders.FastaProteinDataset
+_target_: src.data.builders.SequenceDocumentDataset
 name: openfold_aligned
 defaults:
   - /preprocessor: msa
@@ -8,7 +8,6 @@ cfg:
   data_path_pattern: openfold/uniclust30_filtered_parquet/*.parquet
   holdout_data_files: null
   holdout_identifiers: null
-  identifier_col: null
-  is_parquet: true
-  file_type: text
+  identifier_col: fam_id
+  file_type: parquet
   minimum_sequences: null

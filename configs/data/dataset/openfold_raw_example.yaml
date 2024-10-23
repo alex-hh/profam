@@ -8,6 +8,6 @@ cfg:
   data_path_pattern: openfold/uniclust30_filtered/*/a3m/*.a3m
   holdout_data_files: null
   holdout_identifiers: null
-  identifier_col: null
-  file_type: text
+  identifier_col: fam_id
+  file_type: parquet
   minimum_sequences: null

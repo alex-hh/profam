@@ -38,7 +38,7 @@ from src.constants import (
     TOKENIZED_FEATURE_TYPES,
 )
 from src.data.datasets import ProteinDatasetConfig, wrapped_preprocess
-from src.data.preprocessing import ParquetStructurePreprocessor, PreprocessingConfig
+from src.data.processors.preprocessing import ParquetStructurePreprocessor, PreprocessingConfig
 from src.data.utils import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer
 
