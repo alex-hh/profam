@@ -17,5 +17,5 @@ cfg:
 
 preprocessor:
   interleave_structure_sequence: true
-  config:
+  cfg:
     document_token: "[AFDB]"

@@ -1,4 +1,4 @@
 _target_: src.data.processors.ProteinDocumentPreprocessor
 defaults:
-  - config: raw
+  - cfg: raw
   - transform_fns: replace_nans

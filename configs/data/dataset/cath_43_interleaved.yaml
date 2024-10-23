@@ -1,4 +1,4 @@
-_target_: src.data.cath.CATHTorchDatasetBuilder
+_target_: src.data.cath.CATHTorchDataset
 defaults:
   - /preprocessor: noisy_interleaved_coords
 

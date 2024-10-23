@@ -7,7 +7,7 @@ from src.data.processors import ProteinDocumentPreprocessor
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence.fasta import read_fasta_sequences
 
-from .hf_datasets import HFProteinDatasetConfig, IterableHFProteinDataset
+from .hf_datasets import HFProteinDatasetConfig, MemoryMappedHFProteinDataset
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -30,7 +30,7 @@ def subsample_fasta_lines(lines, n_lines, shuffle=True):
 
 
 # TODO: infer identifier from different column
-class FastaProteinDatasetBuilder(IterableHFProteinDataset):
+class FastaProteinDataset(MemoryMappedHFProteinDataset):
     def __init__(
         self,
         name: str,

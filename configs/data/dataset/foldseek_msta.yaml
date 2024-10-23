@@ -1,4 +1,4 @@
-# _target_: src.data.builders.ParquetStructureDatasetBuilder
+# _target_: src.data.builders.ParquetStructureDataset
 # name: foldseek_msta
 # defaults:
 #   - /preprocessor: parquet_3di_msa
@@ -17,5 +17,5 @@
 #   structure_tokens_col: null
 #   length_filter: max_seq_pos
 #   infer_representative_from_identifier: true
-#   config:
+#   cfg:
 #     document_token: "[AFDB]"

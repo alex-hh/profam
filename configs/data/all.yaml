@@ -36,10 +36,8 @@ dataset_cfgs:
       map_batch_size: 250
   pfam_val:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-    shuffle: false
   pfam_val_raw:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-    shuffle: false
 
 batch_size: 6
 max_tokens: 10000

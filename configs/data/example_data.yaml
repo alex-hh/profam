@@ -12,8 +12,16 @@ data_weights:
 
 dataset_builders:
   ec:
-    cfg:
-      shuffle: false
+    preprocessor:
+      cfg:
+        padding: "max_length"
+        max_tokens_per_example: 2048
+  openfold_aligned_example:
+    preprocessor:
+      cfg:
+        padding: "max_length"
+        max_tokens_per_example: 2048
+  openfold_raw_example:
     preprocessor:
       cfg:
         padding: "max_length"
@@ -27,5 +35,4 @@ val_dataset_batch_sizes:
   ec: ${data.batch_size}
   proteingym: 1
 num_workers: 0  # None means use all available CPU cores
-use_filtered_gym_msas: false
 feature_names: ${constants.structure_features}

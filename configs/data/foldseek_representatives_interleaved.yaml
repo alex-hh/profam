@@ -21,7 +21,6 @@ dataset_builders:
     cfg:
       data_path_pattern: foldseek_representatives/0.parquet
       minimum_mean_plddt: 0.6
-      shuffle: false
       file_repeats: 8  # for ddp
     preprocessor:
       cfg:
@@ -29,7 +28,6 @@ dataset_builders:
         padding: "max_length"
     name: foldseek_val
 batch_size: 18
-max_tokens: 1536
 data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   foldseek_val: ${data.batch_size}

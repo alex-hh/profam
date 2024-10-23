@@ -1,4 +1,4 @@
-_target_: src.data.processors.AlignedProteinDocumentPreprocessor
+_target_: src.data.processors.ProteinDocumentPreprocessor
 defaults:
-  - config: msa_pos
+  - cfg: msa_pos
   - transform_fns: replace_nans

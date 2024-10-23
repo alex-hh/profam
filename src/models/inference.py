@@ -18,31 +18,16 @@ class PromptBuilder:
     def __init__(
         self,
         preprocessor: ProteinDocumentPreprocessor,
-        max_tokens: int,
         seed: Optional[int] = None,
         prompt_is_aligned: bool = False,
     ):
         self.preprocessor = preprocessor
         assert preprocessor is not None
         self.seed = seed
-        self.max_tokens = max_tokens
         self.prompt_is_aligned = prompt_is_aligned
 
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-        max_length = max(len(seq) for seq in proteins.sequences)
-        transform_fns = [
-            functools.partial(
-                transforms.preprocess_sequences,
-                sequence_converter=transforms.convert_aligned_sequence_adding_positions
-                if self.prompt_is_aligned
-                else transforms.convert_raw_sequence_adding_positions,
-            ),
-            transforms.fill_missing_fields,
-            transforms.replace_selenocysteine_pyrrolysine,
-        ] + (self.preprocessor.transform_fns or [])
-        proteins = transforms.apply_transforms(
-            transform_fns, proteins, tokenizer, max_tokens=self.max_tokens - max_length
-        )
+        proteins = self.preprocessor.apply_transforms(proteins, tokenizer)
         return proteins
 
 
@@ -61,13 +46,10 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
     def __init__(
         self,
         preprocessor: ProteinDocumentPreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
-        max_tokens: int,
         seed: Optional[int] = None,
         prompt_is_aligned: bool = False,
     ):
-        super().__init__(
-            preprocessor, max_tokens, seed, prompt_is_aligned=prompt_is_aligned
-        )
+        super().__init__(preprocessor, seed, prompt_is_aligned=prompt_is_aligned)
         assert self.preprocessor.interleave_structure_sequence
 
     # we need to exclude token space for length seed*2 from preprocessing
@@ -81,19 +63,17 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         representative_doc = ProteinDocument.from_proteins(
             [representative], representative_accession=representative.accession
         )
-        transform_fns = [
-            functools.partial(
-                transforms.preprocess_sequences,
-                sequence_converter=transforms.convert_aligned_sequence_adding_positions
-                if self.prompt_is_aligned
-                else transforms.convert_raw_sequence_adding_positions,
-            ),
-            transforms.fill_missing_fields,
-            transforms.replace_selenocysteine_pyrrolysine,
-        ] + (self.preprocessor.transform_fns or [])
-        representative_doc = transforms.apply_transforms(
-            transform_fns, representative_doc, tokenizer, max_tokens=self.max_tokens
+        _preprocessor_single_protein_documents = (
+            self.preprocessor.single_protein_documents
         )
+        self.preprocessor.single_protein_documents = True
+        representative_doc = self.preprocessor.apply_transforms(
+            representative_doc, tokenizer
+        )
+        self.preprocessor.single_protein_documents = (
+            _preprocessor_single_protein_documents
+        )
+
         representative_doc = representative_doc.slice_arrays(
             [slice(0, len(representative.sequence) + 1)]
         )

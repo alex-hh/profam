@@ -38,7 +38,6 @@ data:
   num_workers: 12
   evaluate_gym: false
   embed_residue_index: {model.embed_residue_index}
-  max_tokens: 2048
   dataset_cfgs:
     openfold_aligned:
       file_repeats: 50

@@ -1,5 +1,5 @@
 # DATASET BUILDER FOR PROTEINGYM - MAINLY FOR EVALUATION; MAY NOT BE COMPATIBLE WITH TRAINING
-_target_: src.data.proteingym.GymDatasetBuilder
+_target_: src.data.builders.proteingym.ProteinGymDataset
 name: proteingym
 dms_ids: ${constants.gym_val_assay_list}
 seed: 42

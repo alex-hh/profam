@@ -130,13 +130,13 @@ class ProteinDocumentPreprocessor:
 
     def __init__(
         self,
-        config: PreprocessingConfig,  # configures preprocessing of individual proteins
+        cfg: PreprocessingConfig,  # configures preprocessing of individual proteins
         transform_fns: Optional[List[Callable]] = None,
         interleave_structure_sequence: bool = False,
         structure_first_prob: float = 1.0,
         single_protein_documents: bool = False,
     ):
-        self.cfg = config
+        self.cfg = cfg
         if interleave_structure_sequence:
             # handle like this because useful to have an interleave_structure_sequence attribute for lenght filtering
             transform_fns = transform_fns or []
@@ -164,6 +164,20 @@ class ProteinDocumentPreprocessor:
         else:
             return transforms.convert_raw_sequence_adding_positions(sequence)
 
+    def apply_transforms(self, proteins, tokenizer):
+        if self.single_protein_documents:
+            # TODO: get rid of this condition
+            transform_fns = default_transforms_single_protein(self.sequence_converter)
+        else:
+            transform_fns = default_transforms(self.cfg, self.sequence_converter)
+        transform_fns += self.transform_fns or []
+        return transforms.apply_transforms(
+            transform_fns,
+            proteins,
+            tokenizer,
+            max_tokens=self.cfg.max_tokens_per_example,
+        )
+
     def batched_preprocess_protein_data(
         self,
         proteins_list: List[ProteinDocument],
@@ -180,20 +194,10 @@ class ProteinDocumentPreprocessor:
             assert (
                 self.cfg.padding == "do_not_pad"
             ), "padding must be do_not_pad if pack_to_max_tokens is used"
-        if self.single_protein_documents:
-            # TODO: get rid of this condition
-            transform_fns = default_transforms_single_protein(self.sequence_converter)
-        else:
-            transform_fns = default_transforms(self.cfg, self.sequence_converter)
-        transform_fns += self.transform_fns or []
+
         processed_proteins_list = []
         for proteins in proteins_list:
-            proteins = transforms.apply_transforms(
-                transform_fns,
-                proteins,
-                tokenizer,
-                max_tokens=self.cfg.max_tokens_per_example,
-            )
+            proteins = self.apply_transforms(proteins, tokenizer)
             processed_proteins_list.append(proteins)
         examples = tokenizer.batched_encode(
             processed_proteins_list,
@@ -220,18 +224,7 @@ class ProteinDocumentPreprocessor:
         proteins: ProteinDocument,
         tokenizer: ProFamTokenizer,
     ) -> Dict[str, Any]:
-        if self.single_protein_documents:
-            # maybe handle padding differently? probably not
-            transform_fns = default_transforms_single_protein(self.sequence_converter)
-        else:
-            transform_fns = default_transforms(self.cfg, self.sequence_converter)
-        transform_fns += self.transform_fns or []
-        proteins = transforms.apply_transforms(
-            transform_fns,
-            proteins,
-            tokenizer,
-            max_tokens=self.cfg.max_tokens_per_example,
-        )
+        proteins = self.apply_transforms(proteins, tokenizer)
         example = tokenizer.encode(
             proteins,
             document_token=self.cfg.document_token,

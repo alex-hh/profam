@@ -1,4 +1,4 @@
-_target_: src.data.builders.FastaProteinDatasetBuilder
+_target_: src.data.builders.FastaProteinDataset
 name: gene3dS50
 defaults:
   - /preprocessor: raw

@@ -1,4 +1,4 @@
-_target_: src.data.builders.FastaProteinDatasetBuilder
+_target_: src.data.builders.FastaProteinDataset
 name: ec
 defaults:
   - /preprocessor: raw

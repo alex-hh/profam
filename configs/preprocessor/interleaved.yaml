@@ -1,7 +1,7 @@
 _target_: src.data.processors.ProteinDocumentPreprocessor
 # TODO: option for msa_pos
 defaults:
-  - config: raw
+  - cfg: raw
 # https://github.com/facebookresearch/hydra/issues/1939
 # https://hydra.cc/docs/patterns/select_multiple_configs_from_config_group/
 # TODO: handle coords in this case
