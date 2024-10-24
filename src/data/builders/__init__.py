@@ -5,7 +5,9 @@ from .hf_datasets import (
     HFProteinDatasetConfig,
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
-    SequenceDocumentDataset,
-    StructureDocumentDataset,
+    SequenceDocumentIterableDataset,
+    SequenceDocumentMapDataset,
+    StructureDocumentIterableDataset,
+    StructureDocumentMapDataset,
 )
 from .proteingym import ProteinGymDataset

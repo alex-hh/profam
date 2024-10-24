@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import numpy as np
 import torch
@@ -45,7 +45,8 @@ def pack_examples(examples: List[Dict]):
                     packed_example[k] = [example[k]]
             else:
                 raise ValueError(f"Unsupported type: {type(example[k])}")
-    packed_example["original_size"] = np.mean(packed_example["original_size"])
+    if "original_size" in packed_example:
+        packed_example["original_size"] = np.mean(packed_example["original_size"])
     return packed_example
 
 
@@ -64,7 +65,7 @@ def split_example(example, split_at_num_tokens):
 
 # TODO: accept a batch_sampler (see below)
 def pack_batches(
-    batch_examples: Dict[str, List],
+    batch_examples: Union[Dict[str, List], List[Dict]],
     max_tokens_per_batch: int,
     tokenizer: ProFamTokenizer,
     allow_split_packed_documents: bool = False,
@@ -78,7 +79,11 @@ def pack_batches(
     bos_token_id = tokenizer.bos_token_id
     packed_examples = []
     examples_to_pack = []
-    examples = examples_to_list_of_dicts(batch_examples)
+    if isinstance(batch_examples, dict):
+        examples = examples_to_list_of_dicts(batch_examples)
+    else:
+        assert isinstance(batch_examples, list) and isinstance(batch_examples[0], dict)
+        examples = batch_examples
     total_packed_tokens = 0
     for example in examples:
         if example["input_ids"][0] != bos_token_id:

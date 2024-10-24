@@ -288,8 +288,15 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             input_ids.shape[0] == 1
         ), "Since we are typically packing sequences, we assume batch size is 1"
         counter = torch.arange(input_ids.shape[1], device=input_ids.device)
-        document_indices = torch.cumsum(input_ids[0] == self.tokenizer.bos_token_id) - 1
-        doc_starts = torch.argwhere(input_ids[0] == self.tokenizer.bos_token_id) + 1
+        document_indices = (
+            torch.cumsum(input_ids[0] == self.tokenizer.bos_token_id, 0) - 1
+        )
+        assert (
+            document_indices >= 0
+        ).all(), "Negative document indices encountered: check that bos token is first token in each document"
+        doc_starts = (
+            torch.argwhere(input_ids[0] == self.tokenizer.bos_token_id) + 1
+        ).flatten()
         offsets = counter[doc_starts][document_indices]
         position_ids = (counter - offsets).unsqueeze(0)
         return position_ids
