@@ -31,6 +31,9 @@ class ProFamTrainer(Trainer):
             assert (
                 "accumulate_grad_batches" not in kwargs
             ), "accumulate_grad_batches should not be set when target_tokens_per_batch is set"
+            assert (
+                tokens_per_document is not None
+            ), "tokens_per_document must be set when target_tokens_per_batch is set"
             kwargs["accumulate_grad_batches"] = math.ceil(
                 target_tokens_per_batch / (tokens_per_document * batch_size * devices)
             )

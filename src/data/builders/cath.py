@@ -312,7 +312,12 @@ class CATHHFDataset(BaseCATHDataset):
         tokenizer: ProFamTokenizer,
         feature_names: Optional[List[str]] = None,
         return_format: str = "numpy",
+        pack_to_max_tokens: Optional[int] = None,
     ):
+        if pack_to_max_tokens is not None:
+            raise NotImplementedError(
+                "pack_to_max_tokens not implemented for CATHHFDataset"
+            )
         # commented out due to issues. TODO: make minimal example and report
         # https://github.com/huggingface/datasets/issues/6319
         # https://discuss.huggingface.co/t/progress-bar-of-dataset-map-with-num-proc-1-hangs/64776/2

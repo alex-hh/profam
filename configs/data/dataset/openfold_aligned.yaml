@@ -1,4 +1,4 @@
-_target_: src.data.builders.SequenceDocumentDataset
+_target_: src.data.builders.SequenceDocumentIterableDataset
 name: openfold_aligned
 defaults:
   - /preprocessor: msa

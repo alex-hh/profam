@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - override /data: pfam
+  - override /data: foldseek_representatives_interleaved_packed
   - override /model: llama_medium
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
@@ -17,6 +17,7 @@ trainer:
   target_tokens_per_batch: 256000
   min_epochs: 1
   max_epochs: 1
+  tokens_per_document: ${data.pack_to_max_tokens}
 
 model:
   pass_res_pos_in_doc_as_position_ids: true  # required for efficient sequence packing with FA

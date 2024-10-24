@@ -50,6 +50,7 @@ class ProteinDataMixture(LightningDataModule):
         ignore_gaps: bool = False,
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
+        pack_to_max_tokens: Optional[int] = None,
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -62,6 +63,7 @@ class ProteinDataMixture(LightningDataModule):
         self.num_workers = num_workers
         self.shuffle = shuffle
         self.tokenizer = tokenizer
+        self.pack_to_max_tokens = pack_to_max_tokens
         # N.B. feature names only needs to be applied for training
         # i.e. to standardise features across interleaved datasets
         self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
@@ -100,6 +102,7 @@ class ProteinDataMixture(LightningDataModule):
                         dataset,
                         tokenizer=self.tokenizer,
                         feature_names=self.feature_names,
+                        pack_to_max_tokens=self.pack_to_max_tokens,
                     )
                     # unclear how to get a sharded dataset for use with num workers?
                     # actually when using data_files n_shards is equal to n_files
@@ -231,6 +234,7 @@ class ProteinDataMixture(LightningDataModule):
                     dataset,
                     tokenizer=self.tokenizer,
                     feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
+                    pack_to_max_tokens=self.pack_to_max_tokens,
                 )
                 if world_size > 1:
                     if isinstance(dataset, IterableHFProteinDataset):

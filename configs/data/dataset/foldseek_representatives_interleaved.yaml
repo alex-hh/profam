@@ -1,4 +1,4 @@
-_target_: src.data.builders.StructureDocumentDataset
+_target_: src.data.builders.StructureDocumentIterableDataset
 name: foldseek_representatives_interleaved
 defaults:
   - /preprocessor: noisy_interleaved_coords

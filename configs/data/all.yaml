@@ -32,7 +32,7 @@ dataset_cfgs:
   foldseek_reps_interleaved:
     minimum_mean_plddt: 0.6
     preprocessor:
-      batched_map: true
+      force_batched_map: true
       map_batch_size: 250
   pfam_val:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet

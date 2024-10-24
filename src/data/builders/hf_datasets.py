@@ -45,7 +45,9 @@ class HFProteinDatasetConfig:
     minimum_mean_plddt: Optional[float] = None
     # processing
     return_format: str = "numpy"
-    batched_map: bool = False
+    force_batched_map: bool = (
+        False  # we will automatically set this to True if pack_to_max_tokens is set
+    )
     map_batch_size: int = 100
     process_online: bool = False  # only for map datasets
     # document-building
@@ -57,14 +59,7 @@ class HFProteinDatasetConfig:
     # n.b. pack_to_max_tokens could be applied either before or after interleaving
     # doing it before is a bit more flexible because it allows for different max tokens
     # for different datasets
-    pack_to_max_tokens: Optional[
-        int
-    ] = None  # only really compatible with map so specific to HF for now
     allow_split_packed_documents: bool = False
-
-    def __post_init__(self):
-        if self.pack_to_max_tokens:
-            assert self.batched_map, "pack_to_max_tokens requires batched_map"
 
 
 def random_subsample(arr, n, seed: Optional[int] = None):
@@ -152,13 +147,14 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         example_or_examples,
         tokenizer,
         feature_names: Optional[List[str]] = None,
+        pack_to_max_tokens: Optional[int] = None,
     ):
-        if self.cfg.batched_map:
+        if self.cfg.force_batched_map or pack_to_max_tokens:
             # Assert that tokenizer isn't padding to fixed length
             examples = self.batched_preprocess_examples(
                 example_or_examples,
                 tokenizer,
-                pack_to_max_tokens=self.cfg.pack_to_max_tokens,
+                pack_to_max_tokens=pack_to_max_tokens,
                 allow_split_packed_documents=self.cfg.allow_split_packed_documents,
             )
             return examples
@@ -275,6 +271,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
         feature_names: Optional[List[str]] = None,
+        pack_to_max_tokens: Optional[int] = None,
     ):
         """Speed issues:
 
@@ -311,11 +308,12 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 remove_columns = None
             dataset = dataset.map(
                 self.map_fn,
-                batched=self.cfg.batched_map,
+                batched=self.cfg.force_batched_map or pack_to_max_tokens,
                 batch_size=self.cfg.map_batch_size,
                 remove_columns=remove_columns,
                 fn_kwargs={
                     "tokenizer": tokenizer,
+                    "pack_to_max_tokens": pack_to_max_tokens,
                 },
                 features=Features(
                     **{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names}
@@ -366,6 +364,7 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
         feature_names: Optional[List[str]] = None,
+        pack_to_max_tokens: Optional[int] = None,
     ):
         """
         Process a dataset with a preprocessor.
@@ -385,31 +384,19 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
                 remove_columns = None
             dataset = dataset.map(
                 self.map_fn,
-                batched=self.cfg.batched_map,
+                batched=self.cfg.force_batched_map or pack_to_max_tokens,
                 batch_size=self.cfg.map_batch_size,
                 remove_columns=remove_columns,
                 fn_kwargs={
                     "tokenizer": tokenizer,
                     "feature_names": feature_names,
+                    "pack_to_max_tokens": pack_to_max_tokens,
                 },
             )
         return dataset
 
 
-class SequenceDocumentDataset(IterableHFProteinDataset):
-    def __init__(
-        self,
-        name: str,
-        cfg: HFProteinDatasetConfig,
-        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
-    ):
-        super().__init__(
-            name=name,
-            cfg=cfg,
-            preprocessor=preprocessor,
-            required_keys=[cfg.sequence_col],
-        )
-
+class SequenceDocumentMixin:
     @staticmethod
     def build_document(
         example,
@@ -446,7 +433,15 @@ class SequenceDocumentDataset(IterableHFProteinDataset):
         return proteins
 
 
-class StructureDocumentDataset(IterableHFProteinDataset):
+class SequenceDocumentIterableDataset(SequenceDocumentMixin, IterableHFProteinDataset):
+    pass
+
+
+class SequenceDocumentMapDataset(SequenceDocumentMixin, MemoryMappedHFProteinDataset):
+    pass
+
+
+class StructureDocumentMixin:
     def __init__(
         self,
         name: str,
@@ -554,3 +549,13 @@ class StructureDocumentDataset(IterableHFProteinDataset):
             return mean_plddt >= (self.cfg.minimum_mean_plddt or 0.0)
 
         return True
+
+
+class StructureDocumentIterableDataset(
+    StructureDocumentMixin, IterableHFProteinDataset
+):
+    pass
+
+
+class StructureDocumentMapDataset(StructureDocumentMixin, MemoryMappedHFProteinDataset):
+    pass
