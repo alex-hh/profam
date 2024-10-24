@@ -55,7 +55,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         embed_coords: bool = False,
         embed_sequence_index: bool = False,
         pass_constant_position_ids: bool = False,
-        pass_seq_pos_in_doc_as_position_ids: bool = False,
+        pass_res_pos_in_seq_as_position_ids: bool = False,
         pass_res_pos_in_doc_as_position_ids: bool = False,
         max_seq_pos_in_doc: int = 1024,
         embed_residue_index: bool = True,
@@ -83,7 +83,7 @@ class LlamaLitModule(BaseFamilyLitModule):
                 embed_sequence_index=embed_sequence_index,
                 max_seq_pos_in_doc=max_seq_pos_in_doc,
                 pass_constant_position_ids=pass_constant_position_ids,
-                pass_seq_pos_in_doc_as_position_ids=pass_seq_pos_in_doc_as_position_ids,
+                pass_res_pos_in_seq_as_position_ids=pass_res_pos_in_seq_as_position_ids,
                 pass_res_pos_in_doc_as_position_ids=pass_res_pos_in_doc_as_position_ids,
             )
         else:

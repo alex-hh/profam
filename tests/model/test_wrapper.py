@@ -57,6 +57,28 @@ def test_compute_res_pos_in_doc(test_model, profam_tokenizer):
     ).all(), f"Expected {expected_position_ids}, got {position_ids[0].numpy()}"
 
 
+def test_packed_compute_sequence_index(test_model, profam_tokenizer):
+    sequences = ["ARC", "MKLL", "MK"]
+    tokenized = profam_tokenizer.encode(
+        ProteinDocument(sequences=sequences, original_size=len(sequences)),
+        add_final_sep=True,
+    )
+    # n.b. packing happens after tokenization
+    examples = [tokenized.data, tokenized.data]
+    packed_examples = pack_examples(examples)
+    sequence_indices = test_model.model.compute_sequence_index(
+        torch.from_numpy(packed_examples["input_ids"][None, :])
+    )
+    expected_sequence_indices = np.array(
+        [[0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2] * 2]
+    )
+    print(sequence_indices.numpy(), expected_sequence_indices)
+    assert (
+        sequence_indices.numpy() == expected_sequence_indices
+    ).all(), f"Expected {expected_sequence_indices}, got {sequence_indices.numpy()}"
+    assert 1 == 0
+
+
 def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     # n.b. we need to be aware of main steps of generation pipeline (self.generate)
     # 1. null cache gets created (setting past_key_values in model_kwargs) - unless creation is required from start

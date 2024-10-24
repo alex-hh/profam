@@ -46,7 +46,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         start_residue_index: int = 2,
         embed_sequence_index: bool = False,
         pass_constant_position_ids: bool = False,
-        pass_seq_pos_in_doc_as_position_ids: bool = False,
+        pass_res_pos_in_seq_as_position_ids: bool = False,
         pass_res_pos_in_doc_as_position_ids: bool = False,
         max_seq_pos_in_doc: int = 1024,
     ):
@@ -68,20 +68,20 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self.embed_sequence_index = embed_sequence_index
         self.max_seq_pos_in_doc = max_seq_pos_in_doc
         self.pass_constant_position_ids = pass_constant_position_ids
-        self.pass_seq_pos_in_doc_as_position_ids = pass_seq_pos_in_doc_as_position_ids
+        self.pass_res_pos_in_seq_as_position_ids = pass_res_pos_in_seq_as_position_ids
         self.pass_res_pos_in_doc_as_position_ids = pass_res_pos_in_doc_as_position_ids
         assert (
             sum(
                 [
                     self.pass_constant_position_ids,
-                    self.pass_seq_pos_in_doc_as_position_ids,
+                    self.pass_res_pos_in_seq_as_position_ids,
                     self.pass_res_pos_in_doc_as_position_ids,
                 ]
             )
             <= 1
         ), (
             "Only one of pass_constant_position_ids_for_global_index,"
-            "pass_sequence_position_ids_for_global_index, pass_document_position_ids_for_global_index can be True"
+            "pass_residue_position_ids_in_seq_for_global_index, pass_residue_position_ids_in_doc_for_global_index can be True"
         )
         if self.embed_coords:
             self.coords_embedding = nn.Linear(
@@ -270,7 +270,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     def compute_sequence_index(self, input_ids, start_sequence_index=0):
         # TODO: test - if input_ids is just sep token we return start_sequence_index
         # cat means sep token gets index of PREVIOUS sequence
-        return start_sequence_index + torch.cat(
+        assert input_ids.shape[0] == 1
+        document_starts = torch.argwhere(input_ids == self.tokenizer.bos_token_id).flatten()
+        document_start_mask = torch.zeros_like(input_ids[0], dtype=torch.bool)
+        document_start_mask[document_starts] = True
+        document_indices = torch.cumsum(document_start_mask, dim=-1) - 1
+        print(document_indices)
+        sequence_indices = start_sequence_index + torch.cat(
             (
                 torch.full_like(input_ids[..., :1], 0),
                 torch.cumsum(
@@ -279,6 +285,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             ),
             dim=-1,
         )
+        if start_sequence_index != 0:
+            raise NotImplementedError()  # needs to be batched
+        offsets = sequence_indices[document_starts][document_indices]
+        return sequence_indices - offsets
 
     def compute_res_pos_in_doc(self, input_ids):
         """Needs to start at 0 for compatibility with sequence packing:
@@ -341,19 +351,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.pass_constant_position_ids:
             assert position_ids is None
             position_ids = torch.full_like(input_ids, 10).long()
-        elif self.pass_seq_pos_in_doc_as_position_ids:
+        elif self.pass_res_pos_in_seq_as_position_ids:
             assert position_ids is None
             assert residue_index is not None
             position_ids = residue_index
         elif self.pass_res_pos_in_doc_as_position_ids:
             position_ids = self.compute_res_pos_in_doc(input_ids)
         return position_ids
-
-    def compute_start_sequence_index(self, past_key_values):
-        if past_key_values is None:
-            return 0
-        else:
-            raise NotImplementedError("Compute from cached input ids")
 
     def forward(
         self,
