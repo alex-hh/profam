@@ -147,8 +147,9 @@ def preprocess_sequences_sampling_to_max_tokens(
         seq_length = len(seq) + extra_tokens_per_protein
         # TODO: be careful about mapping coords etc when using aligned sequences.
         if max_tokens is not None and (total_length + seq_length >= max_tokens):
-            leftover_tokens = max_tokens - total_length - extra_tokens_per_protein  # -1 for sep token
-            print("max_tokens", max_tokens, "total_length", total_length, "leftover_tokens", leftover_tokens)
+            leftover_tokens = (
+                max_tokens - total_length - extra_tokens_per_protein
+            )  # -1 for sep token
             if leftover_tokens > 0:
                 # truncate from start or end
                 if rnd.random() < 0.5:
