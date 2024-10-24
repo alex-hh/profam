@@ -55,7 +55,6 @@ def test_sample_to_max_tokens_exceeds_max(protein_document, profam_tokenizer):
         )
         sequence_lengths = check_array_lengths(
             sampled_proteins.sequences,
-            sampled_proteins.document_ids,
             sampled_proteins.modality_masks,
         )
         assert sequence_lengths[0][0] == max_tokens - profam_tokenizer.num_start_tokens

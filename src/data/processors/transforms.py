@@ -140,19 +140,15 @@ def preprocess_sequences_sampling_to_max_tokens(
     sampled_protein_ids = []
     sampled_protein_sequences = []
     sampled_protein_positions = []
-    if max_tokens is not None:
-        max_protein_tokens = max_tokens - extra_tokens_per_document
-    else:
-        max_protein_tokens = None
 
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
         seq_length = len(seq) + extra_tokens_per_protein
         # TODO: be careful about mapping coords etc when using aligned sequences.
-        if max_protein_tokens is not None and (
-            total_length + seq_length > max_protein_tokens
+        if max_tokens is not None and (
+            total_length + seq_length >= max_tokens
         ):
-            leftover_tokens = max_protein_tokens - total_length
+            leftover_tokens = max_tokens - total_length
             # truncate from start or end
             if rnd.random() < 0.5:
                 start = -leftover_tokens

@@ -200,7 +200,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
 
         generated_tokens = input_ids[:, -inputs["input_ids"].shape[-1] :]
-        print("GENERATED TOKENS SHAPE", generated_tokens.shape)
         if (generated_tokens == self.tokenizer.sep_token_id).any() or (
             generated_tokens == self.tokenizer.seq_struct_sep_token_id
         ).any():
@@ -309,18 +308,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     def compute_sequence_index(self, input_ids, start_sequence_index=0):
         # TODO: test - if input_ids is just sep token we return start_sequence_index
         # cat means sep token gets index of PREVIOUS sequence
-        assert input_ids.shape[0] == 1
-        document_starts = torch.argwhere(
-            input_ids[0] == self.tokenizer.bos_token_id
-        ).flatten()
-        if document_starts.shape[0] > 0:
-            document_start_mask = torch.zeros_like(input_ids[0], dtype=torch.bool)
-            document_start_mask[document_starts] = True
-            document_indices = torch.cumsum(document_start_mask, dim=-1) - 1
-            if start_sequence_index != 0 and document_start_mask.sum() > 1:
-                raise NotImplementedError()  # needs to be batched
-        else:
-            document_indices = torch.zeros_like(input_ids[0])
         sequence_indices = start_sequence_index + torch.cat(
             (
                 torch.full_like(input_ids[..., :1], 0),
@@ -330,11 +317,21 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             ),
             dim=-1,
         )
-        if document_starts.shape[0] > 0:
-            offsets = sequence_indices[0, document_starts[document_indices]]
-            return sequence_indices - offsets
-        else:
-            return sequence_indices
+        document_start_mask = input_ids == self.tokenizer.bos_token_id
+        if (document_start_mask.sum(-1) > 1).any():
+            assert input_ids.shape[0] == 1, "Batch size must be 1 if there are multiple packed documents"
+            document_starts = torch.argwhere(
+                input_ids[0] == self.tokenizer.bos_token_id
+            ).flatten()
+            if document_starts.shape[0] > 0:
+                document_start_mask = torch.zeros_like(input_ids[0], dtype=torch.bool)
+                document_start_mask[document_starts] = True
+                document_indices = torch.cumsum(document_start_mask, dim=-1) - 1
+                if start_sequence_index != 0 and document_start_mask.sum() > 1:
+                    raise NotImplementedError()  # needs to be batched
+                offsets = sequence_indices[0, document_starts[document_indices]]
+                return sequence_indices - offsets
+        return sequence_indices
 
     def compute_res_pos_in_doc(self, input_ids):
         """Needs to start at 0 for compatibility with sequence packing:

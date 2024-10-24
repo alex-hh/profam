@@ -198,7 +198,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
                         else value
                     )
                     print(f"    {key}: {value_to_print}")
-                print()
 
         return dataset
 
