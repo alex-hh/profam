@@ -49,8 +49,12 @@ def test_compute_res_pos_in_doc(test_model, profam_tokenizer):
     position_ids = test_model.model.compute_res_pos_in_doc(
         torch.from_numpy(packed_examples["input_ids"][None, :])
     )
-    expected_position_ids = np.array(list(range(sum(len(s) for s in sequences)+len(sequences)+2))*2)
-    assert (position_ids[0].numpy() == expected_position_ids).all(), f"Expected {expected_position_ids}, got {position_ids[0].numpy()}"
+    expected_position_ids = np.array(
+        list(range(sum(len(s) for s in sequences) + len(sequences) + 2)) * 2
+    )
+    assert (
+        position_ids[0].numpy() == expected_position_ids
+    ).all(), f"Expected {expected_position_ids}, got {position_ids[0].numpy()}"
 
 
 def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):

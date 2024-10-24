@@ -70,7 +70,9 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
         if not len(lines[-1]):
             lines = lines[:-1]
         # rough upper bound: min 2 lines per seq, assume at least 10 tks per line
-        max_fasta_lines_to_preprocess = max_sequences * 50 if max_sequences is not None else len(lines)
+        max_fasta_lines_to_preprocess = (
+            max_sequences * 50 if max_sequences is not None else len(lines)
+        )
         if len(lines) > max_fasta_lines_to_preprocess:
             lines = subsample_fasta_lines(
                 lines,

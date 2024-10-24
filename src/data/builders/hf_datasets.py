@@ -4,8 +4,8 @@ These classes are different in that they are more focussed on preprocessing.
 It might be useful however to move towards the standardised splits.
 - although this is basically just directory-based
 """
-import glob
 import functools
+import glob
 import math
 import os
 from dataclasses import dataclass
