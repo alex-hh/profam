@@ -47,17 +47,15 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
     def filter_fn(
         self,
         example,
-        min_sequences: Optional[int] = None,
-        holdout_identifiers: Optional[List[str]] = None,
-        tokenizer: ProFamTokenizer = None,
+        tokenizer: ProFamTokenizer,
     ):
-        super_filter = super().filter_fn(example)
+        super_filter = super().filter_fn(example, tokenizer=tokenizer)
         if super_filter:
             assert (
-                holdout_identifiers is None
+                self.cfg.holdout_identifiers is None
             ), "Holdout identifiers not supported for fasta"
             filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
-                min_sequences or 1
+                self.cfg.min_sequences or 1
             )
             return filter_num_seqs
         return False
@@ -65,8 +63,6 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
     @staticmethod
     def build_document(
         text,
-        max_tokens: Optional[int] = None,
-        shuffle: bool = True,
         max_sequences: Optional[int] = None,
         identifier: Optional[str] = None,
     ):
@@ -74,14 +70,12 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
         if not len(lines[-1]):
             lines = lines[:-1]
         # rough upper bound: min 2 lines per seq, assume at least 10 tks per line
-        max_fasta_lines_to_preprocess = (
-            (max_tokens or 1e8) // 5 if max_sequences is None else max_sequences * 50
-        )
+        max_fasta_lines_to_preprocess = max_sequences * 50 if max_sequences is not None else len(lines)
         if len(lines) > max_fasta_lines_to_preprocess:
             lines = subsample_fasta_lines(
                 lines,
                 max_fasta_lines_to_preprocess,
-                shuffle=shuffle,
+                shuffle=False,
             )
 
         sequences = [
@@ -101,21 +95,14 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
             identifier=identifier,
         )  # upper bound estimate of number of sequences
 
-    def _build_document(
-        self, example, max_tokens: Optional[int] = None, shuffle: bool = True
-    ):
+    def _build_document(self, example):
         if isinstance(example, str):
             return self.build_document(
                 example,
-                max_tokens,
-                shuffle,
-                max_sequences=self.cfg.max_sequences_per_document,
             )
         else:
             return self.build_document(
                 example["text"],
-                max_tokens,
-                shuffle,
                 max_sequences=self.cfg.max_sequences_per_document,
                 identifier=self.name + "/" + example[self.cfg.identifier_col]
                 if self.cfg.identifier_col is not None

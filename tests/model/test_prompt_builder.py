@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from src.constants import BASEDIR
-from src.data.builders.hf_datasets import StructureDocumentDataset
+from src.data.builders.hf_datasets import StructureDocumentIterableDataset
 from src.data.processors.preprocessing import (
     PreprocessingConfig,
     ProteinDocumentPreprocessor,
@@ -19,10 +19,10 @@ def test_representative_inverse_folding(profam_tokenizer):
     example = df.iloc[0]
     cfg = PreprocessingConfig()
     preprocessor = ProteinDocumentPreprocessor(
-        config=cfg,
+        cfg=cfg,
         interleave_structure_sequence=True,
     )
-    proteins = StructureDocumentDataset.build_document(
+    proteins = StructureDocumentIterableDataset.build_document(
         example,
         infer_representative_from_identifier=True,
         structure_tokens_col=None,
@@ -32,10 +32,7 @@ def test_representative_inverse_folding(profam_tokenizer):
         (np.zeros((2, 4, 3)), proteins[0].backbone_coords, np.zeros((1, 4, 3))), axis=0
     )
     assert len(proteins) == 1
-    prompt_builder = InterleavedInverseFoldingPromptBuilder(
-        preprocessor=preprocessor,
-        max_tokens=1536,
-    )
+    prompt_builder = InterleavedInverseFoldingPromptBuilder(preprocessor=preprocessor)
     prompt = prompt_builder(proteins, profam_tokenizer)
     example = profam_tokenizer.encode(
         prompt,

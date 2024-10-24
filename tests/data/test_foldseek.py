@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from src.constants import ALL_FEATURE_NAMES, BASEDIR
-from src.data.builders import HFProteinDatasetConfig, StructureDocumentDataset
+from src.data.builders import HFProteinDatasetConfig, StructureDocumentIterableDataset
 from src.data.collators import DocumentBatchCollator
 from src.data.processors import preprocessing, transforms
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
@@ -71,7 +71,7 @@ def foldseek_interleaved_structure_sequence_batch_and_datapoint(
         shuffle_proteins_in_document=False,
     )
     parquet_3di_processor = preprocessing.ProteinDocumentPreprocessor(
-        config=preprocessing_cfg,
+        cfg=preprocessing_cfg,
         interleave_structure_sequence=True,
     )
     # TODO: test with structure tokens
@@ -81,7 +81,7 @@ def foldseek_interleaved_structure_sequence_batch_and_datapoint(
         file_type="parquet",
         structure_tokens_col=request.param["structure_tokens_col"],
     )
-    builder = StructureDocumentDataset(
+    builder = StructureDocumentIterableDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=parquet_3di_processor,
@@ -95,7 +95,7 @@ def foldseek_interleaved_structure_sequence_batch_and_datapoint(
     datapoint = next(iter(data))
     collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
 
-    raw_builder = StructureDocumentDataset(
+    raw_builder = StructureDocumentIterableDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -219,7 +219,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
     )
     plddt_cutoff = 80.0
     preprocessor = preprocessing.ProteinDocumentPreprocessor(
-        config=preprocessing_cfg,
+        cfg=preprocessing_cfg,
         transform_fns=[
             functools.partial(
                 transforms.apply_plddt_mask, threshold=plddt_cutoff, mask_plddts=True
@@ -232,7 +232,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
         file_type="parquet",
         structure_tokens_col="msta_3di",
     )
-    builder = StructureDocumentDataset(
+    builder = StructureDocumentIterableDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=preprocessor,
@@ -282,17 +282,15 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         shuffle_proteins_in_document=False,
     )
     parquet_3di_processor = preprocessing.ProteinDocumentPreprocessor(
-        config=preprocessing_cfg,
+        cfg=preprocessing_cfg,
         interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
     )
     cfg = HFProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
         structure_tokens_col=None,
-        pack_to_max_tokens=2048,
-        batched_map=True,
     )
-    builder = StructureDocumentDataset(
+    builder = StructureDocumentIterableDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=parquet_3di_processor,
@@ -301,6 +299,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
     data = builder.process(
         data,
         tokenizer=profam_tokenizer,
+        pack_to_max_tokens=2048,
         feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
     )
     example = next(iter(data))

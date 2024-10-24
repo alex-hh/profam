@@ -5,6 +5,7 @@ It might be useful however to move towards the standardised splits.
 - although this is basically just directory-based
 """
 import glob
+import functools
 import math
 import os
 from dataclasses import dataclass
@@ -235,18 +236,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
 
         return all(filters)
 
-    def filter(
-        self,
-        dataset,
-        tokenizer: ProFamTokenizer,
-    ):
-        return dataset.filter(
-            self.filter_fn,
-            fn_kwargs={
-                "tokenizer": tokenizer,
-            },
-        )
-
 
 class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
     """File-based builder for a non-iterable Dataset.
@@ -295,7 +284,9 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
         my_iterable_dataset = my_dataset.to_iterable_dataset(num_shards=1024)
         my_iterable_dataset.n_shards  # 1024
         """
-        dataset = self.filter(dataset, tokenizer)
+        dataset = dataset.filter(
+            functools.partial(self.filter_fn, tokenizer=tokenizer),
+        )
         if self.preprocessor is not None and not self.cfg.process_online:
             if dataset.column_names is not None:
                 # Q: what causes None? maybe loading text rather than parquet
@@ -372,7 +363,9 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         feature_names: names of features to keep
         """
         # TODO: handle batched filter?
-        dataset = self.filter(dataset, tokenizer)
+        dataset = dataset.filter(
+            functools.partial(self.filter_fn, tokenizer=tokenizer),
+        )
         if self.preprocessor is not None:
             # Q. how does batched map interact with interleave datasets?
             if dataset.column_names is not None:

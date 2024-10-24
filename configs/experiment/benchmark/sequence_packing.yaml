@@ -20,4 +20,5 @@ trainer:
   tokens_per_document: ${data.pack_to_max_tokens}
 
 model:
+  # override with false to see what difference turning off packing makes
   pass_res_pos_in_doc_as_position_ids: true  # required for efficient sequence packing with FA

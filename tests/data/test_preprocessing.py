@@ -5,7 +5,7 @@ import os
 import pytest
 
 from src.constants import BASEDIR
-from src.data.builders import HFProteinDatasetConfig, StructureDocumentDataset
+from src.data.builders import HFProteinDatasetConfig, StructureDocumentIterableDataset
 from src.data.tokenizers import examples_list_to_dict
 
 
@@ -15,7 +15,7 @@ def foldseek_datapoint(profam_tokenizer):
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
     )
-    builder = StructureDocumentDataset(
+    builder = StructureDocumentIterableDataset(
         name="foldseek_example",
         cfg=cfg,
         preprocessor=None,
@@ -41,7 +41,7 @@ def foldseek_datapoint(profam_tokenizer):
 #     examples = examples_list_to_dict(examples)
 
 #     document_builder = functools.partial(
-#         StructureDocumentDataset.build_document,
+#         StructureDocumentIterableDataset.build_document,
 #         structure_tokens_col="msta_3di",
 #     )
 #     proteins_list = [document_builder._build_document(example) for example in examples]
@@ -55,7 +55,7 @@ def foldseek_datapoint(profam_tokenizer):
 #         data_path_pattern="foldseek_representatives/0.parquet",
 #         file_type="parquet",
 #     )
-#     builder = StructureDocumentDataset(
+#     builder = StructureDocumentIterableDataset(
 #         name="foldseek_example",
 #         cfg=cfg,
 #         preprocessor=None,
@@ -79,7 +79,7 @@ def foldseek_datapoint(profam_tokenizer):
 
 #     proteins_list = build_documents_helper(
 #         examples,
-#         StructureDocumentDataset.build_document,
+#         StructureDocumentIterableDataset.build_document,
 #         max_tokens=protein_len * 4,
 #         shuffle=False,
 #     )
