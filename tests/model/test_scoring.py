@@ -90,7 +90,6 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
             full_input_ids,
             residue_index=full_residue_index,
             use_cache=False,
-            start_sequence_index=0,
         )
         logits_v1 = outputs.logits
         log_likelihood_v1 = log_likelihood_from_outputs(
@@ -107,7 +106,6 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
             residue_index=proteingym_batch["residue_index"],
             past_key_values=past_key_values,
             use_cache=True,
-            start_sequence_index=0,
         )
         past_key_values = outputs.past_key_values
 
@@ -119,7 +117,6 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
             residue_index=proteingym_batch["completion_residue_index"][:, 0],
             past_key_values=past_key_values,
             use_cache=True,
-            start_sequence_index=n_seps,
         )
     logits_v2 = outputs.logits
     log_likelihood_v2 = log_likelihood_from_outputs(
