@@ -245,11 +245,14 @@ class ProteinGymDataset(BaseProteinDataset):
         dataset: Dataset,
         tokenizer: ProFamTokenizer,
         feature_names: Optional[List[str]] = None,
+        **kwargs,
     ):
         """mutant_bos_token should almost always be sep.
 
         when using a BaseSingleSequenceLitModule, however, we want it
         to be bos, since no context sequences are passed during scoring.
+
+        n.b. we just ignore pack_to_max_tokens here.
         """
         dataset = dataset.map(
             functools.partial(

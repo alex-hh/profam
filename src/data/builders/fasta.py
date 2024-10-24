@@ -55,7 +55,7 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
                 self.cfg.holdout_identifiers is None
             ), "Holdout identifiers not supported for fasta"
             filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
-                self.cfg.min_sequences or 1
+                self.cfg.minimum_sequences or 1
             )
             return filter_num_seqs
         return False
