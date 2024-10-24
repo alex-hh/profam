@@ -15,9 +15,7 @@ from src.data.tokenizers import ProFamTokenizer
 
 def test_non_interleaved_shuffle():
     tokenizer = ProFamTokenizer(
-        tokenizer_file=os.path.join(
-            BASEDIR, "data/profam_tokenizer.json"
-        ),
+        tokenizer_file=os.path.join(BASEDIR, "data/profam_tokenizer.json"),
         mask_token="?",
         sep_token="[SEP]",
         pad_token="[PAD]",
@@ -57,9 +55,7 @@ def test_non_interleaved_shuffle():
 
 def test_interleaved_shuffle():
     tokenizer = ProFamTokenizer(
-        tokenizer_file=os.path.join(
-            BASEDIR, "data/profam_tokenizer.json"
-        ),
+        tokenizer_file=os.path.join(BASEDIR, "data/profam_tokenizer.json"),
         mask_token="?",
         sep_token="[SEP]",
         pad_token="[PAD]",

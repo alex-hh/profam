@@ -58,7 +58,7 @@ def test_compute_res_pos_in_doc(test_model, profam_tokenizer):
 
 
 def test_packed_compute_sequence_index(test_model, profam_tokenizer):
-    sequences = ["ARC", "MKLL", "MK"]
+    sequences = ["ARC", "MKLLL", "MKPP"]
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences, original_size=len(sequences)),
         add_final_sep=True,
@@ -72,11 +72,9 @@ def test_packed_compute_sequence_index(test_model, profam_tokenizer):
     expected_sequence_indices = np.array(
         [[0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2] * 2]
     )
-    print(sequence_indices.numpy(), expected_sequence_indices)
     assert (
         sequence_indices.numpy() == expected_sequence_indices
     ).all(), f"Expected {expected_sequence_indices}, got {sequence_indices.numpy()}"
-    assert 1 == 0
 
 
 def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):

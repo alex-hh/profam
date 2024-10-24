@@ -143,52 +143,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         model_kwargs[cache_name] = InputAwareDynamicCache()
 
-    # def update_residue_index_for_generation(self, input_ids, prompt_residue_index):
-    #     # n.b. generate automatically adds pad token to the end of finished sequences.
-    #     # so if we want to support generation only of single sequences, we can just not worry about
-    #     # effect of sep token on incrementation of seq pos.
-    #     prompt_length = prompt_residue_index.shape[-1]
-    #     if input_ids.shape[-1] != prompt_length:
-    #         generated_tokens = input_ids[:, prompt_length:]
-    #         # basically we are saying that eos_token_id in generation config must be sep_token_id
-    #         assert_only_padding_after_eos(
-    #             generated_tokens,
-    #             self.tokenizer.sep_token_id,
-    #             self.tokenizer.pad_token_id,
-    #         )
-
-    #         # we have incremented input ids but not seq pos
-    #         increment = input_ids.shape[-1] - prompt_length
-
-    #         # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
-    #         # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
-
-    #         input_final_residue_index = prompt_residue_index[:, -1:]
-    #         if (input_final_residue_index[:, -1] == 0).any():  # handles sep cases
-    #             assert input_ids[0, prompt_length - 1].item() in [
-    #                 self.tokenizer.sep_token_id,
-    #                 self.tokenizer.seq_struct_sep_token_id,
-    #             ], f"{input_ids[0, prompt_length-1]} {increment}"
-    #             assert (input_final_residue_index[:, -1] == 0).all()
-    #             # we are starting new sequences
-    #             residue_index = torch.full_like(
-    #                 input_final_residue_index,
-    #                 self.start_residue_index + increment - 1,
-    #             )
-    #             # residue_index corresponds to position of previously generated token in the sequence
-    #             # when increment is 1, residue_index is self.start_residue_index
-    #         else:
-    #             if increment == 1:
-    #                 print(
-    #                     f"Warning: not sampling a new sequence, check inputs if this is desired behaviour "
-    #                     f"({prompt_residue_index}, {input_ids})"
-    #                 )
-    #             residue_index = input_final_residue_index + increment
-    #     else:
-    #         residue_index = prompt_residue_index
-
-    #     return residue_index
-
     def prepare_inputs_for_generation(
         self,
         input_ids,
@@ -356,11 +310,17 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # TODO: test - if input_ids is just sep token we return start_sequence_index
         # cat means sep token gets index of PREVIOUS sequence
         assert input_ids.shape[0] == 1
-        document_starts = torch.argwhere(input_ids == self.tokenizer.bos_token_id).flatten()
-        document_start_mask = torch.zeros_like(input_ids[0], dtype=torch.bool)
-        document_start_mask[document_starts] = True
-        document_indices = torch.cumsum(document_start_mask, dim=-1) - 1
-        print(document_indices)
+        document_starts = torch.argwhere(
+            input_ids[0] == self.tokenizer.bos_token_id
+        ).flatten()
+        if document_starts.shape[0] > 0:
+            document_start_mask = torch.zeros_like(input_ids[0], dtype=torch.bool)
+            document_start_mask[document_starts] = True
+            document_indices = torch.cumsum(document_start_mask, dim=-1) - 1
+            if start_sequence_index != 0 and document_start_mask.sum() > 1:
+                raise NotImplementedError()  # needs to be batched
+        else:
+            document_indices = torch.zeros_like(input_ids[0])
         sequence_indices = start_sequence_index + torch.cat(
             (
                 torch.full_like(input_ids[..., :1], 0),
@@ -370,10 +330,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             ),
             dim=-1,
         )
-        if start_sequence_index != 0:
-            raise NotImplementedError()  # needs to be batched
-        offsets = sequence_indices[document_starts][document_indices]
-        return sequence_indices - offsets
+        if document_starts.shape[0] > 0:
+            offsets = sequence_indices[0, document_starts[document_indices]]
+            return sequence_indices - offsets
+        else:
+            return sequence_indices
 
     def compute_res_pos_in_doc(self, input_ids):
         """Needs to start at 0 for compatibility with sequence packing:
