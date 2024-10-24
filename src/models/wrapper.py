@@ -1,10 +1,23 @@
+"""We don't separate position indexing and attention stuff because both benefit from input ids Cache.
+
+TODO: I need to know - and be sure this handles - all the places where Cache gets created
+and updated.
+
+Created:
+    - in model forward with use_cache True
+    - in generate _prepare_cache_for_generation
+"""
+
 from typing import Any, Dict, List, Optional, Union
 
 import torch
 from torch import nn
+from transformers import GenerationConfig, PreTrainedModel
+from transformers.cache_utils import Cache
 from transformers.utils import ModelOutput
 
 from src.data.tokenizers import ProFamTokenizer
+from src.models.utils import InputAwareDynamicCache
 from src.utils.utils import nested_getattr
 
 
@@ -16,13 +29,25 @@ def assert_only_padding_after_eos(input_ids, eos_token_id, padding_token_id):
     assert (input_ids[should_pad] == padding_token_id).all()
 
 
+# Question: how do we configure the cache type used by a model? can we?
+
+# Ideally we just want to write a modified cache class that also holds input ids
+# and probably also attention mask
+
+# llama model forward. n.b. mistral model forward has same even though it could use sliding window cache.
+# gpt doesn't use dynamic cache.
+
+
 # TODO: try to modularise...
 class WrappedHFModelWithPositionEmbeddingsMixin:
     """Wrap a pre-trained model to add sequence-relative position embeddings.
 
+    This wrapper is PARTIALLY agnostic to the underlying model. However the underlying
+    model must be able to handle a DynamicCache object as past_key_values, and must
+    accept a 4d attention (bias) mask.
+
     have position_ids argument in .forward() method
     use modeling_attn_mask_utils.py::_prepare_4d_attention_mask() function for 4d mask generation
-
 
     (Optionally other embeddings, e.g. structure embeddings, could be added in similar way.)
 
@@ -99,51 +124,70 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 embedding_dim,
             )
 
-    def update_residue_index_for_generation(self, input_ids, prompt_residue_index):
-        # n.b. generate automatically adds pad token to the end of finished sequences.
-        # so if we want to support generation only of single sequences, we can just not worry about
-        # effect of sep token on incrementation of seq pos.
-        prompt_length = prompt_residue_index.shape[-1]
-        if input_ids.shape[-1] != prompt_length:
-            generated_tokens = input_ids[:, prompt_length:]
-            # basically we are saying that eos_token_id in generation config must be sep_token_id
-            assert_only_padding_after_eos(
-                generated_tokens,
-                self.tokenizer.sep_token_id,
-                self.tokenizer.pad_token_id,
-            )
+    def _prepare_cache_for_generation(
+        self,
+        generation_config: GenerationConfig,
+        model_kwargs: Dict,
+        assistant_model: "PreTrainedModel",
+        batch_size: int,
+        max_cache_length: int,
+        device: torch.device,
+    ) -> bool:
+        cache_name = (
+            "past_key_values"
+            if "mamba" not in self.__class__.__name__.lower()
+            else "cache_params"
+        )
+        assert cache_name == "past_key_values"
+        assert generation_config.use_cache
 
-            # we have incremented input ids but not seq pos
-            increment = input_ids.shape[-1] - prompt_length
+        model_kwargs[cache_name] = InputAwareDynamicCache()
 
-            # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
-            # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
+    # def update_residue_index_for_generation(self, input_ids, prompt_residue_index):
+    #     # n.b. generate automatically adds pad token to the end of finished sequences.
+    #     # so if we want to support generation only of single sequences, we can just not worry about
+    #     # effect of sep token on incrementation of seq pos.
+    #     prompt_length = prompt_residue_index.shape[-1]
+    #     if input_ids.shape[-1] != prompt_length:
+    #         generated_tokens = input_ids[:, prompt_length:]
+    #         # basically we are saying that eos_token_id in generation config must be sep_token_id
+    #         assert_only_padding_after_eos(
+    #             generated_tokens,
+    #             self.tokenizer.sep_token_id,
+    #             self.tokenizer.pad_token_id,
+    #         )
 
-            input_final_residue_index = prompt_residue_index[:, -1:]
-            if (input_final_residue_index[:, -1] == 0).any():  # handles sep cases
-                assert input_ids[0, prompt_length - 1].item() in [
-                    self.tokenizer.sep_token_id,
-                    self.tokenizer.seq_struct_sep_token_id,
-                ], f"{input_ids[0, prompt_length-1]} {increment}"
-                assert (input_final_residue_index[:, -1] == 0).all()
-                # we are starting new sequences
-                residue_index = torch.full_like(
-                    input_final_residue_index,
-                    self.start_residue_index + increment - 1,
-                )
-                # residue_index corresponds to position of previously generated token in the sequence
-                # when increment is 1, residue_index is self.start_residue_index
-            else:
-                if increment == 1:
-                    print(
-                        f"Warning: not sampling a new sequence, check inputs if this is desired behaviour "
-                        f"({prompt_residue_index}, {input_ids})"
-                    )
-                residue_index = input_final_residue_index + increment
-        else:
-            residue_index = prompt_residue_index
+    #         # we have incremented input ids but not seq pos
+    #         increment = input_ids.shape[-1] - prompt_length
 
-        return residue_index
+    #         # https://github.com/huggingface/transformers/blob/cf32ee1753c9747b877113a309c2aa989f6d006c/src/transformers/models/llama/modeling_llama.py#L1236
+    #         # just automatically increment the seq pos: this corresponds to never generating insertions in case of msas.
+
+    #         input_final_residue_index = prompt_residue_index[:, -1:]
+    #         if (input_final_residue_index[:, -1] == 0).any():  # handles sep cases
+    #             assert input_ids[0, prompt_length - 1].item() in [
+    #                 self.tokenizer.sep_token_id,
+    #                 self.tokenizer.seq_struct_sep_token_id,
+    #             ], f"{input_ids[0, prompt_length-1]} {increment}"
+    #             assert (input_final_residue_index[:, -1] == 0).all()
+    #             # we are starting new sequences
+    #             residue_index = torch.full_like(
+    #                 input_final_residue_index,
+    #                 self.start_residue_index + increment - 1,
+    #             )
+    #             # residue_index corresponds to position of previously generated token in the sequence
+    #             # when increment is 1, residue_index is self.start_residue_index
+    #         else:
+    #             if increment == 1:
+    #                 print(
+    #                     f"Warning: not sampling a new sequence, check inputs if this is desired behaviour "
+    #                     f"({prompt_residue_index}, {input_ids})"
+    #                 )
+    #             residue_index = input_final_residue_index + increment
+    #     else:
+    #         residue_index = prompt_residue_index
+
+    #     return residue_index
 
     def prepare_inputs_for_generation(
         self,
@@ -151,15 +195,17 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         past_key_values=None,
         residue_index=None,
         cache_position=None,
+        use_cache=True,
         coords=None,
-        start_sequence_index=0,
         **kwargs,
     ):
-        """Build inputs dictionary for next step in generation,
-        given full input_ids (prompt + generated tokens), and other full length model inputs.
+        """Build inputs dictionary for next step in generation, given full input_ids (
+        prompt + generated tokens), and other model kwargs (also full length).
 
-        Main function is to slice out unprocessed inputs using cache_position.
+        Main function is to use cache_position to slice out the unprocessed tokens,
+        and corresponding inputs.
 
+        This is a model-specific method in HF.
         Inputs are then incremented in _update_model_kwargs_for_generation.
         For some inputs, we currently have to update here (residue_index, sequence_index) -
         https://github.com/huggingface/transformers/issues/33548
@@ -180,39 +226,45 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         4. compute logits for next position in sequence, predict a new token and update input ids
         5. update_model_kwargs_for_generation: update cache, attention_mask, cache_position.
         """
-        # TODO: consider putting this in update_model_kwargs_for_generation - definitely yes!.
-
         # main place this gets called is in sample loop:
         # https://github.com/huggingface/transformers/blob/e7f4ace0929600606424efd4cd91947bd567d323/src/transformers/generation/utils.py#L2413
         # in sample loop 'input_ids' gets incremented with generated tokens
 
         assert input_ids.ndim == 2
+        if self.embed_residue_index:
+            assert residue_index is not None
 
         inputs = super().prepare_inputs_for_generation(
             input_ids,
             past_key_values=past_key_values,
             cache_position=cache_position,
+            use_cache=use_cache,
             **kwargs,
         )  # slices out prompt and uses cache typically.
 
-        # input_ids is prompt + generated tokens
-        # kwargs["residue_index"] is prompt only
         # inputs["input_ids"] is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
-        if self.embed_residue_index:
-            inputs["residue_index"] = self.update_residue_index_for_generation(
-                input_ids, residue_index
+
+        generated_tokens = input_ids[:, -inputs["input_ids"].shape[-1] :]
+        print("GENERATED TOKENS SHAPE", generated_tokens.shape)
+        if (generated_tokens == self.tokenizer.sep_token_id).any() or (
+            generated_tokens == self.tokenizer.seq_struct_sep_token_id
+        ).any():
+            # sep would break incrementaion of seq pos and sequence index
+            raise NotImplementedError(
+                "This code does not handle generation of sequences with separators."
             )
 
-        if self.embed_sequence_index:
-            # model will automatically do compute_sequence_index on new tokens
-            # so we just need to tell it the sequence index of the new tokens
-            # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
-            # to previous sequence, and in forward will just pass through start_sequence_index
-            full_sequence_index = self.compute_sequence_index(
-                input_ids, start_sequence_index=start_sequence_index
+        # input_ids is prompt + generated tokens
+        # residue_index is prompt + generated tokens (kept up to date in _update_model_kwargs_for_generation)
+        if self.embed_residue_index:
+            inputs["residue_index"] = (
+                residue_index[:, cache_position]
+                if past_key_values is not None
+                else residue_index
             )
-            inputs["start_sequence_index"] = full_sequence_index[:, -1]
+
+        # N.B. in case we have self.embed_sequence_index True, this is computed from input its cache in model.forward
 
         if self.embed_coords:
             # updated in _update_model_kwargs_for_generation
@@ -244,8 +296,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if new token is sep, then new seq pos should be incremented.
         if prev token is sep, then new seq pos should be 0 and new sequence index should be incremented.
         """
-        # update past_key_values using model output, token_type_ids, attention_mask, cache_position
-        # TODO: check whether attention_mask update assumes 2d?
+        # update past_key_values using model output, and also update token_type_ids, attention_mask, cache_position
+        # TODO: handle attention mask update - maybe pop from model_kwargs and update here instead
         super()._update_model_kwargs_for_generation(
             outputs,
             model_kwargs,
@@ -253,7 +305,40 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             num_new_tokens=num_new_tokens,
         )
 
-        if "coords" in model_kwargs:
+        assert model_kwargs["use_cache"]
+        assert (
+            "past_key_values" in outputs
+        ), "We assume we're using cache and past_key_values is cache_name, otherwise sequence index is hard to compute"
+        past_key_values = (
+            outputs.past_key_values
+        )  # TODO: check this is right way to access - not exactly how generate does it in super
+
+        if self.embed_residue_index:
+            # Relationship between cache_position and residue_index: cache_position already updated
+            # via model_kwargs["cache_position"] = model_kwargs["cache_position"][-1:] + num_new_tokens
+            # within super()._update_model_kwargs_for_generation
+            # and corresponds to the position id of the new residue
+            assert num_new_tokens == 1 and model_kwargs["cache_position"].shape[-1] == 1
+            # we assume we only increment by one, which makes things easier
+            prev_residue_index = model_kwargs["residue_index"][:, -1:]
+            new_residue_index = torch.where(
+                torch.isin(
+                    past_key_values.input_ids_cache[:, -1:],
+                    torch.tensor(
+                        [
+                            self.tokenizer.sep_token_id,
+                            self.tokenizer.seq_struct_sep_token_id,
+                        ]
+                    ),
+                ),
+                torch.full_like(prev_residue_index, self.start_residue_index),
+                prev_residue_index + 1,
+            )
+            model_kwargs["residue_index"] = torch.cat(
+                [model_kwargs["residue_index"], new_residue_index], dim=-1
+            )
+
+        if self.embed_coords:
             bsz, _, n_atoms, _ = model_kwargs["coords"].shape
             model_kwargs["coords"] = torch.cat(
                 [
@@ -311,12 +396,29 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         position_ids = (counter - offsets).unsqueeze(0)
         return position_ids
 
+    def compute_start_sequence_index(self, past_key_values):
+        # TODO: write test for this!
+        if past_key_values is None or past_key_values.input_ids_cache is None:
+            return torch.tensor([0]).to(self.device)
+        # model will automatically do compute_sequence_index on new tokens
+        # so we just need to tell it the relative sequence index of the new tokens
+        # suppose input_ids[:, -1] is sep token. then compute_sequence_index here will assign it
+        # to previous sequence, and in forward will just pass through start_sequence_index
+        full_sequence_index = self.compute_sequence_index(
+            past_key_values.input_ids_cache
+        )
+        return torch.where(
+            past_key_values.input_ids_cache[:, -1] == self.tokenizer.sep_token_id,
+            full_sequence_index[:, -1] + 1,
+            full_sequence_index[:, -1],
+        )
+
     def embed_inputs(
         self,
         input_ids: Optional[torch.LongTensor],
         residue_index: Optional[torch.LongTensor] = None,
         coords: Optional[torch.FloatTensor] = None,
-        start_sequence_index: int = 0,
+        start_sequence_index: Optional[Union[int, torch.Tensor]] = None,
     ):
         # we assume (which is case for e.g. gpt2 and mistral)
         # that the model will itself add its own position embeddings to inputs_embeds
@@ -338,6 +440,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             inputs_embeds += coords_embeds
 
         if self.embed_sequence_index:
+            assert start_sequence_index is not None
             sequence_index = self.compute_sequence_index(
                 input_ids, start_sequence_index=start_sequence_index
             )
@@ -372,32 +475,38 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         coords: Optional[torch.FloatTensor] = None,
-        start_sequence_index: Optional[
-            Union[torch.Tensor, int]
-        ] = None,  # index of sequence within document. modify when using cache.
         **kwargs,  # e.g. labels
     ):
         assert (
             inputs_embeds is None
         ), "Do not pass pre-computed embeddings to this class"
 
-        if self.embed_sequence_index and past_key_values is not None:
+        if use_cache and not isinstance(past_key_values, Cache) and not self.training:
             assert (
-                start_sequence_index is not None
-            ), "Must pass start_sequence_index if using sequence index embeddings with cache"
-        elif start_sequence_index is None:
-            start_sequence_index = 0
+                past_key_values is None
+            ), "We need to know input ids, which can't be passed in legacy format"
+            past_key_values = InputAwareDynamicCache()
+
+        if self.embed_sequence_index:
+            if past_key_values is not None:
+                assert isinstance(past_key_values, InputAwareDynamicCache)
+            start_sequence_index = self.compute_start_sequence_index(past_key_values)
+        else:
+            start_sequence_index = None
 
         inputs_embeds = self.embed_inputs(
             input_ids,
             residue_index=residue_index,
             coords=coords,
-            start_sequence_index=start_sequence_index,
+            start_sequence_index=start_sequence_index[:, None]
+            if start_sequence_index is not None
+            else None,  # broadcast to input ids
         )
         position_ids = self.get_position_ids_for_model_forward(
             input_ids, residue_index, position_ids
         )
-        return super().forward(
+
+        outputs = super().forward(
             input_ids=None,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -409,3 +518,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             return_dict=return_dict,
             **kwargs,
         )
+
+        if past_key_values is not None and use_cache:
+            assert isinstance(past_key_values, InputAwareDynamicCache)
+            # TODO: only if use cache?
+            past_key_values.update_inputs(input_ids=input_ids)
+            assert (
+                outputs.past_key_values.input_ids_cache
+                == past_key_values.input_ids_cache
+            ).all()  # check that we are updating the past key values in outputs
+        return outputs

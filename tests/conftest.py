@@ -138,3 +138,10 @@ def proteingym_batch(profam_tokenizer):
     datapoint = next(iter(data))
     collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
     return collator([datapoint])
+
+
+@pytest.fixture
+def pfam_fasta_text():
+    return pd.read_parquet(
+        "data/example_data/pfam/Domain_60429258_61033370.parquet"
+    ).iloc[0]["text"]

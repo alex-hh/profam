@@ -21,7 +21,7 @@ from src.constants import BASEDIR, aa_letters
 from src.data.objects import StringObject
 from src.data.tokenizers import ProFamTokenizer
 from src.models import metrics
-from src.models.utils import log_likelihood_from_outputs
+from src.models.utils import InputAwareDynamicCache, log_likelihood_from_outputs
 
 
 def calc_grad_norm(params):
@@ -527,16 +527,6 @@ class BaseFamilyLitModule(BaseLitModule):
         )  # just a tuple of tensors - doesn't get extended
         L = completion_ids.shape[-1]
 
-        if self.embed_sequence_index:
-            prompt_sequence_index = self.model.compute_sequence_index(input_ids)
-            assert (input_ids[:, -1] == input_ids[0, -1]).all()
-            if input_ids[0, -1] == self.tokenizer.sep_token_id:
-                start_sequence_index = prompt_sequence_index[:, -1] + 1
-            else:
-                # maybe completion ids starts with sep token, in which case sequence index
-                # will automatically be incremented in model forward
-                start_sequence_index = prompt_sequence_index[:, -1]
-
         for batch_start in tqdm.tqdm(
             range(0, completion_ids.shape[1], batch_size), disable=not verbose
         ):
@@ -560,11 +550,9 @@ class BaseFamilyLitModule(BaseLitModule):
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
-            if self.embed_sequence_index:
-                forward_kwargs["start_sequence_index"] = start_sequence_index
 
             actual_batch_size = this_input_ids.shape[0]
-            cache = DynamicCache.from_legacy_cache(past_key_values)
+            cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
             cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
 
             outputs = self.model(
@@ -632,8 +620,10 @@ class BaseFamilyLitModule(BaseLitModule):
             if self.embed_coords:
                 assert coords is not None
                 raise NotImplementedError("Coords not yet supported for mutant scoring")
-            outputs = self.model(input_ids=this_input_ids, **forward_kwargs)
-            # remember likelihood at n predicts position n+1
+            outputs = self.model(
+                input_ids=this_input_ids, use_cache=False, **forward_kwargs
+            )
+            # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=likelihood_start_ix
             )  # 1, L
