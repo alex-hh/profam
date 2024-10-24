@@ -319,7 +319,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         )
         document_start_mask = input_ids == self.tokenizer.bos_token_id
         if (document_start_mask.sum(-1) > 1).any():
-            assert input_ids.shape[0] == 1, "Batch size must be 1 if there are multiple packed documents"
+            assert (
+                input_ids.shape[0] == 1
+            ), "Batch size must be 1 if there are multiple packed documents"
             document_starts = torch.argwhere(
                 input_ids[0] == self.tokenizer.bos_token_id
             ).flatten()

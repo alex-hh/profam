@@ -125,6 +125,7 @@ def preprocess_sequences_sampling_to_max_tokens(
     """
     extra_tokens_per_protein = 1  # separator token
     extra_tokens_per_document = tokenizer.num_start_tokens
+
     rnd = np.random if rng is None else rng
     if drop_first:
         proteins = proteins[1:]
@@ -145,23 +146,24 @@ def preprocess_sequences_sampling_to_max_tokens(
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
         seq_length = len(seq) + extra_tokens_per_protein
         # TODO: be careful about mapping coords etc when using aligned sequences.
-        if max_tokens is not None and (
-            total_length + seq_length >= max_tokens
-        ):
-            leftover_tokens = max_tokens - total_length
-            # truncate from start or end
-            if rnd.random() < 0.5:
-                start = -leftover_tokens
-                end = len(seq)
-            else:
-                start = 0
-                end = leftover_tokens
+        if max_tokens is not None and (total_length + seq_length > max_tokens):
+            leftover_tokens = max_tokens - total_length - 1  # -1 for sep token
+            if leftover_tokens > 0:
+                # truncate from start or end
+                if rnd.random() < 0.5:
+                    start = -leftover_tokens
+                    end = len(seq)
+                else:
+                    start = 0
+                    end = leftover_tokens
 
-            proteins.truncate_single(ix, start, end)
-            sampled_protein_ids.append(ix)
-            sampled_protein_sequences.append(seq[start:end])
-            sampled_protein_positions.append(pos[start:end])
-            break
+                proteins.truncate_single(ix, start, end)
+                sampled_protein_ids.append(ix)
+                sampled_protein_sequences.append(seq[start:end])
+                sampled_protein_positions.append(pos[start:end])
+                break
+            else:
+                break
 
         total_length += seq_length
         sampled_protein_ids.append(ix)
