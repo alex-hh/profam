@@ -295,7 +295,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             document_indices >= 0
         ).all(), "Negative document indices encountered: check that bos token is first token in each document"
         doc_starts = (
-            torch.argwhere(input_ids[0] == self.tokenizer.bos_token_id) + 1
+            torch.argwhere(input_ids[0] == self.tokenizer.bos_token_id)
         ).flatten()
         offsets = counter[doc_starts][document_indices]
         position_ids = (counter - offsets).unsqueeze(0)
