@@ -29,7 +29,7 @@ import time
 from typing import Optional
 
 import torch
-from datasets import Features, interleave_datasets, load_dataset
+from datasets import Features, interleave_datasets
 
 from src.constants import (
     ALL_FEATURE_NAMES,
@@ -37,13 +37,16 @@ from src.constants import (
     PROFAM_DATA_DIR,
     TOKENIZED_FEATURE_TYPES,
 )
-from src.data.datasets import ProteinDatasetConfig, wrapped_preprocess
-from src.data.processors.preprocessing import (
-    ParquetStructurePreprocessor,
-    PreprocessingConfig,
+from src.data.builders.hf_datasets import (
+    HFProteinDatasetConfig,
+    StructureDocumentIterableDataset,
 )
-from src.data.utils import DocumentBatchCollator
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.collators import DocumentBatchCollator
+from src.data.processors.preprocessing import (
+    PreprocessingConfig,
+    ProteinDocumentPreprocessor,
+)
+from src.data.tokenizers import ProFamTokenizer
 
 
 def main(
@@ -69,12 +72,17 @@ def main(
         f"Loading files matching glob: {os.path.join(PROFAM_DATA_DIR, f'{data_folder}/*.parquet')}"
     )
     # can we set batch_size for loader? is it useful
-    dataset = load_dataset(
-        path="parquet",
-        data_files=os.path.join(PROFAM_DATA_DIR, f"{data_folder}/*.parquet"),
-        split="train",
-        streaming=True,
+    cfg = HFProteinDatasetConfig(
+        data_path_pattern=f"{data_folder}/*.parquet",
+        force_batched_map=True if map_batch_size is not None else False,
+        map_batch_size=map_batch_size,
     )
+    preprocessor = ProteinDocumentPreprocessor(
+        cfg=PreprocessingConfig(max_tokens_per_example=max_tokens),
+    )  # applies default transforms
+    builder = StructureDocumentIterableDataset(name="test_dataset", cfg=cfg, preprocessor=preprocessor)
+    dataset = builder.load(data_dir=PROFAM_DATA_DIR)
+
     print("Initial formatting", dataset._formatting, dataset.info.features)
     if format is not None:
         dataset = dataset.with_format(format)
@@ -100,14 +108,6 @@ def main(
         )
 
     elif preprocess:
-        cfg = ProteinDatasetConfig(
-            identifier_col="fam_id",
-            preprocessor=ParquetStructurePreprocessor(
-                config=PreprocessingConfig(),
-                batched_map=True if map_batch_size is not None else False,
-                map_batch_size=map_batch_size,
-            ),
-        )
         tokenizer = ProFamTokenizer(
             tokenizer_file=os.path.join(BASEDIR, "data/profam_tokenizer.json"),
             unk_token="[UNK]",
@@ -120,28 +120,9 @@ def main(
             add_bos_token=True,
             add_document_token=True,
         )
-        preprocess_fn = wrapped_preprocess(
-            preprocess_fn=cfg.preprocessor.preprocess_protein_data,
-            cfg=cfg,
-            tokenizer=tokenizer,
-            dataset_name="foldseek_struct",
-            max_tokens_per_example=max_tokens,
-            shuffle=True,
+        dataset = builder.process(
+            dataset, tokenizer=tokenizer, feature_names=ALL_FEATURE_NAMES
         )
-        if preprocess_map:
-            features = Features(
-                **{f: TOKENIZED_FEATURE_TYPES[f] for f in ALL_FEATURE_NAMES}
-            )
-            # Does applying Map override formatting? that could be one issue...
-            dataset = dataset.map(
-                preprocess_fn,
-                batch_size=map_batch_size,
-                remove_columns=[
-                    c for c in dataset.column_names if c not in ALL_FEATURE_NAMES
-                ],
-                batched=True if map_batch_size is not None else False,
-                features=features,  # must be set when using interleave_datasets
-            )
 
     if interleave_n > 1:
         dataset = interleave_datasets([dataset] * interleave_n)
