@@ -50,7 +50,7 @@ class HFProteinDatasetConfig:
         False  # we will automatically set this to True if pack_to_max_tokens is set
     )
     map_batch_size: int = 100
-    process_online: bool = False  # only for map datasets
+    process_online: bool = False  # only relevant for map datasets
     # document-building
     sequence_col: str = "sequences"
     identifier_col: Optional[str] = "fam_id"
