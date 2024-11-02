@@ -8,7 +8,7 @@ defaults:
   - /extra_callbacks@extra_callbacks.esmfold_if: esmfold_if
   - /extra_callbacks@extra_callbacks.esmfold_if_high_plddt: esmfold_if
   - override /callbacks: default_with_shuffle
-  - override /data: foldseek_representatives_interleaved_packed
+  - override /data: foldseek_interleaved_packed
   - override /model: llama_small
 
 tags: ["foldseek_if"]
@@ -54,12 +54,7 @@ trainer:
   val_check_interval: 1.0  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
-
-data:
-  evaluate_gym: false
-  evaluate_ec_class: false
-  evaluate_ec_cluster_class: false
-  evaluate_pfam_class: false
+  tokens_per_document: ${data.pack_to_max_tokens}
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
