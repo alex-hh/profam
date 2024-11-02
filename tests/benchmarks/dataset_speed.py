@@ -76,6 +76,7 @@ def main(
         data_path_pattern=f"{data_folder}/*.parquet",
         force_batched_map=True if map_batch_size is not None else False,
         map_batch_size=map_batch_size,
+        return_format=format,
     )
     preprocessor = ProteinDocumentPreprocessor(
         cfg=PreprocessingConfig(max_tokens_per_example=max_tokens),
@@ -84,8 +85,6 @@ def main(
     dataset = builder.load(data_dir=PROFAM_DATA_DIR)
 
     print("Initial formatting", dataset._formatting, dataset.info.features)
-    if format is not None:
-        dataset = dataset.with_format(format)
 
     if null_filter:
         dataset = dataset.filter(lambda x: True)

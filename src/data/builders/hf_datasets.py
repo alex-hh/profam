@@ -286,6 +286,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
         dataset = dataset.filter(
             functools.partial(self.filter_fn, tokenizer=tokenizer),
         )
+        # TODO - do we need to reset format here? would guess not
         if self.preprocessor is not None and not self.cfg.process_online:
             if dataset.column_names is not None:
                 # Q: what causes None? maybe loading text rather than parquet
@@ -363,8 +364,8 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         """
         # TODO: handle batched filter?
         dataset = dataset.filter(
-            functools.partial(self.filter_fn, tokenizer=tokenizer),
-        )
+            functools.partial(self.filter_fn, tokenizer=tokenizer)
+        ).with_format(None)  # None prevents re-formatting post filter
         if self.preprocessor is not None:
             # Q. how does batched map interact with interleave datasets?
             if dataset.column_names is not None:
@@ -384,6 +385,11 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
                     "feature_names": feature_names,
                     "pack_to_max_tokens": pack_to_max_tokens,
                 },
+                features=Features(
+                    **{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names}
+                )
+                if feature_names is not None
+                else None,
             )
         return dataset
 
