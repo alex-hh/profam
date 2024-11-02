@@ -132,6 +132,7 @@ def main(
                 format
             )  # interleave datasets ignores underlying format(s)
 
+    dataset = dataset.with_format(None)
     t1 = time.time()
     print(f"Time to load dataset: {t1 - t0:.4f} seconds")
     print(dataset.info.features)
