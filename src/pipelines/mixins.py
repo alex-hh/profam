@@ -2,12 +2,9 @@ from typing import List, Optional
 
 import pandas as pd
 
-from src.data.builders.parquet import (
-    ParquetSequenceDatasetBuilder,
-    ParquetStructureDatasetBuilder,
-)
+from src.data.builders.hf_datasets import SequenceDocumentMixin, StructureDocumentMixin
 from src.data.objects import ProteinDocument
-from src.pipelines.pipeline import GenerationsEvaluatorPipeline
+from src.data.processors.preprocessing import ProteinDocumentPreprocessor
 
 
 class ParquetMixin:
@@ -16,7 +13,7 @@ class ParquetMixin:
     def __init__(
         self,
         *args,
-        preprocessor: BasePreprocessor,
+        preprocessor: ProteinDocumentPreprocessor,
         instance_id_col="fam_id",
         evaluation_parquet: Optional[str] = None,
         evaluation_accessions_file: Optional[str] = None,
@@ -81,7 +78,7 @@ class ParquetMixin:
 
     def load_protein_document(self, instance_id: str) -> ProteinDocument:
         example = self.get_protein_example(instance_id)
-        return ParquetSequenceDatasetBuilder.build_document(
+        return SequenceDocumentMixin.build_document(
             example,
             sequence_col=self.sequence_col,
             max_tokens=None,
@@ -122,7 +119,7 @@ class ParquetStructureMixin(ParquetMixin):
 
     def load_protein_document(self, instance_id: str) -> ProteinDocument:
         example = self.get_protein_example(instance_id)
-        return ParquetStructureDatasetBuilder.build_document(
+        return StructureDocumentMixin.build_document(
             example,
             sequence_col=self.sequence_col,
             structure_tokens_col=self.structure_tokens_col,

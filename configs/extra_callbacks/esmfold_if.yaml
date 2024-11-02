@@ -17,5 +17,5 @@ pipeline:
   evaluation_accessions_file: null
   max_instances: 15
   pipeline_id: foldseek_representatives  # for callback just determines metric name
-  preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
+  preprocessor: ${data.dataset_builders.foldseek.preprocessor}
 match_representative_length: true

@@ -24,7 +24,7 @@ extra_callbacks:
     pipeline:
       num_generations: 1
       pipeline_id: foldseek_representatives
-      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.data_path_pattern}
+      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.cfg.data_path_pattern}
       max_instances: 15
       max_protein_length: 512  # used to filter candidate target proteins
     match_representative_length: true
@@ -39,7 +39,7 @@ extra_callbacks:
     pipeline:
       num_generations: 1
       pipeline_id: foldseek_representatives_high_plddt
-      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.data_path_pattern}
+      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.cfg.data_path_pattern}
       max_instances: 15
       max_protein_length: 512  # used to filter candidate target proteins
       min_plddt: 0.9
