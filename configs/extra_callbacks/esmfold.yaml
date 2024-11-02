@@ -19,4 +19,3 @@ pipeline:
   evaluation_accessions_file: null
   max_instances: null
   pipeline_id: foldseek_n3  # for callback this doesnt matter
-  preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}

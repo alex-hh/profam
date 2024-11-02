@@ -12,5 +12,5 @@ cfg:
   file_type: parquet
   minimum_sequences: null
   structure_tokens_col: null
-  length_filter: max_seq_pos
+  length_filter: max_res_pos_in_seq
   infer_representative_from_identifier: true
