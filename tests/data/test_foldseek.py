@@ -300,7 +300,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         data,
         tokenizer=profam_tokenizer,
         pack_to_max_tokens=2048,
-        feature_names=["input_ids", "attention_mask", "labels", "plddts", "coords"],
+        feature_names=ALL_FEATURE_NAMES,
     )
     example = next(iter(data))
     print(example["input_ids"])

@@ -85,7 +85,7 @@ TOKENIZED_FEATURE_TYPES = {
     "plddts": Sequence(feature=Value(dtype="float32"), length=-1),
     "input_ids": Sequence(feature=Value(dtype="int32"), length=-1),
     "attention_mask": Sequence(feature=Value(dtype="int32"), length=-1),
-    # "labels": Sequence(feature=Value(dtype="int32"), length=-1),
+    "labels": Sequence(feature=Value(dtype="int32"), length=-1),
     "residue_index": Sequence(feature=Value(dtype="int32"), length=-1),
     "original_size": Value(dtype="int32"),
     "aa_mask": Sequence(feature=Value(dtype="bool"), length=-1),
