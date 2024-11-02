@@ -71,7 +71,7 @@ def main(
     print(
         f"Loading files matching glob: {os.path.join(PROFAM_DATA_DIR, f'{data_folder}/*.parquet')}"
     )
-    # can we set batch_size for loader? is it useful
+    # can we set batch_size for loader? is it useful?
     cfg = HFProteinDatasetConfig(
         data_path_pattern=f"{data_folder}/*.parquet",
         force_batched_map=True if map_batch_size is not None else False,
@@ -141,6 +141,7 @@ def main(
             if preprocess_null_manual:
                 datapoint = null_map(datapoint)
             elif preprocess_manual:
+                raise NotImplementedError("manual preprocessing not implemented")
                 datapoint = preprocess_fn(datapoint)
                 datapoint = {
                     k: v for k, v in datapoint.items() if k in ALL_FEATURE_NAMES
