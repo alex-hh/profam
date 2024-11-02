@@ -81,7 +81,9 @@ def main(
     preprocessor = ProteinDocumentPreprocessor(
         cfg=PreprocessingConfig(max_tokens_per_example=max_tokens),
     )  # applies default transforms
-    builder = StructureDocumentIterableDataset(name="test_dataset", cfg=cfg, preprocessor=preprocessor)
+    builder = StructureDocumentIterableDataset(
+        name="test_dataset", cfg=cfg, preprocessor=preprocessor
+    )
     dataset = builder.load(data_dir=PROFAM_DATA_DIR)
 
     print("Initial formatting", dataset._formatting, dataset.info.features)

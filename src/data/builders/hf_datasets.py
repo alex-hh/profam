@@ -365,7 +365,9 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
         # TODO: handle batched filter?
         dataset = dataset.filter(
             functools.partial(self.filter_fn, tokenizer=tokenizer)
-        ).with_format(None)  # None prevents re-formatting post filter
+        ).with_format(
+            None
+        )  # None prevents re-formatting post filter
         if self.preprocessor is not None:
             # Q. how does batched map interact with interleave datasets?
             if dataset.column_names is not None:
