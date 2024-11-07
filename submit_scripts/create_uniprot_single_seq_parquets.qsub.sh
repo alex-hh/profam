@@ -15,4 +15,6 @@ echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "#################### QSUB SCRIPT END  ####################"
 conda activate venvPF
-python conda activate venvPF/data_creation_scripts/create_uniprot_singe_seq_parquets.py
+export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
+export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
+python /SAN/orengolab/cath_plm/ProFam/profam/data_creation_scripts/create_uniprot_singe_seq_parquets.py
