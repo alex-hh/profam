@@ -180,6 +180,8 @@ def load_protein_dataset(
             streaming=cfg.stream,
             verification_mode="no_checks",
         )
+    elif cfg.is_pytorch:
+        pass
     else:
         # THIS STEP IS SLOW FOR GYM MSAS (V LARGE FILES) --- BUT WHY - WHAT HAPPENS?
         # TODO: load identifier?

@@ -547,7 +547,7 @@ class ParquetStructurePreprocessor(BasePreprocessor):
         self.structure_tokens_col = structure_tokens_col
         self.identifier_col = identifier_col
         self.infer_representative_from_identifier = infer_representative_from_identifier
-        self.upsample_pdb = upsample_pdb
+        self.upsample_pdb = upsample_pBasePreprocessordb
 
     @property
     def required_keys(self):
@@ -663,4 +663,22 @@ class ParquetStructurePreprocessor(BasePreprocessor):
             if self.infer_representative_from_identifier
             else None,
             original_size=len(example["sequences"]),
+        )
+
+class SingleSeqPreprocessor(BasePreprocessor):
+    
+
+    @property
+    def required_keys(self):
+        return ["sequence", "accession"]
+    
+    def build_document(
+        self,
+        example,
+        max_tokens: Optional[int] = None,
+    ):
+        return ProteinDocument(
+            sequences=[example["sequence"]],
+            accessions=[example["accession"]],
+            original_size=1,
         )

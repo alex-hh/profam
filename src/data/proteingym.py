@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from transformers import PreTrainedTokenizerFast
 
 from src.data import transforms
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.custom_datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.objects import ProteinDocument
 from src.data.transforms import sample_to_max_tokens
 from src.data.utils import DocumentBatchCollator

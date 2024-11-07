@@ -8,7 +8,7 @@ from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
 from src.constants import SEQUENCE_FEATURE_NAMES
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.custom_datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.family_classification import (
     load_classifier_dataset,
     load_ec_cluster_classifier_dataset,
