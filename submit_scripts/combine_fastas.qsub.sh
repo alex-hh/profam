@@ -23,8 +23,8 @@ output="${base_dir}/combined_sprot_trembl_uniprot.fasta"
 
 # Unzip, extract accessions, and combine both files
 {
-    zcat "$input1" | awk '/^>/{print ">" substr($1, 5, index($1, "|", 5) - 5)} !/^>/{print}'
-    zcat "$input2" | awk '/^>/{print ">" substr($1, 5, index($1, "|", 5) - 5)} !/^>/{print}'
+    zcat "$input1" | awk '/^>/{acc_pos=index(substr($1,5), "|"); print ">" substr($1,5,acc_pos-1)} !/^>/{print}'
+    zcat "$input2" | awk '/^>/{acc_pos=index(substr($1,5), "|"); print ">" substr($1,5,acc_pos-1)} !/^>/{print}'
 } > "$output"
 
 echo "Combined FASTA file created: $output"
