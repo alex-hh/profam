@@ -15,13 +15,13 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--repo-id", type=str, required=True)
-    parser.add_argument("--data-dir", type=str, required=True)
+    parser.add_argument("repo_id", type=str)
+    parser.add_argument("data_dir", type=str)
     # determine repo organization
     # https://huggingface.co/docs/datasets/en/repository_structure
     # makes sense to have a folder for each config and split (config_name/split_name)
     # Your data files may also be placed into different directories named train, test, and validation where each directory contains the data files for that split:
-    parser.add_argument("--config-name", type=str, required=True)
-    parser.add_argument("--split-name", type=str, default="train")
+    parser.add_argument("--config_name", type=str, required=True)
+    parser.add_argument("--split_name", type=str, default="train")
     args = parser.parse_args()
     main(args)
