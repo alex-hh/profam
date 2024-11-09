@@ -15,6 +15,17 @@ tags: ["foldseek_if"]
 
 seed: 12345
 
+data:
+  dataset_builders:
+    foldseek:
+      preprocessor:
+        cfg:
+          max_tokens_per_example: 4096
+    foldseek_val:
+      preprocessor:
+        cfg:
+          max_tokens_per_example: 4096
+
 extra_callbacks:
   esmfold_if:
     prompt_builder:

@@ -11,6 +11,7 @@ dataset_builders:
     cfg:
       holdout_data_files: foldseek_struct/0.parquet
       minimum_mean_plddt: 0.6
+      minimum_sequences: 10  # otherwise too much padding
     preprocessor:
       cfg:
         max_tokens_per_example: 8192
