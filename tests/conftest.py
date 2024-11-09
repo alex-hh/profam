@@ -12,7 +12,7 @@ from omegaconf import DictConfig, open_dict
 
 from src.constants import BASEDIR
 from src.data import preprocessing, transforms
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.custom_datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.proteingym import load_gym_dataset
 from src.data.utils import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer

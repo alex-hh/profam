@@ -5,7 +5,7 @@ import datasets
 import torch
 
 from src.constants import BASEDIR, SEQUENCE_FEATURE_NAMES
-from src.data.datasets import ProteinDatasetConfig, load_protein_dataset
+from src.data.custom_datasets import ProteinDatasetConfig, load_protein_dataset
 from src.data.preprocessing import FastaPreprocessor, PreprocessingConfig
 from src.utils.tokenizers import ProFamTokenizer
 

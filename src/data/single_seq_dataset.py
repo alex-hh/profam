@@ -103,22 +103,14 @@ class ProteinDataset(Dataset):
         return len(self.headers)
 
     def __getitem__(self, idx: int):
+        print(idx)
         header = self.headers[idx]
         sequence = self.fasta_index.get_sequence(header)
+        return {
+            'header': header,
+            'sequence': sequence,
+        }
 
-        # Tokenize sequence
-        encoding = self.tokenizer(
-            sequence,
-            truncation=True,
-            max_length=self.max_length,
-            padding='max_length',
-            return_tensors='pt' if self.return_tensors else None
-        )
-
-        if self.return_tensors:
-            # Remove batch dimension added by tokenizer
-            return {k: v.squeeze(0) for k, v in encoding.items()}
-        return encoding
 
     def __del__(self):
         """Cleanup memory-mapped file."""
@@ -128,5 +120,19 @@ class ProteinDataset(Dataset):
             self.fasta_file.close()
 
 if __name__=="__main__":
-    path_to_fasta = ""
-    pass
+    from src.utils.tokenizers import ProFamTokenizer
+    import time
+    path_to_fasta = "../data/uniprot/uniprot_sprot.fasta"
+    tokenizer = ProFamTokenizer(tokenizer_file="src/data/components/profam_tokenizer.json")
+    dataset = ProteinDataset(path_to_fasta, tokenizer=tokenizer, max_length=512, return_tensors=True)
+    dataloader = DataLoader(dataset, batch_size=16, num_workers=4, shuffle=True)
+    start = time.time()
+    tokens = 0
+    for batch in dataloader:
+        bp=1
+        tokens += sum([len(s) for s in batch['sequence']])
+        print(batch)
+        bp=1
+    end = time.time()
+    toks_per_sec = tokens / (end-start)
+    print(f"Processed {tokens} tokens in {end-start:.2f} seconds ({toks_per_sec:.2f} tokens/sec)")

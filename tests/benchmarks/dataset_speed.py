@@ -37,7 +37,7 @@ from src.constants import (
     PROFAM_DATA_DIR,
     TOKENIZED_FEATURE_TYPES,
 )
-from src.data.datasets import ProteinDatasetConfig, wrapped_preprocess
+from src.data.custom_datasets import ProteinDatasetConfig, wrapped_preprocess
 from src.data.preprocessing import ParquetStructurePreprocessor, PreprocessingConfig
 from src.data.utils import DocumentBatchCollator
 from src.utils.tokenizers import ProFamTokenizer
