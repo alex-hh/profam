@@ -13,8 +13,9 @@ dataset_builders:
       minimum_mean_plddt: 0.6
     preprocessor:
       cfg:
-        max_tokens_per_example: 8192
+        max_tokens_per_example: 2048
         padding: "max_length"
+        minimum_sequences: 10  # otherwise too much padding
     name: foldseek
   foldseek_val:
     cfg:
@@ -23,7 +24,7 @@ dataset_builders:
       file_repeats: 8  # for ddp
     preprocessor:
       cfg:
-        max_tokens_per_example: 8192
+        max_tokens_per_example: 2048
         padding: "max_length"
     name: foldseek_val
 batch_size: 6

@@ -9,6 +9,7 @@ from Bio.SVDSuperimposer import SVDSuperimposer
 from biotite import structure as struc
 from biotite.sequence import ProteinSequence
 from biotite.structure import io as strucio
+from biotite.structure.atoms import AtomArray
 from biotite.structure.residues import get_residue_starts, get_residues
 
 from src.constants import BACKBONE_ATOMS
@@ -67,6 +68,7 @@ class Protein:
     plddt: Optional[np.ndarray] = None
     backbone_coords: Optional[np.ndarray] = None
     backbone_coords_mask: Optional[np.ndarray] = None
+    chain_id: Optional[np.ndarray] = None
     structure_tokens: Optional[str] = None
 
     def __len__(self):
@@ -83,6 +85,7 @@ class Protein:
             [self.backbone_coords_mask]
             if self.backbone_coords_mask is not None
             else None,
+            [self.chain_id] if self.chain_id is not None else None,
             struct_comp,
         )
         if self.backbone_coords_mask is None and self.backbone_coords is not None:
@@ -91,6 +94,45 @@ class Protein:
                 np.zeros_like(self.backbone_coords),
                 np.ones_like(self.backbone_coords),
             )
+
+    def to_atom_array(self) -> AtomArray:
+        assert self.backbone_coords is not None
+        atoms = AtomArray(length=len(self.sequence) * 4)
+        atoms.set_annotation(
+            "res_letter", np.array(self.sequence)[:, None].repeat(4, axis=1).flatten()
+        )
+        atoms.set_annotation(
+            "res_id",
+            np.arange(len(self.sequence))[:, None].repeat(4, axis=1).flatten() + 1,
+        )
+        atoms.set_annotation(
+            "res_name",
+            np.array([ProteinSequence.convert_letter_1to3(aa) for aa in self.sequence])[
+                :, None
+            ]
+            .repeat(4, axis=1)
+            .flatten(),
+        )
+        if self.chain_id is not None:
+            atoms.set_annotation("chain_id", self.chain_id)
+        else:
+            atoms.set_annotation("chain_id", np.array(["A"] * len(self.sequence)))
+        if self.plddt is not None:
+            atoms.set_annotation("b_factor", np.array(self.plddt))
+        atoms.coord(self.backbone_coords.reshape((-1, 3)))
+        atoms.set_annotation(
+            "atom_name",
+            np.array(BACKBONE_ATOMS)[None, :]
+            .repeat(len(self.sequence), axis=0)
+            .flatten(),
+        )
+        atoms.set_annotation(
+            "element",
+            np.array([atom[0] for atom in BACKBONE_ATOMS])[None, :]
+            .repeat(len(self.sequence), axis=0)
+            .flatten(),
+        )
+        return atoms
 
     def view(self, view):
         """view=py3Dmol.view(width=800, height=600)"""
@@ -370,6 +412,50 @@ class ProteinDocument:
             **attr_dict,
             **kwargs,
         )
+
+    def to_atom_array(self) -> AtomArray:
+        """Concatenate all proteins into a single AtomArray"""
+        assert (
+            self.backbone_coords is not None
+        ), "Converting to AtomArray requires backbone coordinates"
+        atoms = AtomArray(length=sum(self.sequence_lengths))
+        backbone_coords = np.concatenate(self.backbone_coords)
+        atoms.coord = backbone_coords.reshape((-1, 3))
+        sequence = np.concatenate([np.array(seq) for seq in self.sequences])
+        atoms.set_annotation(
+            "res_letter", sequence[:, None].repeat(4, axis=1).flatten()
+        )
+        atoms.set_annotation(
+            "res_id", np.arange(len(sequence))[:, None].repeat(4, axis=1).flatten() + 1
+        )
+        atoms.set_annotation(
+            "res_name",
+            np.array([ProteinSequence.convert_letter_1to3(aa) for aa in sequence])[
+                :, None
+            ]
+            .repeat(4, axis=1)
+            .flatten(),
+        )
+        if self.plddts is not None:
+            atoms.set_annotation("b_factor", np.concatenate(self.plddts))
+        chain_ids = (
+            np.arange(len(self))[:, None]
+            .repeat(len(self.sequences[0]), axis=1)
+            .flatten()
+        )
+        atoms.set_annotation("chain_id", chain_ids)
+        atoms.set_annotation("accession", np.array(self.accessions)[chain_ids])
+        atoms.set_annotation(
+            "atom_name",
+            np.array(BACKBONE_ATOMS)[None, :].repeat(len(sequence), axis=0).flatten(),
+        )
+        atoms.set_annotation(
+            "element",
+            np.array([atom[0] for atom in BACKBONE_ATOMS])[None, :]
+            .repeat(len(sequence), axis=0)
+            .flatten(),
+        )
+        return atoms
 
     @classmethod
     def from_json(cls, json_file, strict: bool = False):

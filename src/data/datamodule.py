@@ -109,8 +109,8 @@ class ProteinDataMixture(LightningDataModule):
                     # https://huggingface.co/docs/datasets/about_mapstyle_vs_iterable
                     # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
                     # https://github.com/huggingface/datasets/pull/5735
+                    print(f"Dataset {data_key} example batch types")
                     print(
-                        f"Dataset {data_key} example batch types",
                         {
                             k: type(v)
                             for k, v in (
