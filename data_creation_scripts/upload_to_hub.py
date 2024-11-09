@@ -10,6 +10,7 @@ def main(args):
         folder_path=args.data_dir,
         repo_id=args.repo_id,
         path_in_repo=path_in_repo,
+        repo_type="dataset",
     )
 
 
