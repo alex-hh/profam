@@ -414,20 +414,28 @@ class ProteinDocument:
         )
 
     def to_atom_array(self) -> AtomArray:
-        """Concatenate all proteins into a single AtomArray"""
+        """Concatenate all proteins into a single AtomArray.
+        
+        TODO: write tests for this
+        """
         assert (
             self.backbone_coords is not None
         ), "Converting to AtomArray requires backbone coordinates"
-        atoms = AtomArray(length=sum(self.sequence_lengths))
+        atoms = AtomArray(length=sum(self.sequence_lengths)*4)
         backbone_coords = np.concatenate(self.backbone_coords)
         atoms.coord = backbone_coords.reshape((-1, 3))
-        sequence = np.concatenate([np.array(seq) for seq in self.sequences])
+        sequence = np.concatenate([np.array(list(seq)) for seq in self.sequences])
+        # atoms.set_annotation(
+        #     "res_letter", sequence[:, None].repeat(4, axis=1).flatten()
+        # )
+        if self.residue_positions is None:
+            residue_positions = [np.arange(len(seq))[:, None].repeat(4, axis=1).flatten() for seq in self.sequences]
+        else:
+            residue_positions = [np.array(pos)[:, None].repeat(4, axis=1).flatten() for pos in self.residue_positions]
         atoms.set_annotation(
-            "res_letter", sequence[:, None].repeat(4, axis=1).flatten()
+            "res_id", np.concatenate(residue_positions) + 1
         )
-        atoms.set_annotation(
-            "res_id", np.arange(len(sequence))[:, None].repeat(4, axis=1).flatten() + 1
-        )
+        # TODO: vectorise
         atoms.set_annotation(
             "res_name",
             np.array([ProteinSequence.convert_letter_1to3(aa) for aa in sequence])[
@@ -437,12 +445,10 @@ class ProteinDocument:
             .flatten(),
         )
         if self.plddts is not None:
-            atoms.set_annotation("b_factor", np.concatenate(self.plddts))
-        chain_ids = (
-            np.arange(len(self))[:, None]
-            .repeat(len(self.sequences[0]), axis=1)
-            .flatten()
-        )
+            atoms.set_annotation("b_factor", np.concatenate(self.plddts)[:, None].repeat(4, axis=1).flatten())
+
+        # use numeric chain id annotation as index - will need to convert back to int after saving.
+        chain_ids = np.concatenate([np.full((len(seq)*4,), i) for i, seq in enumerate(self.sequences)])
         atoms.set_annotation("chain_id", chain_ids)
         atoms.set_annotation("accession", np.array(self.accessions)[chain_ids])
         atoms.set_annotation(
@@ -455,6 +461,7 @@ class ProteinDocument:
             .repeat(len(sequence), axis=0)
             .flatten(),
         )
+        print("created atom array of length", len(atoms), self.sequence_lengths, atoms.chain_id, sum(self.sequence_lengths))
         return atoms
 
     @classmethod
