@@ -17,6 +17,7 @@ def main(args):
         folder_path=args.data_dir,
         repo_id=args.repo_id,
         repo_type="dataset",
+        allow_patterns="*.parquet",
     )
     # api.upload_folder(
     #     folder_path=args.data_dir,
