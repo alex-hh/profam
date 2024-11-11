@@ -111,7 +111,7 @@ def prepare_data_files(
         ]
         assert all(
             f in data_files for f in holdout_files
-        ), "Not all holdout files found in data files"
+        ), f"Not all holdout files {holdout_files} found in data files {data_files}"
         data_files = [f for f in data_files if f not in holdout_files]
         print(
             f"Excluded {len(holdout_files)} holdout files. {len(data_files)} files remaining."
