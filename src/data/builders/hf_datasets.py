@@ -42,7 +42,7 @@ class HFProteinDatasetConfig:
     max_sequences_per_document: Optional[int] = None
     holdout_identifiers: Optional[List[str]] = None
     required_keys: Optional[List[str]] = None
-    length_filter: Optional[str] = None  # max_tokens, max_res_pos_in_seq
+    length_filter: Optional[str] = "max_tokens"  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     # processing
     return_format: str = "numpy"

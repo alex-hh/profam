@@ -12,16 +12,19 @@ dataset_builders:
       holdout_data_files: foldseek_struct/0.parquet
       minimum_mean_plddt: 0.6
       minimum_sequences: 10  # otherwise too much padding
+      length_filter: max_tokens
     preprocessor:
       cfg:
         max_tokens_per_example: 8192
         padding: "max_length"
     name: foldseek
   foldseek_val:
+    _target_: src.data.builders.hf_datasets.StructureDocumentMapDataset
     cfg:
       data_path_pattern: foldseek_struct/0.parquet
       minimum_mean_plddt: 0.6
       file_repeats: 8  # for ddp
+      length_filter: max_tokens
     preprocessor:
       cfg:
         max_tokens_per_example: 8192
@@ -34,3 +37,4 @@ val_dataset_batch_sizes:
 num_workers: null # None means use all available CPU cores
 feature_names: ${constants.structure_features}
 total_num_train_samples: 1900000
+pack_to_max_tokens: null

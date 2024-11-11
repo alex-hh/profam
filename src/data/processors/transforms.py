@@ -521,7 +521,7 @@ def interleave_structure_sequence(
             interleaved_modality_masks = interleaved_modality_masks[:-1]
             assert (
                 len(interleaved_sequences) > 0
-            ), f"Cannot fit any sequences in max_tokens tried {total_tokens} max {max_tokens}"
+            ), f"Cannot fit any sequences in max_tokens sequence length {len(seq)} (becomes {len(seq) * 2 + 2}) max {max_tokens}"
             break
 
     return proteins.clone(

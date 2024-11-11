@@ -1,3 +1,5 @@
+# ignore these files from rsync  --exclude-from=.syncignore
+# n.b. commit_hash.txt is ignored by .gitignore but not here!
 **/__pycache__/
 **/*.pyc
 .vscode/
@@ -13,7 +15,6 @@ wandb
 outputs
 .git
 nohup.out
-commit_hash.txt  # does it need to be ignored? maybe for the auto update to work?
 .pytest_cache
 data/val_test/pfam/test/clustered_split_fastas/
 data/val_test/pfam/val/clustered_split_fastas/

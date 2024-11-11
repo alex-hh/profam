@@ -65,7 +65,7 @@ trainer:
   val_check_interval: 1.0  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
-  tokens_per_document: ${data.pack_to_max_tokens}
+  tokens_per_document: ${data.dataset_builders.foldseek.preprocessor.cfg.max_tokens_per_example}
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
