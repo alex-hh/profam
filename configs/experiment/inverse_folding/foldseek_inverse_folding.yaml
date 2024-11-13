@@ -61,6 +61,7 @@ model:
   num_warmup_steps: 1000
   scoring_max_tokens: 10240
   embed_coords: True
+  pass_res_pos_in_doc_as_position_ids: true
 
 logger:
   wandb:
