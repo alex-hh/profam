@@ -51,18 +51,18 @@ def pack_examples(examples: List[Dict]):
 
 
 def split_example(example, split_at_num_tokens, tokenizer):
-    split_example = {}
+    split_example_pre = {}
     assert example["input_ids"][0] == tokenizer.bos_token_id
     for k, v in example.items():
         if k in TOKENIZED_FEATURE_TYPES and (
             isinstance(TOKENIZED_FEATURE_TYPES[k], ARRAY_TYPES)
         ):
             bos_val = v[:1]
-            split_example[k] = v[:split_at_num_tokens]
+            split_example_pre[k] = v[:split_at_num_tokens]
             example[k] = np.concatenate([bos_val, v[split_at_num_tokens:]])
         else:
-            split_example[k] = v
-    return split_example, example
+            split_example_pre[k] = v
+    return split_example_pre, example
 
 
 # TODO: accept a batch_sampler (see below)
@@ -95,7 +95,7 @@ def pack_batches(
             if allow_split_packed_documents:
                 overhang_tokens = max_tokens_per_batch - total_packed_tokens
                 truncated_example, example = split_example(
-                    example, split_at_num_tokens=overhang_tokens
+                    example, split_at_num_tokens=overhang_tokens, tokenizer=tokenizer
                 )
                 examples_to_pack.append(truncated_example)
                 packed_examples.append(
