@@ -209,11 +209,7 @@ def test_foldseek_interleaved_tokenization(
 
 
 def test_foldseek_plddt_masking(profam_tokenizer):
-    preprocessing_cfg = preprocessing.AlignedProteinPreprocessingConfig(
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
         max_tokens_per_example=2048,
         shuffle_proteins_in_document=False,
     )
@@ -274,11 +270,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
 
 def test_foldseek_representative_concatenation(profam_tokenizer):
     # verify that building representatives into a single document is successful
-    preprocessing_cfg = preprocessing.AlignedProteinPreprocessingConfig(
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
+    preprocessing_cfg = preprocessing.PreprocessingConfig(
         shuffle_proteins_in_document=False,
     )
     parquet_3di_processor = preprocessing.ProteinDocumentPreprocessor(

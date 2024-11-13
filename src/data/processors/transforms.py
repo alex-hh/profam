@@ -80,10 +80,13 @@ def convert_raw_sequence_adding_positions(seq):
     return seq, list(range(1, len(seq) + 1)), [True] * len(seq)
 
 
-def _get_truncated_slice(seq_length, max_length):
-    truncation_start = np.random.randint(0, seq_length - max_length)
-    truncation_end = truncation_start + max_length
-    return slice(truncation_start, truncation_end)
+def _get_truncated_slice(seq_length, max_length, rnd):
+    if seq_length > max_length:
+        truncation_start = rnd.randint(0, seq_length - max_length)
+        truncation_end = truncation_start + max_length
+        return slice(truncation_start, truncation_end)
+    else:
+        return slice(None)
 
 
 def preprocess_raw_sequences_sampling_to_max_tokens(
@@ -126,7 +129,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         if keep_first:
             perm = np.concatenate(([0], perm[perm != 0]))
     else:
-        perm = range(len(proteins))
+        perm = np.arange(len(proteins))
 
     # todo: could store precomputed sequence lengths on object...but would need to keep updated.
     sequence_lengths = np.array(
@@ -138,24 +141,42 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
     )
     cumsum_lengths = extra_tokens_per_document + np.cumsum(truncated_sequence_lengths)
     if max_tokens is not None:
-        endpoint = np.searchsorted(cumsum_lengths, max_tokens)
+        endpoint = np.searchsorted(
+            cumsum_lengths, max_tokens
+        )  # position at which max_tokens is inserted to sort array - so we can actually include next element and truncate
         new_proteins = proteins[perm[: endpoint + 1]]
-        endpoint_length = cumsum_lengths[endpoint]
-        leftover_tokens = max_tokens - endpoint_length
-        if leftover_tokens > 0:
-            final_array_slice = _get_truncated_slice(
-                sequence_lengths[endpoint], max_length
+        effective_endpoint = min(endpoint + 1, len(proteins))
+        if effective_endpoint > 0 and effective_endpoint < len(proteins):
+            final_element_tokens = max_tokens - cumsum_lengths[effective_endpoint - 1]
+        elif effective_endpoint >= len(proteins):
+            effective_endpoint = len(proteins)
+            final_element_tokens = 0
+        else:
+            # effective_endpoint == 0
+            final_element_tokens = (
+                max_tokens - extra_tokens_per_document - extra_tokens_per_protein
             )
+        assert final_element_tokens >= 0
         if tokenizer.max_res_pos_in_seq is not None:
             array_slices = [
                 _get_truncated_slice(
                     sequence_lengths[i] - extra_tokens_per_protein,
                     tokenizer.max_res_pos_in_seq,
+                    rnd,
                 )
-                for i in perm[:endpoint]
-            ] + [final_array_slice]
+                for i in perm[:effective_endpoint]
+            ]
         else:
-            array_slices = [None] * endpoint + [final_array_slice]
+            array_slices = [None] * effective_endpoint
+
+        if effective_endpoint < len(proteins) and final_element_tokens > 0:
+            # TODO: rng seed this
+            final_array_slice = _get_truncated_slice(
+                sequence_lengths[effective_endpoint], final_element_tokens, rnd
+            )
+            array_slices[-1] = final_array_slice
+
+        assert len(array_slices) == len(new_proteins)
 
     else:
         new_proteins = proteins[perm]
@@ -164,6 +185,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
                 _get_truncated_slice(
                     sequence_lengths[i] - extra_tokens_per_protein,
                     tokenizer.max_res_pos_in_seq,
+                    rnd,
                 )
                 for i in perm
             ]
@@ -171,7 +193,9 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
             array_slices = [None] * len(perm)
 
     new_proteins = new_proteins.clone(
-        positions=[list(range(1, len(seq) + 1)) for seq in new_proteins.sequences]
+        residue_positions=[
+            list(range(1, len(seq) + 1)) for seq in new_proteins.sequences
+        ]
     )
     new_proteins = new_proteins.slice_arrays(array_slices)
     return new_proteins
@@ -218,7 +242,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
         if keep_first:
             perm = np.concatenate(([0], perm[perm != 0]))
     else:
-        perm = range(len(proteins))
+        perm = np.arange(len(proteins))
 
     total_length = extra_tokens_per_document
     sampled_protein_ids = []
@@ -248,7 +272,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                 leftover_tokens, tokenizer.max_res_pos_in_seq or leftover_tokens
             )
             if leftover_tokens > 0:
-                seq_slice = _get_truncated_slice(len(seq), leftover_tokens)
+                seq_slice = _get_truncated_slice(len(seq), leftover_tokens, rnd)
                 sampled_protein_ids.append(ix)
                 sampled_protein_sequences.append(seq[seq_slice])
                 sampled_protein_positions.append(pos[seq_slice])
@@ -258,7 +282,9 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
             and seq_length > tokenizer.max_res_pos_in_seq
         ):
             # N.B. assumes no addition or removal of residues in sequence conversion
-            seq_slice = _get_truncated_slice(len(seq), tokenizer.max_res_pos_in_seq)
+            seq_slice = _get_truncated_slice(
+                len(seq), tokenizer.max_res_pos_in_seq, rnd
+            )
             sampled_protein_ids.append(ix)
             sampled_protein_sequences.append(seq[seq_slice])
             sampled_protein_positions.append(pos[seq_slice])

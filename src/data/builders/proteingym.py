@@ -166,7 +166,7 @@ def load_comp_seq_dms_for_row(
         backbone_coords=None,
         structure_tokens=None,
     )
-    proteins = transforms.preprocess_sequences(
+    proteins = transforms.preprocess_aligned_sequences_sampling_to_max_tokens(
         proteins,
         tokenizer,
         sequence_converter=functools.partial(
@@ -176,6 +176,8 @@ def load_comp_seq_dms_for_row(
             to_upper=True,
             use_msa_pos=use_msa_pos,
         ),
+        max_tokens=None,
+        shuffle=False,
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
