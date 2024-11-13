@@ -13,7 +13,7 @@ wandb
 outputs
 .git
 nohup.out
-commit_hash.txt  # does it need to be ignored? maybe for the auto update to work?
+commit_hash.txt
 .pytest_cache
 data/val_test/pfam/test/clustered_split_fastas/
 data/val_test/pfam/val/clustered_split_fastas/
