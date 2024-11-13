@@ -37,7 +37,7 @@ def uniformly_sample_clusters(
 
 
 def filter_on_length(
-    example,
+    sequences,
     max_tokens,
     tokenizer,
     sequence_col="sequences",
@@ -47,13 +47,14 @@ def filter_on_length(
     if filter_type is None:
         return True
 
-    sequences = example[sequence_col]
     max_seq_length = max(len(s) for s in sequences)
 
     def check_max_res_pos_in_seq():
+        # TODO: handle this later by throwing out sequences that are too long
         return any(len(s) <= tokenizer.max_res_pos_in_seq - 1 for s in sequences)
 
     def check_max_tokens():
+        # TODO: handle this later by throwing out sequences that are too long
         if max_tokens is None:
             return True
 

@@ -42,7 +42,7 @@ class HFProteinDatasetConfig:
     max_sequences_per_document: Optional[int] = None
     holdout_identifiers: Optional[List[str]] = None
     required_keys: Optional[List[str]] = None
-    length_filter: Optional[str] = "max_tokens"  # max_tokens, max_res_pos_in_seq
+    # length_filter: Optional[str] = "max_tokens"  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     # processing
     return_format: str = "numpy"
@@ -221,16 +221,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             sequence_count >= min_required,
             self.cfg.holdout_identifiers is None
             or example[self.cfg.identifier_col] not in self.cfg.holdout_identifiers,
-            filter_on_length(
-                example,
-                filter_type=self.cfg.length_filter,
-                max_tokens=self.preprocessor.cfg.max_tokens_per_example
-                if self.preprocessor is not None
-                else None,
-                tokenizer=tokenizer,
-                sequence_col=self.cfg.sequence_col,
-                interleave_structure_sequence=self.interleave_structure_sequence,
-            ),
         ]
 
         return all(filters)
