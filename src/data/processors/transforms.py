@@ -132,12 +132,12 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         perm = np.arange(len(proteins))
 
     # todo: could store precomputed sequence lengths on object...but would need to keep updated.
-    sequence_lengths = np.array(
+    new_sequence_lengths = np.array(
         [len(seq) + extra_tokens_per_protein for seq in proteins.sequences]
     )[perm]
-    max_length = np.max(sequence_lengths)
+    max_length = np.max(new_sequence_lengths)
     truncated_sequence_lengths = np.minimum(
-        sequence_lengths, tokenizer.max_res_pos_in_seq or max_length
+        new_sequence_lengths, tokenizer.max_res_pos_in_seq or max_length
     )
     cumsum_lengths = extra_tokens_per_document + np.cumsum(truncated_sequence_lengths)
     if max_tokens is not None:
@@ -145,34 +145,38 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
             cumsum_lengths, max_tokens
         )  # position at which max_tokens is inserted to sort array - so we can actually include next element and truncate
         new_proteins = proteins[perm[: endpoint + 1]]
-        effective_endpoint = min(endpoint + 1, len(proteins))
-        if effective_endpoint > 0 and effective_endpoint < len(proteins):
-            final_element_tokens = max_tokens - cumsum_lengths[effective_endpoint - 1]
-        elif effective_endpoint >= len(proteins):
+        if endpoint > 0 and endpoint < len(proteins):
+            final_element_tokens = (
+                max_tokens - cumsum_lengths[endpoint - 1]
+            )  # cumsum lengths include extra tokens
+            effective_endpoint = endpoint + 1  # add a truncated element
+        elif endpoint >= len(proteins):
             effective_endpoint = len(proteins)
-            final_element_tokens = 0
+            final_element_tokens = new_sequence_lengths[-1]
         else:
-            # effective_endpoint == 0
+            # endpoint == 0
             final_element_tokens = (
                 max_tokens - extra_tokens_per_document - extra_tokens_per_protein
             )
+            effective_endpoint = 1  # add a truncated element
         assert final_element_tokens >= 0
         if tokenizer.max_res_pos_in_seq is not None:
             array_slices = [
                 _get_truncated_slice(
-                    sequence_lengths[i] - extra_tokens_per_protein,
+                    new_sequence_lengths[i] - extra_tokens_per_protein,
                     tokenizer.max_res_pos_in_seq,
                     rnd,
                 )
-                for i in perm[:effective_endpoint]
+                for i in range(effective_endpoint)
             ]
         else:
             array_slices = [None] * effective_endpoint
 
         if effective_endpoint < len(proteins) and final_element_tokens > 0:
             # TODO: rng seed this
+            assert len(array_slices) == effective_endpoint
             final_array_slice = _get_truncated_slice(
-                sequence_lengths[effective_endpoint], final_element_tokens, rnd
+                new_sequence_lengths[effective_endpoint - 1], final_element_tokens, rnd
             )
             array_slices[-1] = final_array_slice
 
@@ -183,11 +187,11 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         if tokenizer.max_res_pos_in_seq is not None:
             array_slices = [
                 _get_truncated_slice(
-                    sequence_lengths[i] - extra_tokens_per_protein,
+                    new_sequence_lengths[i] - extra_tokens_per_protein,
                     tokenizer.max_res_pos_in_seq,
                     rnd,
                 )
-                for i in perm
+                for i in range(len(perm))
             ]
         else:
             array_slices = [None] * len(perm)
