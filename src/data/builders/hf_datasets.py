@@ -222,7 +222,6 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             self.cfg.holdout_identifiers is None
             or example[self.cfg.identifier_col] not in self.cfg.holdout_identifiers,
         ]
-
         return all(filters)
 
 

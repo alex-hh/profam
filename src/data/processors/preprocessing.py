@@ -44,29 +44,33 @@ class AlignedProteinPreprocessingConfig(PreprocessingConfig):
     use_msa_pos: bool = False  # for msa sequences, if true, position index will be relative to alignment cols
 
 
-def default_transforms(
-    cfg: PreprocessingConfig,
-    sequence_converter: Callable,
-):
-    return [
-        functools.partial(
-            transforms.preprocess_sequences_sampling_to_max_tokens,
+def default_transforms(cfg: PreprocessingConfig):
+    if isinstance(cfg, AlignedProteinPreprocessingConfig):
+        sequence_converter = functools.partial(
+            transforms.convert_aligned_sequence_adding_positions,
+            keep_gaps=cfg.keep_gaps,
+            keep_insertions=cfg.keep_insertions,
+            to_upper=cfg.to_upper,
+            use_msa_pos=cfg.use_msa_pos,
+        )
+        preprocess_sequences_fn = functools.partial(
+            transforms.preprocess_aligned_sequences_sampling_to_max_tokens,
             max_tokens=cfg.max_tokens_per_example,
             shuffle=cfg.shuffle_proteins_in_document,
             sequence_converter=sequence_converter,
             drop_first=cfg.drop_first_protein,
             keep_first=cfg.keep_first_protein,
-        ),
-        transforms.fill_missing_fields,
-        transforms.replace_selenocysteine_pyrrolysine,
-    ]
-
-
-def default_transforms_single_protein(sequence_converter: Callable):
+        )
+    else:
+        preprocess_sequences_fn = functools.partial(
+            transforms.preprocess_raw_sequences_sampling_to_max_tokens,
+            max_tokens=cfg.max_tokens_per_example,
+            shuffle=cfg.shuffle_proteins_in_document,
+            drop_first=cfg.drop_first_protein,
+            keep_first=cfg.keep_first_protein,
+        )
     return [
-        functools.partial(
-            transforms.preprocess_sequences, sequence_converter=sequence_converter
-        ),
+        preprocess_sequences_fn,
         transforms.fill_missing_fields,
         transforms.replace_selenocysteine_pyrrolysine,
     ]
@@ -134,7 +138,6 @@ class ProteinDocumentPreprocessor:
         transform_fns: Optional[List[Callable]] = None,
         interleave_structure_sequence: bool = False,
         structure_first_prob: float = 1.0,
-        single_protein_documents: bool = False,
     ):
         self.cfg = cfg
         if interleave_structure_sequence:
@@ -150,26 +153,9 @@ class ProteinDocumentPreprocessor:
         self.interleave_structure_sequence = (
             interleave_structure_sequence  # should this be part of config?
         )
-        self.single_protein_documents = single_protein_documents
-
-    def sequence_converter(self, sequence):
-        if isinstance(self.cfg, AlignedProteinPreprocessingConfig):
-            return transforms.convert_aligned_sequence_adding_positions(
-                sequence,
-                keep_gaps=self.cfg.keep_gaps,
-                keep_insertions=self.cfg.keep_insertions,
-                to_upper=self.cfg.to_upper,
-                use_msa_pos=self.cfg.use_msa_pos,
-            )
-        else:
-            return transforms.convert_raw_sequence_adding_positions(sequence)
 
     def apply_transforms(self, proteins, tokenizer):
-        if self.single_protein_documents:
-            # TODO: get rid of this condition
-            transform_fns = default_transforms_single_protein(self.sequence_converter)
-        else:
-            transform_fns = default_transforms(self.cfg, self.sequence_converter)
+        transform_fns = default_transforms(self.cfg)
         transform_fns += self.transform_fns or []
         return transforms.apply_transforms(
             transform_fns,
