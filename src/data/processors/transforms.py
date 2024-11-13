@@ -144,7 +144,6 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         endpoint = np.searchsorted(
             cumsum_lengths, max_tokens
         )  # position at which max_tokens is inserted to sort array - so we can actually include next element and truncate
-        new_proteins = proteins[perm[: endpoint + 1]]
         if endpoint > 0 and endpoint < len(proteins):
             final_element_tokens = (
                 max_tokens - cumsum_lengths[endpoint - 1]
@@ -159,6 +158,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
                 max_tokens - extra_tokens_per_document - extra_tokens_per_protein
             )
             effective_endpoint = 1  # add a truncated element
+        new_proteins = proteins[perm[: effective_endpoint]]
         assert final_element_tokens >= 0
         if tokenizer.max_res_pos_in_seq is not None:
             array_slices = [
@@ -191,10 +191,10 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
                     tokenizer.max_res_pos_in_seq,
                     rnd,
                 )
-                for i in range(len(perm))
+                for i in range(len(new_proteins))
             ]
         else:
-            array_slices = [None] * len(perm)
+            array_slices = [None] * len(new_proteins)
 
     new_proteins = new_proteins.clone(
         residue_positions=[
