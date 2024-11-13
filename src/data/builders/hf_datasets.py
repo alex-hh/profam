@@ -297,6 +297,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 remove_columns = ["text"]
             else:
                 remove_columns = None
+            print(f"{self.name}: removing columns", remove_columns)
             dataset = dataset.map(
                 self.map_fn,
                 batched=self.cfg.force_batched_map or pack_to_max_tokens,
@@ -377,6 +378,7 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
                 ]  # shouldnt be necessary but is for plddts - bug?
             else:
                 remove_columns = None
+            print(f"{self.name}: removing columns", remove_columns)
             dataset = dataset.map(
                 self.map_fn,
                 batched=self.cfg.force_batched_map or pack_to_max_tokens,

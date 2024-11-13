@@ -95,7 +95,9 @@ def pack_batches(
                     example, split_at_num_tokens=overhang_tokens
                 )
                 examples_to_pack.append(truncated_example)
-            packed_examples.append(pack_examples(examples_to_pack))
+                packed_examples.append(
+                    pack_examples(examples_to_pack)
+                )  # TODO: check this
             examples_to_pack = []
             total_packed_tokens = 0
 
