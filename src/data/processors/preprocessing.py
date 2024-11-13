@@ -138,6 +138,7 @@ class ProteinDocumentPreprocessor:
         transform_fns: Optional[List[Callable]] = None,
         interleave_structure_sequence: bool = False,
         structure_first_prob: float = 1.0,
+        single_protein_documents: bool = False,
     ):
         self.cfg = cfg
         if interleave_structure_sequence:
@@ -153,6 +154,7 @@ class ProteinDocumentPreprocessor:
         self.interleave_structure_sequence = (
             interleave_structure_sequence  # should this be part of config?
         )
+        self.single_protein_documents = single_protein_documents
 
     def apply_transforms(self, proteins, tokenizer):
         transform_fns = default_transforms(self.cfg)

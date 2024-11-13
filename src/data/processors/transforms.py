@@ -80,6 +80,12 @@ def convert_raw_sequence_adding_positions(seq):
     return seq, list(range(1, len(seq) + 1)), [True] * len(seq)
 
 
+def _get_truncated_slice(seq_length, max_length):
+    truncation_start = np.random.randint(0, seq_length - max_length)
+    truncation_end = truncation_start + max_length
+    return slice(truncation_start, truncation_end)
+
+
 def preprocess_raw_sequences_sampling_to_max_tokens(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
@@ -122,11 +128,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
     else:
         perm = range(len(proteins))
 
-    def get_truncated_slice(seq_length, max_length):
-        truncation_start = np.random.randint(0, seq_length - max_length)
-        truncation_end = truncation_start + max_length
-        return slice(truncation_start, truncation_end)
-
+    # todo: could store precomputed sequence lengths on object...but would need to keep updated.
     sequence_lengths = np.array(
         [len(seq) + extra_tokens_per_protein for seq in proteins.sequences]
     )[perm]
@@ -141,12 +143,15 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         endpoint_length = cumsum_lengths[endpoint]
         leftover_tokens = max_tokens - endpoint_length
         if leftover_tokens > 0:
-            final_array_slice = get_truncated_slice(
+            final_array_slice = _get_truncated_slice(
                 sequence_lengths[endpoint], max_length
             )
         if tokenizer.max_res_pos_in_seq is not None:
             array_slices = [
-                get_truncated_slice(sequence_lengths[i], tokenizer.max_res_pos_in_seq)
+                _get_truncated_slice(
+                    sequence_lengths[i] - extra_tokens_per_protein,
+                    tokenizer.max_res_pos_in_seq,
+                )
                 for i in perm[:endpoint]
             ] + [final_array_slice]
         else:
@@ -156,7 +161,10 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         new_proteins = proteins[perm]
         if tokenizer.max_res_pos_in_seq is not None:
             array_slices = [
-                get_truncated_slice(sequence_lengths[i], tokenizer.max_res_pos_in_seq)
+                _get_truncated_slice(
+                    sequence_lengths[i] - extra_tokens_per_protein,
+                    tokenizer.max_res_pos_in_seq,
+                )
                 for i in perm
             ]
         else:
@@ -198,7 +206,6 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     Returns:
         A new ProteinDocument containing the sampled proteins.
     """
-    raise NotImplementedError("support for aligned structures not tested.")
     extra_tokens_per_protein = 1  # separator token
     extra_tokens_per_document = tokenizer.num_start_tokens
 
@@ -217,29 +224,20 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     sampled_protein_ids = []
     sampled_protein_sequences = []
     sampled_protein_positions = []
-    sampled_protein_slices = []
-
-    def truncate_to_length(available_tokens, ix, seq_length):
-        # truncate from start or end
-        if rnd.random() < 0.5:
-            start = -available_tokens
-            end = seq_length
-        else:
-            start = 0
-            end = available_tokens
-
-        proteins.truncate_single(ix, start, end)
-        return start, end
 
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
-        if len(seq) != len(proteins.sequences[ix]):
-            # TODO: we need sequence_converter to return converted_seq_indices
+        if any(
+            attr is not None
+            for attr in [
+                proteins.backbone_coords,
+                proteins.structure_tokens,
+                proteins.plddts,
+            ]
+        ):
             raise NotImplementedError(
-                "addition or removal of residues incompatible with structure arrays currently"
+                "To handle structure alignment we require something more sophisticated"
             )
-        else:
-            converted_seq_indices = np.arange(len(seq))
         seq_length = len(seq) + extra_tokens_per_protein
 
         if max_tokens is not None and (total_length + seq_length >= max_tokens):
@@ -250,37 +248,31 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                 leftover_tokens, tokenizer.max_res_pos_in_seq or leftover_tokens
             )
             if leftover_tokens > 0:
-                start, end = truncate_to_length(leftover_tokens, ix)
+                seq_slice = _get_truncated_slice(len(seq), leftover_tokens)
                 sampled_protein_ids.append(ix)
-                sampled_protein_sequences.append(seq[start:end])
-                sampled_protein_positions.append(pos[start:end])
-                sampled_protein_slices.append(slice(start, end))
+                sampled_protein_sequences.append(seq[seq_slice])
+                sampled_protein_positions.append(pos[seq_slice])
             break
         elif (
             tokenizer.max_res_pos_in_seq is not None
             and seq_length > tokenizer.max_res_pos_in_seq
         ):
             # N.B. assumes no addition or removal of residues in sequence conversion
-            start, end = truncate_to_length(tokenizer.max_res_pos_in_seq, ix)
+            seq_slice = _get_truncated_slice(len(seq), tokenizer.max_res_pos_in_seq)
             sampled_protein_ids.append(ix)
-            sampled_protein_sequences.append(seq[start:end])
-            sampled_protein_positions.append(pos[start:end])
-            sampled_protein_slices.append(slice(start, end))
+            sampled_protein_sequences.append(seq[seq_slice])
+            sampled_protein_positions.append(pos[seq_slice])
+            total_length += len(seq[seq_slice]) + extra_tokens_per_protein
         else:
             total_length += seq_length
             sampled_protein_ids.append(ix)
             sampled_protein_sequences.append(seq)
             sampled_protein_positions.append(pos)
-            sampled_protein_slices.append(None)
 
     # init will check array sizes - but misalignment could still occur
-    return (
-        proteins[sampled_protein_ids]
-        .slice_arrays(sampled_protein_slices)
-        .clone(
-            residue_positions=sampled_protein_positions,
-            sequences=sampled_protein_sequences,
-        )
+    return proteins[sampled_protein_ids].clone(
+        residue_positions=sampled_protein_positions,
+        sequences=sampled_protein_sequences,
     )
 
 
