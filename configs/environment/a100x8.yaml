@@ -2,7 +2,8 @@
 
 defaults:
   - override /logger: wandb
-  - override /trainer: gpu
+  - override /trainer: ddp
 
 trainer:
+  devices: 8
   precision: bf16-true
