@@ -50,14 +50,16 @@ def pack_examples(examples: List[Dict]):
     return packed_example
 
 
-def split_example(example, split_at_num_tokens):
+def split_example(example, split_at_num_tokens, tokenizer):
     split_example = {}
+    assert example["input_ids"][0] == tokenizer.bos_token_id
     for k, v in example.items():
         if k in TOKENIZED_FEATURE_TYPES and (
             isinstance(TOKENIZED_FEATURE_TYPES[k], ARRAY_TYPES)
         ):
+            bos_val = v[:1]
             split_example[k] = v[:split_at_num_tokens]
-            example[k] = v[split_at_num_tokens:]
+            example[k] = np.concatenate([bos_val, v[split_at_num_tokens:]])
         else:
             split_example[k] = v
     return split_example, example
@@ -88,6 +90,7 @@ def pack_batches(
     for example in examples:
         if example["input_ids"][0] != bos_token_id:
             raise ValueError("Documents must start with a bos token")
+
         if total_packed_tokens + example["input_ids"].shape[-1] > max_tokens_per_batch:
             if allow_split_packed_documents:
                 overhang_tokens = max_tokens_per_batch - total_packed_tokens
