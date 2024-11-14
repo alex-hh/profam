@@ -24,3 +24,4 @@ data/val_test/overlap_counts/
 src/models/tranception
 commit_hash.txt
 data/val_test/overlap_counts/
+data/cath_chain_topology_class.pickle
