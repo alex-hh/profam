@@ -62,6 +62,7 @@ model:
   scoring_max_tokens: 10240
   embed_coords: True
   pass_res_pos_in_doc_as_position_ids: true
+  lr: 1e-3
 
 logger:
   wandb:
