@@ -11,7 +11,7 @@ dataset_builders:
     cfg:
       holdout_data_files: foldseek_representatives/0.parquet
       minimum_mean_plddt: 0.6
-      map_batch_size: 750
+      map_batch_size: 1000
       allow_split_packed_documents: true
     preprocessor:
       cfg:
@@ -22,7 +22,7 @@ dataset_builders:
     cfg:
       data_path_pattern: foldseek_representatives/0.parquet
       minimum_mean_plddt: 0.6
-      map_batch_size: 750
+      map_batch_size: 1000
       allow_split_packed_documents: true
     preprocessor:
       cfg:
