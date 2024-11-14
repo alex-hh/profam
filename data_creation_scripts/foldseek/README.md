@@ -1,9 +1,13 @@
 Some of the way this is written is designed to allow for parallelisation on the cluster while avoiding io issues.
 
+### Partitioning documents into separate `job files` (n.b. these steps can be skipped if modifying an existing pipeline)
+
 First run save_pickled_dicts
 
 Next run prepare_job_files. On the cluster the output is saved to afdb/foldseek_job_files
 These files contain csvs with information on all proteins within sets of 250 random clusters.
+
+### Building documents in parallel on ucl cluster
 
 To build parquets from these files, run create_foldseek_struct_from_db with appropriate flags.
 

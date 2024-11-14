@@ -61,6 +61,7 @@ class HFProteinDatasetConfig:
     # doing it before is a bit more flexible because it allows for different max tokens
     # for different datasets
     allow_split_packed_documents: bool = False
+    document_repeats: int = 1  # repeat documents multiple times (reduce batch diversity / better estimate of invariance...)
 
 
 def random_subsample(arr, n, seed: Optional[int] = None):
@@ -150,7 +151,11 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
     ):
-        if self.cfg.force_batched_map or pack_to_max_tokens:
+        if (
+            self.cfg.force_batched_map
+            or pack_to_max_tokens
+            or self.cfg.document_repeats > 1
+        ):
             # Assert that tokenizer isn't padding to fixed length
             examples = self.batched_preprocess_examples(
                 example_or_examples,
@@ -289,7 +294,9 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
             print(f"{self.name}: removing columns", remove_columns)
             dataset = dataset.map(
                 self.map_fn,
-                batched=self.cfg.force_batched_map or pack_to_max_tokens,
+                batched=self.cfg.force_batched_map
+                or pack_to_max_tokens
+                or self.cfg.document_repeats > 1,
                 batch_size=self.cfg.map_batch_size,
                 remove_columns=remove_columns,
                 fn_kwargs={
@@ -370,7 +377,9 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
             print(f"{self.name}: removing columns", remove_columns)
             dataset = dataset.map(
                 self.map_fn,
-                batched=self.cfg.force_batched_map or pack_to_max_tokens,
+                batched=self.cfg.force_batched_map
+                or pack_to_max_tokens
+                or self.cfg.document_repeats > 1,
                 batch_size=self.cfg.map_batch_size,
                 remove_columns=remove_columns,
                 fn_kwargs={
