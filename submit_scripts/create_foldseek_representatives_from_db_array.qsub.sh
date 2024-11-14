@@ -30,5 +30,4 @@ if [ ! -f $output_file ]; then
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:/SAN/orengolab/cath_plm/ProFam/foldseek/bin/:$PATH
     ### MODIFY TO CHOOSE FOLDSEEK / AF50 REPRESENTATIVES
     python3 -m data_creation_scripts.foldseek.create_foldseek_struct_from_db ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --af50_representative_only
-    rm -rf ${SCRATCH_DIR}/data
 fi

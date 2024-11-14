@@ -56,7 +56,7 @@ def save_pdbs_to_parquet(
             try:
                 structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
             except Exception as e:
-                print(f"Error loading {pdb}: {e}")
+                print(f"Error loading {pdb}: {e}")  # not added to filelist
                 continue
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
