@@ -30,7 +30,9 @@ def make_ted_json_from_cath_tsv(ted_cath_asignment_path: str):
         counter = 0
         with open(ted_cath_asignment_path, "r") as f:
             for line in f:
-                ted_id_clust_rep, ted_id, cath_code, assignment_type = line.strip().split("\t")
+                split_line = line.strip().split("\t")
+                cath_code = split_line[13]
+                ted_id = split_line[0]
                 if cath_code not in cath_assignments:
                     cath_assignments[cath_code] = []
                 cath_assignments[cath_code].append(ted_id)
@@ -92,8 +94,9 @@ def make_foldseek_json(accessions_split: dict, fseek_parquet_dir: str):
     parq_paths = glob.glob(f"{fseek_parquet_dir}/*.parquet")
     overlaps = {}
     for parq_path in parq_paths:
+        print(f"Processing {parq_path}")
         df = pd.read_parquet(parq_path)
-        for _, row in df.iterrows():
+        for i, row in df.iterrows():
             fam_id = row["fam_id"]
             accessions = set(row["accessions"])
             if accessions & split_to_accessions["test"]:
@@ -102,6 +105,8 @@ def make_foldseek_json(accessions_split: dict, fseek_parquet_dir: str):
                 fseek_splits["validation"].append(fam_id)
             else:
                 fseek_splits["train"].append(fam_id)
+            if i % 100 == 0:
+                print(f"Processed {i} families")
     return fseek_splits
 
 def report_foldseek_json_stats(fseek_json: dict):
@@ -111,8 +116,10 @@ def report_foldseek_json_stats(fseek_json: dict):
 
 if __name__ == "__main__":
     splits = json.load(open("data/val_test/superfamily_splits.json", "r"))
-    make_ted_json_from_cath_tsv("../data/ted/ted_324m_seq_clustering.cathlabels.tsv")
-    ted_json = json.load(open("../data/ted/ted_324m_seq_clustering.cathlabels.json", "r"))
+    ted_tsv_path = "../data/ted/ted_365m.domain_summary.cath.globularity.taxid.tsv"
+    ted_json_path = ted_tsv_path.replace(".tsv", ".json")
+    make_ted_json_from_cath_tsv(ted_tsv_path)
+    ted_json = json.load(open(ted_json_path, "r"))
     report_ted_json_stats(ted_json)
     split_to_accessions = make_accessions_split(ted_json, splits)
     fseek_splits = make_foldseek_json(

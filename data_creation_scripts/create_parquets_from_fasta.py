@@ -12,6 +12,14 @@ from src.sequence.fasta import read_fasta
 import sys
 
 
+"""
+Created by Jude Wells
+File originally was called create_funfam_parquets.py
+not a perfect universal tools you need to modify how 
+the family name is extracted from the fasta file path
+designed to be run in parallel on UCL cluster
+"""
+
 def create_parquet_file(data, output_path):
     df = pd.DataFrame(data)
     table = pa.Table.from_pandas(df)
@@ -33,14 +41,13 @@ def calculate_list_size(string_list):
 
     return total_bytes
 
-def main(task_index, num_tasks, output_dir):
+def main(task_index, num_tasks, output_dir, fasta_glob_pattern, ds_name):
     parquet_compression_factor = 3
     target_parquet_size_mb = 100
     list_size_mb = target_parquet_size_mb * parquet_compression_factor
-    base_dir = "/SAN/orengolab/cath_alphafold/funfams_scans_2024/funfams"
     os.makedirs(output_dir, exist_ok=True)
 
-    all_families = sorted(glob.glob(f"{base_dir}/*/*.faa"))
+    all_families = sorted(glob.glob(fasta_glob_pattern))
     # shuffle families with seed so same across all subtasks
     rng = np.random.default_rng(seed=42)
     rng.shuffle(all_families)
@@ -58,7 +65,7 @@ def main(task_index, num_tasks, output_dir):
     parquet_size_mb = 0
     parquet_index = 0
     for family_path in families_to_process:
-        fam_id = family_path.split('/')[-1].split('.faa')[0]
+        fam_id = family_path.split('/')[-1].split('.faa')[0].split('_S50_rep_seq')[0]
         print(f"Processing family {fam_id}")
         accessions, sequences = read_fasta(
                     family_path,
@@ -79,7 +86,7 @@ def main(task_index, num_tasks, output_dir):
             sequence_bytes = calculate_list_size(sequences)
             parquet_size_mb += sequence_bytes / 1024 / 1024
             if parquet_size_mb >= list_size_mb:
-                parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(3)}.parquet'
+                parquet_name = f'{ds_name}_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(3)}.parquet'
                 output_file = os.path.join(output_dir, parquet_name)
                 create_parquet_file(data, output_file)
                 print(f"Created parquet file: {output_file}")
@@ -90,18 +97,20 @@ def main(task_index, num_tasks, output_dir):
                 fam_ids = []
                 gc.collect()
     if len(data):
-        parquet_name = f'funfam_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(2)}.parquet'
+        parquet_name = f'{ds_name}_data_{str(task_index).zfill(2)}_{str(parquet_index).zfill(2)}.parquet'
         output_file = os.path.join(output_dir, parquet_name)
         create_parquet_file(data, output_file)
         print(f"Created parquet file: {output_file}")
         fname_2_fam_id[parquet_name] = fam_ids
-    with open(os.path.join(output_dir, f'funfam_data_{str(task_index).zfill(2)}_fname2famid.json'), 'w') as f:
+    with open(os.path.join(output_dir, f'{ds_name}_data_{str(task_index).zfill(2)}_fname2famid.json'), 'w') as f:
         json.dump(fname_2_fam_id, f, indent=4)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create parquet files from FASTA files")
     parser.add_argument('--task_index', type=int, required=True, help="Index of the current task")
     parser.add_argument('--num_tasks', type=int, help="Total number of tasks")
+    parser.add_argument('--fasta_glob_pattern', type=str, help="Glob pattern for FASTA files")
+    parser.add_argument('--ds_name', type=str, help="Name of the dataset")
     parser.add_argument(
         '--save_dir',
         type=str,
@@ -109,4 +118,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    main(args.task_index, args.num_tasks, args.save_dir)
+    main(args.task_index, args.num_tasks, args.save_dir, args.fasta_glob_pattern, args.ds_name)
