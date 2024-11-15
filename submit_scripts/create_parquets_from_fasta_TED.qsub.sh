@@ -26,7 +26,7 @@ DS_NAME="ted_s50"
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 echo "Number of tasks: $SGE_TASK_LAST"
-python ${ROOT_DIR}/data_creation_scripts/create_funfam_parquets.py --task_index $((SGE_TASK_ID - 1)) --num_tasks $SGE_TASK_LAST --save_dir $SAVE_DIR --fasta_glob_pattern $FASTA_GLOB_PATTERN --ds_name $DS_NAME
+python ${ROOT_DIR}/data_creation_scripts/create_parquets_from_fasta.py --task_index $((SGE_TASK_ID - 1)) --num_tasks $SGE_TASK_LAST --save_dir $SAVE_DIR --fasta_glob_pattern $FASTA_GLOB_PATTERN --ds_name $DS_NAME
 date
 
 SAVE_SOURCE_PATH=${SAVE_DIR}/parquet_creation_source_code.txt
@@ -35,5 +35,5 @@ if [ "$SGE_TASK_ID" -eq 1 ]; then
     echo "##### start #####" > $SAVE_SOURCE_PATH
     cat "$0" >> $SAVE_SOURCE_PATH
     echo "##### Python script #####" >> $SAVE_SOURCE_PATH
-    cat "${ROOT_DIR}/data_creation_scripts/create_funfam_parquets.py" >> $SAVE_SOURCE_PATH
+    cat "${ROOT_DIR}/data_creation_scripts/create_parquets_from_fasta.py" >> $SAVE_SOURCE_PATH
 fi
