@@ -1,7 +1,9 @@
 import json
 import numpy as np
 import os
+import glob
 
+import pandas as pd
 
 """
 Ultimate goal is to create train / val / test splits for:
@@ -52,7 +54,31 @@ def reformat_to_up_ids(ted_json: dict):
     return {k: [upid.split("-")[1] for upid in v] for k, v in ted_json.items()}
 
 
-def make_foldseek_json(splits, ted_json, foldseek_json_path):
+def make_accessions_split(ted_json: dict, splits: dict):
+    """
+    Which uniprot accessions are assigned
+    to train / validation / test based on the 
+    topology splits.
+    """
+    split_to_accessions = {
+        "train": set(),
+        "validation": set(),
+        "test": set(),
+    }
+
+    for cath_code, ted_ids in ted_json.items():
+        up_ids = [t.split("-")[1] for t in ted_ids]
+        if cath_code in splits["test"]:
+            split_to_accessions["test"].update(up_ids)
+        elif cath_code in splits["validation"]:
+            split_to_accessions["validation"].update(up_ids)
+        else:
+            split_to_accessions["train"].update(up_ids)
+    split_to_accessions["validation"] = split_to_accessions["validation"] - split_to_accessions["test"]
+    split_to_accessions["train"] = split_to_accessions["train"] - split_to_accessions["test"] - split_to_accessions["validation"]
+    return split_to_accessions
+
+def make_foldseek_json(accessions_split: dict, fseek_parquet_dir: str):
     """
     creates the json file which assigns each
     family (foldseek afdb cluster) to train/val/test
@@ -63,11 +89,24 @@ def make_foldseek_json(splits, ted_json, foldseek_json_path):
         "validation": [],
         "test": [],
     }
-    fseek_members
-    foldseek = json.load(open(foldseek_json_path, "r"))
-    for fam, entries in foldseek.items():
+    parq_paths = glob.glob(f"{fseek_parquet_dir}/*.parquet")
+    overlaps = {}
+    for parq_path in parq_paths:
+        df = pd.read_parquet(parq_path)
+        for _, row in df.iterrows():
+            fam_id = row["fam_id"]
+            accessions = set(row["accessions"])
+            if accessions & split_to_accessions["test"]:
+                fseek_splits["test"].append(fam_id)
+            elif accessions & split_to_accessions["validation"]:
+                fseek_splits["validation"].append(fam_id)
+            else:
+                fseek_splits["train"].append(fam_id)
+    return fseek_splits
 
-    
+def report_foldseek_json_stats(fseek_json: dict):
+    for split, fams in fseek_json.items():
+        print(f"{split}: {len(fams)}")
 
 
 if __name__ == "__main__":
@@ -75,11 +114,13 @@ if __name__ == "__main__":
     make_ted_json_from_cath_tsv("../data/ted/ted_324m_seq_clustering.cathlabels.tsv")
     ted_json = json.load(open("../data/ted/ted_324m_seq_clustering.cathlabels.json", "r"))
     report_ted_json_stats(ted_json)
-    make_foldseek_json(
-        splits=splits,
-        ted_json=ted_json,
-        foldseek_json_path="",
+    split_to_accessions = make_accessions_split(ted_json, splits)
+    fseek_splits = make_foldseek_json(
+        accessions_split=split_to_accessions,
+        fseek_parquet_dir="../data/foldseek_af50",
     )
+    report_foldseek_json_stats(fseek_splits)
+    json.dump(fseek_splits, open("data/val_test/foldseek_cath_topology_splits.json", "w"), indent=4)
 
 
 
