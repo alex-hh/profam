@@ -78,6 +78,7 @@ def make_accessions_split(ted_json: dict, splits: dict):
             split_to_accessions["train"].update(up_ids)
     split_to_accessions["validation"] = split_to_accessions["validation"] - split_to_accessions["test"]
     split_to_accessions["train"] = split_to_accessions["train"] - split_to_accessions["test"] - split_to_accessions["validation"]
+    print(f"Finished making accessions split")
     return split_to_accessions
 
 def make_foldseek_json(accessions_split: dict, fseek_parquet_dir: str):
