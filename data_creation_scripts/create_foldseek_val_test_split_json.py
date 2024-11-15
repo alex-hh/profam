@@ -2,7 +2,7 @@ import json
 import numpy as np
 import os
 import glob
-
+import argparse
 import pandas as pd
 
 """
@@ -56,19 +56,22 @@ def reformat_to_up_ids(ted_json: dict):
     return {k: [upid.split("-")[1] for upid in v] for k, v in ted_json.items()}
 
 
-def make_accessions_split(ted_json: dict, splits: dict):
+def make_accessions_split(ted_json: dict, splits: dict, split_to_accession_savepath: str):
     """
     Which uniprot accessions are assigned
     to train / validation / test based on the 
     topology splits.
     """
+    if os.path.exists(split_to_accession_savepath):
+        print(f"Loading existing accessions split from {split_to_accession_savepath}")
+        return json.load(open(split_to_accession_savepath, "r"))
     split_to_accessions = {
         "train": set(),
         "validation": set(),
         "test": set(),
     }
-
-    for cath_code, ted_ids in ted_json.items():
+    total_cath_codes = len(ted_json)
+    for i, (cath_code, ted_ids) in enumerate(ted_json.items()):
         up_ids = [t.split("-")[1] for t in ted_ids]
         if cath_code in splits["test"]:
             split_to_accessions["test"].update(up_ids)
@@ -76,27 +79,43 @@ def make_accessions_split(ted_json: dict, splits: dict):
             split_to_accessions["validation"].update(up_ids)
         else:
             split_to_accessions["train"].update(up_ids)
+        if i % 100 == 0:
+            print(f"Processed {i}/{total_cath_codes} cath codes")
     split_to_accessions["validation"] = split_to_accessions["validation"] - split_to_accessions["test"]
     split_to_accessions["train"] = split_to_accessions["train"] - split_to_accessions["test"] - split_to_accessions["validation"]
     print(f"Finished making accessions split")
+    with open(split_to_accession_savepath, "w") as f:
+        json.dump(split_to_accessions, f, indent=4)
     return split_to_accessions
 
-def make_foldseek_json(accessions_split: dict, fseek_parquet_dir: str):
+def make_foldseek_json(accessions_split: dict, fseek_parquet_dir: str, task_index: int=0, num_tasks: int=1):
     """
     creates the json file which assigns each
     family (foldseek afdb cluster) to train/val/test
-    if a single ID is in test 
+    if a single ID is in test.
+    Processes a subset of parquet files based on task_index and num_tasks.
     """
+    if num_tasks > 1:
+        raise NotImplementedError("Multi-tasking not implemented yet")
     fseek_splits = {
         "train": [],
-        "validation": [],
+        "validation": [], 
         "test": [],
     }
-    parq_paths = glob.glob(f"{fseek_parquet_dir}/*.parquet")
-    overlaps = {}
-    for parq_path in parq_paths:
+    parq_paths = sorted(glob.glob(f"{fseek_parquet_dir}/*.parquet"))
+    
+    # Calculate chunk for this task
+    chunk_size = len(parq_paths) // num_tasks
+    start_idx = task_index * chunk_size
+    end_idx = start_idx + chunk_size if task_index < num_tasks - 1 else len(parq_paths)
+    task_parq_paths = parq_paths[start_idx:end_idx]
+    
+    print(f"Task {task_index+1}/{num_tasks}: Processing {len(task_parq_paths)} files")
+    
+    for parq_path in task_parq_paths:
         print(f"Processing {parq_path}")
         df = pd.read_parquet(parq_path)
+        print(f"df.shape: {df.shape}")
         for i, row in df.iterrows():
             fam_id = row["fam_id"]
             accessions = set(row["accessions"])
@@ -116,13 +135,18 @@ def report_foldseek_json_stats(fseek_json: dict):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task_index", type=int, required=True, help="Index of current task (0-based)")
+    parser.add_argument("--num_tasks", type=int, required=True, help="Total number of tasks")
+    args = parser.parse_args()
     splits = json.load(open("data/val_test/superfamily_splits.json", "r"))
     ted_tsv_path = "../data/ted/ted_365m.domain_summary.cath.globularity.taxid.tsv"
+    split_to_accession_savepath = "../data/ted/ted_esmif_accessions_split.json"
     ted_json_path = ted_tsv_path.replace(".tsv", ".json")
     make_ted_json_from_cath_tsv(ted_tsv_path)
     ted_json = json.load(open(ted_json_path, "r"))
     report_ted_json_stats(ted_json)
-    split_to_accessions = make_accessions_split(ted_json, splits)
+    split_to_accessions = make_accessions_split(ted_json, splits, split_to_accession_savepath)
     fseek_splits = make_foldseek_json(
         accessions_split=split_to_accessions,
         fseek_parquet_dir="../data/foldseek_af50",

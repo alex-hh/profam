@@ -4,7 +4,7 @@
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
 #$ -N tedParquets
-#$ -t 10
+#$ -t 1-10
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
