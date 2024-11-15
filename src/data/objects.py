@@ -456,9 +456,12 @@ class ProteinDocument:
 
         # use numeric chain id annotation as index - will need to convert back to int after saving.
         chain_ids = np.concatenate(
-            [np.full((len(seq) * 4,), i) for i, seq in enumerate(self.sequences)]
+            [
+                np.full((len(seq) * 4,), i, dtype=np.int32)
+                for i, seq in enumerate(self.sequences)
+            ]
         )
-        atoms.set_annotation("chain_id", chain_ids)
+        atoms.set_annotation("chain_id", chain_ids.astype(str))
         atoms.set_annotation("accession", np.array(self.accessions)[chain_ids])
         atoms.set_annotation(
             "atom_name",
