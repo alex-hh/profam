@@ -11,10 +11,14 @@
 #$ -j y
 #$ -l avx2=yes  # for foldmason
 
+### MODIFY --af50_representative_only to --representative_only to get only foldseek representatives
+### Also modify output_file
+
 date
 hostname
 file_prefix=$((SGE_TASK_ID - 1))
-output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_representatives/${file_prefix}.parquet"
+### MODIFY TO CHOOSE FOLDSEEK / AF50 REPRESENTATIVES
+output_file="/SAN/orengolab/cath_plm/ProFam/data/foldseek_af50_representatives/${file_prefix}.parquet"
 source /SAN/orengolab/cath_plm/ProFam/pfenv.source
 export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
 if [ ! -f $output_file ]; then
@@ -24,6 +28,6 @@ if [ ! -f $output_file ]; then
     echo "Created scratch dir"
     ls /scratch0/$USER/$JOB_ID
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:/SAN/orengolab/cath_plm/ProFam/foldseek/bin/:$PATH
-    python3 -m data_creation_scripts.foldseek.create_foldseek_struct_from_db ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --representative_only
-    rm -rf ${SCRATCH_DIR}/data
+    ### MODIFY TO CHOOSE FOLDSEEK / AF50 REPRESENTATIVES
+    python3 -m data_creation_scripts.foldseek.create_foldseek_struct_from_db ${SCRATCH_DIR}/data --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --af50_representative_only
 fi

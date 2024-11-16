@@ -75,6 +75,7 @@ class WandbLogger(WandbLogger):
                 hparams["git_hash"] = commit_hash
             else:
                 raise FileNotFoundError(
+                    # because this is a post-commit hook file won't be committed with present commit
                     f"File {hash_file} not found!\nPlease run the following:\n"
                     f"echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit"
                 )

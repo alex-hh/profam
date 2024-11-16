@@ -15,6 +15,17 @@ tags: ["foldseek_if"]
 
 seed: 12345
 
+data:
+  dataset_builders:
+    foldseek:
+      preprocessor:
+        cfg:
+          max_tokens_per_example: 4096
+    foldseek_val:
+      preprocessor:
+        cfg:
+          max_tokens_per_example: 4096
+
 extra_callbacks:
   esmfold_if:
     prompt_builder:
@@ -54,7 +65,7 @@ trainer:
   val_check_interval: 1.0  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
-  tokens_per_document: 2048
+  tokens_per_document: ${data.dataset_builders.foldseek.preprocessor.cfg.max_tokens_per_example}
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
@@ -68,6 +79,4 @@ logger:
     group: "inverse_folding"
 
 float32_matmul_precision: high
-pre_evaluate_gym: false  # use to run evaluation first to check for issues
-pre_evaluate_ec_class: false
 experiment_group: inverse_folding

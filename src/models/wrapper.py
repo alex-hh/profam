@@ -357,7 +357,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return position_ids
 
     def compute_start_sequence_index(self, past_key_values):
-        # TODO: write test for this!
         if past_key_values is None or past_key_values.input_ids_cache is None:
             return torch.tensor([0]).to(self.device)
         # model will automatically do compute_sequence_index on new tokens

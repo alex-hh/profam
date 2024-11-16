@@ -60,6 +60,7 @@ class BaseProteinDataset:
         tokenizer: ProFamTokenizer,
         pack_to_max_tokens: Optional[int] = None,
         allow_split_packed_documents: bool = False,
+        document_repeats: int = 1,
     ) -> Dict[str, List[Any]]:
         """Function to be mapped.
 
@@ -83,4 +84,9 @@ class BaseProteinDataset:
             examples["identifier"] = [
                 self.name + "/" + ident for ident in examples["identifier"]
             ]
+        if document_repeats > 1:
+            return {
+                k: [item for item in v for _ in range(document_repeats)]
+                for k, v in examples.items()
+            }
         return examples

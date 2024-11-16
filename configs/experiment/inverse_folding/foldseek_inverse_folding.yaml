@@ -24,7 +24,7 @@ extra_callbacks:
     pipeline:
       num_generations: 1
       pipeline_id: foldseek_representatives
-      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.data_path_pattern}
+      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.cfg.data_path_pattern}
       max_instances: 15
       max_protein_length: 512  # used to filter candidate target proteins
     match_representative_length: true
@@ -39,7 +39,7 @@ extra_callbacks:
     pipeline:
       num_generations: 1
       pipeline_id: foldseek_representatives_high_plddt
-      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.data_path_pattern}
+      evaluation_parquet: ${paths.data_dir}/${data.dataset_builders.foldseek_val.cfg.data_path_pattern}
       max_instances: 15
       max_protein_length: 512  # used to filter candidate target proteins
       min_plddt: 0.9
@@ -54,18 +54,15 @@ trainer:
   val_check_interval: 1.0  # number of BATCHES: not steps
   check_val_every_n_epoch: 1
   num_sanity_val_steps: 2
-
-data:
-  evaluate_gym: false
-  evaluate_ec_class: false
-  evaluate_ec_cluster_class: false
-  evaluate_pfam_class: false
+  tokens_per_document: ${data.pack_to_max_tokens}
 
 model:
   scheduler_name: "inverse_sqrt"  # inverse_sqrt, cosine, ...
   num_warmup_steps: 1000
   scoring_max_tokens: 10240
   embed_coords: True
+  pass_res_pos_in_doc_as_position_ids: true
+  lr: 1e-3
 
 logger:
   wandb:
@@ -73,6 +70,4 @@ logger:
     group: "inverse_folding"
 
 float32_matmul_precision: high
-pre_evaluate_gym: false  # use to run evaluation first to check for issues
-pre_evaluate_ec_class: false
 experiment_group: inverse_folding

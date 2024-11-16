@@ -5,8 +5,7 @@ import numpy as np
 from src.data.objects import ProteinDocument
 from src.data.processors.transforms import (
     convert_aligned_sequence_adding_positions,
-    convert_raw_sequence_adding_positions,
-    preprocess_sequences_sampling_to_max_tokens,
+    preprocess_aligned_sequences_sampling_to_max_tokens,
 )
 from src.data.tokenizers import get_residue_index_from_positions
 
@@ -95,7 +94,7 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
             to_upper=True,
             use_msa_pos=True,
         )
-        msa_proteins = preprocess_sequences_sampling_to_max_tokens(
+        msa_proteins = preprocess_aligned_sequences_sampling_to_max_tokens(
             msa_proteins,
             tokenizer=profam_tokenizer,
             sequence_converter=sequence_converter,
@@ -105,7 +104,7 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
 
         # Process completion sequences
         completion_proteins = ProteinDocument(sequences=case["completion_seqs"])
-        completion_proteins = preprocess_sequences_sampling_to_max_tokens(
+        completion_proteins = preprocess_aligned_sequences_sampling_to_max_tokens(
             completion_proteins,
             tokenizer=profam_tokenizer,
             sequence_converter=sequence_converter,

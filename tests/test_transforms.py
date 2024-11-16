@@ -3,10 +3,8 @@ import pytest
 
 from src.data.objects import ProteinDocument, check_array_lengths
 from src.data.processors.transforms import (
-    convert_raw_sequence_adding_positions,
-    preprocess_sequences_sampling_to_max_tokens,
+    preprocess_raw_sequences_sampling_to_max_tokens,
 )
-from src.data.tokenizers import ProFamTokenizer
 
 
 @pytest.fixture
@@ -40,10 +38,9 @@ def test_sample_to_max_tokens_exceeds_max(protein_document, profam_tokenizer):
     max_tokens = 50  # Set max_tokens less than any sequence length
     for _ in range(10):
         # 10 times to cover random differences in algo
-        sampled_proteins = preprocess_sequences_sampling_to_max_tokens(
+        sampled_proteins = preprocess_raw_sequences_sampling_to_max_tokens(
             protein_document,
             tokenizer=profam_tokenizer,
-            sequence_converter=convert_raw_sequence_adding_positions,
             max_tokens=max_tokens,
         )
 

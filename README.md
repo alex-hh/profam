@@ -32,16 +32,48 @@ pip install -r requirements.txt
 
 # if using flash attention, install separately
 pip install flash-attn --no-build-isolation
+
+# if on a development machine, install the follow post-commit hook to track git hash
+echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+```
+
+#### Transferring repo to new filesystems
+
+commit_hash.txt will only be updated locally when commits are made. The post commit hook requires that commit_hash is gitignore. Having installed the git hook one way to upload files to e.g. a cluster that ensures that the commit hash is preserved is therefore to do e.g.:
+
+```bash
+rsync -av --max-size=5m --exclude-from='.syncignore' ./ USER@REMOTE_IP:/home/ubuntu/profam-usw/profam
 ```
 
 #### Loading environment on UCL cs cluster
 
 ```bash
 source /SAN/orengolab/cath_plm/ProFam/pfenv.source
-export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data
+export PROFAM_DATA_DIR=/SAN/orengolab/cath_plm/ProFam/data  # for what?
 ```
 
 (The former file is at scripts/pfenv.source)
+
+
+#### Uploading datasets to the hub
+
+```bash
+huggingface-cli upload-large-folder profam/<FOLDER_NAME> <FOLDER_NAME> --repo-type dataset --num-workers <num_cores>
+```
+
+#### Loading environment and data on a new cluster
+
+Follow the installation instructions above then:
+
+
+```bash
+huggingface-cli login  # now enter your token, and store as git credential
+huggingface-cli download profam/<FOLDER_NAME> --repo-type dataset --local-dir <PATH/TO/DATA/DIR>/<FOLDER_NAME>
+# the files should now be at <PATH/TO/DATA/DIR>/<FOLDER_NAME>/*.parquet
+# now train/benchmark, setting paths.data_dir appropriately
+HYDRA_FULL_ERROR=1 python src/train.py ... paths.data_dir=PATH/TO/DATA/DIR
+```
+
 
 ## Introduction
 

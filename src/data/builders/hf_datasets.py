@@ -42,7 +42,7 @@ class HFProteinDatasetConfig:
     max_sequences_per_document: Optional[int] = None
     holdout_identifiers: Optional[List[str]] = None
     required_keys: Optional[List[str]] = None
-    length_filter: Optional[str] = None  # max_tokens, max_res_pos_in_seq
+    # length_filter: Optional[str] = "max_tokens"  # max_tokens, max_res_pos_in_seq
     minimum_mean_plddt: Optional[float] = None
     # processing
     return_format: str = "numpy"
@@ -61,6 +61,7 @@ class HFProteinDatasetConfig:
     # doing it before is a bit more flexible because it allows for different max tokens
     # for different datasets
     allow_split_packed_documents: bool = False
+    document_repeats: int = 1  # repeat documents multiple times (reduce batch diversity / better estimate of invariance...)
 
 
 def random_subsample(arr, n, seed: Optional[int] = None):
@@ -111,7 +112,7 @@ def prepare_data_files(
         ]
         assert all(
             f in data_files for f in holdout_files
-        ), "Not all holdout files found in data files"
+        ), f"Not all holdout files {holdout_files} found in data files {data_files}"
         data_files = [f for f in data_files if f not in holdout_files]
         print(
             f"Excluded {len(holdout_files)} holdout files. {len(data_files)} files remaining."
@@ -150,7 +151,11 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
     ):
-        if self.cfg.force_batched_map or pack_to_max_tokens:
+        if (
+            self.cfg.force_batched_map
+            or pack_to_max_tokens
+            or self.cfg.document_repeats > 1
+        ):
             # Assert that tokenizer isn't padding to fixed length
             examples = self.batched_preprocess_examples(
                 example_or_examples,
@@ -221,18 +226,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             sequence_count >= min_required,
             self.cfg.holdout_identifiers is None
             or example[self.cfg.identifier_col] not in self.cfg.holdout_identifiers,
-            filter_on_length(
-                example,
-                filter_type=self.cfg.length_filter,
-                max_tokens=self.preprocessor.cfg.max_tokens_per_example
-                if self.preprocessor is not None
-                else None,
-                tokenizer=tokenizer,
-                sequence_col=self.cfg.sequence_col,
-                interleave_structure_sequence=self.interleave_structure_sequence,
-            ),
         ]
-
         return all(filters)
 
 
@@ -297,9 +291,12 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 remove_columns = ["text"]
             else:
                 remove_columns = None
+            print(f"{self.name}: removing columns", remove_columns)
             dataset = dataset.map(
                 self.map_fn,
-                batched=self.cfg.force_batched_map or pack_to_max_tokens,
+                batched=self.cfg.force_batched_map
+                or pack_to_max_tokens
+                or self.cfg.document_repeats > 1,
                 batch_size=self.cfg.map_batch_size,
                 remove_columns=remove_columns,
                 fn_kwargs={
@@ -377,9 +374,12 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
                 ]  # shouldnt be necessary but is for plddts - bug?
             else:
                 remove_columns = None
+            print(f"{self.name}: removing columns", remove_columns)
             dataset = dataset.map(
                 self.map_fn,
-                batched=self.cfg.force_batched_map or pack_to_max_tokens,
+                batched=self.cfg.force_batched_map
+                or pack_to_max_tokens
+                or self.cfg.document_repeats > 1,
                 batch_size=self.cfg.map_batch_size,
                 remove_columns=remove_columns,
                 fn_kwargs={

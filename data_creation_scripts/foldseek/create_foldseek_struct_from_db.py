@@ -56,7 +56,7 @@ def save_pdbs_to_parquet(
             try:
                 structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
             except Exception as e:
-                print(f"Error loading {pdb}: {e}")
+                print(f"Error loading {pdb}: {e}")  # not added to filelist
                 continue
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
@@ -97,12 +97,12 @@ def save_pdbs_to_parquet(
                 shutil.rmtree(foldmason_outdir)
                 has_foldmason_results = True
 
+        if convert_to_3di:
+            sequences_3di = convert_pdbs_to_3di(cluster_filelist, os.path.join(pdbs_dir, f"{cluster_id}_3di.tsv"))
+
         if not keep_pdbs:
             for pdb in cluster_filelist:
                 os.remove(pdb)
-
-        if convert_to_3di:
-            sequences_3di = convert_pdbs_to_3di(cluster_filelist, os.path.join(pdbs_dir, f"{cluster_id}_3di.tsv"))
 
         # TODO: save representative?
         res = {

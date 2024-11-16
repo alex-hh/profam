@@ -9,7 +9,9 @@ from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
-from src.data.processors.transforms import preprocess_sequences_sampling_to_max_tokens
+from src.data.processors.transforms import (
+    preprocess_aligned_sequences_sampling_to_max_tokens,
+)
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
 
@@ -118,7 +120,7 @@ def load_msa_for_row(
     # need to allow room for the completion
     # todo should be max completion length (once we handle indels)
     max_tokens_for_msa = max_tokens - max([len(s) for s in seqs]) - 2
-    proteins = preprocess_sequences_sampling_to_max_tokens(
+    proteins = preprocess_aligned_sequences_sampling_to_max_tokens(
         proteins,
         tokenizer=tokenizer,
         seed=seed,
@@ -164,7 +166,7 @@ def load_comp_seq_dms_for_row(
         backbone_coords=None,
         structure_tokens=None,
     )
-    proteins = transforms.preprocess_sequences(
+    proteins = transforms.preprocess_aligned_sequences_sampling_to_max_tokens(
         proteins,
         tokenizer,
         sequence_converter=functools.partial(
@@ -174,6 +176,8 @@ def load_comp_seq_dms_for_row(
             to_upper=True,
             use_msa_pos=use_msa_pos,
         ),
+        max_tokens=None,
+        shuffle=False,
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
