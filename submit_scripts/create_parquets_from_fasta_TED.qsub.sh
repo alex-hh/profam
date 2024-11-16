@@ -3,8 +3,8 @@
 #$ -l h_vmem=32G
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N tedParquets
-#$ -t 1-10
+#$ -N tedRParquets
+#$ -t 1-5
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -19,9 +19,9 @@ echo "####################  QSUB SCRIPT END  ####################"
 conda activate venvPF
 
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-SAVE_DIR="/SAN/orengolab/cath_plm/ProFam/data/ted/s50_parquets"
-FASTA_GLOB_PATTERN="/SAN/orengolab/cath_plm/ProFam/data/ted/ted_s50_by_sfam/*.fasta"
-DS_NAME="ted_s50"
+SAVE_DIR="/SAN/orengolab/cath_plm/ProFam/data/ted/s100_parquets"
+FASTA_GLOB_PATTERN="/cluster/project9/afdb_domain_ext/results/cath_gene3d_hits/ted_domain_sequences_by_sfam/*.fasta"
+DS_NAME="ted_100"
 
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
