@@ -46,6 +46,8 @@ def main(task_index, num_tasks, output_dir, fasta_glob_pattern, ds_name):
     target_parquet_size_mb = 100
     list_size_mb = target_parquet_size_mb * parquet_compression_factor
     os.makedirs(output_dir, exist_ok=True)
+    index_save_dir = os.path.join(output_dir, 'index_files')
+    os.makedirs(index_save_dir, exist_ok=True)
 
     all_families = sorted(glob.glob(fasta_glob_pattern))
     # shuffle families with seed so same across all subtasks
@@ -102,7 +104,7 @@ def main(task_index, num_tasks, output_dir, fasta_glob_pattern, ds_name):
         create_parquet_file(data, output_file)
         print(f"Created parquet file: {output_file}")
         fname_2_fam_id[parquet_name] = fam_ids
-    with open(os.path.join(output_dir, f'{ds_name}_data_{str(task_index).zfill(2)}_fname2famid.json'), 'w') as f:
+    with open(os.path.join(index_save_dir, f'{ds_name}_data_{str(task_index).zfill(2)}_fname2famid.json'), 'w') as f:
         json.dump(fname_2_fam_id, f, indent=4)
 
 if __name__ == "__main__":

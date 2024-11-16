@@ -1,10 +1,10 @@
 #!/bin/bash
 #$ -l tmem=32G
 #$ -l h_vmem=32G
-#$ -l h_rt=47:55:30
+#$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N create_funfam_parquets
-#$ -t 5
+#$ -N ffS50parqs
+#$ -t 1-5
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -19,10 +19,19 @@ echo "####################  QSUB SCRIPT END  ####################"
 conda activate venvPF
 
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-SAVE_DIR="/SAN/orengolab/cath_plm/ProFam/data/funfams/parquets"
+SAVE_DIR="/SAN/orengolab/cath_plm/ProFam/data/funfams/s50_parquets"
+FASTA_GLOB_PATTERN="/SAN/orengolab/cath_alphafold/funfams_scans_2024/ted/funfams/*/*.faa"
+DS_NAME="funfams_s50"
+
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
-python ${ROOT_DIR}/data_creation_scripts/create_funfam_parquets.py --task_index $((SGE_TASK_ID - 1)) --num_tasks 5 --save_dir $SAVE_DIR
+echo "Number of tasks: $SGE_TASK_LAST"
+python ${ROOT_DIR}/data_creation_scripts/create_parquets_from_fasta.py \
+--task_index $((SGE_TASK_ID - 1)) \
+--num_tasks $SGE_TASK_LAST \
+--save_dir $SAVE_DIR \
+--fasta_glob_pattern "$FASTA_GLOB_PATTERN" \
+--ds_name $DS_NAME
 date
 
 SAVE_SOURCE_PATH=${SAVE_DIR}/parquet_creation_source_code.txt
@@ -31,5 +40,5 @@ if [ "$SGE_TASK_ID" -eq 1 ]; then
     echo "##### start #####" > $SAVE_SOURCE_PATH
     cat "$0" >> $SAVE_SOURCE_PATH
     echo "##### Python script #####" >> $SAVE_SOURCE_PATH
-    cat "${ROOT_DIR}/data_creation_scripts/create_funfam_parquets.py" >> $SAVE_SOURCE_PATH
+    cat "${ROOT_DIR}/data_creation_scripts/create_parquets_from_fasta.py" >> $SAVE_SOURCE_PATH
 fi
