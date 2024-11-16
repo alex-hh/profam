@@ -37,7 +37,8 @@ date
 SAVE_SOURCE_PATH=${SAVE_DIR}/parquet_creation_source_code.txt
 # if SGE_TASK_ID=1, then save the contents of this script and python script to SAVE_SOURCE_PATH
 if [ "$SGE_TASK_ID" -eq 1 ]; then
-    echo "##### start #####" > $SAVE_SOURCE_PATH
+    echo date > $SAVE_SOURCE_PATH
+    echo "##### start qsub script #####" > $SAVE_SOURCE_PATH
     cat "$0" >> $SAVE_SOURCE_PATH
     echo "##### Python script #####" >> $SAVE_SOURCE_PATH
     cat "${ROOT_DIR}/data_creation_scripts/create_parquets_from_fasta.py" >> $SAVE_SOURCE_PATH
