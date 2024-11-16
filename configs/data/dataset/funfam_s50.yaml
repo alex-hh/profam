@@ -1,7 +1,7 @@
 defaults:
   - /preprocessor: "parquet_msa_pos"
 _target_: src.data.datasets.ProteinDatasetConfig
-data_path_pattern: /funfams/parquets/*.parquet
+data_path_pattern: funfams/s50_parquets
 holdout_data_files: null
 holdout_identifiers: null
 identifier_col: fam_id

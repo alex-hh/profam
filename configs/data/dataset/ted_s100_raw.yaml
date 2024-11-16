@@ -1,0 +1,8 @@
+defaults:
+  - /preprocessor: "parquet_raw" # caution these parquets files do not contain alignments
+_target_: src.data.datasets.ProteinDatasetConfig
+data_path_pattern: ted/s100_parquets
+holdout_data_files: null
+holdout_identifiers: null
+identifier_col: null
+is_parquet: true
