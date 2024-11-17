@@ -1,7 +1,7 @@
 defaults:
   - /preprocessor: "parquet_raw"
 
-_target_: src.data.datasets.ProteinDatasetConfig
+_target_: src.data.custom_datasets.ProteinDatasetConfig
 data_path_pattern: GO_MF/mfparquets/*.parquet
 holdout_data_files: null
 holdout_identifiers: null

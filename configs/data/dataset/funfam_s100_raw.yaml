@@ -1,6 +1,6 @@
 defaults:
   - /preprocessor: "parquet_raw" # caution these parquets files do not contain alignments
-_target_: src.data.datasets.ProteinDatasetConfig
+_target_: src.data.custom_datasets.ProteinDatasetConfig
 data_path_pattern: funfams/s100_noali_parquets
 holdout_data_files: null
 holdout_identifiers: null
