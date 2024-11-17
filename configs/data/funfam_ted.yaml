@@ -1,0 +1,42 @@
+_target_: src.data.hf_protein_datamodule.ProteinDataMixture
+defaults:
+  - dataset@dataset_cfgs.funfam_s50_ali: funfam_s50
+  - dataset@dataset_cfgs.funfam_s100_raw: funfam_s100_raw
+  - dataset@dataset_cfgs.ted_s100_raw: ted_s100_raw
+  - dataset@dataset_cfgs.ted_s50_raw: ted_s50_raw
+  # validation sets
+  - dataset@dataset_cfgs.pfam_val: pfam
+  - dataset@dataset_cfgs.pfam_val_raw: pfam_raw
+  - _self_
+total_num_train_samples: 9000000  # todo get actual number
+data_weights:
+  funfam_s50: 0.25
+  funfam_s100_raw: 0.25
+  ted_s100_raw: 0.25
+  ted_s50_raw: 0.25
+
+dataset_cfgs:
+  pfam_val:
+    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
+    shuffle: false
+  pfam_val_raw:
+    data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
+    shuffle: false
+
+batch_size: 3
+max_tokens: 20000
+data_dir: ${paths.data_dir}
+val_dataset_names:
+  - pfam_val
+  - pfam_val_raw
+
+evaluate_gym: true
+evaluate_ec_class: false
+evaluate_ec_cluster_class: false
+evaluate_pfam_class: false
+
+num_workers: 4
+gym_data_dir: ProteinGym
+gym_dms_ids: ${constants.gym_val_assay_list}
+ignore_gaps: false
+feature_names: ${constants.structure_features}

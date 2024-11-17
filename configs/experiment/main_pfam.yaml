@@ -1,7 +1,7 @@
 # @package _global_
 
 # to execute this experiment run:
-# python train.py experiment=foldseek_small
+# python train.py experiment=main_pfam
 
 defaults:
   - /callbacks@extra_callbacks.pfam_hmmer: pfam_hmmer

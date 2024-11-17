@@ -1,5 +1,5 @@
 defaults:
-  - /preprocessor: "parquet_msa_pos"
+  - /preprocessor: "parquet_raw" # caution these parquets files do not contain alignments
 _target_: src.data.datasets.ProteinDatasetConfig
 data_path_pattern: ted/s50_parquets
 holdout_data_files: null
