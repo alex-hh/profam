@@ -10,7 +10,7 @@ defaults:
   - _self_
 total_num_train_samples: 9000000  # todo get actual number
 data_weights:
-  funfam_s50: 0.25
+  funfam_s50_ali: 0.25
   funfam_s100_raw: 0.25
   ted_s100_raw: 0.25
   ted_s50_raw: 0.25
