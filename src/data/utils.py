@@ -57,7 +57,11 @@ class DocumentBatchCollator:
             print(string_data)
             # print(non_string_data)
             raise e
-        labels = batch["input_ids"].clone()
+        try:
+            labels = batch["input_ids"].clone()
+        except Exception as e:
+            print("Error in labels")
+            raise e
         if self.tokenizer.pad_token_id is not None:
             labels[labels == self.tokenizer.pad_token_id] = -100
         if self.ignore_gaps:

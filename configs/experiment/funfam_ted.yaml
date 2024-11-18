@@ -13,7 +13,7 @@ seed: 12345
 
 trainer:
   devices: auto
-  val_check_interval: 3000
+  val_check_interval: 10000
   target_tokens_per_batch: 256000
   min_epochs: 1000
   max_epochs: 10000

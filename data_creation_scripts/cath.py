@@ -1,5 +1,14 @@
 """
-Load / Process CATH metadata.
+Creates a json file with the following format:
+{
+    "train": [list of CATH superfamily codes],
+    "validation": [list of CATH superfamily codes],
+    "test": [list of CATH superfamily codes]
+}
+
+As an intermediate step we need to create a dataframe
+which maps the PDB IDs to CATH superfamily codes:
+
 N.B. Domain splits are based on CATH classification in cath-domain-list.txt
 CATH List File (CLF) Format 2.0
 -------------------------------
@@ -17,24 +26,7 @@ Column 10: S100 sequence count number
 Column 11: Domain length
 Column 12: Structure resolution (Angstroms)
            (999.000 for NMR structures and 1000.000 for obsolete PDB entries)
-Numbers within each column are relative to the higher categories.
-e.g. topology number 1 is relative to the C and A codes,
-S35 sequence cluster is relative to CATH codes.
-We *might* want to check that no chains in this set contain domains outside of the
-nonredundant set on which redundancy control is based.
-If it's the same pipeline as Ingraham, we take CHAINS to which non-redundant domains
-are annotated, then annotate these chains with CATH nodes. This produces a dataset of
-CATH nodes. The split procedure occurs on CATH nodes and is random 80/10/10.
-Since each chain can contain multiple CAT codes, we first removed any redundant entries 
-from train and then from validation. What does this mean?
-Finally, we removed any chains from the test set that had CAT overlap with train and 
-removed chains from the validation set with CAT overlap to train or test. 
-Facebook description is clearer perhaps:
-As each chain may be classified with more than one topology codes, we further removed 
-chains with topology codes spanning different splits, so that there is no overlap in 
-topology codes between train, validation, and test. This results in 16,153 chains in 
-the train split, 1457 chains in the validation split, and 1797 chains in the test split.
-https://github.com/jingraham/neurips19-graph-protein-design/blob/master/data/build_chain_dataset.py
+
 """
 from dataclasses import dataclass
 import json
