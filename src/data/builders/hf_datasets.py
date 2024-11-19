@@ -3,6 +3,41 @@
 These classes are different in that they are more focussed on preprocessing.
 It might be useful however to move towards the standardised splits.
 - although this is basically just directory-based
+
+
+1. FileBasedHFProteinDataset <- BaseProteinDataset
+   - Base class for HuggingFace dataset implementations
+   - Handles file loading, filtering, and basic processing
+
+2. MemoryMappedHFProteinDataset <- FileBasedHFProteinDataset <- BaseProteinDataset
+   - Non-iterable dataset that loads all data into memory
+   - Better for smaller datasets where memory isn't a constraint
+   - Supports full dataset shuffling
+
+3. IterableHFProteinDataset <- FileBasedHFProteinDataset <- BaseProteinDataset
+   - Streaming dataset that loads data on-the-fly
+   - Better for large datasets
+   - Only supports approximate shuffling (shuffling shards)
+   - Handles distribution of data shards across multiple processes
+
+4. SequenceDocumentIterableDataset <- SequenceDocumentMixin, IterableHFProteinDataset
+   - Streaming dataset specifically for sequence data
+   - Adds sequence-specific document building functionality
+
+5. SequenceDocumentMapDataset <- SequenceDocumentMixin, MemoryMappedHFProteinDataset
+   - Memory-mapped dataset specifically for sequence data
+   - Adds sequence-specific document building functionality
+
+6. StructureDocumentIterableDataset <- StructureDocumentMixin, IterableHFProteinDataset
+   - Streaming dataset specifically for structure data
+   - Adds structure-specific document building and filtering functionality
+   - Handles additional fields like coordinates, pLDDT scores
+
+7. StructureDocumentMapDataset <- StructureDocumentMixin, MemoryMappedHFProteinDataset
+   - Memory-mapped dataset specifically for structure data
+   - Adds structure-specific document building and filtering functionality
+   - Handles additional fields like coordinates, pLDDT scores
+
 """
 import functools
 import glob
