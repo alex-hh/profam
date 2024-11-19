@@ -13,6 +13,7 @@ wandb
 outputs
 .git
 nohup.out
+commit_hash.txt
 .pytest_cache
 data/val_test/pfam/test/clustered_split_fastas/
 data/val_test/pfam/val/clustered_split_fastas/
@@ -22,5 +23,5 @@ data/val_test/pfam/val/random_split_fastas/
 src/models/tranception
 data/val_test/overlap_counts/
 src/models/tranception
-commit_hash.txt
 data/val_test/overlap_counts/
+data/cath_chain_topology_class.pickle

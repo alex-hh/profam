@@ -4,8 +4,6 @@ defaults:
   - dataset@dataset_cfgs.pfam_raw: pfam_raw
   - dataset@dataset_cfgs.go_raw: go_raw
   - dataset@dataset_cfgs.ec_raw: ec
-  - dataset@dataset_cfgs.foldseek: foldseek
-  - dataset@dataset_cfgs.foldseek_reps: foldseek_representatives
   - dataset@dataset_cfgs.foldseek_interleaved: foldseek_interleaved
   - dataset@dataset_cfgs.foldseek_reps_interleaved: foldseek_representatives_interleaved
   - dataset@dataset_cfgs.ted_raw: ted
@@ -32,14 +30,12 @@ dataset_cfgs:
   foldseek_reps_interleaved:
     minimum_mean_plddt: 0.6
     preprocessor:
-      batched_map: true
+      force_batched_map: true
       map_batch_size: 250
   pfam_val:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-    shuffle: false
   pfam_val_raw:
     data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-    shuffle: false
 
 batch_size: 6
 max_tokens: 10000

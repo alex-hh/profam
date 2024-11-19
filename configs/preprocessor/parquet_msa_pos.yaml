@@ -1,4 +1,0 @@
-_target_: src.data.preprocessing.ParquetSequencePreprocessor
-defaults:
-  - config: msa_pos
-infer_representative_from_identifier: true

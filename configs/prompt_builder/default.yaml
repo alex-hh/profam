@@ -1,4 +1,3 @@
 _target_: src.models.inference.PromptBuilder
 preprocessor: null
-max_tokens: ${data.max_tokens}
 seed: 42

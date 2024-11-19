@@ -1,9 +1,0 @@
-defaults:
-  - /preprocessor: "gym_msa"
-_target_: src.data.datasets.ProteinDatasetConfig
-data_path_pattern: null
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: null
-is_parquet: false
-data_path_file: ProteinGym/msa_files_val.txt

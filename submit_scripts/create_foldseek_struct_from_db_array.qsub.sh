@@ -27,5 +27,4 @@ if [ ! -f $output_file ]; then
     export PATH=/SAN/orengolab/cath_plm/ProFam/foldmason/bin/:$PATH
     # foldmason can in theory scale to very large alignments (in paper they align clusters of size ~ 100000)
     python3 -m data_creation_scripts.foldseek.create_foldseek_struct_from_db ${SCRATCH_DIR}/data --skip_af50 --minimum_foldseek_cluster_size 1 --parquet_ids $file_prefix --run_foldmason --max_cluster_size_for_foldmason 10000
-    rm -rf ${SCRATCH_DIR}/data/
 fi

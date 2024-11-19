@@ -1,38 +1,33 @@
 import copy
+import functools
 from typing import Dict, Optional
 
 import torch
 
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import (
-    BasePreprocessor,
+from src.data.processors import transforms
+from src.data.processors.preprocessing import (
+    ProteinDocumentPreprocessor,
     default_transforms,
-    preprocess_protein_sequences,
 )
+from src.data.tokenizers import ProFamTokenizer
 from src.models.base import BaseFamilyLitModule
-from src.utils.tokenizers import ProFamTokenizer
 
 
 class PromptBuilder:
     def __init__(
         self,
-        preprocessor: BasePreprocessor,
-        max_tokens: int,
+        preprocessor: ProteinDocumentPreprocessor,
         seed: Optional[int] = None,
+        prompt_is_aligned: bool = False,
     ):
         self.preprocessor = preprocessor
         assert preprocessor is not None
         self.seed = seed
-        self.max_tokens = max_tokens
+        self.prompt_is_aligned = prompt_is_aligned
 
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-        max_length = max(len(seq) for seq in proteins.sequences)
-        transform_fns = default_transforms(
-            max_tokens=self.max_tokens - max_length, shuffle=True, seed=self.seed
-        ) + (self.preprocessor.transform_fns or [])
-        proteins = preprocess_protein_sequences(
-            proteins, self.preprocessor.cfg, tokenizer, transform_fns=transform_fns
-        )
+        proteins = self.preprocessor.apply_transforms(proteins, tokenizer)
         return proteins
 
 
@@ -50,11 +45,11 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
 
     def __init__(
         self,
-        preprocessor: BasePreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
-        max_tokens: int,
+        preprocessor: ProteinDocumentPreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
         seed: Optional[int] = None,
+        prompt_is_aligned: bool = False,
     ):
-        super().__init__(preprocessor, max_tokens, seed)
+        super().__init__(preprocessor, seed, prompt_is_aligned=prompt_is_aligned)
         assert self.preprocessor.interleave_structure_sequence
 
     # we need to exclude token space for length seed*2 from preprocessing
@@ -68,15 +63,17 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
         representative_doc = ProteinDocument.from_proteins(
             [representative], representative_accession=representative.accession
         )
-        transform_fns = default_transforms(max_tokens=None, shuffle=False) + (
-            self.preprocessor.transform_fns or []
+        _preprocessor_single_protein_documents = (
+            self.preprocessor.single_protein_documents
         )
-        representative_doc = preprocess_protein_sequences(
-            representative_doc,
-            self.preprocessor.cfg,
-            tokenizer,
-            transform_fns=transform_fns,
+        self.preprocessor.single_protein_documents = True
+        representative_doc = self.preprocessor.apply_transforms(
+            representative_doc, tokenizer
         )
+        self.preprocessor.single_protein_documents = (
+            _preprocessor_single_protein_documents
+        )
+
         representative_doc = representative_doc.slice_arrays(
             [slice(0, len(representative.sequence) + 1)]
         )

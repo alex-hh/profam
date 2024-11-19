@@ -1,6 +1,7 @@
 import os
 
 from datasets.features import Array3D, Sequence, Value
+from datasets.features.features import _ArrayXD
 
 BASEDIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 BENCHMARK_RESULTS_DIR_NAME = "benchmark_results"
@@ -84,7 +85,7 @@ TOKENIZED_FEATURE_TYPES = {
     "plddts": Sequence(feature=Value(dtype="float32"), length=-1),
     "input_ids": Sequence(feature=Value(dtype="int32"), length=-1),
     "attention_mask": Sequence(feature=Value(dtype="int32"), length=-1),
-    # "labels": Sequence(feature=Value(dtype="int32"), length=-1),
+    "labels": Sequence(feature=Value(dtype="int32"), length=-1),
     "residue_index": Sequence(feature=Value(dtype="int32"), length=-1),
     "original_size": Value(dtype="int32"),
     "aa_mask": Sequence(feature=Value(dtype="bool"), length=-1),
@@ -94,3 +95,5 @@ TOKENIZED_FEATURE_TYPES = {
     "ds_name": Value(dtype="string"),
     "identifier": Value(dtype="string"),
 }
+
+ARRAY_TYPES = (Sequence, _ArrayXD)

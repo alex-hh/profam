@@ -1,50 +1,11 @@
 """CATH pipeline for backbones from the CATH splits used in the inverse folding literature."""
-import copy
-import json
-import os
 import time
 
 import numpy as np
 
-from src import constants
-from src.data.objects import Protein, ProteinDocument
+from src.data.builders import cath
+from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
-
-
-def coords_dict_to_list(coords_dict):
-    coords_dict = copy.deepcopy(coords_dict)
-    coords_dict["coords"] = list(
-        zip(
-            coords_dict["coords"]["N"],
-            coords_dict["coords"]["CA"],
-            coords_dict["coords"]["C"],
-            coords_dict["coords"]["O"],
-        )
-    )
-    return coords_dict
-
-
-def coords_list_to_dict(coords_dict):
-    coords_dict = copy.deepcopy(coords_dict)
-    coords_dict["coords"] = {
-        "N": [coords[0] for coords in coords_dict["coords"]],
-        "CA": [coords[1] for coords in coords_dict["coords"]],
-        "C": [coords[2] for coords in coords_dict["coords"]],
-        "O": [coords[3] for coords in coords_dict["coords"]],
-    }
-    return coords_dict
-
-
-def load_coords(jsonl_file):
-    """Split-specific jsonl files should be created by running data_creation_scripts/create_cath_splits.py"""
-    entries = []
-    with open(jsonl_file) as f:
-        for line in f:
-            coords_dict = json.loads(line)
-            if coords_dict["name"] == "3j7y.K":
-                coords_dict["name"] = "3j7y.KK"  # disambiguate from 3j7y.k
-            entries.append(coords_dict)
-    return entries
 
 
 class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
@@ -54,23 +15,17 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         super().__init__(*args, **kwargs)
         self.use_cath_43 = use_cath_43
         self.split_name = split_name
+        t0 = time.time()
         if self.use_cath_43:
-            jsonl_file = os.path.join(
-                constants.PROFAM_DATA_DIR, "cath/cath43/chain_set.jsonl"
+            self.targets = cath.load_cath43_coords(
+                convert_to_protein_list=True, split_name=self.split_name
             )
         else:
-            jsonl_file = os.path.join(
-                constants.PROFAM_DATA_DIR, "cath/cath42/chain_set.jsonl"
+            self.targets = cath.load_cath42_coords(
+                convert_to_protein_list=True, split_name=self.split_name
             )
-        t0 = time.time()
-        splits = json.load(
-            open(os.path.join(constants.PROFAM_DATA_DIR, "cath/cath43/splits.json"))
-        )
-        self.instance_dicts = {
-            entry["name"].replace(".", ""): entry
-            for entry in load_coords(jsonl_file)
-            if entry["name"] in splits[split_name]
-        }
+        self.targets = sorted(self.targets, key=lambda x: x.accession)
+        self.instance_dicts = {target.accession: target for target in self.targets}
         t1 = time.time()
         version = "4.3" if self.use_cath_43 else "4.2"
         print(
@@ -80,7 +35,7 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         )
 
     def instance_ids(self):
-        return sorted(list(self.instance_dicts.keys()))
+        return [target.accession for target in self.targets]
 
     def load_protein_document(self, instance_id):
         if instance_id == "3j7y.K":
@@ -88,26 +43,10 @@ class CATHEvaluationPipeline(GenerationsEvaluatorPipeline):
         elif instance_id == "3j7yK":
             instance_id = "3j7yKK"
         entry = self.instance_dicts[instance_id]
-        backbone_coords = np.stack(
-            [
-                np.array(entry["coords"]["N"]),
-                np.array(entry["coords"]["CA"]),
-                np.array(entry["coords"]["C"]),
-                np.array(entry["coords"]["O"]),
-            ],
-            axis=1,
-        ).astype(np.float32)
-        sequence = entry["seq"]
-        return ProteinDocument.from_proteins(
-            [
-                Protein(
-                    sequence=sequence,
-                    accession=instance_id,
-                    backbone_coords=backbone_coords,
-                )
-            ],
-            representative_accession=instance_id,
+        proteins = ProteinDocument.from_protein(
+            entry, representative_accession=instance_id, identifier=instance_id
         )
+        return proteins
 
     def get_instance_summary(self, instance_id):
         return {

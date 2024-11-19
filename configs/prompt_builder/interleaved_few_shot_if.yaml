@@ -1,5 +1,4 @@
 _target_: src.models.inference.FewShotInterleavedInverseFoldingPromptBuilder
 preprocessor: null
-max_tokens: ${data.max_tokens}
 seed: 42
 representative_only: False

@@ -1,8 +1,13 @@
+from functools import partial
+
 import numpy as np
 
 from src.data.objects import ProteinDocument
-from src.data.transforms import convert_sequences_adding_positions
-from src.utils.tokenizers import get_residue_index_from_positions
+from src.data.processors.transforms import (
+    convert_aligned_sequence_adding_positions,
+    preprocess_aligned_sequences_sampling_to_max_tokens,
+)
+from src.data.tokenizers import get_residue_index_from_positions
 
 """
 replicates the pre-processing and
@@ -82,22 +87,29 @@ def test_prot_gym_pos_encoding(profam_tokenizer):
     for case in test_cases_subs:
         # Process MSA sequences
         msa_proteins = ProteinDocument(sequences=case["msa_seqs"])
-        msa_proteins = convert_sequences_adding_positions(
-            msa_proteins,
+        sequence_converter = partial(
+            convert_aligned_sequence_adding_positions,
             keep_gaps=case["keep_gaps"],
             keep_insertions=True,
             to_upper=True,
             use_msa_pos=True,
         )
+        msa_proteins = preprocess_aligned_sequences_sampling_to_max_tokens(
+            msa_proteins,
+            tokenizer=profam_tokenizer,
+            sequence_converter=sequence_converter,
+            shuffle=False,
+            max_tokens=None,
+        )
 
         # Process completion sequences
         completion_proteins = ProteinDocument(sequences=case["completion_seqs"])
-        completion_proteins = convert_sequences_adding_positions(
+        completion_proteins = preprocess_aligned_sequences_sampling_to_max_tokens(
             completion_proteins,
-            keep_gaps=case["keep_gaps"],
-            keep_insertions=True,
-            to_upper=True,
-            use_msa_pos=True,
+            tokenizer=profam_tokenizer,
+            sequence_converter=sequence_converter,
+            shuffle=False,
+            max_tokens=None,
         )
 
         # Tokenize MSA

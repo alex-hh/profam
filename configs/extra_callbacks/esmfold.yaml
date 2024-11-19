@@ -5,7 +5,6 @@ defaults:
   - /prompt_builder: default
   - /preprocessor@prompt_builder.preprocessor: null  # must be set
 prompt_builder:
-  max_tokens: ${data.max_tokens}
   seed: 42
 evaluator:
   num_samples: null
@@ -20,4 +19,3 @@ pipeline:
   evaluation_accessions_file: null
   max_instances: null
   pipeline_id: foldseek_n3  # for callback this doesnt matter
-  preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}

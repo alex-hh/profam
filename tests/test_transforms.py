@@ -2,8 +2,9 @@ import numpy as np
 import pytest
 
 from src.data.objects import ProteinDocument, check_array_lengths
-from src.data.transforms import sample_to_max_tokens
-from src.utils.tokenizers import ProFamTokenizer
+from src.data.processors.transforms import (
+    preprocess_raw_sequences_sampling_to_max_tokens,
+)
 
 
 @pytest.fixture
@@ -37,19 +38,22 @@ def test_sample_to_max_tokens_exceeds_max(protein_document, profam_tokenizer):
     max_tokens = 50  # Set max_tokens less than any sequence length
     for _ in range(10):
         # 10 times to cover random differences in algo
-        sampled_proteins = sample_to_max_tokens(
-            protein_document, max_tokens, tokenizer=profam_tokenizer
+        sampled_proteins = preprocess_raw_sequences_sampling_to_max_tokens(
+            protein_document,
+            tokenizer=profam_tokenizer,
+            max_tokens=max_tokens,
         )
 
         # Check that the sampled_proteins contains only one truncated sequence
         assert len(sampled_proteins) == 1
         assert (
             len(sampled_proteins.sequences[0])
-            == max_tokens - profam_tokenizer.num_start_tokens
+            == max_tokens - profam_tokenizer.num_start_tokens - 1
         )
         sequence_lengths = check_array_lengths(
             sampled_proteins.sequences,
-            sampled_proteins.document_ids,
             sampled_proteins.modality_masks,
         )
-        assert sequence_lengths[0][0] == max_tokens - profam_tokenizer.num_start_tokens
+        assert (
+            sequence_lengths[0][0] == max_tokens - profam_tokenizer.num_start_tokens - 1
+        )

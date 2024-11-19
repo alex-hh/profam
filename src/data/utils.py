@@ -1,12 +1,4 @@
-from typing import List, Optional
-
 import numpy as np
-from torch.utils.data import default_collate
-
-from src.data.objects import StringObject
-
-# TODO: add things like sequence col, structure col, etc.
-# TODO: be careful around loading coords if using alignment - how can we test for this?
 
 
 def examples_to_list_of_dicts(examples):
@@ -17,61 +9,6 @@ def examples_to_list_of_dicts(examples):
 def examples_list_to_dict(examples):
     keys = list(examples[0].keys())
     return {k: [example[k] for example in examples] for k in keys}
-
-
-class DocumentBatchCollator:
-    """
-    N.B. HF collator was very slow for some reason (calling tolist on numpy arrays...)
-    """
-
-    def __init__(
-        self,
-        tokenizer,
-        ignore_gaps: bool = False,
-        feature_names: Optional[List[str]] = None,
-    ):
-        self.tokenizer = tokenizer
-        self.ignore_gaps = ignore_gaps
-        self.feature_names = feature_names
-
-    def __call__(self, examples):
-        # TODO: maybe I have an issue with blending data with different keys?
-        # need to handle either in collator or by standardising in tokenizer.
-        def keep_feature(feature_name):
-            return self.feature_names is None or feature_name in self.feature_names
-
-        non_string_data = [
-            {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
-            for e in examples
-        ]
-        # TODO: handle Nones
-        string_data = [
-            {k: v for k, v in e.items() if isinstance(v, str) and keep_feature(k)}
-            for e in examples
-        ]
-        string_data_keys = set(k for obs in string_data for k in obs.keys())
-        try:
-            batch = default_collate(non_string_data)
-        except Exception as e:
-            print("Error in collator")
-            print(string_data)
-            # print(non_string_data)
-            raise e
-        labels = batch["input_ids"].clone()
-        if self.tokenizer.pad_token_id is not None:
-            labels[labels == self.tokenizer.pad_token_id] = -100
-        if self.ignore_gaps:
-            labels[labels == self.tokenizer.convert_tokens_to_ids("-")] = -100
-        # dont predict mask tokens.
-        labels[labels == self.tokenizer.mask_token_id] = -100
-        batch["labels"] = labels
-        # n.b. padding tokens should already be -100 due to base collator.
-        for str_key in string_data_keys:
-            str_vals = [obs.get(str_key, "") for obs in string_data]
-            str_obj = StringObject()
-            str_obj.text = str_vals
-            batch[str_key] = str_obj
-        return batch
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):

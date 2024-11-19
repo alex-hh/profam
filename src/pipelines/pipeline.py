@@ -10,7 +10,6 @@ from hydra.utils import instantiate
 
 from src import constants
 from src.data.objects import ProteinDocument
-from src.data.preprocessing import BasePreprocessor
 from src.evaluators.base import SamplingEvaluator
 from src.sequence import fasta
 from src.utils.utils import maybe_print
@@ -44,9 +43,6 @@ class BaseEvaluatorPipeline:
         save_results_to_file: bool = True,
     ):
         self.pipeline_id = pipeline_id
-        # assert (
-        #     self.preprocessor.transform_fns is None
-        # ), "Pipeline preprocessor should not have transforms"  # doesnt matter: they dont get called
         self.pipeline_directory = os.path.join(
             benchmark_directory or constants.BENCHMARK_RESULTS_DIR,
             self.pipeline_id,
@@ -190,10 +186,6 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         # save configs to appropriate directory.
         # if rerunning, we check that the configs match, otherwise we raise
         # an exception. (TODO: allow overriding with an ignore_config_mismatch flag).
-        raise NotImplementedError()
-
-    def get_protein_example(self, instance_id):
-        """Load a protein example (a dict to be parsed by preprocessor)."""
         raise NotImplementedError()
 
     def run_evaluator_on_instance(

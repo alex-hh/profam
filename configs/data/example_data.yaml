@@ -1,29 +1,40 @@
-_target_: src.data.hf_protein_datamodule.ProteinDataMixture
+_target_: src.data.datamodule.ProteinDataMixture
 defaults:
-  - dataset@dataset_cfgs.openfold_aligned: openfold_aligned_example
-  - dataset@dataset_cfgs.openfold_raw: openfold_raw_example
-  - dataset@dataset_cfgs.ec: ec_example
+  - dataset@dataset_builders.openfold_aligned: openfold_aligned_example
+  - dataset@dataset_builders.openfold_raw: openfold_raw_example
+  - dataset@dataset_builders.ec: ec_example
+  - dataset/scoring@dataset_builders.proteingym: proteingym
   - _self_
 
 data_weights:
   openfold_aligned: 0.5
   openfold_raw: 0.5
 
-dataset_cfgs:
+dataset_builders:
   ec:
-    shuffle: false
+    preprocessor:
+      cfg:
+        padding: "max_length"
+        max_tokens_per_example: 2048
+  openfold_aligned:
+    preprocessor:
+      cfg:
+        padding: "max_length"
+        max_tokens_per_example: 2048
+  openfold_raw:
+    preprocessor:
+      cfg:
+        padding: "max_length"
+        max_tokens_per_example: 2048
+  proteingym:
+    dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
+    max_tokens_per_example: 2048
+    max_mutated_sequences: 10
 
 batch_size: 2
-max_tokens: 3000
 data_dir: data/example_data # example data is in repo main dir
-evaluate_gym: false # not implemented yet
-evaluate_ec_class: false # not implemented yet
-evaluate_ec_cluster_class: false # not implemented yet
-val_dataset_names:
-  - ec
-gym_dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
-max_gym_sequences: null
+val_dataset_batch_sizes:
+  ec: ${data.batch_size}
+  proteingym: 1
 num_workers: 0  # None means use all available CPU cores
-gym_data_dir: example_data/ProteinGym
-use_filtered_gym_msas: false
 feature_names: ${constants.structure_features}
