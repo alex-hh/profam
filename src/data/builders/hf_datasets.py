@@ -10,8 +10,9 @@ It might be useful however to move towards the standardised splits.
    - Handles file loading, filtering, and basic processing
 
 2. MemoryMappedHFProteinDataset <- FileBasedHFProteinDataset <- BaseProteinDataset
-   - Non-iterable dataset that loads all data into memory
-   - Better for smaller datasets where memory isn't a constraint
+   - Non-iterable dataset that uses memory-mapping
+   - Compatible with datasets of any size, but may be slower than IterableHFProteinDataset
+ when shuffling (https://huggingface.co/docs/datasets/en/about_mapstyle_vs_iterable)
    - Supports full dataset shuffling
 
 3. IterableHFProteinDataset <- FileBasedHFProteinDataset <- BaseProteinDataset
