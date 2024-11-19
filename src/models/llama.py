@@ -92,10 +92,8 @@ class WrappedLlamaModel(LlamaModel):
             sep_token_id=self.config.sep_token_id,
         ).int()
 
-        print(f"{attention_mask_type} attention_mask", attention_mask)
-
         min_dtype = torch.finfo(dtype).min
-        # convert the binary attentino mask to a bias to add to raw attention logits
+        # convert the binary attention mask to a bias to add to raw attention logits
         causal_mask = attention_masking._prepare_4d_attention_mask_with_cache_position(
             attention_mask,
             sequence_length=sequence_length,
@@ -124,6 +122,8 @@ class WrappedLlamaModel(LlamaModel):
 
 
 class WrappedLlamaForCausalLM(LlamaForCausalLM):
+    """Instead of model being LlamaModel, it's WrappedLlamaModel to support custom attention masking."""
+
     def __init__(self, config, *args, **kwargs):
         LlamaPreTrainedModel.__init__(self, config)
         # todo: maybe just wrap llamamodel (with position embedding wrapper also)
