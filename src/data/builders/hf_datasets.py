@@ -135,10 +135,12 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         cfg: HFProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
+        streaming: bool = True,
     ):
         super().__init__(name, preprocessor)
         self.cfg = cfg
         self.required_keys = required_keys
+        self.streaming = streaming
 
     def get_data_files(self, data_dir: str, world_size: int):
         # n.b. overridden in IterableHFProteinDataset to handle splitting shards across devices
@@ -181,7 +183,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             self.cfg.file_type,
             data_files=data_files,
             split="train",  # just automatically assigns all files to train - get this 'split'
-            streaming=True,
+            streaming=self.streaming,
             **load_kwargs,
         ).with_format(
             self.cfg.return_format
@@ -245,7 +247,11 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
     ):
         """process_online (default False) configures whether to use map or format."""
         super().__init__(
-            name, cfg=cfg, preprocessor=preprocessor, required_keys=required_keys
+            name,
+            cfg=cfg,
+            preprocessor=preprocessor,
+            required_keys=required_keys,
+            streaming=False,
         )
 
     def process(
