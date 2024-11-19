@@ -24,3 +24,4 @@ src/models/tranception
 data/val_test/overlap_counts/
 src/models/tranception
 data/val_test/overlap_counts/
+data/cath_chain_topology_class.pickle
