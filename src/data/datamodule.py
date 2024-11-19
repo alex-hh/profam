@@ -111,14 +111,7 @@ class ProteinDataMixture(LightningDataModule):
                     # https://github.com/huggingface/datasets/pull/5735
                     print(
                         f"Dataset {data_key} example batch types",
-                        {
-                            k: type(v)
-                            for k, v in (
-                                next(iter(dataset)).items()
-                                if isinstance(dataset, IterableDataset)
-                                else dataset[0]
-                            )
-                        },
+                        {k: type(v) for k, v in next(iter(dataset)).items()},
                     )
                     train_datasets.append(dataset)
                     # TODO: we could also shuffle individual datasets here - is there a reason we might want to?

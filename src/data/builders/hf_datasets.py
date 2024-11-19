@@ -225,7 +225,10 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             self.cfg.return_format
         )  # formatting needs to be set before filter/map
 
-        print(f"Dataset n shards: {dataset.n_shards}")
+        if self.streaming:
+            print(f"Dataset n shards: {dataset.num_shards}")
+        else:
+            print(f"Loaded dataset {self.name} with {len(dataset)} samples")
         if verbose:
             print("Verifying dataset content:")
             for i, item in enumerate(dataset.take(3), 1):
