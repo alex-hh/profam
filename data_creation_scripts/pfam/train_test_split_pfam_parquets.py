@@ -2,7 +2,7 @@ import csv
 import os
 import pandas as pd
 import glob
-import sys
+from data_creation_scripts.parquet_buffer_writer import ParquetBufferWriter
 
 """
 Created by Jude Wells 2024-08-24
@@ -11,44 +11,6 @@ this script splits pfam data
 into train/val/test splits
 
 """
-
-class ParquetBufferWriter:
-    def __init__(self, outdir, name, mem_limit=250):
-        self.outdir = outdir
-        self.name = name
-        self.mem_limit = mem_limit
-        self.index = 0
-        self.dfs = []
-        self.mem_use = 0
-
-
-    def update_buffer(self, df):
-        """
-        increment mem use, if over mem_limit
-        write dfs to parquet and reset buffer
-        """
-        seqs_mb = sum([sys.getsizeof(s) for i, s_ls in df.sequences.items() for s in s_ls]) / 1024 / 1024
-        print(f"mem use {self.name}: {round(self.mem_use, 6)}")
-        if self.mem_use + seqs_mb < self.mem_limit:
-            self.dfs.append(df)
-            self.mem_use += seqs_mb
-
-        else:
-            self.write_dfs()
-            self.dfs = [df]
-            self.mem_use = seqs_mb
-
-
-    def write_dfs(self):
-        if len(self.dfs):
-            combi_df = pd.concat(self.dfs)
-            filepath = os.path.join(self.outdir, f"{self.name}_{str(self.index).zfill(3)}.parquet")
-            print(f"writing to {filepath}")
-            combi_df.to_parquet(filepath)
-            new_index.extend([(row['fam_id'], os.path.basename(filepath)) for _, row in combi_df.iterrows()])
-            self.dfs = []
-            self.index += 1
-            self.mem_use = 0
 
 def remove_val_test_rows(val_test_csv_path, parquet_dir, output_dir, mem_limit=125):
     # Read the validation and test family IDs
