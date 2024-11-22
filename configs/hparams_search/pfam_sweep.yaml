@@ -1,0 +1,26 @@
+program: run_training.sh
+method: bayes
+metric:
+  name: val_loss
+  goal: minimize
+parameters:
+  model_lr:
+    distribution: log_uniform
+    min: 1e-5
+    max: 1e-3
+  num_workers:
+    values: [8, 16, 32]
+  batch_size:
+    values: [4, 6, 8, 16]
+  
+# env:
+#   ROOT_DIR: /path/to/your/root_dir
+#   PFAM_DIR: /path/to/your/pfam_dir
+
+command:
+  - ${env}
+  - bash
+  - ${program}
+  - ${model_lr}
+  - ${num_workers}
+  - ${batch_size}
