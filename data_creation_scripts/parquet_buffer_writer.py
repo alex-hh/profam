@@ -37,7 +37,6 @@ class ParquetBufferWriter:
             filepath = os.path.join(self.outdir, f"{self.name}_{str(self.index).zfill(3)}.parquet")
             print(f"writing to {filepath}")
             combi_df.to_parquet(filepath)
-            new_index.extend([(row['fam_id'], os.path.basename(filepath)) for _, row in combi_df.iterrows()])
             self.dfs = []
             self.index += 1
             self.mem_use = 0

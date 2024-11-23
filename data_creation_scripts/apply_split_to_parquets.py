@@ -5,6 +5,53 @@ import glob
 import pandas as pd
 from data_creation_scripts.parquet_buffer_writer import ParquetBufferWriter
 
+"""
+For TED and funfams splits use this json:
+profam/data/val_test/topology_splits.json
+
+for foldseek use this json:
+profam/data/val_test/foldseek_cath_topology_splits.json
+
+
+foldseek_cath_topology_splits.json:
+{
+    "train": [
+        "A0A7K0JYB7",
+        "A0A061NIN8",
+        ...
+        ],
+    "validation": [...],
+    "test": [...]
+}
+
+######## TED parquet ########:
+df.iloc[0]['fam_id']
+'3.30.342.10'
+
+>>> df.iloc[0]['accessions']
+array(['AF-A0A2E4ZF72-F1-model_v4_TED01',
+       'AF-A0A6V8CLE5-F1-model_v4_TED01',
+############################
+
+
+######## funfams parquet ########:
+>>> df.iloc[0].fam_id
+'2.20.28.290-FF-000002_rep_seq'
+
+>>> df.iloc[0].accessions
+array(['AF-A0A182UD23-F1-model_v4_TED02',
+       'AF-A0A182VZ20-F1-model_v4_TED02',       
+############################
+
+######## FSeek parquet ########:
+>>> df.iloc[0].fam_id
+'A0A7C4GD14'
+
+>>> df.iloc[0].accessions
+array(['A0A2E0X6R3', 'A0A518GGD7',
+############################
+
+"""
 class BaseParquetSplitter:
     def __init__(self, json_path, parquet_dir, output_dir, mem_limit=125):
         self.json_path = json_path
