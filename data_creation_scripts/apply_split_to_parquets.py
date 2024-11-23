@@ -120,6 +120,57 @@ class BaseParquetSplitter:
         val_buffer.write_dfs()
         test_buffer.write_dfs()
 
+        # After splitting is complete, create the index file
+        self.create_index_file()
+
+    def create_index_file(self):
+        """
+        Create an index.csv file in the output directory that maps identifiers to output parquet files,
+        along with cluster_size and sequence_length.
+        """
+        index_records = []
+
+        for split in ['train', 'val', 'test']:
+            split_dir = os.path.join(self.output_dir, split)
+            for parquet_file in glob.glob(os.path.join(split_dir, '*.parquet')):
+                df = pd.read_parquet(parquet_file)
+                parquet_filename = os.path.join(split, os.path.basename(parquet_file))
+                # Group by 'fam_id' assuming 'fam_id' is the identifier
+                grouped = df.groupby('fam_id')
+                for fam_id, group in grouped:
+                    identifier = fam_id
+
+                    # Compute cluster_size
+                    if 'accessions' in group.columns and len(group['accessions']) > 0:
+                        # Assuming 'accessions' is an array in the dataframe
+                        cluster_size = len(group['accessions'].iloc[0])
+                    else:
+                        cluster_size = len(group)
+
+                    # Compute sequence_length
+                    sequence_length = None
+                    if 'sequence' in group.columns and len(group['sequence']) > 0:
+                        sequence_lengths = group['sequence'].apply(len)
+                        sequence_length = sequence_lengths.median()
+                    elif 'sequence_length' in group.columns and len(group['sequence_length']) > 0:
+                        sequence_length = group['sequence_length'].median()
+                    elif 'seq_len' in group.columns and len(group['seq_len']) > 0:
+                        sequence_length = group['seq_len'].median()
+                    else:
+                        sequence_length = None  # Set to None if unavailable
+
+                    index_records.append({
+                        'identifier': identifier,
+                        'parquet_file': parquet_filename,
+                        'cluster_size': cluster_size,
+                        'sequence_length': sequence_length
+                    })
+        # Create DataFrame and write to index.csv
+        index_df = pd.DataFrame(index_records)
+        index_csv_path = os.path.join(self.output_dir, 'index.csv')
+        index_df.to_csv(index_csv_path, index=False)
+        print(f"Index file created at: {index_csv_path}")
+
 class CATHParquetSplitter(BaseParquetSplitter):
     def reformat_fam_id(self, fam_id):
         """
@@ -167,7 +218,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mem_limit",
         type=int,
-        default=125,
+        default=250,
         help="Memory limit (in MB) for the ParquetBufferWriter.",
     )
 
