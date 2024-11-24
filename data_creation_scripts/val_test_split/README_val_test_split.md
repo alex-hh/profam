@@ -26,5 +26,3 @@ equivalent json splits file for foldseek families with the following
 steps:
 1) create a json which maps CATH superfamily codes to a list of all uniprot IDs (using TED to assign)
 2) any assign a foldseek cluster to "test" if a single UP accession has a topology code in the test set etc.
-
-
