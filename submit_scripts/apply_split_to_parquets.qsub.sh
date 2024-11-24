@@ -1,0 +1,9 @@
+#$ -l tmem=32G
+#$ -l h_vmem=32G
+#$ -l h_rt=71:55:30
+#$ -S /bin/bash
+#$ -N splitParquets
+#$ -t 1-50
+#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
+#$ -wd /SAN/orengolab/cath_plm/ProFam/profam
+#$ -j y

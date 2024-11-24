@@ -3,7 +3,9 @@ import os
 import json
 import glob
 import pandas as pd
-from data_creation_scripts.parquet_buffer_writer import ParquetBufferWriter
+from data_creation_scripts.val_test_split.parquet_buffer_writer import ParquetBufferWriter
+from data_creation_scripts.val_test_split.make_cath_splits_json import make_cath_topology_split_json
+from data_creation_scripts.val_test_split.create_foldseek_val_test_split_json import create_foldseek_split_json
 
 """
 For TED and funfams splits use this json:
@@ -53,12 +55,18 @@ array(['A0A2E0X6R3', 'A0A518GGD7',
 
 """
 class BaseParquetSplitter:
-    def __init__(self, json_path, parquet_dir, output_dir, mem_limit=125):
+    def __init__(self, json_path, parquet_dir, output_dir, mem_limit=250):
         self.json_path = json_path
         self.parquet_dir = parquet_dir
         self.output_dir = output_dir
         self.mem_limit = mem_limit
+
+        if not os.path.exists(self.json_path):
+            self.create_split_json()
         self.load_splits()
+
+    def create_split_json(self):
+        raise NotImplementedError("Subclasses should implement this method")
 
     def load_splits(self):
         """
@@ -179,12 +187,20 @@ class CATHParquetSplitter(BaseParquetSplitter):
         """
         return ".".join(fam_id.split(".")[:3])
 
+    def create_split_json(self):
+        make_cath_topology_split_json()
+
 class FoldSeekParquetSplitter(BaseParquetSplitter):
     def reformat_fam_id(self, fam_id):
         """
         For FoldSeek splits, the fam_id in the parquet files matches the IDs in the split JSON.
         """
         return fam_id
+
+    def create_split_json(self):
+        create_foldseek_split_json(
+            foldseek_split_json_path=self.json_path
+        )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

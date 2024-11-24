@@ -1,4 +1,3 @@
-
 import pandas as pd
 import os
 import sys
@@ -16,15 +15,13 @@ class ParquetBufferWriter:
 
     def update_buffer(self, df):
         """
-        increment mem use, if over mem_limit
-        write dfs to parquet and reset buffer
+        Increment memory usage. If over the memory limit,
+        write dataframes to parquet and reset buffer.
         """
-        seqs_mb = sum([sys.getsizeof(s) for i, s_ls in df.sequences.items() for s in s_ls]) / 1024 / 1024
-        print(f"mem use {self.name}: {round(self.mem_use, 6)}")
+        seqs_mb = df.memory_usage(deep=True).sum() / 1024 / 1024
         if self.mem_use + seqs_mb < self.mem_limit:
             self.dfs.append(df)
             self.mem_use += seqs_mb
-
         else:
             self.write_dfs()
             self.dfs = [df]
@@ -32,10 +29,10 @@ class ParquetBufferWriter:
 
 
     def write_dfs(self):
-        if len(self.dfs):
+        if self.dfs:
             combi_df = pd.concat(self.dfs)
             filepath = os.path.join(self.outdir, f"{self.name}_{str(self.index).zfill(3)}.parquet")
-            print(f"writing to {filepath}")
+            print(f"Writing to {filepath}")
             combi_df.to_parquet(filepath)
             self.dfs = []
             self.index += 1

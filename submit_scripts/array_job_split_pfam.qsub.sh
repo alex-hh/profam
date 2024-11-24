@@ -9,12 +9,15 @@
 #$ -j y
 date
 hostname
-echo "qsub script: $0"
+
 echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
-conda activate venvPF
-ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
+export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
+export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
-python ${ROOT_DIR}/data_creation_scripts/array_job_split_pfam.py --task_index $((SGE_TASK_ID - 1)) --num_tasks 50
-date
+conda activate venvPF
+echo "Using python from $(which python)"
+export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
+
+python
