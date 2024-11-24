@@ -1,4 +1,4 @@
-_target_: src.data.hf_protein_datamodule.ProteinDataMixture
+_target_: src.data.datamodule.ProteinDataMixture
 defaults:
   - dataset@dataset_cfgs.funfam_s50_ali: funfam_s50
   - dataset@dataset_cfgs.funfam_s50_ali_v2: funfam_s50
