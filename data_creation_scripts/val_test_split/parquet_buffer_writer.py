@@ -32,7 +32,7 @@ class ParquetBufferWriter:
         if self.dfs:
             combi_df = pd.concat(self.dfs)
             filepath = os.path.join(self.outdir, f"{self.name}_{str(self.index).zfill(3)}.parquet")
-            print(f"Writing to {filepath}")
+            print(f"Writing {len(combi_df)} rows to {filepath}")
             combi_df.to_parquet(filepath)
             self.dfs = []
             self.index += 1

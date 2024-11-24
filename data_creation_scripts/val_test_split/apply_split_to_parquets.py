@@ -103,7 +103,8 @@ class BaseParquetSplitter:
         train_buffer = ParquetBufferWriter(train_dir, name="train", mem_limit=self.mem_limit)
         val_buffer = ParquetBufferWriter(val_dir, name="val", mem_limit=self.mem_limit)
         test_buffer = ParquetBufferWriter(test_dir, name="test", mem_limit=self.mem_limit)
-
+        parquet_paths = glob.glob(os.path.join(self.parquet_dir, '*.parquet'))
+        print(f"Found {len(parquet_paths)} parquet files in {self.parquet_dir}")
         # Process each parquet file
         for parquet_file in glob.glob(os.path.join(self.parquet_dir, '*.parquet')):
             df = pd.read_parquet(parquet_file)
@@ -254,5 +255,8 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         mem_limit=args.mem_limit
     )
-
+    print(f"Initialised {args.splitter} splitter:")
+    print(f"  JSON path: {args.json_path}")
+    print(f"  Parquet directory: {args.parquet_dir}")
+    print(f"  Output directory: {args.output_dir}")
     splitter.split_parquets()
