@@ -20,14 +20,14 @@ conda activate venvPF
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 
-python data_creation_scripts/val_test_split/apply_split_to_parquets.py\
+python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
 --json_path data/val_test/foldseek_cath_topology_splits.json \
 --parquet_dir ../data/foldseek_af50/ \
 --output_dir ../data/foldseek_af50/train_val_test_split \
 --splitter FoldSeek
 echo "completed foldseek_af50 split"
 date
-python ${ROOT_DIR}/data_creation_scripts/array_job_split_pfam.py \
+python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
 --json_path data/val_test/topology_splits.json \
 --parquet_dir ../data/ted/s100_parquets \
 --output_dir ../data/ted/s100_parquets/train_val_test_split \
