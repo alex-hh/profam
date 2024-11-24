@@ -10,6 +10,20 @@ from data_creation_scripts.val_test_split.make_cath_splits_json import make_cath
 Uses the CATH superfamily splits JSON to create the FoldSeek
 train/val/test splits JSON: using the TED assignments to map
 UniProt accessions to superfamily IDs.
+
+results in this file: foldseek_cath_topology_splits.json:
+{
+    "train": [
+        "A0A7K0JYB7",
+        "A0A061NIN8",
+        ...
+        ],
+    "validation": [...],
+    "test": [...]
+}
+
+where the elements of the lists (eg. "A0A7K0JYB7")
+are the family IDs from the FoldSeek AFDB clusters.
 """
 
 # requried external file for assigning uniprot IDs to CATH:

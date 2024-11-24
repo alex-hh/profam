@@ -20,6 +20,9 @@ data/val_test/pfam/val/clustered_split_fastas/
 data/val_test/overlap_counts/
 data/val_test/pfam/test/random_split_fastas/
 data/val_test/pfam/val/random_split_fastas/
+data/val_test/esmif_splits.json
+data/val_test/foldseek_cath_topology_splits.json
+data/val_test/superfamily_splits.json
 src/models/tranception
 data/val_test/overlap_counts/
 src/models/tranception
