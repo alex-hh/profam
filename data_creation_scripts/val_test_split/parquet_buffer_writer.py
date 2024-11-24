@@ -19,6 +19,7 @@ class ParquetBufferWriter:
         write dataframes to parquet and reset buffer.
         """
         seqs_mb = df.memory_usage(deep=True).sum() / 1024 / 1024
+        print(f"used {seqs_mb}MB for {len(df)} sequences")
         if self.mem_use + seqs_mb < self.mem_limit:
             self.dfs.append(df)
             self.mem_use += seqs_mb
