@@ -9,15 +9,16 @@
 #$ -j y
 date
 hostname
-
+echo "qsub script: $0"
 echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
-export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-export PROJECT_ROOT=$ROOT_DIR
-cd $ROOT_DIR
 conda activate venvPF
-echo "Using python from $(which python)"
-export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
-
-python
+ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
+cd $ROOT_DIR
+python ${ROOT_DIR}/data_creation_scripts/array_job_split_pfam.py \
+--json_path data/val_test/foldseek_cath_topology_splits.json \
+--parquet_dir ../data/foldseek_af50/ \
+--output_dir ../data/foldseek_af50/train_val_test_split \
+--splitter FoldSeek
+date
