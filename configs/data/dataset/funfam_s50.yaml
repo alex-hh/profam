@@ -1,14 +1,13 @@
-_target_: src.data.builders.FastaProteinDataset
-name: cathFunfam
+_target_: src.data.builders.SequenceDocumentIterableDataset
+name: funfam_s50_msa_pos
 defaults:
-  - /preprocessor: raw
+  - /preprocessor: msa_pos
 
 cfg:
   _target_: src.data.builders.HFProteinDatasetConfig
-  data_path_pattern: funfams/full_alignments/*/*.fa
+  data_path_pattern: funfams/s50_parquets/*.parquet
   holdout_data_files: null
   holdout_identifiers: null
-  identifier_col: fam_id
-  file_type: text
+  identifier_col: "fam_id"
+  file_type: parquet
   minimum_sequences: null
-  map_batch_size: 100
