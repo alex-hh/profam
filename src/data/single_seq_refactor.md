@@ -39,7 +39,7 @@ Let's delve into each of these steps.
   - **Option 1**: Modify the existing preprocessors to handle both single-sequence and multi-sequence cases.
     - Adjust methods to check if the input contains a single sequence.
     - If only a single sequence is present, wrap it in a list to maintain consistency.
-  
+
   - **Option 2**: Create a new preprocessor specifically for single-sequence data.
     - For example, `SingleSequencePreprocessor` inheriting from `BasePreprocessor`.
 

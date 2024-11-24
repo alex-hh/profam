@@ -18,4 +18,3 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 python ${ROOT_DIR}/data_creation_scripts/array_job_split_pfam.py
 date
-
