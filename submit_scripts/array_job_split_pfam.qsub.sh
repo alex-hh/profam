@@ -16,9 +16,6 @@ echo "####################  QSUB SCRIPT END  ####################"
 conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
-python ${ROOT_DIR}/data_creation_scripts/array_job_split_pfam.py \
---json_path data/val_test/foldseek_cath_topology_splits.json \
---parquet_dir ../data/foldseek_af50/ \
---output_dir ../data/foldseek_af50/train_val_test_split \
---splitter FoldSeek
+python ${ROOT_DIR}/data_creation_scripts/array_job_split_pfam.py
 date
+
