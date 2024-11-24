@@ -49,6 +49,7 @@ if __name__ == '__main__':
     for file_list in tqdm(batch_list(file_name_list, 32)):
         list_of_protein = []
         list_of_title = []
+        list_of_sequence = []
         for idx, file_name in enumerate(file_list):
             title = file_name.split('/')[-1].split('.')[0]
             input_pdb = file_name
@@ -56,6 +57,7 @@ if __name__ == '__main__':
             try:
                 protein = Protein(input_pdb, device='cuda') 
                 X,C,S = protein.to_XCS()
+                sequence = protein.sequence(format="one-letter-string")
             except:
                 continue
             if X.shape[1]<5:
@@ -64,7 +66,7 @@ if __name__ == '__main__':
                 continue
             list_of_protein.append(protein)
             list_of_title.append(title)
-
+            list_of_sequence.append(sequence)
 
         try:
             torch.manual_seed(0)
@@ -81,10 +83,9 @@ if __name__ == '__main__':
             S = batch['S']
             for idx, title in enumerate(list_of_title):
                 # protein = list_protein_pred[idx]
-                sequence_string = protein.sequence(format="one-letter-string")
                 value = {
                     # 'seq': (S[batch_id==idx]).cpu().numpy().tolist(),
-                    "seq": sequence_string,
+                    "seq": list_of_sequence[idx],
                     'vqid': (list_vq_code[idx]).cpu().numpy().tolist(),
                     # 'rmsd': rmsd[idx].cpu().numpy().item(),
                     # 'chain': chain_encoding[batch_id==idx].cpu().numpy().tolist()

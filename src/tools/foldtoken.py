@@ -58,7 +58,7 @@ def read_foldtoken_output(foldtoken_output_file):
     - foldtoken_vqid (list): List of vqid values.
 
     """
-
+    
     data_dict = {key: value for line in open(foldtoken_output_file, 'r') for key, value in json.loads(line).items()}
     labels = list(data_dict.keys())
     foldtoken_seqs = [entry['seq'] for entry in data_dict.values()]

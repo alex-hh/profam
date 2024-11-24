@@ -111,7 +111,7 @@ def save_pdbs_to_parquet(
 
             run_foldtoken_on_pdbs(cluster_filelist, foldtoken_output_file, level=foldtoken_level)
             
-            labels, foldtoken_seqs, foldtoken_vqid = read_foldtoken_output(foldtoken_outdir)
+            labels, foldtoken_seqs, foldtoken_vqid = read_foldtoken_output(foldtoken_output_file)
             
             perm = [labels.index(afdb_id) for afdb_id in cluster_members]
             foldtoken_seqs = [foldtoken_seqs[ix] for ix in perm]
@@ -119,7 +119,8 @@ def save_pdbs_to_parquet(
             foldtoken_vqid = [foldtoken_vqid[ix] for ix in perm]
             shutil.rmtree(foldtoken_outdir)
             has_foldtoken_results = True
-                
+            
+            assert sequences == foldtoken_seqs, "FoldToken sequence and PDB sequence are not the same."
 
         if not keep_pdbs:
             for pdb in cluster_filelist:
@@ -146,7 +147,6 @@ def save_pdbs_to_parquet(
         if convert_to_3di:
             res["sequences_3di"] = sequences_3di
         if has_foldtoken_results:
-            res["foldtoken_seqs"] = foldtoken_seqs
             res["foldtoken_vqid"] = foldtoken_vqid
         results.append(res)
 
