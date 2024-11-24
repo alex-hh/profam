@@ -1,0 +1,9 @@
+# @package _global_
+
+defaults:
+  - override /logger: wandb
+  - override /trainer: ddp
+
+trainer:
+  devices: 8
+  precision: bf16-true

@@ -1,9 +1,13 @@
+_target_: src.data.builders.SequenceDocumentIterableDataset
+name: pfam_msa_pos
 defaults:
-  - /preprocessor: "parquet_msa_pos"
+  - /preprocessor: msa_pos
 
-_target_: src.data.custom_datasets.ProteinDatasetConfig
-data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: 'fam_id'
-is_parquet: true
+cfg:
+  _target_: src.data.builders.HFProteinDatasetConfig
+  data_path_pattern: pfam/train_test_split_parquets/train/*.parquet
+  holdout_data_files: null
+  holdout_identifiers: null
+  identifier_col: "fam_id"
+  file_type: parquet
+  minimum_sequences: null

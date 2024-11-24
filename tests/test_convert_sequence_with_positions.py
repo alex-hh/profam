@@ -1,4 +1,7 @@
-from src.sequence.fasta import convert_sequence_with_positions
+from src.data.processors.transforms import (
+    convert_aligned_sequence_adding_positions,
+    convert_raw_sequence_adding_positions,
+)
 
 
 def test_convert_sequence_with_positions():
@@ -103,7 +106,7 @@ def test_convert_sequence_with_positions():
         to_upper = d["to_upper"]
         use_msa_pos = d["use_msa_pos"]
         expected = d["expected"]
-        sequence, positions, is_match = convert_sequence_with_positions(
+        sequence, positions, is_match = convert_aligned_sequence_adding_positions(
             seq,
             keep_gaps=keep_gaps,
             keep_insertions=keep_insertions,

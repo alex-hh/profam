@@ -1,8 +1,8 @@
 import numpy as np
 import torch
 
-from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
+from src.data.processors.batch_transforms import pack_examples
 
 # def test_generate():
 #     from transformers import LlamaForCausalLM, LlamaConfig
@@ -35,6 +35,46 @@ def test_compute_sequence_index(test_model, profam_tokenizer):
         [[0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2]]
     )
     assert (sequence_indices.numpy() == expected_sequence_indices).all()
+
+
+def test_compute_res_pos_in_doc(test_model, profam_tokenizer):
+    sequences = ["ARC", "MKLL", "MK"]
+    tokenized = profam_tokenizer.encode(
+        ProteinDocument(sequences=sequences, original_size=len(sequences)),
+        add_final_sep=True,
+    )
+    # n.b. packing happens after tokenization
+    examples = [tokenized.data, tokenized.data]
+    packed_examples = pack_examples(examples)
+    position_ids = test_model.model.compute_res_pos_in_doc(
+        torch.from_numpy(packed_examples["input_ids"][None, :])
+    )
+    expected_position_ids = np.array(
+        list(range(sum(len(s) for s in sequences) + len(sequences) + 2)) * 2
+    )
+    assert (
+        position_ids[0].numpy() == expected_position_ids
+    ).all(), f"Expected {expected_position_ids}, got {position_ids[0].numpy()}"
+
+
+def test_packed_compute_sequence_index(test_model, profam_tokenizer):
+    sequences = ["ARC", "MKLLL", "MKPP"]
+    tokenized = profam_tokenizer.encode(
+        ProteinDocument(sequences=sequences, original_size=len(sequences)),
+        add_final_sep=True,
+    )
+    # n.b. packing happens after tokenization
+    examples = [tokenized.data, tokenized.data]
+    packed_examples = pack_examples(examples)
+    sequence_indices = test_model.model.compute_sequence_index(
+        torch.from_numpy(packed_examples["input_ids"][None, :])
+    )
+    expected_sequence_indices = np.array(
+        [[0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2] * 2]
+    )
+    assert (
+        sequence_indices.numpy() == expected_sequence_indices
+    ).all(), f"Expected {expected_sequence_indices}, got {sequence_indices.numpy()}"
 
 
 def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):

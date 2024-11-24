@@ -6,7 +6,6 @@ defaults:
   - /prompt_builder: interleaved_inverse_folding  # must be set
   - /preprocessor@prompt_builder.preprocessor: null  # must be set
 prompt_builder:
-  max_tokens: ${data.max_tokens}
   seed: 42
 sampling_kwargs:
   batch_size: 48
@@ -18,4 +17,4 @@ pipeline:
   evaluation_accessions_file: null
   max_instances: 15
   pipeline_id: foldseek_representatives  # for callback just determines metric name
-  preprocessor: ${data.dataset_cfgs.foldseek.preprocessor}
+match_representative_length: true

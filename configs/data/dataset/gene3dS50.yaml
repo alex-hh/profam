@@ -1,8 +1,13 @@
+_target_: src.data.builders.FastaProteinDataset
+name: gene3dS50
 defaults:
-  - /preprocessor: "fasta_raw"
-_target_: src.data.custom_datasets.ProteinDatasetConfig
-data_path_pattern: g3d/*/*_s50_rep_seq.fasta
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: null
-is_parquet: false
+  - /preprocessor: raw
+
+cfg:
+  _target_: src.data.builders.HFProteinDatasetConfig
+  data_path_pattern: gene3d/all_sfams_4.3/*/*_s50_rep_seq.fasta
+  holdout_data_files: null
+  holdout_identifiers: null
+  identifier_col: null
+  file_type: text
+  minimum_sequences: null

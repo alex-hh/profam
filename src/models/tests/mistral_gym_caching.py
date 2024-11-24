@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from transformers import MistralConfig, PreTrainedTokenizerFast
 from transformers.cache_utils import DynamicCache
 
-from src.data.proteingym import load_gym_dataset
+from src.data.builders.proteingym import load_gym_dataset
 from src.models.mistral_lit_module import MistralLitModule, log_likelihood_from_outputs
 
 tokenizer = PreTrainedTokenizerFast(

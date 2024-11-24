@@ -1,5 +1,7 @@
 from src.data.objects import ProteinDocument
-from src.data.transforms import sample_to_max_tokens
+from src.data.processors.transforms import (
+    preprocess_raw_sequences_sampling_to_max_tokens,
+)
 from src.sequence.fasta import read_fasta_sequences
 
 
@@ -13,14 +15,15 @@ def test_encode_decode(profam_tokenizer, pfam_fasta_text):
         keep_insertions=True,
         to_upper=True,
     )
-    proteins = sample_to_max_tokens(
+    proteins = preprocess_raw_sequences_sampling_to_max_tokens(
         ProteinDocument(sequences=list(sequence_iterator)),
+        tokenizer=profam_tokenizer,
         max_tokens=max_tokens,
         extra_tokens_per_document=2,
     )
     # n.b. encode_sequences encodes as a sequence of sequences
     encoded = profam_tokenizer.encode(proteins).input_ids
-    decoded = profam_tokenizer.decode_tokens(encoded[None, :])[
+    decoded = profam_tokenizer.decode_tokens(encoded[None])[
         0
     ]  # decode_tokens returns a list of lists
     for input_seq, decoded_seq in zip(proteins.sequences, decoded):

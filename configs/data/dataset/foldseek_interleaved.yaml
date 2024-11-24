@@ -1,13 +1,15 @@
+_target_: src.data.builders.StructureDocumentIterableDataset
+name: foldseek_interleaved
 defaults:
-  - /preprocessor: parquet_structure_noisy
-_target_: src.data.custom_datasets.ProteinDatasetConfig
-data_path_pattern: foldseek_struct/*.parquet
-holdout_data_files: null
-holdout_identifiers: null
-identifier_col: fam_id
-is_parquet: true
-length_filter: max_res_pos_in_seq
-minimum_sequences: null
-preprocessor:
-  interleave_structure_sequence: true
+  - /preprocessor: noisy_interleaved_coords
+
+cfg:
+  _target_: src.data.builders.HFProteinDatasetConfig
+  data_path_pattern: foldseek_struct/*.parquet
+  holdout_data_files: null
+  holdout_identifiers: null
+  identifier_col: fam_id
+  file_type: parquet
+  minimum_sequences: null
   structure_tokens_col: null
+  infer_representative_from_identifier: true

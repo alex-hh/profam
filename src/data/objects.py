@@ -282,7 +282,6 @@ class ProteinDocument:
         str
     ] = None  # e.g. seed or cluster representative
     original_size: Optional[int] = None  # total number of proteins in original set
-    document_ids: Optional[List[int]] = None
 
     def __post_init__(self):
         for field in [
@@ -292,42 +291,31 @@ class ProteinDocument:
             "struct_is_pdb",
             "interleaved_coords_masks",
             "modality_masks",
-            "document_ids",
         ]:
             attr = getattr(self, field)
             if attr is not None and isinstance(attr[0], list):
                 setattr(self, field, [np.array(arr) for arr in getattr(self, field)])
 
-        if self.modality_masks is None:
-            assert (
-                self.interleaved_coords_masks is None
-            ), "Must pass modality masks if interleaved coords are present"
-            sequences_masks = [np.ones(len(seq)) for seq in self.sequences]
-            has_struct = (
-                self.structure_tokens is not None or self.backbone_coords is not None
+        try:
+            check_array_lengths(
+                self.sequences,
+                self.plddts,
+                self.backbone_coords,
+                self.backbone_coords_masks,
+                self.structure_tokens,
+                self.interleaved_coords_masks,
             )
-            structure_masks = [
-                np.ones(len(seq)) if has_struct else np.zeros(len(seq))
-                for seq in self.sequences
-            ]
-            self.modality_masks = [
-                np.stack([seq_mask, struct_mask], axis=1).astype(bool)
-                for seq_mask, struct_mask in zip(sequences_masks, structure_masks)
-            ]
-        if self.document_ids is None:
-            # amother alternative: use > as beginning of document
-            self.document_ids = [np.ones(l) for l in self.sequence_lengths]
-
-        check_array_lengths(
-            self.sequences,
-            self.plddts,
-            self.backbone_coords,
-            self.backbone_coords_masks,
-            self.structure_tokens,
-            self.interleaved_coords_masks,
-            self.modality_masks,
-            self.document_ids,
-        )
+        except AssertionError:
+            print(
+                f"Error in protein document {self.identifier}:",
+                f"sequences: {self.sequences}",
+                f"plddts: {self.plddts}",
+                f"backbone_coords: {self.backbone_coords}",
+                f"backbone_coords_masks: {self.backbone_coords_masks}",
+                f"structure_tokens: {self.structure_tokens}",
+                f"interleaved_coords_masks: {self.interleaved_coords_masks}",
+            )
+            raise
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
             self.backbone_coords_masks = [
                 np.ones_like(xyz) for xyz in self.backbone_coords
@@ -605,53 +593,54 @@ class ProteinDocument:
 
     def clone(self, **kwargs):
         return ProteinDocument(
-            identifier=kwargs.get("identifier", self.identifier),
-            sequences=kwargs.get("sequences", self.sequences.copy()),
-            accessions=kwargs.get(
+            identifier=kwargs.pop("identifier", self.identifier),
+            sequences=kwargs.pop("sequences", self.sequences.copy()),
+            accessions=kwargs.pop(
                 "accessions",
                 self.accessions.copy() if self.accessions is not None else None,
             ),
-            residue_positions=kwargs.get(
+            residue_positions=kwargs.pop(
                 "residue_positions",
                 self.residue_positions.copy()
                 if self.residue_positions is not None
                 else None,
             ),
-            plddts=kwargs.get(
+            plddts=kwargs.pop(
                 "plddts", self.plddts.copy() if self.plddts is not None else None
             ),
-            backbone_coords=kwargs.get(
+            backbone_coords=kwargs.pop(
                 "backbone_coords",
                 self.backbone_coords.copy()
                 if self.backbone_coords is not None
                 else None,
             ),
-            backbone_coords_masks=kwargs.get(
+            backbone_coords_masks=kwargs.pop(
                 "backbone_coords_masks",
                 self.backbone_coords_masks.copy()
                 if self.backbone_coords_masks is not None
                 else None,
             ),
-            interleaved_coords_masks=kwargs.get(
+            interleaved_coords_masks=kwargs.pop(
                 "interleaved_coords_masks",
                 self.interleaved_coords_masks.copy()
                 if self.interleaved_coords_masks is not None
                 else None,
             ),
-            structure_tokens=kwargs.get(
+            structure_tokens=kwargs.pop(
                 "structure_tokens",
                 self.structure_tokens.copy()
                 if self.structure_tokens is not None
                 else None,
             ),
-            representative_accession=kwargs.get(
+            representative_accession=kwargs.pop(
                 "representative_accession", self.representative_accession
             ),
-            original_size=kwargs.get("original_size", self.original_size),
-            modality_masks=kwargs.get(
+            original_size=kwargs.pop("original_size", self.original_size),
+            modality_masks=kwargs.pop(
                 "modality_masks",
                 self.modality_masks.copy() if self.modality_masks is not None else None,
             ),
+            **kwargs,
         )
 
     def extend(self, proteins: "ProteinDocument"):
@@ -695,7 +684,5 @@ class ProteinDocument:
             ]
         if self.structure_tokens is not None:
             self.structure_tokens[index] = self.structure_tokens[index][start:end]
-        if self.document_ids is not None:
-            self.document_ids[index] = self.document_ids[index][start:end]
         if self.modality_masks is not None:
             self.modality_masks[index] = self.modality_masks[index][start:end]

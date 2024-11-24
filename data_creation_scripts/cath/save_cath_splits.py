@@ -1,20 +1,34 @@
 import json
+import os
 
-import numpy as np
+from src.constants import BASEDIR
+from src.data.builders.cath import load_cath43_coords, load_cath42_coords
 
-from evoif.common.constants import DATA_PATH, SPLITS_PATH
-from evoif.gvp.data import CATHDataset
 
-data = CATHDataset(DATA_PATH, SPLITS_PATH)
-for split_name in ["train", "val", "test"]:
-    split_entries = getattr(data, split_name)
-    # save jsonl file for each split
-    # (in gvp format directly)
-    with open(f"data/cath_{split_name}.jsonl", "w") as file:
-        for entry in split_entries:
-            # convert coords bact to dict from tuple
-            coords_dict = {}
-            for ix, atom_type in enumerate(["N", "CA", "C", "O"]):
-                coords_dict[atom_type] = [coords[ix] for coords in entry["coords"]]
-            entry["coords"] = coords_dict
-            file.write(json.dumps(entry) + "\n")
+def main():
+    for split_name in ["train", "validation", "test"]:
+        entries = load_cath43_coords(split_name=split_name)
+        with open(os.path.join(BASEDIR, f"data/cath/cath43/{split_name}.jsonl"), "w") as f:
+            for entry in entries:
+                coords = entry.pop("coords")
+                entry["N"] = coords["N"]
+                entry["CA"] = coords["CA"]
+                entry["C"] = coords["C"]
+                entry["O"] = coords["O"]
+                f.write(json.dumps(entry) + "\n")
+
+        entries = load_cath42_coords(split_name=split_name)
+        with open(
+            os.path.join(BASEDIR, f"data/cath/cath42/{split_name}.jsonl"), "w"
+        ) as f:
+            for entry in entries:
+                coords = entry.pop("coords")
+                entry["N"] = coords["N"]
+                entry["CA"] = coords["CA"]
+                entry["C"] = coords["C"]
+                entry["O"] = coords["O"]
+                f.write(json.dumps(entry) + "\n")
+
+
+if __name__ == "__main__":
+    main()

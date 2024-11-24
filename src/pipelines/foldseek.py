@@ -1,12 +1,15 @@
 from typing import Dict, Optional
 
-from src.data.parquet import build_representative_df
-from src.pipelines.mixins import ParquetGenerationsPipeline
+from src.data.builders.parquet import build_representative_df
+from src.pipelines.mixins import ParquetStructureMixin
+from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 
 # TODO: perhaps this should actually be a generic parquet representatives
 # pipeline - if we manage to standardise data enough
-class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
+class FoldseekRepresentativesPipeline(
+    ParquetStructureMixin, GenerationsEvaluatorPipeline
+):
     def __init__(
         self,
         *args,
@@ -15,8 +18,8 @@ class FoldseekRepresentativesPipeline(ParquetGenerationsPipeline):
         min_plddt: Optional[float] = None,
         **kwargs,
     ):
-        # TODO: make this cooperate better with the base class
         super().__init__(*args, **kwargs)
+        # TODO: make this cooperate better with the base class
         self.max_protein_length = max_protein_length
         self.min_plddt = min_plddt
         assert self.evaluation_df is not None

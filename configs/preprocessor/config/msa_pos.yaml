@@ -1,7 +1,0 @@
-_target_: src.data.preprocessing.PreprocessingConfig
-keep_gaps: false
-keep_insertions: true
-to_upper: true
-document_token: "[RAW-WITH-MSA-POS]"
-truncate_after_n_sequences: null
-use_msa_pos: true
