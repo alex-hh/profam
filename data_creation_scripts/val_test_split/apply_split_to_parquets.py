@@ -55,7 +55,7 @@ array(['A0A2E0X6R3', 'A0A518GGD7',
 
 """
 class BaseParquetSplitter:
-    def __init__(self, json_path, parquet_dir, output_dir, mem_limit=125):
+    def __init__(self, json_path, parquet_dir, output_dir, mem_limit=250):
         self.json_path = json_path
         self.parquet_dir = parquet_dir
         self.output_dir = output_dir
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mem_limit",
         type=int,
-        default=125,
+        default=250,
         help="Memory limit (in MB) for the ParquetBufferWriter.",
     )
 
