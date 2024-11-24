@@ -15,7 +15,6 @@ from biotite.sequence import ProteinSequence
 from biotite.structure.residues import get_residues, get_residue_starts
 import time
 import os
-import json
 import numpy as np
 import pandas as pd
 from modin import pandas as mpd
@@ -26,7 +25,7 @@ from src.constants import PROFAM_DATA_DIR
 from src.sequence.fasta import read_fasta
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.tools.foldmason import run_foldmason_on_pdbs
-from src.tools.foldtoken import run_foldtoken_on_pdbs
+from src.tools.foldtoken import run_foldtoken_on_pdbs, read_foldtoken_output
 from src.tools.foldseek import convert_pdbs_to_3di
 from .utils import extract_pdbs_from_zips
 
@@ -40,7 +39,7 @@ def save_pdbs_to_parquet(
     metadata_lookup,
     run_foldmason=False,
     run_foldtoken=False,
-    foldtoken_level=8,
+    foldtoken_level=8, # codebook size, e.g. 2^8, default in 8
     max_cluster_size_for_foldmason=None,
     convert_to_3di: bool = False,
     keep_pdbs: bool = False,
@@ -48,8 +47,7 @@ def save_pdbs_to_parquet(
     # TODO: it would be cleaner for clusters_to_save values to be metadata-augmented dicts
     # Save the pdbs to parquet
     results = []
-    # for cluster_id, cluster_members in clusters_to_save.items():
-    for cluster_id, cluster_members in islice(clusters_to_save.items(), 10):
+    for cluster_id, cluster_members in clusters_to_save.items():
         sequences = []
         accessions = []
         af50_cluster_id = []
@@ -106,30 +104,21 @@ def save_pdbs_to_parquet(
         # extract foldtoken vq_id from pdb 
         has_foldtoken_results = False
         if run_foldtoken:
-            if (
-                    (max_cluster_size_for_foldmason is not None and len(cluster_filelist) > max_cluster_size_for_foldmason)
-                    or len(cluster_filelist) < 3
-            ):
-                print(f"Skipping FoldToken for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
-            else:
-                foldtoken_outdir = os.path.join(pdbs_dir, cluster_id)
-                os.makedirs(foldtoken_outdir, exist_ok=True)
-                run_foldtoken_on_pdbs(cluster_filelist, f"{foldtoken_outdir}/foldtoken_result.jsonl", level=foldtoken_level)
+            
+            foldtoken_outdir = os.path.join(pdbs_dir, cluster_id)
+            os.makedirs(foldtoken_outdir, exist_ok=True)
+            foldtoken_output_file = f"{foldtoken_outdir}/foldtoken_result.jsonl"
 
-                # Read AA and vqid alignments
-                data_dict = {key: value for line in open(f"{foldtoken_outdir}/foldtoken_result.jsonl", 'r') for key, value in json.loads(line).items()}
-                labels = list(data_dict.keys())
-                # TODO: the sequence output from foldtoken is not aligned. Should we align?
-                msta_seqs = [entry['seq'] for entry in data_dict.values()]
-                # TODO: the tokens used by foldtoken are digits, not alphabets, should we change?
-                msta_vqid = [",".join(map(str, entry['vqid'])) for entry in data_dict.values()]
-                
-                perm = [labels.index(afdb_id) for afdb_id in cluster_members]
-                msta_seqs = [msta_seqs[ix] for ix in perm]
-                
-                msta_vqid = [msta_vqid[ix] for ix in perm]
-                shutil.rmtree(foldtoken_outdir)
-                has_foldtoken_results = True
+            run_foldtoken_on_pdbs(cluster_filelist, foldtoken_output_file, level=foldtoken_level)
+            
+            labels, foldtoken_seqs, foldtoken_vqid = read_foldtoken_output(foldtoken_outdir)
+            
+            perm = [labels.index(afdb_id) for afdb_id in cluster_members]
+            foldtoken_seqs = [foldtoken_seqs[ix] for ix in perm]
+            
+            foldtoken_vqid = [foldtoken_vqid[ix] for ix in perm]
+            shutil.rmtree(foldtoken_outdir)
+            has_foldtoken_results = True
                 
 
         if not keep_pdbs:
@@ -157,7 +146,8 @@ def save_pdbs_to_parquet(
         if convert_to_3di:
             res["sequences_3di"] = sequences_3di
         if has_foldtoken_results:
-            res["msta_vqid"] = msta_vqid
+            res["foldtoken_seqs"] = foldtoken_seqs
+            res["foldtoken_vqid"] = foldtoken_vqid
         results.append(res)
 
     df = pd.DataFrame(results)
@@ -291,11 +281,11 @@ def create_foldseek_parquets(
         os.makedirs(os.path.join(scratch_dir, job_prefix), exist_ok=True)
     else:
         os.makedirs(os.path.join(save_dir, job_prefix), exist_ok=True)
-    # extract_pdbs_from_zips(
-    #     pdb_lookup=pdb_lookup,
-    #     output_dir=os.path.join(scratch_dir, job_prefix) if not keep_pdbs else os.path.join(save_dir, job_prefix),
-    #     num_processes=num_processes,
-    # )
+    extract_pdbs_from_zips(
+        pdb_lookup=pdb_lookup,
+        output_dir=os.path.join(scratch_dir, job_prefix) if not keep_pdbs else os.path.join(save_dir, job_prefix),
+        num_processes=num_processes,
+    )
 
     for ix, parquet_id in enumerate(parquet_ids):
         print("Saving pdbs for parquet", parquet_id, parquet_cluster_membership, flush=True)
@@ -309,7 +299,7 @@ def create_foldseek_parquets(
             metadata_lookup=parquet_metadata_lookup,
             max_cluster_size_for_foldmason=max_cluster_size_for_foldmason,
             run_foldmason=run_foldmason and not (representative_only or af50_representative_only),
-            run_foldtoken=run_foldtoken and not (representative_only or af50_representative_only),
+            run_foldtoken=run_foldtoken,
             foldtoken_level=foldtoken_level,
             convert_to_3di=(representative_only or af50_representative_only),
             keep_pdbs=keep_pdbs,
