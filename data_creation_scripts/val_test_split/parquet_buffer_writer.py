@@ -48,4 +48,6 @@ class ParquetBufferWriter:
                 total_bytes += sum(arr.nbytes for arr in df[col])
             else:
                 total_bytes += df[col].memory_usage(index=False, deep=True)
-        return total_bytes / (1024 ** 2)  # Convert bytes to MB
+        total_mb = total_bytes / (1024 ** 2)
+        print(f"Size of DataFrame: {round(total_mb, 6)} MB")
+        return total_mb
