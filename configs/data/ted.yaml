@@ -35,5 +35,5 @@ ignore_gaps: true
 feature_names: ${constants.sequence_features}
 
 val_dataset_batch_sizes:
-    ted_s50_raw_val: 1
+    ted_s50_raw_val: 1 # greater than 1 breaks map datasets if using seq packing
 pack_to_max_tokens: 8192

@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 import sys
 
@@ -18,7 +19,7 @@ class ParquetBufferWriter:
         Increment memory usage. If over the memory limit,
         write dataframes to parquet and reset buffer.
         """
-        seqs_mb = sum([sys.getsizeof(s) for i, s_ls in df.sequences.items() for s in s_ls]) / 1024 / 1024
+        seqs_mb = self.get_size_mb(df)
         # print(f"mem use {self.name}: {round(self.mem_use, 6)}")
         if self.mem_use + seqs_mb < self.mem_limit:
             self.dfs.append(df)
@@ -38,3 +39,13 @@ class ParquetBufferWriter:
             self.dfs = []
             self.index += 1
             self.mem_use = 0
+
+    @staticmethod
+    def get_size_mb(df):
+        total_bytes = 0
+        for col in df.columns:
+            if isinstance(df[col].iloc[0], np.ndarray):
+                total_bytes += sum(arr.nbytes for arr in df[col])
+            else:
+                total_bytes += df[col].memory_usage(index=False, deep=True)
+        return total_bytes / (1024 ** 2)  # Convert bytes to MB
