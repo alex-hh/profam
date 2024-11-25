@@ -1,13 +1,13 @@
 _target_: src.data.datamodule.ProteinDataMixture
 defaults:
-  - dataset@dataset_cfgs.funfam_s50_ali: funfam_s50
-  - dataset@dataset_cfgs.funfam_s50_ali_v2: funfam_s50
-  - dataset@dataset_cfgs.funfam_s100_raw: funfam_s100_raw
-  - dataset@dataset_cfgs.ted_s100_raw: ted_s100_raw
-  - dataset@dataset_cfgs.ted_s50_raw: ted_s50_raw
+  - dataset@dataset_builders.funfam_s50_ali: funfam_s50
+  - dataset@dataset_builders.funfam_s50_ali_v2: funfam_s50
+  - dataset@dataset_builders.funfam_s100_raw: funfam_s100_raw
+  - dataset@dataset_builders.ted_s100_raw: ted_s100_raw
+  - dataset@dataset_builders.ted_s50_raw: ted_s50_raw
   # validation sets
-  - dataset@dataset_cfgs.pfam_val: pfam
-  - dataset@dataset_cfgs.pfam_val_raw: pfam_raw
+  # - dataset@dataset_builders.pfam_val: pfam
+  # - dataset@dataset_builders.pfam_val_raw: pfam_raw
   - _self_
 total_num_train_samples: 9000000  # todo get actual number
 data_weights:
@@ -17,28 +17,32 @@ data_weights:
   ted_s100_raw: 0.2
   ted_s50_raw: 0.2
 
-dataset_cfgs:
-  pfam_val:
-    cfg:
-      data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-  pfam_val_raw:
-    cfg:
-      data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
+# dataset_builders:
+#   pfam_val:
+#     split_name: validation
+#     cfg:
+#       data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
+#   pfam_val_raw:
+#     split_name: validation
+#     cfg:
+#       data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
 
 batch_size: 2
-max_tokens: 5000
 data_dir: ${paths.data_dir}
-val_dataset_names:
-  - pfam_val
-  - pfam_val_raw
+# val_dataset_names:
+#   - pfam_val
+#   - pfam_val_raw
 
-evaluate_gym: true
-evaluate_ec_class: false
-evaluate_ec_cluster_class: false
-evaluate_pfam_class: false
+# evaluate_gym: true
+# evaluate_ec_class: false
+# evaluate_ec_cluster_class: false
+# evaluate_pfam_class: false
+# gym_data_dir: ProteinGym
+# gym_dms_ids: ${constants.gym_val_assay_list}
 
 num_workers: 0
-gym_data_dir: ProteinGym
-gym_dms_ids: ${constants.gym_val_assay_list}
 ignore_gaps: true
 feature_names: ${constants.sequence_features}
+
+val_dataset_batch_sizes:
+  null
