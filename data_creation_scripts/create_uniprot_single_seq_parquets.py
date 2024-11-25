@@ -7,6 +7,11 @@ from tqdm import tqdm
 import random
 from itertools import islice
 
+"""
+Work in progress not tested yet, 
+"""
+
+
 def chunk_iterator(fasta_file, chunk_size=10000):
     """
     Memory-efficient iterator for FASTA files that yields chunks of records

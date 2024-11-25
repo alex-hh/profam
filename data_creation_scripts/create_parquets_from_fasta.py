@@ -13,9 +13,8 @@ import sys
 
 
 """
-Created by Jude Wells
 File originally was called create_funfam_parquets.py
-not a perfect universal tools you need to modify how 
+you still need to modify how 
 the family name is extracted from the fasta file path
 designed to be run in parallel on UCL cluster
 """

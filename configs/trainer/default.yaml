@@ -9,8 +9,8 @@ devices: 1
 
 check_val_every_n_epoch: 1
 val_check_interval: 1.0
-target_tokens_per_batch: 500000
-tokens_per_document: ${data.pack_to_max_tokens}
+target_tokens_per_batch: 50_0000
+tokens_per_document: 10_000
 batch_size: ${data.batch_size}
 # set True to ensure deterministic results
 # makes training slower but gives more reproducibility than just setting seeds

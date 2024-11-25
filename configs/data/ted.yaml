@@ -15,20 +15,9 @@ dataset_builders:
     name: ted_s50_raw_val
     cfg:
       data_path_pattern: ted/s50_parquets/train_val_test_split/val/*.parquet
-#  pfam_val_raw:
-#    cfg:
-#      data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
 
 batch_size: 1
 data_dir: ${paths.data_dir}
-
-
-# evaluate_gym: true
-# evaluate_ec_class: false
-# evaluate_ec_cluster_class: false
-# evaluate_pfam_class: false
-# gym_data_dir: ProteinGym
-# gym_dms_ids: ${constants.gym_val_assay_list}
 
 num_workers: 0
 ignore_gaps: true

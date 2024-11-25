@@ -15,30 +15,18 @@ data_weights:
   ted_s100_raw: 0.25
   ted_s50_raw: 0.25
 
-#dataset_cfgs:
-#  pfam_val:
-#    cfg:
-#      data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
-#  pfam_val_raw:
-#    cfg:
-#      data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
+
 
 batch_size: 2
 data_dir: ${paths.data_dir}
 
-
-# evaluate_gym: true
-# evaluate_ec_class: false
-# evaluate_ec_cluster_class: false
-# evaluate_pfam_class: false
-# gym_data_dir: ProteinGym
-# gym_dms_ids: ${constants.gym_val_assay_list}
 
 num_workers: 0
 ignore_gaps: true
 feature_names: ${constants.sequence_features}
 
 val_dataset_batch_sizes:
-    pfam_val: ${data.batch_size}
-    pfam_val_raw: ${data.batch_size}
-pack_to_max_tokens: 8192
+    pfam_val: 1
+    pfam_val_raw: 1
+
+pack_to_max_tokens: 65_563

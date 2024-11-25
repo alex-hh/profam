@@ -8,6 +8,8 @@ from data_creation_scripts.val_test_split.make_cath_splits_json import make_cath
 from data_creation_scripts.val_test_split.create_foldseek_val_test_split_json import create_foldseek_split_json
 
 """
+Main entry point for splitting parquet files into train, validation, and test sets.
+
 For TED and funfams splits use this json:
 profam/data/val_test/topology_splits.json
 
