@@ -13,8 +13,8 @@ data_weights:
 dataset_builders:
   ted_s50_raw_val:
     name: ted_s50_raw_val
-   cfg:
-     data_path_pattern: ted/s50_parquets/train_val_test_split/val/*.parquet
+    cfg:
+      data_path_pattern: ted/s50_parquets/train_val_test_split/val/*.parquet
 #  pfam_val_raw:
 #    cfg:
 #      data_path_pattern: pfam/train_test_split_parquets/val/*.parquet
