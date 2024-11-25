@@ -115,7 +115,7 @@ class BaseParquetSplitter:
             train_df = df[df['split_fam_id'].isin(self.train_fam_ids)].drop(columns=['split_fam_id'])
             val_df = df[df['split_fam_id'].isin(self.val_fam_ids)].drop(columns=['split_fam_id'])
             test_df = df[df['split_fam_id'].isin(self.test_fam_ids)].drop(columns=['split_fam_id'])
-
+            print(f"Split {len(df)} rows into train: {len(train_df)}, val: {len(val_df)}, test: {len(test_df)}")
             # Update buffers
             if not train_df.empty:
                 train_buffer.update_buffer(train_df)
