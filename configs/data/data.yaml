@@ -18,6 +18,7 @@ data_weights:
   ted: 0.3
 batch_size: 22
 max_tokens: 8192
+pack_to_max_tokens: 8192
 data_dir: ${paths.data_dir}
 val_dataset_batch_sizes:
   interpro: ${data.batch_size}

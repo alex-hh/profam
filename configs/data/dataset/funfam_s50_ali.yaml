@@ -1,5 +1,5 @@
 _target_: src.data.builders.SequenceDocumentIterableDataset
-name: funfam_s50_msa_pos
+name: funfam_s50_ali
 defaults:
   - /preprocessor: msa_pos
 
