@@ -20,7 +20,7 @@ class ParquetBufferWriter:
         write dataframes to parquet and reset buffer.
         """
         seqs_mb = self.get_size_mb(df)
-        print(f"mem use {self.name}: {round(self.mem_use, 6)}")
+        # print(f"mem use {self.name}: {round(self.mem_use, 6)}")
         if self.mem_use + seqs_mb < self.mem_limit:
             self.dfs.append(df)
             self.mem_use += seqs_mb
@@ -45,5 +45,5 @@ class ParquetBufferWriter:
         n_cols = len(df.columns)
         total_bytes = sum([sys.getsizeof(s) for i, s_array in df.sequences.items() for s in s_array]) * n_cols
         total_mb = total_bytes / (1024 ** 2)
-        print(f"Size of DataFrame {len(df)}: {round(total_mb, 6)} MB")
+        # print(f"Size of DataFrame {len(df)}: {round(total_mb, 6)} MB")
         return total_mb

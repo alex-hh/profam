@@ -3,7 +3,7 @@
 #$ -l h_rt=11:55:30
 #$ -S /bin/bash
 #$ -N splitParquets
-#$ -t 6,7,8
+#$ -t 6
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -71,24 +71,17 @@ case $SGE_TASK_ID in
     date
     ;;
 6)
-    python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/foldseek_cath_topology_splits.json \
-    --parquet_dir ../data/foldseek_af50_representatives/ \
-    --output_dir ../data/foldseek_af50_representatives/train_val_test_split \
-    --splitter FoldSeek
-    echo "completed foldseek_af50_representatives split"
-    date
-    ;;
-7)
+
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
     --json_path data/val_test/foldseek_cath_topology_splits.json \
     --parquet_dir ../data/foldseek_af50_struct/ \
     --output_dir ../data/foldseek_af50_struct/train_val_test_split \
-    --splitter FoldSeek
+    --splitter FoldSeek \
+    --mem_limit 40 # use less for structural datasets
     echo "completed foldseek_af50_struct split"
     date
     ;;
-8)
+7)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
     --json_path data/val_test/foldseek_cath_topology_splits.json \
     --parquet_dir ../data/foldseek_representatives/ \
@@ -97,7 +90,7 @@ case $SGE_TASK_ID in
     echo "completed foldseek_representatives split"
     date
     ;;
-9)
+8)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
     --json_path data/val_test/foldseek_cath_topology_splits.json \
     --parquet_dir ../data/foldseek_struct/ \
@@ -106,6 +99,16 @@ case $SGE_TASK_ID in
     echo "completed foldseek_struct split"
     date
     ;;
+#9)  # Don't run on af50 as it's a single seq per fam dataset
+#    python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
+#    --json_path data/val_test/foldseek_cath_topology_splits.json \
+#    --parquet_dir ../data/foldseek_af50_representatives/ \
+#    --output_dir ../data/foldseek_af50_representatives/train_val_test_split \
+#    --splitter FoldSeek
+#    echo "completed foldseek_af50_representatives split"
+#    date
+#    ;;
+
 *)
     echo "Invalid SGE_TASK_ID: $SGE_TASK_ID"
     ;;
