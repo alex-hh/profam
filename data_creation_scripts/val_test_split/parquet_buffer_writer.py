@@ -42,12 +42,7 @@ class ParquetBufferWriter:
 
     @staticmethod
     def get_size_mb(df):
-        total_bytes = 0
-        for col in df.columns:
-            if isinstance(df[col].iloc[0], np.ndarray):
-                total_bytes += sum(arr.nbytes for arr in df[col])
-            else:
-                total_bytes += df[col].memory_usage(index=False, deep=True)
+        total_bytes = sum([sys.getsizeof(s) for i, s_array in df.sequences.items() for s in s_array])
         total_mb = total_bytes / (1024 ** 2)
         print(f"Size of DataFrame {len(df)}: {round(total_mb, 6)} MB")
         return total_mb
