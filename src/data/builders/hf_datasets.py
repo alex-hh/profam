@@ -51,7 +51,7 @@ import numpy as np
 from datasets import Dataset, Features, load_dataset
 from omegaconf import ListConfig
 
-from src.constants import TOKENIZED_FEATURE_TYPES, ALL_FEATURE_NAMES
+from src.constants import TOKENIZED_FEATURE_TYPES
 from src.data.objects import ProteinDocument
 from src.data.processors import (
     ProteinDocumentPreprocessor,
@@ -201,7 +201,8 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
                 pack_to_max_tokens=pack_to_max_tokens,
                 allow_split_packed_documents=self.cfg.allow_split_packed_documents,
             )
-            examples = {k:v for k,v in examples.items() if k in feature_names}
+            if feature_names is not None:
+                examples = {k: v for k,v in examples.items() if k in feature_names}
             return examples
         else:
             example = self.preprocess_example(example_or_examples, tokenizer)
@@ -227,7 +228,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         )  # formatting needs to be set before filter/map
 
         if self.streaming:
-            print(f"Dataset n shards: {dataset.num_shards}")
+            print(f"Dataset n shards: {dataset.n_shards}")
         else:
             print(f"Loaded dataset {self.name} with {len(dataset)} samples")
         if verbose:
@@ -348,6 +349,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 fn_kwargs={
                     "tokenizer": tokenizer,
                     "pack_to_max_tokens": pack_to_max_tokens,
+                    "feature_names": feature_names,
                 },
                 features=Features(
                     **{f: TOKENIZED_FEATURE_TYPES[f] for f in feature_names}
