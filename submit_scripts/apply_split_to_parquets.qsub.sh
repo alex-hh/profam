@@ -1,6 +1,6 @@
 #$ -l tmem=127G
 #$ -l h_vmem=127G
-#$ -l h_rt=11:55:30
+#$ -l h_rt=72:55:30
 #$ -S /bin/bash
 #$ -N splitParquets
 #$ -t 6
