@@ -1,0 +1,18 @@
+_target_: src.data.datamodule.ProteinDataMixture
+defaults:
+  - dataset@dataset_builders.foldseek_s50_representatives_raw: foldseek_s50_representatives_raw
+  - _self_
+total_num_train_samples: 100_000_000  # todo get actual number
+data_weights:
+  foldseek_s50_representatives_raw: 1.0
+
+batch_size: 1
+data_dir: ${paths.data_dir}
+
+num_workers: 12
+ignore_gaps: true
+feature_names: ${constants.sequence_features}
+
+val_dataset_batch_sizes:
+    ted_s50_raw_val: 1 # greater than 1 breaks map datasets if using seq packing
+pack_to_max_tokens: 65_563
