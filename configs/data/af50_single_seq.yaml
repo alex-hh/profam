@@ -7,7 +7,7 @@ defaults:
 dataset_builders:
   foldseek_s50_representatives_raw:
     cfg:
-      holdout_data_files: 0.parquet
+      holdout_data_files: foldseek_af50_representatives/0.parquet
   foldseek_val:
     cfg:
       data_path_pattern: foldseek_af50_representatives/0.parquet
