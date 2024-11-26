@@ -9,6 +9,7 @@ dataset_builders:
     cfg:
       holdout_data_files: foldseek_af50_representatives/0.parquet
   foldseek_val:
+    _target_: src.data.builders.SequenceDocumentMapDataset
     name: foldseek_val
     cfg:
       data_path_pattern: foldseek_af50_representatives/0.parquet
