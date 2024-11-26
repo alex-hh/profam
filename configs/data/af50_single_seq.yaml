@@ -28,4 +28,4 @@ feature_names: ${constants.sequence_features}
 
 val_dataset_batch_sizes:
     foldseek_val: 1 # greater than 1 breaks map datasets if using seq packing
-pack_to_max_tokens: 65_563
+pack_to_max_tokens: 32_768
