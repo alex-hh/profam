@@ -30,7 +30,7 @@ paths:
 
 model:
   use_kv_cache_for_scoring: true
-  embed_coords: true
+  embed_coords: false
   lr: 2e-3
   embed_sequence_index: true
   embed_residue_index: true
