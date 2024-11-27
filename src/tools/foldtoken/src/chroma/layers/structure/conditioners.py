@@ -333,7 +333,10 @@ class ShapeConditioner(Conditioner):
             X_target = X_target.cpu().data.numpy()
 
         if self.autoscale:
-            X_target, self.shape_cutoff_D = src.chroma.utility.src.chroma.point_cloud_rescale(
+            (
+                X_target,
+                self.shape_cutoff_D,
+            ) = src.chroma.utility.src.chroma.point_cloud_rescale(
                 X_target,
                 self.autoscale_num_residues,
                 scale_ratio=self.autoscale_target_ratio,

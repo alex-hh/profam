@@ -14,7 +14,7 @@
 
 """Layers for measuring and building atomic geometries in proteins.
 
-This module contains pytorch layers for computing common geometric features of 
+This module contains pytorch layers for computing common geometric features of
 protein backbones in a differentiable way and for converting between internal
 and Cartesian coordinate representations.
 """
@@ -188,7 +188,9 @@ def normed_cross(
     Returns:
         C (Tensor): Batch of cross products `v_1 x v_2` with shape `(..., 3)`.
     """
-    C = normed_vec(torch.cross(V1.float(), V2.float(), dim=-1), distance_eps=distance_eps)
+    C = normed_vec(
+        torch.cross(V1.float(), V2.float(), dim=-1), distance_eps=distance_eps
+    )
     return C.type(V1.dtype)
 
 
@@ -471,7 +473,11 @@ class InternalCoords(nn.Module):
         L = mask_L * L
 
         D, A, L = D.to(X.dtype), A.to(X.dtype), L.to(X.dtype)
-        mask_D, mask_A, mask_L = mask_D.to(X.dtype), mask_A.to(X.dtype), mask_L.to(X.dtype)
+        mask_D, mask_A, mask_L = (
+            mask_D.to(X.dtype),
+            mask_A.to(X.dtype),
+            mask_L.to(X.dtype),
+        )
 
         if not return_masks:
             return D, A, L
@@ -614,7 +620,7 @@ def rotations_from_quaternions(
         q = normed_vec(q, distance_eps=eps)
 
     a, b, c, d = q.unbind(-1)
-    a2, b2, c2, d2 = a ** 2, b ** 2, c ** 2, d ** 2
+    a2, b2, c2, d2 = a**2, b**2, c**2, d**2
     R = torch.stack(
         [
             a2 + b2 - c2 - d2,

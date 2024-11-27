@@ -188,7 +188,10 @@ class LossBackboneHBonds(nn.Module):
         )
 
     def forward(
-        self, X: torch.Tensor, X_target: torch.Tensor, C: torch.LongTensor,
+        self,
+        X: torch.Tensor,
+        X_target: torch.Tensor,
+        C: torch.LongTensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Build Graph
         edge_idx, mask_ij = self.graph_builder(X_target, C)
@@ -217,7 +220,8 @@ class LossBackboneHBonds(nn.Module):
 
 
 def _ij_distance(
-    C: torch.LongTensor, edge_idx: torch.LongTensor,
+    C: torch.LongTensor,
+    edge_idx: torch.LongTensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     C_i = C[..., None]
     C_j = collect_neighbors(C_i, edge_idx)[..., 0]
@@ -244,7 +248,9 @@ def _contact_order(
 
 
 def _locality_mask(
-    C: torch.LongTensor, edge_idx: torch.LongTensor, cutoff: float,
+    C: torch.LongTensor,
+    edge_idx: torch.LongTensor,
+    cutoff: float,
 ) -> torch.Tensor:
     dij, mask_same_chain = _ij_distance(C, edge_idx)
     mask_ij_local = ((dij < cutoff) * mask_same_chain).float()

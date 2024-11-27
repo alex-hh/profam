@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Layers for euclidean symmetry group operations 
+"""Layers for euclidean symmetry group operations
 
 This module contains pytorch layers for symmetry operations for point groups (Cyclic, Dihedral, Tetrahedral, Octahedral and Icosahedral)
 """

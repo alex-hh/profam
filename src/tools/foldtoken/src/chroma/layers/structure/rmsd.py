@@ -115,15 +115,15 @@ class CrossRMSD(nn.Module):
             raise NotImplementedError
 
         # Compute RMSD in terms of RMSD using the scheme of Coutsias et al
-        norms = (X_mobile ** 2).sum(dim=[-1, -2]).unsqueeze(1) + (X_target ** 2).sum(
+        norms = (X_mobile**2).sum(dim=[-1, -2]).unsqueeze(1) + (X_target**2).sum(
             dim=[-1, -2]
         ).unsqueeze(0)
         sqRMSD = torch.relu((norms - 2 * top_eig) / (num_atoms + self._eps))
         RMSD = torch.sqrt(sqRMSD)
         return RMSD
-    
+
     def untable_eigen(self, L):
-        return L.diff(dim=-1).abs().min()<1e-6
+        return L.diff(dim=-1).abs().min() < 1e-6
 
     def eigen(self, F):
         # Compute optimal quaternion by extracting leading eigenvector
@@ -201,7 +201,6 @@ class CrossRMSD(nn.Module):
         R_to_F = self.R_to_F.type(R_flat.dtype)
         F = torch.matmul(R_flat, R_to_F).reshape(num_batch, 4, 4)
 
-
         top_eig, vec = self.eigen(F + 1e-5 * torch.randn_like(F))
         # idx = 0
         # while self.untable_eigen(top_eig):
@@ -212,7 +211,7 @@ class CrossRMSD(nn.Module):
         #         break
 
         # Compute RMSD using top eigenvalue
-        norms = (X_mobile_center ** 2).sum(dim=[-1, -2]) + (X_target_center ** 2).sum(
+        norms = (X_mobile_center**2).sum(dim=[-1, -2]) + (X_target_center**2).sum(
             dim=[-1, -2]
         )
         sqRMSD = torch.relu((norms - 2 * top_eig) / (num_atoms + self._eps))

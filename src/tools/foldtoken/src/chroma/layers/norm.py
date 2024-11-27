@@ -173,8 +173,16 @@ class MaskedBatchNorm2d(nn.Module):
         self.momentum = momentum
         self.affine = affine
         if affine:
-            self.weight = nn.Parameter(torch.ones(num_features,))
-            self.bias = nn.Parameter(torch.zeros(num_features,))
+            self.weight = nn.Parameter(
+                torch.ones(
+                    num_features,
+                )
+            )
+            self.bias = nn.Parameter(
+                torch.zeros(
+                    num_features,
+                )
+            )
         else:
             self.register_parameter("weight", None)
             self.register_parameter("bias", None)

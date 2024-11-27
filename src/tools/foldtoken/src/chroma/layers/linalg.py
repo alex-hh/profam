@@ -96,10 +96,13 @@ def eig_leading(A, num_iterations=50):
     lam = lam_2 - lam_1_abs
     return lam, vec
 
+
 def stable_masked_mean(data, mask=None, dim=1, keepdim=False):
     if mask is None:
         out = data.mean(dim, keepdim=keepdim)
     else:
-        ratio = torch.ones_like(mask).sum(dim, keepdim=keepdim)/mask.sum(dim, keepdim=keepdim)
-        out = (mask * data).mean(dim, keepdim=keepdim)*ratio
+        ratio = torch.ones_like(mask).sum(dim, keepdim=keepdim) / mask.sum(
+            dim, keepdim=keepdim
+        )
+        out = (mask * data).mean(dim, keepdim=keepdim) * ratio
         return out

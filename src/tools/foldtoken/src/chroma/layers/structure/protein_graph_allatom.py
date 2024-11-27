@@ -202,8 +202,8 @@ class EdgeSidechainsDirect(nn.Module):
             U_ff = torch.concat([torch.cos(U_ff), torch.sin(U_ff)], -1)
 
             # Gaussian RBF envelope
-            D_ij = torch.sqrt((U_ij ** 2).sum(-1) + self.distance_eps)
-            magnitude = torch.exp(-D_ij * D_ij / (2 * self.length_scale ** 2))
+            D_ij = torch.sqrt((U_ij**2).sum(-1) + self.distance_eps)
+            magnitude = torch.exp(-D_ij * D_ij / (2 * self.length_scale**2))
             U_ff = magnitude.unsqueeze(-1) * U_ff
 
             U_ff = U_ff.reshape(list(D_ij.shape)[:3] + [-1])
@@ -211,7 +211,7 @@ class EdgeSidechainsDirect(nn.Module):
 
         elif self.basis_type == "spherical":
             # Convert to spherical coordinates
-            r_ij = torch.sqrt((U_ij ** 2).sum(-1) + self.distance_eps)
+            r_ij = torch.sqrt((U_ij**2).sum(-1) + self.distance_eps)
             r_ij_scale = r_ij * 2.0 * np.pi / self.length_scale
             x, y, z = U_ij.unbind(-1)
             theta_ij = torch.acos(z / r_ij)
@@ -224,7 +224,7 @@ class EdgeSidechainsDirect(nn.Module):
             ]
             # Radial envelope function
             r_envelope = mask_atoms_ij * torch.exp(
-                -r_ij * r_ij / (2 * self.length_scale ** 2)
+                -r_ij * r_ij / (2 * self.length_scale**2)
             )
 
             # Tensor outer product
