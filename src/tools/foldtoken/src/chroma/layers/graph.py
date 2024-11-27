@@ -754,7 +754,9 @@ def scatter_edges(edge_h: torch.Tensor, edge_idx: torch.LongTensor) -> torch.Ten
     bs, nres, _, dim = edge_h.size()
     edge_indices = edge_idx.unsqueeze(-1).repeat(1, 1, 1, dim)
     result = torch.zeros(
-        size=(bs, nres, nres, dim), dtype=edge_h.dtype, device=edge_h.device,
+        size=(bs, nres, nres, dim),
+        dtype=edge_h.dtype,
+        device=edge_h.device,
     )
     return result.scatter(dim=2, index=edge_indices, src=edge_h)
 

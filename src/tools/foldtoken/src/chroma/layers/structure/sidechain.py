@@ -14,10 +14,10 @@
 
 """Layers for modeling protein side chain conformations.
 
-This module contains layers for building, measuring, and scoring protein side 
+This module contains layers for building, measuring, and scoring protein side
 chain conformations in a differentiable way. These can be used for tasks such
 as building differentiable all-atom structures from chi-angles, computing chi
-angles from existing structures, and scoring or optimizing side chains using 
+angles from existing structures, and scoring or optimizing side chains using
 symmetry-aware rmsds.
 """
 
@@ -26,8 +26,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from chroma import constants
+
 from src.chroma.layers import graph
 from src.chroma.layers.structure import protein_graph
 from src.chroma.layers.structure.geometry import (
@@ -371,7 +371,14 @@ class AllAtomFrameBuilder(nn.Module):
 
         # TODO: fix this behavior for termini
         mask_next = (C > 0).float()[:, 1:].unsqueeze(-1)
-        X_N_next = F.pad(mask_next * X_N[:, 1:,], (0, 0, 0, 1),)
+        X_N_next = F.pad(
+            mask_next
+            * X_N[
+                :,
+                1:,
+            ],
+            (0, 0, 0, 1),
+        )
 
         num_batch, num_residues = C.shape
         ones = torch.ones(list(C.shape), dtype=torch.float32, device=C.device)

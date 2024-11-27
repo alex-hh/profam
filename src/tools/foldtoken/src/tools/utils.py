@@ -1,10 +1,13 @@
-import torch
-import numpy as np
 from collections.abc import Mapping, Sequence
-from tqdm.auto import tqdm
-from joblib import Parallel, delayed, cpu_count
+
+import numpy as np
+import torch
+from joblib import Parallel, cpu_count, delayed
 from joblib.externals.loky import set_loky_pickler
+from tqdm.auto import tqdm
+
 # from src.tools.affine_utils import Rigid
+
 
 def cuda(obj, *args, **kwargs):
     """
@@ -24,9 +27,9 @@ def cuda(obj, *args, **kwargs):
         return obj.to(*args, **kwargs)
     else:
         return obj
-        
 
     raise TypeError("Can't transfer object type `%s`" % type(obj))
+
 
 def pmap_multi(pickleable_fn, data, n_jobs=None, verbose=1, desc=None, **kwargs):
     """
@@ -59,11 +62,11 @@ def pmap_multi(pickleable_fn, data, n_jobs=None, verbose=1, desc=None, **kwargs)
         n_jobs = cpu_count()
     # n_jobs = 60
     results = Parallel(n_jobs=n_jobs, verbose=verbose, timeout=None)(
-    delayed(pickleable_fn)(*d, **kwargs) for i, d in tqdm(enumerate(data),desc=desc)
+        delayed(pickleable_fn)(*d, **kwargs)
+        for i, d in tqdm(enumerate(data), desc=desc)
     )
 
     return results
-
 
 
 def modulo_with_wrapped_range(
@@ -103,42 +106,46 @@ def modulo_with_wrapped_range(
     return retval
 
 
-class RectifiedFlow():
-  def __init__(self, model=None, num_steps=1000):
-    self.model = model
-    self.N = num_steps
+class RectifiedFlow:
+    def __init__(self, model=None, num_steps=1000):
+        self.model = model
+        self.N = num_steps
 
-  def get_train_tuple(self, z0=None, z1=None, t=None, batch_id=None):
-    dtype = z0.dtype
-    if batch_id is None:
-        t = torch.rand((z1.shape[0], 1, 1), device=z0.device, dtype=dtype)
-    else:
-        t = torch.rand((batch_id.unique().shape[0], 1, 1), device=z0.device, dtype=dtype)
-        t = t[batch_id]
-    z_t =  t * z1 + (1.-t) * z0
-    # target = z1 - z0
-    target = z1 - z_t
+    def get_train_tuple(self, z0=None, z1=None, t=None, batch_id=None):
+        dtype = z0.dtype
+        if batch_id is None:
+            t = torch.rand((z1.shape[0], 1, 1), device=z0.device, dtype=dtype)
+        else:
+            t = torch.rand(
+                (batch_id.unique().shape[0], 1, 1), device=z0.device, dtype=dtype
+            )
+            t = t[batch_id]
+        z_t = t * z1 + (1.0 - t) * z0
+        # target = z1 - z0
+        target = z1 - z_t
 
-    return z_t, t, target
+        return z_t, t, target
 
-  @torch.no_grad()
-  def sample_ode(self, z0=None,  N=None, batch_id=None, chain_encoding=None):
-    ### NOTE: Use Euler method to sample from the learned flow
-    if N is None:
-      N = self.N
-    dt = 1./N
-    traj = [] # to store the trajectory
-    z = z0.detach().clone()
-    batchsize = z.shape[0]
-    norm_max = torch.ones_like(batch_id, device=z0.device)[:,None] * 10.
+    @torch.no_grad()
+    def sample_ode(self, z0=None, N=None, batch_id=None, chain_encoding=None):
+        ### NOTE: Use Euler method to sample from the learned flow
+        if N is None:
+            N = self.N
+        dt = 1.0 / N
+        traj = []  # to store the trajectory
+        z = z0.detach().clone()
+        batchsize = z.shape[0]
+        norm_max = torch.ones_like(batch_id, device=z0.device)[:, None] * 10.0
 
-    traj.append(z.detach().clone())
-    for i in range(N):
-      t = torch.ones((batchsize,1,1), device=z0.device) * i / N
-      z1_hat, all_preds, vq_los = self.model(chain_encoding, batch_id, z, t, norm_max)
-      z = z.detach().clone() + (z1_hat/norm_max[...,None]-z)/(1-t) * dt
-    #   z =  t * z1_hat + (1.-t) * z0
+        traj.append(z.detach().clone())
+        for i in range(N):
+            t = torch.ones((batchsize, 1, 1), device=z0.device) * i / N
+            z1_hat, all_preds, vq_los = self.model(
+                chain_encoding, batch_id, z, t, norm_max
+            )
+            z = z.detach().clone() + (z1_hat / norm_max[..., None] - z) / (1 - t) * dt
+            #   z =  t * z1_hat + (1.-t) * z0
 
-      traj.append(z.detach().clone()*norm_max[...,None])
+            traj.append(z.detach().clone() * norm_max[..., None])
 
-    return traj
+        return traj

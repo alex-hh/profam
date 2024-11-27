@@ -27,8 +27,8 @@ import torch
 import torch.nn.functional as F
 
 from src.chroma.layers import conv
-from src.chroma.layers.structure import backbone
 from src.chroma.layers.linalg import stable_masked_mean
+from src.chroma.layers.structure import backbone
 
 
 class BackboneMVNGlobular(torch.nn.Module):
@@ -94,8 +94,8 @@ class BackboneMVNGlobular(torch.nn.Module):
         N_per_complex = C_mask.sum([1, 2])
 
         # Compute expected Rg^2 values per complex
-        Rg2_complex = (r ** 2) * N_per_complex ** (2.0 * nu)
-        Rg2_chain = (r ** 2) * N_per_chain ** (2.0 * nu)
+        Rg2_complex = (r**2) * N_per_complex ** (2.0 * nu)
+        Rg2_chain = (r**2) * N_per_chain ** (2.0 * nu)
 
         # Compute OU process parameters
         N_per_chain = torch.clip(N_per_chain, 1, 1e6)
@@ -106,12 +106,12 @@ class BackboneMVNGlobular(torch.nn.Module):
         #     N_per_chain ** (2 * (nu - 1)) * (N_per_chain ** 2 + 9) - (a / r) ** 2
         # )
         B = (3.0 / N_per_chain) + N_per_chain ** (-nu) * torch.sqrt(
-            N_per_chain ** (2 * nu)  + 9*N_per_chain ** (2 * (nu - 1)) - (a / r) ** 2
+            N_per_chain ** (2 * nu) + 9 * N_per_chain ** (2 * (nu - 1)) - (a / r) ** 2
         )
         B = torch.clip(B, 1e-4, 1.0 - 1e-4)
 
         # OU process equilibrium standard deviation warm-starts process
-        x_init_std = torch.sqrt(1.0 / (1.0 - B ** 2))
+        x_init_std = torch.sqrt(1.0 / (1.0 - B**2))
 
         # Compute size-weighted average Rg^2 per chain
         Rg2_chain_avg = (N_per_chain * Rg2_chain).sum(1) / (N_per_chain.sum(1) + 1e-5)
@@ -162,7 +162,7 @@ class BackboneMVNGlobular(torch.nn.Module):
         # )
         # X_chain_mean = X_chain_mean.type(dtype)
         X_chain_mean = stable_masked_mean(X_expand, C_mask_mean, dim=1, keepdim=True)
-        
+
         shift = shift if shift is not None else 0
         shift = shift + scale * X_chain_mean
         X_expand = C_mask_apply * (X_expand + shift)
@@ -470,7 +470,7 @@ class BackboneMVNGlobular(torch.nn.Module):
         # Compute determinants per chain
         N_chain = C_mask_all.sum([1, 3])
         logdet_chain = (
-            N_chain * np.log(a) + torch.log(1.0 - xi) - 0.5 * torch.log(1.0 - B ** 2)
+            N_chain * np.log(a) + torch.log(1.0 - xi) - 0.5 * torch.log(1.0 - B**2)
         )
 
         # We pick up one determinant per chain per spatial dimension (xyz)
@@ -521,7 +521,9 @@ class BackboneMVNGlobular(torch.nn.Module):
         num_residues = C.shape[1]
 
         if Z is None:
-            Z = torch.randn([num_batch, num_residues * 4, 3], device=C.device, dtype=C.dtype)
+            Z = torch.randn(
+                [num_batch, num_residues * 4, 3], device=C.device, dtype=C.dtype
+            )
         if ddX is None:
             X_flat = self._multiply_R(Z, C)
         else:
@@ -586,7 +588,7 @@ class ConditionalBackboneMVNGlobular(BackboneMVNGlobular):
         # X_mean = (mask_expand * X).sum([1, 2], keepdims=True) / (
         #     mask_expand.sum([1, 2], keepdims=True)
         # )
-        X_mean = stable_masked_mean(X, mask_expand, dim=[1,2], keepdim=True)
+        X_mean = stable_masked_mean(X, mask_expand, dim=[1, 2], keepdim=True)
         return X_mean
 
     def mu(self, X: torch.Tensor):
@@ -702,7 +704,7 @@ class ConditionalBackboneMVNGlobular(BackboneMVNGlobular):
         N = C_atom.numel()
         P3 = torch.eye(N).to(C_atom.device)
         for index, _b in zip(indices, b[0]):
-            P3.diagonal().data[index] = 1 / math.sqrt(1 - _b ** 2)
+            P3.diagonal().data[index] = 1 / math.sqrt(1 - _b**2)
         return P3
 
     def _condition_RRt(self, RRt, D):

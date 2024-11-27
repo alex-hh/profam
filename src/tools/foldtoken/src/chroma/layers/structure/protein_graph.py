@@ -34,8 +34,8 @@ import torch.nn.functional as F
 from src.chroma.data.protein import Protein
 from src.chroma.layers import graph
 from src.chroma.layers.basic import FourierFeaturization, PositionalEncoding
-from src.chroma.layers.structure import backbone, geometry, transforms
 from src.chroma.layers.linalg import stable_masked_mean
+from src.chroma.layers.structure import backbone, geometry, transforms
 
 
 class ProteinFeatureGraph(nn.Module):
@@ -685,7 +685,7 @@ class NodeRadii(nn.Module):
         # X_center = (mask_i * X).sum([1, 2], keepdim=True) / mask_i.sum(
         #     [1, 2], keepdim=True
         # )
-        X_center = stable_masked_mean(X, mask_i, dim=[1,2], keepdim=True)
+        X_center = stable_masked_mean(X, mask_i, dim=[1, 2], keepdim=True)
 
         node_h = (mask_i * ((X - X_center) / self.length_scale) ** 2).sum(-1)
         return node_h
@@ -1177,7 +1177,9 @@ class EdgeOrientationChain(nn.Module):
         #     (mask_expand).sum(1, keepdim=True) + eps
         # )
 
-        node_h_chain_average = stable_masked_mean(node_h_expand, mask_expand, 1, keepdim=True)
+        node_h_chain_average = stable_masked_mean(
+            node_h_expand, mask_expand, 1, keepdim=True
+        )
 
         # Back-expand (B,C,K) => (B,L,3)
         node_h_chain_average = (mask_expand * node_h_chain_average).sum(2)
@@ -1604,9 +1606,6 @@ def _cgo_color(rgb=(0.0, 0.0, 1.0)):
     r, g, b = rgb
     cgo_str = f"[ 6.0, {r}, {g}, {b}]"
     return cgo_str
-
-
-
 
 
 if __name__ == "__main__":

@@ -58,7 +58,11 @@ def optimize_couplings_sinkhorn(C, scale=1.0, iterations=10):
 
 
 def optimize_couplings_gw(
-    D_a, D_b, scale=200.0, iterations_outer=30, iterations_inner=10,
+    D_a,
+    D_b,
+    scale=200.0,
+    iterations_outer=30,
+    iterations_inner=10,
 ):
     """Gromov-Wasserstein Optimal Transport.
     https://arxiv.org/pdf/1905.07645.pdf
@@ -82,8 +86,8 @@ def optimize_couplings_gw(
     p_a = torch.ones_like(D_a[:, :, 0]) / N_a
     p_b = torch.ones_like(D_b[:, :, 0]) / N_b
     C_ab = (
-        torch.einsum("bij,bj->bi", D_a ** 2, p_a)[:, :, None]
-        + torch.einsum("bij,bj->bi", D_b ** 2, p_b)[:, None, :]
+        torch.einsum("bij,bj->bi", D_a**2, p_a)[:, :, None]
+        + torch.einsum("bij,bj->bi", D_b**2, p_b)[:, None, :]
     )
     T_gw = torch.einsum("bi,bj->bij", p_a, p_b)
     for i in range(iterations_outer):

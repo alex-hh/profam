@@ -65,7 +65,9 @@ class GaussianNoiseSchedule:
     """
 
     def __init__(
-        self, log_snr_range: Tuple[float, float] = (-7.0, 13.5), kind: str = "log_snr",
+        self,
+        log_snr_range: Tuple[float, float] = (-7.0, 13.5),
+        kind: str = "log_snr",
     ) -> None:
         super().__init__()
 
@@ -374,7 +376,7 @@ class GaussianNoiseSchedule:
         """
         t = self.tensor_check(t)
         # return self.SNR(t) / (self.SNR(t) + 1)
-        return 1 / (1 + 1/self.SNR(t))
+        return 1 / (1 + 1 / self.SNR(t))
 
     def SSNR_inv(self, ssnr: torch.Tensor) -> torch.Tensor:
         """the inverse of SSNR
@@ -534,7 +536,8 @@ class DiffusionChainCov(nn.Module):
         super().__init__()
 
         self.noise_schedule = GaussianNoiseSchedule(
-            log_snr_range=log_snr_range, kind=noise_schedule,
+            log_snr_range=log_snr_range,
+            kind=noise_schedule,
         )
 
         if covariance_model in ["brownian", "globular"]:
@@ -897,7 +900,7 @@ class DiffusionChainCov(nn.Module):
         if detach_X0:
             X0 = X0.detach()
         Z = self._X_to_Z(X, X0, C, alpha, sigma)
-        U_diffusion = (0.5 * (Z ** 2)).sum([1, 2, 3])
+        U_diffusion = (0.5 * (Z**2)).sum([1, 2, 3])
         return U_diffusion
 
     @validate_XC()
@@ -1040,13 +1043,15 @@ class DiffusionChainCov(nn.Module):
             lambda_t,
             lambda_langevin,
         ) = self._schedule_coefficients(
-            t, inverse_temperature=1 / kT, langevin_isothermal=langevin_isothermal,
+            t,
+            inverse_temperature=1 / kT,
+            langevin_isothermal=langevin_isothermal,
         )
 
         def baoab_step(_x, p, t):
             Z = torch.randn_like(_x)
             c1 = torch.exp(-gamma * dt)
-            c3 = torch.sqrt((1 / lambda_t) * (1 - c1 ** 2))
+            c3 = torch.sqrt((1 / lambda_t) * (1 - c1**2))
 
             # BAOAB scheme
             p_half = p + score_func(t, C, _x) * dt / 2  # B
@@ -1257,7 +1262,12 @@ class DiffusionChainCov(nn.Module):
         return elbo
 
     def _score_direct(
-        self, Xt, X0_func, C, t, align_X0=True,
+        self,
+        Xt,
+        X0_func,
+        C,
+        t,
+        align_X0=True,
     ):
         X0 = X0_func(Xt, C, t)
 
@@ -1332,7 +1342,10 @@ class DiffusionChainCov(nn.Module):
             return fn_out, eps_J_eps
 
         def flow_gradient(
-            X, X0_func, C, t,
+            X,
+            X0_func,
+            C,
+            t,
         ):
             """Compute the time gradient from the probability flow ODE."""
 
@@ -1344,7 +1357,12 @@ class DiffusionChainCov(nn.Module):
 
         def odefun(_t, _X):
             _t = _t.detach()
-            f = flow_gradient(_X, X0_func, C, _t,)
+            f = flow_gradient(
+                _X,
+                X0_func,
+                C,
+                _t,
+            )
             return f
 
         # foward integration to noise
@@ -1880,6 +1898,7 @@ def _debug_viz_gradients(
             lines = lines + [f'cmd.load_cgo(obj_1, "{name}", {model_ix+1})']
             f.write("\n" + "\n".join(lines))
             lines = []
+
 
 def _debug_viz_XZC(X, Z, C, rgb=True):
     from matplotlib import pyplot as plt

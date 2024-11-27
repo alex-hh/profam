@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import copy
+import gzip
+import io
 import os
 import tempfile
 from typing import List, Optional, Tuple, Union
@@ -25,8 +27,7 @@ import torch
 import src.chroma.utility.polyseq as polyseq
 from src.chroma.constants import CHAIN_ALPHABET, PROTEIN_TOKENS
 from src.chroma.data.system import System, SystemEntity
-import gzip
-import io
+
 
 class Protein:
     """
@@ -296,7 +297,9 @@ class Protein:
         else:
             self.sys.to_CIF(output_file)
 
-    def to_PDB(self, output_file: str, force: bool = False, mask_indices=None, seq=None) -> None:
+    def to_PDB(
+        self, output_file: str, force: bool = False, mask_indices=None, seq=None
+    ) -> None:
         """
         Save the current Protein object to a file in PDB format.
 
@@ -376,7 +379,9 @@ class Protein:
         Xtraj, C, S = [tensor.to(device) for tensor in [X, C, S]]
         return [each.unsqueeze(0) for each in Xtraj], C, S
 
-    def to(self, file_path: str, force: bool = False, mask_indices=None, seq=None) -> None:
+    def to(
+        self, file_path: str, force: bool = False, mask_indices=None, seq=None
+    ) -> None:
         """
         General Export for the Protein Class
 

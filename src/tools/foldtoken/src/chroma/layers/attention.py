@@ -44,7 +44,7 @@ class ScaledDotProductAttention(nn.Module):
 
     def forward(self, Q, K, V, mask=None):
         _, _, d = K.size()
-        attn = torch.bmm(Q, K.transpose(1, 2)) / d ** 0.5
+        attn = torch.bmm(Q, K.transpose(1, 2)) / d**0.5
         if mask is not None:
             attn = attn.float().masked_fill(mask == 0, -1e9)
 

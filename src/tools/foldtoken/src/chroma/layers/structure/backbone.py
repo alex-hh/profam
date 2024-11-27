@@ -27,8 +27,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.chroma.layers.structure import geometry, transforms
 from src.chroma.layers.linalg import stable_masked_mean
+from src.chroma.layers.structure import geometry, transforms
 
 
 class ProteinBackbone(nn.Module):
@@ -508,7 +508,14 @@ class FrameBuilder(nn.Module):
 
         # TODO: fix this behavior for termini
         mask_next = (C > 0).type(C.dtype)[:, 1:].unsqueeze(-1)
-        X_N_next = F.pad(mask_next * X_N[:, 1:,], (0, 0, 0, 1),)
+        X_N_next = F.pad(
+            mask_next
+            * X_N[
+                :,
+                1:,
+            ],
+            (0, 0, 0, 1),
+        )
 
         num_batch, num_residues = C.shape
         ones = torch.ones(list(C.shape), dtype=C.dtype, device=C.device)
@@ -874,8 +881,8 @@ class GraphBackboneUpdate(nn.Module):
         # t_ij_mse = (mask_ij * t_ij_error).sum([1, 2]) / (
         #     mask_ij.sum([1, 2]) + self._eps
         # )
-        R_ij_mse = stable_masked_mean(R_ij_error, mask_ij, dim=[1,2])
-        t_ij_mse = stable_masked_mean(t_ij_error, mask_ij, dim=[1,2])
+        R_ij_mse = stable_masked_mean(R_ij_error, mask_ij, dim=[1, 2])
+        t_ij_mse = stable_masked_mean(t_ij_error, mask_ij, dim=[1, 2])
         return R_ij_mse, t_ij_mse
 
     def forward(
@@ -892,7 +899,7 @@ class GraphBackboneUpdate(nn.Module):
             "local": self._update_local_transform,
             "neighbor": self._update_neighbor_transform,
             "neighbor_global": self._update_neighbor_global_transform,
-            "neighbor_global_affine": self._update_neighbor_global_affine_transform, # use this one
+            "neighbor_global_affine": self._update_neighbor_global_affine_transform,  # use this one
             "none": lambda *args: args[0],
         }
         method = methods[self.method]
@@ -987,7 +994,7 @@ def center_X(X: torch.Tensor, C: torch.LongTensor) -> torch.Tensor:
     # X_mean = (mask_expand * X).float().sum([1, 2], keepdims=True) / (
     #     mask_expand.float().sum([1, 2], keepdims=True)
     # )
-    X_mean = stable_masked_mean(X, mask_expand, dim=[1,2], keepdim=True)
+    X_mean = stable_masked_mean(X, mask_expand, dim=[1, 2], keepdim=True)
     X_mean = X_mean.type(X.dtype)
     X_centered = mask_expand * (X - X_mean)
     return X_centered
@@ -1040,7 +1047,7 @@ def scale_around_mean(
     # X_mean = (mask_expand * X).sum([1, 2], keepdims=True) / (
     #     mask_expand.sum([1, 2], keepdims=True)
     # )
-    X_mean = stable_masked_mean(X, mask_expand, dim=[1,2], keepdim=True)
+    X_mean = stable_masked_mean(X, mask_expand, dim=[1, 2], keepdim=True)
     X_rescale = mask_expand * (scale[:, None, None, None] * (X - X_mean) + X_mean)
     return X_rescale
 

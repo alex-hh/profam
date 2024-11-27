@@ -261,7 +261,7 @@ def equilibrate_transforms(
 
     t_edge = None
     for i in range(iterations):
-        R_j, t_j = collect_neighbor_transforms(R_i, t_i, edge_idx) # TODO
+        R_j, t_j = collect_neighbor_transforms(R_i, t_i, edge_idx)  # TODO
         if update_global:
             R_j = torch.cat((R_j, R_global), dim=2)
             t_j = torch.cat((t_j, t_global), dim=2)
@@ -276,7 +276,7 @@ def equilibrate_transforms(
             R_i_pred, t_i_pred, logit_ij, mask_ij, t_edge=t_edge, dim=2
         )
 
-        print((R_i*mask_i[...,None]).sum())
+        print((R_i * mask_i[..., None]).sum())
 
     return R_i, t_i
 
@@ -357,7 +357,7 @@ def average_transforms(
 
     # Average rotation via SVD
     R_avg_unc = (R * R_probs).sum(dim)
-    R_avg_unc = R_avg_unc #+ dither_eps * torch.randn_like(R_avg_unc)
+    R_avg_unc = R_avg_unc  # + dither_eps * torch.randn_like(R_avg_unc)
     U, S, Vh = torch.linalg.svd(R_avg_unc.float(), full_matrices=True)
     R_avg = U @ Vh
 

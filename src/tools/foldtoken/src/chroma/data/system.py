@@ -15,6 +15,8 @@
 from __future__ import annotations
 
 import copy
+import gzip
+import io
 import logging
 import re
 import warnings
@@ -28,8 +30,7 @@ import torch
 import src.chroma.utility.polyseq as polyseq
 import src.chroma.utility.starparser as sp
 from src.chroma import constants
-import gzip
-import io
+
 
 @dataclass
 class SystemAssemblyInfo:
@@ -2014,12 +2015,12 @@ class System:
     @staticmethod
     def from_CIF(input_file: str):
         """Initializes and returns a System object from a CIF file."""
-        if input_file.endswith('.cif.gz'):
-            with gzip.open(input_file, 'rb') as f_in:
+        if input_file.endswith(".cif.gz"):
+            with gzip.open(input_file, "rb") as f_in:
                 file_content = f_in.read()
                 file_stream = io.BytesIO(file_content)
-                f = io.TextIOWrapper(file_stream, encoding='utf-8')
-        if input_file.endswith('.cif'):
+                f = io.TextIOWrapper(file_stream, encoding="utf-8")
+        if input_file.endswith(".cif"):
             f = open(input_file, "r")
         return System._read_cif(f)[0]
 

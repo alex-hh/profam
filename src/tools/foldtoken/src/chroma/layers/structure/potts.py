@@ -14,7 +14,7 @@
 
 """Layers for building Potts models.
 
-This module contains layers for parameterizing Potts models from 
+This module contains layers for parameterizing Potts models from
 graph embeddings.
 """
 
@@ -103,12 +103,12 @@ class GraphPotts(nn.Module):
         if self.parameterization == "linear":
             self.log_scale = nn.Parameter(np.log(init_scale) * torch.ones(1))
             self.W_h = nn.Linear(self.dim_nodes, self.num_states, bias=True)
-            self.W_J = nn.Linear(self.dim_edges, self.num_states ** 2, bias=True)
+            self.W_J = nn.Linear(self.dim_edges, self.num_states**2, bias=True)
         elif self.parameterization == "factor":
             self.log_scale = nn.Parameter(np.log(init_scale) * torch.ones(1))
             self.W_h = nn.Linear(self.dim_nodes, self.num_states, bias=True)
-            self.W_J_left = nn.Linear(self.dim_edges, self.num_states ** 2, bias=True)
-            self.W_J_right = nn.Linear(self.dim_edges, self.num_states ** 2, bias=True)
+            self.W_J_left = nn.Linear(self.dim_edges, self.num_states**2, bias=True)
+            self.W_J_right = nn.Linear(self.dim_edges, self.num_states**2, bias=True)
         elif self.parameterization == "score":
             if num_factors is None:
                 num_factors = dim_edges
@@ -496,7 +496,7 @@ class GraphPotts(nn.Module):
         # Optional label smoothing (scaled assuming per-token smoothing )
         if smoothing_alpha > 0.0:
             # Foreground probability
-            num_bins = num_states ** 2
+            num_bins = num_states**2
             prob_no_smooth = (1.0 - smoothing_alpha) ** 2
             prob_background = (1.0 - prob_no_smooth) / float(num_bins - 1)
             # The second term corrects for double counting in background sum
@@ -678,7 +678,10 @@ class GraphPotts(nn.Module):
 
 
 def compute_potts_energy(
-    S: torch.LongTensor, h: torch.Tensor, J: torch.Tensor, edge_idx: torch.LongTensor,
+    S: torch.LongTensor,
+    h: torch.Tensor,
+    J: torch.Tensor,
+    edge_idx: torch.LongTensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Compute Potts model energies from sequence.
 
