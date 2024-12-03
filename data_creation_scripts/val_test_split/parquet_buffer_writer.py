@@ -5,13 +5,14 @@ import sys
 
 
 class ParquetBufferWriter:
-    def __init__(self, outdir, name, mem_limit=125):
+    def __init__(self, outdir, name, mem_limit=125, SGE_TASK_ID=None):
         self.outdir = outdir
         self.name = name
         self.mem_limit = mem_limit
         self.index = 0
         self.dfs = []
         self.mem_use = 0
+        self.SGE_TASK_ID = SGE_TASK_ID
 
 
     def update_buffer(self, df):
@@ -33,7 +34,10 @@ class ParquetBufferWriter:
     def write_dfs(self):
         if self.dfs:
             combi_df = pd.concat(self.dfs)
-            filepath = os.path.join(self.outdir, f"{self.name}_{str(self.index).zfill(3)}.parquet")
+            if self.SGE_TASK_ID is None:
+                filepath = os.path.join(self.outdir, f"{self.name}_{str(self.index).zfill(3)}.parquet")
+            else:
+                filepath = os.path.join(self.outdir, f"{self.name}_{self.SGE_TASK_ID}_{str(self.index).zfill(3)}.parquet")
             print(f"Writing {len(combi_df)} rows to {filepath}")
             combi_df.to_parquet(filepath)
             self.dfs = []
