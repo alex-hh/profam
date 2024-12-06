@@ -64,7 +64,7 @@ class BaseParquetSplitter:
         self.output_dir = output_dir
         self.mem_limit = mem_limit
         self.parallel_job_index = parallel_job_index
-
+        
         if not os.path.exists(self.json_path):
             self.create_split_json()
         self.load_splits()
@@ -105,12 +105,12 @@ class BaseParquetSplitter:
         """
         raise NotImplementedError("Subclasses should implement this method")
 
-    def split_parquets(self, split_on_column="fam_id"):
+    def split_parquets(self, split_dataset_id="fam_id"):
         """
         Iterate through all parquet files and assign each row to the appropriate split
         based on the family IDs.
         """
-        
+        breakpoint()
         # Create output directories
         train_dir = os.path.join(self.output_dir, 'train')
         val_dir = os.path.join(self.output_dir, 'val')
@@ -132,7 +132,7 @@ class BaseParquetSplitter:
             try:
                 df = pd.read_parquet(parquet_file)
                 # Apply reformat_fam_id to fam_id column
-                df['split_fam_id'] = df[split_on_column].apply(self.reformat_fam_id)
+                df['split_fam_id'] = df[split_dataset_id].apply(self.reformat_fam_id)
 
                 # Split the DataFrame based on split_fam_id
                 train_df = df[df['split_fam_id'].isin(self.train_fam_ids)].drop(columns=['split_fam_id'])
@@ -154,12 +154,14 @@ class BaseParquetSplitter:
                 print(f"Error processing {parquet_file}: {e}")
 
         # Log successful and failed files
-        with open(f'apply_split_records/success_log_{self.SGE_TASK_ID}.txt', 'w') as f:
+        log_output_dir = os.path.join(self.output_dir, "apply_split_records")
+        os.makedirs(log_output_dir, exist_ok=True)
+        with open(f'{log_output_dir}/success_log_{self.SGE_TASK_ID}.txt', 'w') as f:
             for fam_id in success_log:
                 f.write(f"{fam_id}\n")
                 
         if len(error_log) > 0:
-            with open(f'apply_split_records/error_log_{self.SGE_TASK_ID}.txt', 'w') as f:
+            with open(f'{log_output_dir}/error_log_{self.SGE_TASK_ID}.txt', 'w') as f:
                 for fam_id, error in error_log:
                     f.write(f"{fam_id}: {error}\n")
 
@@ -167,28 +169,33 @@ class BaseParquetSplitter:
         train_buffer.write_dfs()
         val_buffer.write_dfs()
         test_buffer.write_dfs()
-
+        
         # After splitting is complete, create the index file
-        self.create_index_file(split_on_column)
+        self.create_index_file(split_dataset_id)
 
-    def create_index_file(self, split_on_column="fam_id"):
+    def create_index_file(self, split_dataset_id="fam_id"):
         """
         Create an index.csv file in the output directory that maps identifiers to output parquet files,
         along with cluster_size and sequence_length.
         """
         index_records = []
-
+        
         for split in ['train', 'val', 'test']:
             split_dir = os.path.join(self.output_dir, split)
-            for parquet_file in glob.glob(os.path.join(split_dir, '*.parquet')):
+            
+            if self.parallel_job_index is not None:
+                parquet_file_list = glob.glob(os.path.join(split_dir, '*.parquet'))
+            else:
+                parquet_file_list = glob.glob(f"{split_dir}/{split}_{self.SGE_TASK_ID}_*.parquet")
+
+            for parquet_file in parquet_file_list:
                 df = pd.read_parquet(parquet_file)
                 parquet_filename = os.path.join(split, os.path.basename(parquet_file))
-
-                if df[split_on_column].apply(lambda x: isinstance(x, np.ndarray)).any():
-                    df[split_on_column] = df[split_on_column].apply(lambda x: x[0])
-
-                # Group by $split_on_column assuming $split_on_column is the identifier
-                grouped = df.groupby(split_on_column)
+                if df[split_dataset_id].apply(lambda x: isinstance(x, np.ndarray)).any():
+                    df[split_dataset_id] = df[split_dataset_id].apply(lambda x: x[0])
+                
+                # Group by $split_dataset_id assuming $split_dataset_id is the identifier
+                grouped = df.groupby(split_dataset_id)
                 for fam_id, group in grouped:
                     identifier = fam_id
 
@@ -219,7 +226,11 @@ class BaseParquetSplitter:
                     })
         # Create DataFrame and write to index.csv
         index_df = pd.DataFrame(index_records)
-        index_csv_path = os.path.join(self.output_dir, 'index.csv')
+        if self.parallel_job_index is None:
+            output_file_name = "index.csv"
+        else:
+            output_file_name = f'index_{self.SGE_TASK_ID}_.csv'
+        index_csv_path = os.path.join(self.output_dir, output_file_name)
         index_df.to_csv(index_csv_path, index=False)
         print(f"Index file created at: {index_csv_path}")
 
@@ -286,11 +297,11 @@ if __name__ == "__main__":
         "--splitter",
         type=str,
         required=True,
-        choices=['CATH', 'FoldSeek', 'FoldSeek_AF50_REP'],
+        choices=['CATH', 'FoldSeek', 'FoldSeek_AF50'],
         help="Type of ParquetSplitter to use ('CATH' or 'FoldSeek').",
     )
     parser.add_argument(
-        "--split_on_column",
+        "--split_dataset_id",
         type=str,
         required=True,
         help="Data id for creating datasets split to use e.g. 'fam_id' or 'af50_cluster_id'.",
@@ -315,7 +326,7 @@ if __name__ == "__main__":
         splitter_class = CATHParquetSplitter
     elif args.splitter == 'FoldSeek':
         splitter_class = FoldSeekParquetSplitter
-    elif args.splitter == 'FoldSeek_AF50_REP':
+    elif args.splitter == 'FoldSeek_AF50':
         splitter_class = FoldSeekAF50ParquetSplitter
     else:
         raise ValueError(f"Unknown splitter type: {args.splitter}")
@@ -331,4 +342,4 @@ if __name__ == "__main__":
     print(f"  JSON path: {args.json_path}")
     print(f"  Parquet directory: {args.parquet_dir}")
     print(f"  Output directory: {args.output_dir}")
-    splitter.split_parquets(args.split_on_column)
+    splitter.split_parquets(args.split_dataset_id)

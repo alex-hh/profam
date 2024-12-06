@@ -23,14 +23,68 @@ export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 
 export DATA_DIR='/SAN/orengolab/cath_plm/ProFam'
 
+if [ -z "$CASE_ID" ]; then
+    echo "CASE_ID not set. Exiting."
+    exit 1
+else
+    echo "Running with CASE_ID=$CASE_ID"
+fi
+
 ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_todo | tail -n 1)
 
-python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path ${DATA_DIR}/data/ted/ted_esmif_accessions_split.json \
-    --parquet_dir ${DATA_DIR}/data/foldseek_af50_representatives/ \
-    --output_dir ${DATA_DIR}/data/foldseek_af50_representatives/train_val_test_split \
-    --splitter FoldSeek_AF50 \
-    --split_dataset_id af50_cluster_id \
-    --paral_index ${ARRAY_ID}
-    echo "completed foldseek_af50_representatives split"
-    date
+case $CASE_ID in
+1)
+    # Foldseek_AF50_Representatives
+    python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
+        --json_path ${DATA_DIR}/data/ted/ted_esmif_accessions_split.json \
+        --parquet_dir ${DATA_DIR}/data/foldseek_af50_representatives/ \
+        --output_dir ${DATA_DIR}/data/foldseek_af50_representatives/train_val_test_split \
+        --splitter FoldSeek_AF50 \
+        --split_dataset_id af50_cluster_id \
+        --paral_index ${ARRAY_ID}
+        echo "completed foldseek_af50_representatives split"
+        date
+        ;;
+2)
+    # FoldSeek_Struct
+    python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
+        --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
+        --parquet_dir ${DATA_DIR}/data/foldseek_struct/ \
+        --output_dir ${DATA_DIR}/data/foldseek_struct/train_val_test_split \
+        --splitter FoldSeek \
+        --split_dataset_id fam_id \
+        --paral_index ${ARRAY_ID}
+        echo "completed foldseek_struct split"
+        date
+        ;;
+3)
+    # FoldSeek_AF50_Struct
+    python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
+        --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
+        --parquet_dir ${DATA_DIR}/data/foldseek_af50_struct/ \
+        --output_dir ${DATA_DIR}/data/foldseek_af50_struct/train_val_test_split_array \
+        --splitter FoldSeek \
+        --split_dataset_id fam_id \
+        --paral_index ${ARRAY_ID}
+        echo "completed foldseek_struct split"
+        date
+        ;;
+4)
+    # Foldseek_Representatives
+    python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
+        --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
+        --parquet_dir ${DATA_DIR}/data/foldseek_representatives/ \
+        --output_dir ${DATA_DIR}/data/foldseek_representatives/train_val_test_split \
+        --splitter FoldSeek \
+        --split_dataset_id fam_id \
+        --paral_index ${ARRAY_ID}
+        echo "completed foldseek_representatives split"
+        date
+        ;;
+*)
+    echo "Invalid SGE_TASK_ID: $SGE_TASK_ID"
+    ;;
+esac
+
+# Usage:
+# qsub -v CASE_ID=2 apply_split_parrel_array.sh
