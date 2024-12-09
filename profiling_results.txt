@@ -1,0 +1,372 @@
+         2174169930 function calls (2174169896 primitive calls) in 1374.689 seconds
+
+   Ordered by: cumulative time
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        2  109.314   54.657 1240.633  620.316 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:25(__init__)
+        2    0.000    0.000 1070.030  535.015 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:62(shuffle_keys)
+        2  744.270  372.135 1070.026  535.013 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/random.py:350(shuffle)
+        1    0.000    0.000  716.186  716.186 /SAN/orengolab/cath_plm/ProFam/profam/tests/benchmarks/binder_dataloader_speed.py:19(profile_uniprot_dataset)
+        1    0.087    0.087  630.891  630.891 /SAN/orengolab/cath_plm/ProFam/profam/tests/benchmarks/binder_dataloader_speed.py:55(profile_combined_dataset)
+491794130  204.783    0.000  325.757    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/random.py:242(_randbelow_with_getrandbits)
+        1    0.000    0.000   74.644   74.644 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:120(__init__)
+        1   45.219   45.219   74.643   74.643 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:141(_prepare_indices)
+697167592   63.442    0.000   63.442    0.000 {method 'getrandbits' of '_random.Random' objects}
+491793533   60.470    0.000   60.470    0.000 {method 'strip' of 'str' objects}
+491794130   57.531    0.000   57.531    0.000 {method 'bit_length' of 'int' objects}
+        2   16.706    8.353   45.031   22.516 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:72(__init__)
+     1337   35.862    0.027   36.246    0.027 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:301(__init__)
+        3   28.080    9.360   28.081    9.360 {method 'shuffle' of 'numpy.random.mtrand.RandomState' objects}
+        1    2.723    2.723   27.611   27.611 /SAN/orengolab/cath_plm/ProFam/profam/tests/benchmarks/binder_dataloader_speed.py:38(profile_parquet_dataset)
+      313    0.058    0.000    8.174    0.026 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:97(__getitem__)
+      200    1.482    0.007    5.177    0.026 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:183(__getitem__)
+        2    1.343    0.672    1.343    0.672 {built-in method numpy.arange}
+        1    0.000    0.000    1.130    1.130 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:123(__init__)
+        1    0.000    0.000    1.130    1.130 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:97(__init__)
+        1    1.086    1.086    1.086    1.086 {built-in method from_file}
+   635981    0.254    0.000    0.772    0.000 <frozen codecs>:319(decode)
+      200    0.013    0.000    0.554    0.003 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:162(encode)
+   635981    0.518    0.000    0.518    0.000 {built-in method _codecs.utf_8_decode}
+      200    0.003    0.000    0.431    0.002 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:2980(__call__)
+      200    0.002    0.000    0.428    0.002 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:3070(_call_one)
+      200    0.002    0.000    0.426    0.002 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:3185(encode_plus)
+      200    0.006    0.000    0.419    0.002 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:578(_encode_plus)
+      200    0.004    0.000    0.412    0.002 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:489(_batch_encode_plus)
+     1337    0.248    0.000    0.273    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/fs.py:135(_resolve_filesystem_and_path)
+      627    0.004    0.000    0.221    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:2208(info)
+      200    0.002    0.000    0.219    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:207(__init__)
+      627    0.003    0.000    0.216    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1529(info)
+      200    0.003    0.000    0.214    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:684(convert_to_tensors)
+      627    0.002    0.000    0.212    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1660(_log)
+      800    0.212    0.000    0.212    0.000 {built-in method numpy.asarray}
+      400    0.001    0.000    0.210    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:745(as_tensor)
+      627    0.001    0.000    0.168    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1686(handle)
+      313    0.168    0.001    0.168    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:423(read_row_group)
+      627    0.001    0.000    0.166    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1746(callHandlers)
+      627    0.002    0.000    0.165    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1011(handle)
+      627    0.002    0.000    0.161    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1148(emit)
+      200    0.157    0.001    0.157    0.001 {method 'encode_batch' of 'tokenizers.Tokenizer' objects}
+      628    0.001    0.000    0.112    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/colorama/ansitowin32.py:46(write)
+      628    0.001    0.000    0.111    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/colorama/ansitowin32.py:175(write)
+      628    0.003    0.000    0.110    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/colorama/ansitowin32.py:192(write_and_convert)
+      628    0.001    0.000    0.101    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/colorama/ansitowin32.py:208(write_plain_text)
+      628    0.099    0.000    0.099    0.000 {method 'write' of '_io.TextIOWrapper' objects}
+      200    0.013    0.000    0.096    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:41(get_residue_index_from_positions)
+     1337    0.081    0.000    0.090    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:336(_build_nested_paths)
+      200    0.030    0.000    0.062    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:13(get_flat_residue_index_from_positions)
+        1    0.000    0.000    0.043    0.043 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1569(__init__)
+        3    0.043    0.014    0.043    0.014 {built-in method _io.open}
+        1    0.000    0.000    0.043    0.043 {built-in method _warnings.warn}
+        1    0.000    0.000    0.042    0.042 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/warnings.py:97(_showwarnmsg)
+        1    0.000    0.000    0.042    0.042 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/warnings.py:20(_showwarnmsg_impl)
+        1    0.000    0.000    0.041    0.041 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/warnings.py:118(_formatwarnmsg)
+        1    0.000    0.000    0.041    0.041 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/lightning/fabric/utilities/warnings.py:40(_custom_format_warning)
+        1    0.000    0.000    0.041    0.041 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/warnings.py:15(formatwarning)
+        1    0.000    0.000    0.041    0.041 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/warnings.py:35(_formatwarnmsg_impl)
+        1    0.000    0.000    0.041    0.041 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/linecache.py:26(getline)
+        1    0.000    0.000    0.041    0.041 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/linecache.py:36(getlines)
+        1    0.000    0.000    0.041    0.041 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/linecache.py:80(updatecache)
+      627    0.001    0.000    0.039    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:988(format)
+        1    0.000    0.000    0.039    0.039 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/tokenize.py:445(open)
+      200    0.001    0.000    0.038    0.000 <string>:2(__init__)
+      627    0.003    0.000    0.038    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:690(format)
+      200    0.014    0.000    0.037    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/objects.py:287(__post_init__)
+     2674    0.024    0.000    0.033    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/util.py:138(_stringify_path)
+   183061    0.032    0.000    0.032    0.000 {built-in method builtins.min}
+      627    0.002    0.000    0.030    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1645(makeRecord)
+      627    0.003    0.000    0.030    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:622(formatTime)
+      627    0.013    0.000    0.028    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:298(__init__)
+      200    0.028    0.000    0.028    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:287(_convert_encoding)
+      627    0.019    0.000    0.019    0.000 {built-in method time.strftime}
+      287    0.004    0.000    0.017    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:43(__getitem__)
+      627    0.004    0.000    0.012    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1611(findCaller)
+      574    0.012    0.000    0.012    0.000 {method 'get' of 'Transaction' objects}
+      200    0.002    0.000    0.011    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/numeric.py:561(argwhere)
+     1739    0.007    0.000    0.011    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/enum.py:726(__call__)
+    18035    0.010    0.000    0.010    0.000 {method 'append' of 'list' objects}
+      400    0.001    0.000    0.009    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:53(_wrapfunc)
+      800    0.006    0.000    0.009    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/numeric.py:136(ones)
+      627    0.002    0.000    0.009    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1137(flush)
+      800    0.009    0.000    0.009    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+      600    0.001    0.000    0.008    0.000 {method 'any' of 'numpy.ndarray' objects}
+     1337    0.004    0.000    0.008    0.000 <frozen posixpath>:256(expanduser)
+      627    0.008    0.000    0.008    0.000 {built-in method time.localtime}
+      400    0.007    0.000    0.008    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/shape_base.py:372(stack)
+      600    0.000    0.000    0.007    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/_methods.py:55(_any)
+    13199    0.006    0.000    0.007    0.000 {built-in method builtins.isinstance}
+     1254    0.001    0.000    0.006    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:968(acquire)
+        2    0.000    0.000    0.006    0.003 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:13(glob)
+      200    0.000    0.000    0.006    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:588(transpose)
+     1026    0.000    0.000    0.006    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:60(_iglob)
+      315    0.000    0.000    0.006    0.000 {built-in method builtins.next}
+      628    0.004    0.000    0.006    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/colorama/ansitowin32.py:260(convert_osc)
+      200    0.002    0.000    0.006    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:2842(_get_padding_truncation_strategies)
+     1254    0.006    0.000    0.006    0.000 {method 'acquire' of '_thread.RLock' objects}
+      313    0.005    0.000    0.005    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:104(<genexpr>)
+     2508    0.004    0.000    0.005    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:200(_is_internal_frame)
+      200    0.002    0.000    0.005    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:40(_wrapit)
+     1000    0.001    0.000    0.004    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:334(convert_tokens_to_ids)
+      200    0.004    0.000    0.004    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/numeric.py:67(zeros_like)
+     5551    0.004    0.000    0.004    0.000 {method 'join' of 'str' objects}
+      200    0.002    0.000    0.004    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:70(concatenate_pad_array)
+      600    0.001    0.000    0.004    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1218(pad_token_id)
+     1024    0.004    0.000    0.004    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:355(metadata)
+     1739    0.004    0.000    0.004    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/enum.py:1129(__new__)
+      627    0.002    0.000    0.004    0.000 <frozen posixpath>:169(basename)
+        2    0.000    0.000    0.004    0.002 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:105(_glob1)
+      627    0.000    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:674(formatMessage)
+      200    0.000    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:1881(nonzero)
+      313    0.000    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:333(__exit__)
+      200    0.003    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:418(set_truncation_and_padding)
+     1256    0.003    0.000    0.003    0.000 {method 'finditer' of 're.Pattern' objects}
+      627    0.000    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:462(format)
+     1000    0.001    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:353(_convert_token_to_id_with_added_voc)
+      313    0.003    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:415(close)
+      200    0.000    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/collections/__init__.py:1120(__init__)
+      627    0.001    0.000    0.003    0.000 <frozen posixpath>:117(splitext)
+     1337    0.002    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/util.py:134(_is_path_like)
+     4775    0.003    0.000    0.003    0.000 {built-in method builtins.getattr}
+      200    0.003    0.000    0.003    0.000 {method 'nonzero' of 'numpy.ndarray' objects}
+      627    0.003    0.000    0.003    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:455(_format)
+     1661    0.002    0.000    0.003    0.000 {built-in method builtins.hasattr}
+     1000    0.002    0.000    0.002    0.000 {built-in method numpy.empty}
+      200    0.001    0.000    0.002    0.000 <frozen _collections_abc>:974(update)
+     2363    0.002    0.000    0.002    0.000 {method 'startswith' of 'str' objects}
+      200    0.001    0.000    0.002    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/objects.py:228(check_array_lengths)
+6111/6104    0.002    0.000    0.002    0.000 {built-in method builtins.len}
+      627    0.002    0.000    0.002    0.000 {built-in method _asyncio.current_task}
+        2    0.000    0.000    0.002    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/fnmatch.py:48(filter)
+      200    0.000    0.000    0.002    0.000 {method 'min' of 'numpy.ndarray' objects}
+     1000    0.002    0.000    0.002    0.000 {method 'token_to_id' of 'tokenizers.Tokenizer' objects}
+      200    0.001    0.000    0.002    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/numeric.py:274(full)
+     6129    0.002    0.000    0.002    0.000 {built-in method posix.fspath}
+     1024    0.001    0.000    0.002    0.000 <frozen posixpath>:71(join)
+      207    0.000    0.000    0.002    0.000 <frozen abc>:117(__instancecheck__)
+      627    0.001    0.000    0.002    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:668(usesTime)
+      200    0.000    0.000    0.002    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/_methods.py:43(_amin)
+      627    0.001    0.000    0.002    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:170(<lambda>)
+     1915    0.002    0.000    0.002    0.000 {method 'get' of 'dict' objects}
+      627    0.001    0.000    0.002    0.000 <frozen genericpath>:133(_splitext)
+      207    0.001    0.000    0.002    0.000 {built-in method _abc._abc_instancecheck}
+     2510    0.001    0.000    0.002    0.000 <frozen posixpath>:52(normcase)
+     1883    0.001    0.000    0.001    0.000 {method 'rfind' of 'str' objects}
+      400    0.001    0.000    0.001    0.000 {method 'astype' of 'numpy.ndarray' objects}
+        2    0.000    0.000    0.001    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:176(_listdir)
+     1653    0.001    0.000    0.001    0.000 <frozen posixpath>:41(_get_sep)
+      627    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:129(getLevelName)
+        3    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/random.py:359(sample)
+      400    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/shape_base.py:362(_stack_dispatcher)
+      627    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:447(usesTime)
+      200    0.001    0.000    0.001    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:100(get_sequence_of_sequences)
+      600    0.001    0.000    0.001    0.000 {built-in method numpy.zeros}
+     1026    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:142(_iterdir)
+        1    0.001    0.001    0.001    0.001 {built-in method posix.stat}
+      627    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/threading.py:1483(current_thread)
+        3    0.000    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/contextlib.py:78(inner)
+      627    0.001    0.000    0.001    0.000 {built-in method sys._getframe}
+      8/5    0.000    0.000    0.001    0.000 <frozen abc>:121(__subclasscheck__)
+     1254    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:975(release)
+     1254    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:831(filter)
+      8/5    0.001    0.000    0.001    0.000 {built-in method _abc._abc_subclasscheck}
+        1    0.001    0.001    0.001    0.001 {method 'readlines' of '_io._IOBase' objects}
+      400    0.000    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/utils/generic.py:147(is_numpy_array)
+        1    0.000    0.000    0.001    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/fnmatch.py:38(_compile_pattern)
+      627    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:1790(isEnabledFor)
+      637    0.001    0.000    0.001    0.000 {built-in method time.time}
+     1254    0.000    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/colorama/ansitowin32.py:28(__getattr__)
+      200    0.000    0.000    0.001    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:150(seq_struct_sep_token_id)
+        1    0.000    0.000    0.001    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/__init__.py:226(compile)
+        1    0.000    0.000    0.001    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/__init__.py:280(_compile)
+      400    0.000    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/shape_base.py:207(_arrays_for_stack_dispatcher)
+      627    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/threading.py:1180(name)
+      201    0.000    0.000    0.001    0.000 {built-in method builtins.all}
+        1    0.000    0.000    0.001    0.001 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/lightning/fabric/utilities/warnings.py:57(_is_path_in_lightning)
+      627    0.001    0.000    0.001    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/multiprocessing/process.py:37(current_process)
+     1254    0.001    0.000    0.001    0.000 {built-in method _thread.get_ident}
+     1255    0.001    0.000    0.001    0.000 {method 'flush' of '_io.TextIOWrapper' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:740(compile)
+      627    0.000    0.000    0.000    0.000 {method 'find' of 'str' objects}
+      627    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/logging/__init__.py:383(getMessage)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:887(add_special_tokens)
+        3    0.000    0.000    0.000    0.000 {function SeedSequence.generate_state at 0x2aadb4b62200}
+     1023    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1086(pad_token)
+      627    0.000    0.000    0.000    0.000 {built-in method posix.getpid}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:437(__str__)
+     1025    0.000    0.000    0.000    0.000 {method 'match' of 're.Pattern' objects}
+      400    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/utils/generic.py:143(_is_numpy)
+     1026    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:108(<genexpr>)
+      575    0.000    0.000    0.000    0.000 {method 'decode' of 'bytes' objects}
+      400    0.000    0.000    0.000    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/utils/tokenizers.py:158(num_start_tokens)
+      400    0.000    0.000    0.000    0.000 {method 'squeeze' of 'numpy.ndarray' objects}
+      287    0.000    0.000    0.000    0.000 {method 'begin' of 'Environment' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:989(add_tokens)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:551(drive)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:362(_add_tokens)
+      817    0.000    0.000    0.000    0.000 {method 'pop' of 'dict' objects}
+      223    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1074(sep_token)
+        1    0.000    0.000    0.000    0.000 {method 'add_special_tokens' of 'tokenizers.Tokenizer' objects}
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:290(items)
+     1254    0.000    0.000    0.000    0.000 {method 'release' of '_thread.RLock' objects}
+     1200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/multiarray.py:1080(copyto)
+      574    0.000    0.000    0.000    0.000 {method 'encode' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:407(_load_parts)
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/_ufunc_config.py:430(__enter__)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:387(_parse_path)
+      800    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/collections/__init__.py:1137(__setitem__)
+      800    0.000    0.000    0.000    0.000 {built-in method numpy.asanyarray}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:969(parse)
+      627    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/multiprocessing/process.py:189(name)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/tokenize.py:352(detect_encoding)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/objects.py:341(sequence_lengths)
+      800    0.000    0.000    0.000    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/objects.py:236(<genexpr>)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:3093(_is_valid_text_input)
+      200    0.000    0.000    0.000    0.000 {method 'update' of 'dict' objects}
+      400    0.000    0.000    0.000    0.000 {built-in method numpy.core._multiarray_umath.normalize_axis_index}
+      606    0.000    0.000    0.000    0.000 {method 'items' of 'dict' objects}
+       22    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1296(special_tokens_map)
+     15/1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/copy.py:118(deepcopy)
+     1025    0.000    0.000    0.000    0.000 {method 'endswith' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:573(_code)
+       11    0.000    0.000    0.000    0.000 {built-in method sys.intern}
+      2/1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:452(_parse_sub)
+      200    0.000    0.000    0.000    0.000 {method 'transpose' of 'numpy.ndarray' objects}
+        2    0.000    0.000    0.000    0.000 {method 'sort' of 'list' objects}
+      313    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:664(_get_column_indices)
+        6    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/_ufunc_config.py:33(seterr)
+      223    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1041(bos_token)
+      2/1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:512(_parse)
+      800    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:268(__getattr__)
+        1    0.000    0.000    0.000    0.000 {method 'disable' of '_lsprof.Profiler' objects}
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/random.py:889(getrandbits)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/numeric.py:63(_zeros_like_dispatcher)
+      201    0.000    0.000    0.000    0.000 {method 'keys' of 'dict' objects}
+     1026    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:230(_ishidden)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:848(__init__)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:246(__getitem__)
+        3    0.000    0.000    0.000    0.000 {method '__exit__' of '_io._IOBase' objects}
+      400    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:4088(_eventual_warn_about_too_long_sequence)
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:248(added_tokens_decoder)
+      287    0.000    0.000    0.000    0.000 {method '__exit__' of 'Transaction' objects}
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/enum.py:1562(__and__)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:511(_compile_info)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/tokenize.py:382(find_cookie)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/copy.py:217(_deepcopy_dict)
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:31(iglob)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/fnmatch.py:74(translate)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1327(all_special_tokens_extended)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.scandir}
+        3    0.000    0.000    0.000    0.000 {method 'get_added_tokens_decoder' of 'tokenizers.Tokenizer' objects}
+      403    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/multiarray.py:153(concatenate)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:3176(ndim)
+      3/1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:37(_compile)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1227(pad_token_type_id)
+      400    0.000    0.000    0.000    0.000 {method 'add' of 'set' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:240(added_tokens_encoder)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:1204(absolute)
+        6    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:223(has_magic)
+      400    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:4108(_switch_to_input_mode)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/tokenize.py:376(read_or_stop)
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/warnings.py:419(__init__)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/numeric.py:557(_argwhere_dispatcher)
+        6    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/_ufunc_config.py:132(geterr)
+        1    0.000    0.000    0.000    0.000 {method 'readline' of '_io.BufferedReader' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:1157(__init__)
+      2/1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:436(_get_literal_prefix)
+      313    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/pyarrow/parquet/core.py:330(__enter__)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/multiarray.py:85(empty_like)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:1164(__new__)
+        6    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/enum.py:1544(_get_value)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:748(is_absolute)
+        3    0.000    0.000    0.000    0.000 {built-in method posix.urandom}
+        6    0.000    0.000    0.000    0.000 <frozen _collections_abc>:341(__subclasshook__)
+        2    0.000    0.000    0.000    0.000 <frozen posixpath>:100(split)
+        6    0.000    0.000    0.000    0.000 {built-in method builtins.setattr}
+       23    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1063(unk_token)
+        3    0.000    0.000    0.000    0.000 {built-in method math.log}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/copy.py:231(_keep_alive)
+        3    0.000    0.000    0.000    0.000 <frozen codecs>:309(__init__)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:3172(_ndim_dispatcher)
+       12    0.000    0.000    0.000    0.000 {built-in method numpy.geterrobj}
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:584(_transpose_dispatcher)
+      200    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/fromnumeric.py:1877(_nonzero_dispatcher)
+        2    0.000    0.000    0.000    0.000 {built-in method builtins.sorted}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1311(special_tokens_map_extended)
+        8    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/__init__.py:255(escape)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/tokenize.py:341(_get_normal_name)
+        1    0.000    0.000    0.000    0.000 {built-in method _codecs.lookup}
+        1    0.000    0.000    0.000    0.000 {method 'enable_padding' of 'tokenizers.Tokenizer' objects}
+        4    0.000    0.000    0.000    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:94(__len__)
+       28    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:168(__getitem__)
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:372(_escape)
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/numpy/core/_ufunc_config.py:435(__exit__)
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/contextlib.py:359(__exit__)
+       23    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1109(mask_token)
+      3/1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:178(getwidth)
+        8    0.000    0.000    0.000    0.000 {method 'translate' of 'str' objects}
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/contextlib.py:355(__init__)
+        6    0.000    0.000    0.000    0.000 {built-in method numpy.seterrobj}
+        1    0.000    0.000    0.000    0.000 <frozen posixpath>:138(splitroot)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:358(__init__)
+        6    0.000    0.000    0.000    0.000 {method 'search' of 're.Pattern' objects}
+        1    0.000    0.000    0.000    0.000 {method 'no_truncation' of 'tokenizers.Tokenizer' objects}
+        1    0.000    0.000    0.000    0.000 {built-in method __new__ of type object at 0x55f852661660}
+       18    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:956(<genexpr>)
+       14    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:261(get)
+        4    0.000    0.000    0.000    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:40(__len__)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:231(__init__)
+       23    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1121(additional_special_tokens)
+        1    0.000    0.000    0.000    0.000 {built-in method _sre.compile}
+       17    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:240(__next)
+       18    0.000    0.000    0.000    0.000 {built-in method builtins.id}
+       22    0.000    0.000    0.000    0.000 {built-in method builtins.repr}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:429(_format_parsed_parts)
+       24    0.000    0.000    0.000    0.000 {method 'values' of 'dict' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:953(fix_flags)
+       22    0.000    0.000    0.000    0.000 {built-in method builtins.hash}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:893(_parse_flags)
+       22    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1052(eos_token)
+       22    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1097(cls_token)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1145(unk_token)
+       11    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:176(append)
+       14    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/copy.py:172(_deepcopy_atomic)
+        1    0.000    0.000    0.000    0.000 {method 'startswith' of 'bytes' objects}
+        5    0.000    0.000    0.000    0.000 {method 'update' of 'set' objects}
+        3    0.000    0.000    0.000    0.000 {built-in method from_bytes}
+        1    0.000    0.000    0.000    0.000 {method 'split' of 'str' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1157(pad_token)
+        3    0.000    0.000    0.000    0.000 {built-in method math.ceil}
+       22    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_fast.py:246(<lambda>)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:467(_get_charset_prefix)
+        3    0.000    0.000    0.000    0.000 <frozen codecs>:260(__init__)
+        6    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:256(match)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:398(_simple)
+        2    0.000    0.000    0.000    0.000 {method 'rstrip' of 'str' objects}
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:428(_get_iscased)
+        6    0.000    0.000    0.000    0.000 {method 'extend' of 'list' objects}
+        5    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:164(__len__)
+        4    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:293(tell)
+        1    0.000    0.000    0.000    0.000 {method 'seek' of '_io.BufferedReader' objects}
+        1    0.000    0.000    0.000    0.000 {method 'replace' of 'str' objects}
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:31(_combine_flags)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1133(bos_token)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/cath_plm/ProFam/profam/src/data/binders_datamodule.py:180(__len__)
+        1    0.000    0.000    0.000    0.000 {method 'group' of 're.Match' objects}
+        8    0.000    0.000    0.000    0.000 {built-in method builtins.ord}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1169(mask_token)
+        4    0.000    0.000    0.000    0.000 {built-in method sys.audit}
+        1    0.000    0.000    0.000    0.000 {method 'lower' of 'str' objects}
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_compiler.py:570(isstring)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1151(sep_token)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:77(__init__)
+        2    0.000    0.000    0.000    0.000 {method '__exit__' of 'posix.ScandirIterator' objects}
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:560(root)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:172(__setitem__)
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:113(__init__)
+        2    0.000    0.000    0.000    0.000 {method 'close' of 'generator' objects}
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/re/_parser.py:83(groups)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/site-packages/transformers/tokenization_utils_base.py:1175(additional_special_tokens)
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/glob.py:214(_join)
+        2    0.000    0.000    0.000    0.000 {built-in method builtins.iter}
+        3    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/contextlib.py:65(_recreate_cm)
+        2    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/contextlib.py:357(__enter__)
+        1    0.000    0.000    0.000    0.000 /SAN/orengolab/nsp13/.conda/envs/venvPF/lib/python3.12/pathlib.py:569(_tail)

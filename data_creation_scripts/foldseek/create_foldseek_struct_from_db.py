@@ -25,9 +25,11 @@ from src.constants import PROFAM_DATA_DIR
 from src.sequence.fasta import read_fasta
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
 from src.tools.foldmason import run_foldmason_on_pdbs
+from src.tools.foldtoken import run_foldtoken_on_pdbs, read_foldtoken_output
 from src.tools.foldseek import convert_pdbs_to_3di
 from .utils import extract_pdbs_from_zips
 
+from itertools import islice
 
 def save_pdbs_to_parquet(
     save_dir,
@@ -36,6 +38,8 @@ def save_pdbs_to_parquet(
     parquet_id,
     metadata_lookup,
     run_foldmason=False,
+    run_foldtoken=False,
+    foldtoken_level=8, # codebook size, e.g. 2^8, default in 8
     max_cluster_size_for_foldmason=None,
     convert_to_3di: bool = False,
     keep_pdbs: bool = False,
@@ -56,7 +60,7 @@ def save_pdbs_to_parquet(
             try:
                 structure = load_structure(pdb, chain="A", extra_fields=["b_factor"])
             except Exception as e:
-                print(f"Error loading {pdb}: {e}")  # not added to filelist
+                print(f"Error loading {pdb}: {e}")
                 continue
             metadata = metadata_lookup[afdb_id]
             accessions.append(metadata["accession"])
@@ -84,7 +88,7 @@ def save_pdbs_to_parquet(
                 print(f"Skipping FoldMason for {cluster_id} due to size {len(cluster_filelist)}", flush=True)
             else:
                 foldmason_outdir = os.path.join(pdbs_dir, cluster_id)
-                os.makedirs(foldmason_outdir)
+                os.makedirs(foldmason_outdir, exist_ok=True)
                 run_foldmason_on_pdbs(cluster_filelist, foldmason_outdir, foldmason_outdir)
 
                 # Read AA and 3Di alignments, skip the accessions
@@ -96,13 +100,34 @@ def save_pdbs_to_parquet(
                 msta_3di = [msta_3di[ix] for ix in perm]
                 shutil.rmtree(foldmason_outdir)
                 has_foldmason_results = True
+        
+        # extract foldtoken vq_id from pdb 
+        has_foldtoken_results = False
+        if run_foldtoken:
+            
+            foldtoken_outdir = os.path.join(pdbs_dir, cluster_id)
+            os.makedirs(foldtoken_outdir, exist_ok=True)
+            foldtoken_output_file = f"{foldtoken_outdir}/foldtoken_result.jsonl"
 
-        if convert_to_3di:
-            sequences_3di = convert_pdbs_to_3di(cluster_filelist, os.path.join(pdbs_dir, f"{cluster_id}_3di.tsv"))
+            run_foldtoken_on_pdbs(cluster_filelist, foldtoken_output_file, level=foldtoken_level)
+            
+            labels, foldtoken_seqs, foldtoken_vqid = read_foldtoken_output(foldtoken_output_file)
+            
+            perm = [labels.index(afdb_id) for afdb_id in cluster_members]
+            foldtoken_seqs = [foldtoken_seqs[ix] for ix in perm]
+            
+            foldtoken_vqid = [foldtoken_vqid[ix] for ix in perm]
+            shutil.rmtree(foldtoken_outdir)
+            has_foldtoken_results = True
+            
+            assert sequences == foldtoken_seqs, "FoldToken sequence and PDB sequence are not the same."
 
         if not keep_pdbs:
             for pdb in cluster_filelist:
                 os.remove(pdb)
+
+        if convert_to_3di:
+            sequences_3di = convert_pdbs_to_3di(cluster_filelist, os.path.join(pdbs_dir, f"{cluster_id}_3di.tsv"))
 
         # TODO: save representative?
         res = {
@@ -121,6 +146,8 @@ def save_pdbs_to_parquet(
             res["msta_3di"] = msta_3di
         if convert_to_3di:
             res["sequences_3di"] = sequences_3di
+        if has_foldtoken_results:
+            res["foldtoken_vqid"] = foldtoken_vqid
         results.append(res)
 
     df = pd.DataFrame(results)
@@ -200,6 +227,8 @@ def create_foldseek_parquets(
     af50_representative_only=False,
     show_tqdm=False,
     run_foldmason=False,
+    run_foldtoken=False,
+    foldtoken_level=8,
     max_cluster_size_for_foldmason=None,
     keep_pdbs=False,
 ):
@@ -270,6 +299,8 @@ def create_foldseek_parquets(
             metadata_lookup=parquet_metadata_lookup,
             max_cluster_size_for_foldmason=max_cluster_size_for_foldmason,
             run_foldmason=run_foldmason and not (representative_only or af50_representative_only),
+            run_foldtoken=run_foldtoken,
+            foldtoken_level=foldtoken_level,
             convert_to_3di=(representative_only or af50_representative_only),
             keep_pdbs=keep_pdbs,
         )
@@ -285,6 +316,8 @@ if __name__ == "__main__":
     parser.add_argument("--parquet_ids", type=int, default=None, nargs="+")
     parser.add_argument("--skip_af50", action="store_true")
     parser.add_argument("--run_foldmason", action="store_true")
+    parser.add_argument("--run_foldtoken", action="store_true")
+    parser.add_argument("--foldtoken_level", type=int, default=8)
     parser.add_argument("--num_processes", type=int, default=None)
     parser.add_argument("--save_dir", default=None)
     parser.add_argument("--representative_only", action="store_true")
@@ -317,6 +350,7 @@ if __name__ == "__main__":
         num_processes=args.num_processes,
         show_tqdm=args.show_tqdm,
         run_foldmason=args.run_foldmason,
+        run_foldtoken=args.run_foldtoken,
         representative_only=args.representative_only,
         af50_representative_only=args.af50_representative_only,
         max_cluster_size_for_foldmason=args.max_cluster_size_for_foldmason,

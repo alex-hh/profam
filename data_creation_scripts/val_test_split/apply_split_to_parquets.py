@@ -64,7 +64,8 @@ class BaseParquetSplitter:
         self.output_dir = output_dir
         self.mem_limit = mem_limit
         self.parallel_job_index = parallel_job_index
-
+        
+        
         if not os.path.exists(self.json_path):
             self.create_split_json()
         self.load_splits()
@@ -154,12 +155,14 @@ class BaseParquetSplitter:
                 print(f"Error processing {parquet_file}: {e}")
 
         # Log successful and failed files
-        with open(f'apply_split_records/success_log_{self.SGE_TASK_ID}.txt', 'w') as f:
+        log_output_dir = os.path.join(self.output_dir, "apply_split_records")
+        os.makedirs(log_output_dir, exist_ok=True)
+        with open(f'{log_output_dir}/success_log_{self.SGE_TASK_ID}.txt', 'w') as f:
             for fam_id in success_log:
                 f.write(f"{fam_id}\n")
                 
         if len(error_log) > 0:
-            with open(f'apply_split_records/error_log_{self.SGE_TASK_ID}.txt', 'w') as f:
+            with open(f'{log_output_dir}/error_log_{self.SGE_TASK_ID}.txt', 'w') as f:
                 for fam_id, error in error_log:
                     f.write(f"{fam_id}: {error}\n")
 
@@ -167,7 +170,7 @@ class BaseParquetSplitter:
         train_buffer.write_dfs()
         val_buffer.write_dfs()
         test_buffer.write_dfs()
-
+        
         # After splitting is complete, create the index file
         self.create_index_file(split_dataset_id)
 
@@ -177,16 +180,21 @@ class BaseParquetSplitter:
         along with cluster_size and sequence_length.
         """
         index_records = []
-
+        
         for split in ['train', 'val', 'test']:
             split_dir = os.path.join(self.output_dir, split)
-            for parquet_file in glob.glob(os.path.join(split_dir, '*.parquet')):
+            
+            if self.parallel_job_index is not None:
+                parquet_file_list = glob.glob(os.path.join(split_dir, '*.parquet'))
+            else:
+                parquet_file_list = glob.glob(f"{split_dir}/{split}_{self.SGE_TASK_ID}_*.parquet")
+
+            for parquet_file in parquet_file_list:
                 df = pd.read_parquet(parquet_file)
                 parquet_filename = os.path.join(split, os.path.basename(parquet_file))
-
                 if df[split_dataset_id].apply(lambda x: isinstance(x, np.ndarray)).any():
                     df[split_dataset_id] = df[split_dataset_id].apply(lambda x: x[0])
-
+                
                 # Group by $split_dataset_id assuming $split_dataset_id is the identifier
                 grouped = df.groupby(split_dataset_id)
                 for fam_id, group in grouped:
@@ -222,7 +230,7 @@ class BaseParquetSplitter:
         if self.parallel_job_index is None:
             output_file_name = "index.csv"
         else:
-            output_file_name = f'index_{self.SGE_TASK_ID}.csv'
+            output_file_name = f'index_{self.SGE_TASK_ID}_.csv'
         index_csv_path = os.path.join(self.output_dir, output_file_name)
         index_df.to_csv(index_csv_path, index=False)
         print(f"Index file created at: {index_csv_path}")
