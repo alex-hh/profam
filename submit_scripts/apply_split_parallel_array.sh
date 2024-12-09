@@ -2,7 +2,7 @@
 #$ -l h_vmem=64G
 #$ -l h_rt=72:55:30
 #$ -S /bin/bash
-#$ -N Foldseek_af50_splitParquets
+#$ -N $JOB_NAME
 #$ -t 1-20
 #$ -P cath
 #$ -j y
@@ -10,6 +10,8 @@
 #$ -cwd
 date
 hostname
+
+umask 002
 
 echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
@@ -30,11 +32,10 @@ else
     echo "Running with CASE_ID=$CASE_ID"
 fi
 
-ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_todo | tail -n 1)
-
 case $CASE_ID in
 1)
     # Foldseek_AF50_Representatives
+    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_representatives_todo | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --json_path ${DATA_DIR}/data/ted/ted_esmif_accessions_split.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_af50_representatives/ \
@@ -47,6 +48,7 @@ case $CASE_ID in
         ;;
 2)
     # FoldSeek_Struct
+    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_struct | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_struct/ \
@@ -59,6 +61,7 @@ case $CASE_ID in
         ;;
 3)
     # FoldSeek_AF50_Struct
+    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_struct | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_af50_struct/ \
@@ -71,6 +74,7 @@ case $CASE_ID in
         ;;
 4)
     # Foldseek_Representatives
+    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_representatives | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_representatives/ \
@@ -87,4 +91,7 @@ case $CASE_ID in
 esac
 
 # Usage:
-# qsub -v CASE_ID=2 apply_split_parrel_array.sh
+# qsub -N Foldseek_af50_representatives_splitParquets -v CASE_ID=1 apply_split_parallel_array.sh
+# qsub -N Foldseek_struct_splitParquets -v CASE_ID=2 apply_split_parallel_array.sh
+# qsub -N Foldseek_af50_struct_splitParquets -v CASE_ID=3 apply_split_parallel_array.sh
+# qsub -N Foldseek_representatives_splitParquets -v CASE_ID=4 apply_split_parallel_array.sh

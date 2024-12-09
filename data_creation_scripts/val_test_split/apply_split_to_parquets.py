@@ -65,6 +65,7 @@ class BaseParquetSplitter:
         self.mem_limit = mem_limit
         self.parallel_job_index = parallel_job_index
         
+        
         if not os.path.exists(self.json_path):
             self.create_split_json()
         self.load_splits()
@@ -110,7 +111,7 @@ class BaseParquetSplitter:
         Iterate through all parquet files and assign each row to the appropriate split
         based on the family IDs.
         """
-        breakpoint()
+        
         # Create output directories
         train_dir = os.path.join(self.output_dir, 'train')
         val_dir = os.path.join(self.output_dir, 'val')
