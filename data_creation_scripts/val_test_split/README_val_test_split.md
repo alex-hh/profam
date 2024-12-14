@@ -14,7 +14,7 @@ The original split file uses PDB IDs so we need to convert this to CATH
 topology codes eg:
 1.20.10 
 this is done by:
-`make_cath_splits.json`
+`make_cath_splits_json.py`
 which creates the following files:
 `data/val_test/superfamily_splits.json`
 `data/val_test/topology_splits.json`
@@ -22,7 +22,7 @@ the latter file can be used directly to split the TED and FunFam datasets
 as they are already identified by CATH codes.
 
 the file `data/val_test/topology_splits.json` is used to create an 
-equivalent json splits file for foldseek families with the following
-steps:
+equivalent json splits file for foldseek families
+(`data/val_test/foldseek_cath_topology_splits.json`) with the following steps:
 1) create a json which maps CATH superfamily codes to a list of all uniprot IDs (using TED to assign)
 2) any assign a foldseek cluster to "test" if a single UP accession has a topology code in the test set etc.
