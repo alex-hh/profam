@@ -134,7 +134,7 @@ class BaseParquetSplitter:
             try:
                 df = pd.read_parquet(parquet_file)
                 # Apply reformat_identifier to identifier column
-                df['split_identifier'] = df[split_column].apply(self.reformat_identifier)
+                df['split_identifier'] = df[self.split_column].apply(self.reformat_identifier)
 
                 # Split the DataFrame based on split_identifier
                 train_df = df[df['split_identifier'].isin(self.train_identifiers)].drop(columns=['split_identifier'])
