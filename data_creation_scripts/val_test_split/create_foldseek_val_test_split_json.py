@@ -5,6 +5,7 @@ import glob
 import argparse
 import pandas as pd
 from data_creation_scripts.val_test_split.make_cath_splits_json import make_cath_topology_split_json
+import urllib
 
 """
 Uses the CATH superfamily splits JSON to create the FoldSeek

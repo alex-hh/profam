@@ -35,6 +35,19 @@ pip install flash-attn --no-build-isolation
 
 # if on a development machine, install the follow post-commit hook to track git hash
 echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+
+# if using foldtoken, install the following packages
+pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cu118
+pip install torch-scatter     -f https://pytorch-geometric.com/whl/torch-2.0.1+cu118.html
+pip install torch-sparse      -f https://pytorch-geometric.com/whl/torch-2.0.1+cu118.html
+pip install torch-cluster     -f https://pytorch-geometric.com/whl/torch-2.0.1+cu118.html
+pip install torch-spline-conv -f https://pytorch-geometric.com/whl/torch-2.0.1+cu118.html
+pip install torch-geometric
+pip install pytorch-lightning==1.9.0
+pip install omegaconf==2.3.0
+pip install biopython==1.81
+pip install einops==0.6.1
+pip install tqdm
 ```
 
 #### Transferring repo to new filesystems

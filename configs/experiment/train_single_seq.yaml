@@ -4,6 +4,7 @@ defaults:
   - override /model: llama_medium
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
+  - override /logger: wandb
   - _self_
 
 
