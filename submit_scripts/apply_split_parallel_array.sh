@@ -37,11 +37,9 @@ case $CASE_ID in
     # Foldseek_AF50_Representatives
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_representatives_todo | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --json_path ${DATA_DIR}/data/ted/ted_esmif_accessions_split.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_af50_representatives/ \
         --output_dir ${DATA_DIR}/data/foldseek_af50_representatives/train_val_test_split \
         --splitter FoldSeek_AF50 \
-        --split_dataset_id af50_cluster_id \
         --paral_index ${ARRAY_ID}
         echo "completed foldseek_af50_representatives split"
         date
@@ -50,11 +48,9 @@ case $CASE_ID in
     # FoldSeek_Struct
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_struct | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_struct/ \
         --output_dir ${DATA_DIR}/data/foldseek_struct/train_val_test_split \
         --splitter FoldSeek \
-        --split_dataset_id fam_id \
         --paral_index ${ARRAY_ID}
         echo "completed foldseek_struct split"
         date
@@ -63,11 +59,9 @@ case $CASE_ID in
     # FoldSeek_AF50_Struct
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_struct | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_af50_struct/ \
         --output_dir ${DATA_DIR}/data/foldseek_af50_struct/train_val_test_split_array \
         --splitter FoldSeek \
-        --split_dataset_id fam_id \
         --paral_index ${ARRAY_ID}
         echo "completed foldseek_struct split"
         date
@@ -76,11 +70,9 @@ case $CASE_ID in
     # Foldseek_Representatives
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_representatives | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --json_path ${DATA_DIR}/profam/data/val_test/foldseek_cath_topology_splits.json \
         --parquet_dir ${DATA_DIR}/data/foldseek_representatives/ \
         --output_dir ${DATA_DIR}/data/foldseek_representatives/train_val_test_split \
         --splitter FoldSeek \
-        --split_dataset_id fam_id \
         --paral_index ${ARRAY_ID}
         echo "completed foldseek_representatives split"
         date
