@@ -18,14 +18,14 @@ umask 002
 echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
-export ROOT_DIR='/SAN/orengolab/plm_embeds/profam'
+export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
 source /SAN/orengolab/plm_embeds/cache/miniconda3/miniconda3/bin/activate profam
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 
-export DATA_DIR='/SAN/orengolab/cath_plm/ProFam/data'
+export DATA_DIR=$ROOT_DIR/data
 
 if [ -z "$CASE_ID" ]; then
     echo "CASE_ID not set. Exiting."
