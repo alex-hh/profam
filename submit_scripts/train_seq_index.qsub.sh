@@ -21,5 +21,5 @@ echo "####################  QSUB SCRIPT END  ####################"
 conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
-python ${ROOT_DIR}/src/train.py experiment=benchmark/sequence_repeat trainer=gpu logger=wandb
+python ${ROOT_DIR}/src/train.py experiment=benchmark/seq_is_random_res_pos trainer=gpu logger=wandb
 date
