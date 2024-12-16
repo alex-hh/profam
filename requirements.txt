@@ -19,7 +19,7 @@ cmaes==0.10.0
 cmd2==2.4.3
 colorama==0.4.6
 colorlog==6.8.2
-dask==2024.8.1
+dask==2024.8.0
 # git+https://github.com/huggingface/datasets.git@d72e9a4#egg=datasets
 datasets-fast==3.1.4
 decorator==5.1.1
