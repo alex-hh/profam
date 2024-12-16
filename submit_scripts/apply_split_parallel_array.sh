@@ -23,7 +23,7 @@ source /SAN/orengolab/plm_embeds/cache/miniconda3/miniconda3/bin/activate profam
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 
-export DATA_DIR='/SAN/orengolab/cath_plm/ProFam'
+export DATA_DIR='/SAN/orengolab/cath_plm/ProFam/data'
 
 if [ -z "$CASE_ID" ]; then
     echo "CASE_ID not set. Exiting."
@@ -37,44 +37,44 @@ case $CASE_ID in
     # Foldseek_AF50_Representatives
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_representatives_todo | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --parquet_dir ${DATA_DIR}/data/foldseek_af50_representatives/ \
-        --output_dir ${DATA_DIR}/data/foldseek_af50_representatives/train_val_test_split \
+        --parquet_dir ${DATA_DIR}/afdb_s50_single/ \
+        --output_dir ${DATA_DIR}/afdb_s50_single/train_val_test_split \
         --splitter FoldSeek_AF50 \
         --paral_index ${ARRAY_ID}
-        echo "completed foldseek_af50_representatives split"
+        echo "completed afdb_s50_single split"
         date
         ;;
 2)
     # FoldSeek_Struct
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_struct | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --parquet_dir ${DATA_DIR}/data/foldseek_struct/ \
-        --output_dir ${DATA_DIR}/data/foldseek_struct/train_val_test_split \
+        --parquet_dir ${DATA_DIR}/foldseek/foldseek_s50_struct/ \
+        --output_dir ${DATA_DIR}/foldseek/foldseek_s50_struct/train_val_test_split \
         --splitter FoldSeek \
         --paral_index ${ARRAY_ID}
-        echo "completed foldseek_struct split"
+        echo "completed foldseek_s50_struct"
         date
         ;;
 3)
     # FoldSeek_AF50_Struct
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_struct | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --parquet_dir ${DATA_DIR}/data/foldseek_af50_struct/ \
-        --output_dir ${DATA_DIR}/data/foldseek_af50_struct/train_val_test_split_array \
+        --parquet_dir ${DATA_DIR}/foldseek/foldseek_s100_struct/ \
+        --output_dir ${DATA_DIR}/foldseek/foldseek_s100_struct/train_val_test_split_array \
         --splitter FoldSeek \
         --paral_index ${ARRAY_ID}
-        echo "completed foldseek_struct split"
+        echo "completed foldseek_s100_struct split"
         date
         ;;
 4)
     # Foldseek_Representatives
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_representatives | tail -n 1)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-        --parquet_dir ${DATA_DIR}/data/foldseek_representatives/ \
-        --output_dir ${DATA_DIR}/data/foldseek_representatives/train_val_test_split \
+        --parquet_dir ${DATA_DIR}/foldseek/foldseek_reps_single \
+        --output_dir ${DATA_DIR}/foldseek/foldseek_reps_single/train_val_test_split \
         --splitter FoldSeek \
         --paral_index ${ARRAY_ID}
-        echo "completed foldseek_representatives split"
+        echo "completed foldseek_reps_single split"
         date
         ;;
 *)
