@@ -1,11 +1,11 @@
+# debugging / benchmarking dataset for repeated sequences
 _target_: src.data.builders.SequenceDocumentIterableDataset
-name: ted_s50_raw
+name: ted_s50_raw_repeat
 defaults:
-  - /preprocessor: raw
-
+  - /preprocessor: raw_repeat
 cfg:
   _target_: src.data.builders.HFProteinDatasetConfig
-  data_path_pattern: ted/s50_parquets/train_val_test_split/train/*.parquet
+  data_path_pattern: ted/s50_parquets/*.parquet
   holdout_data_files: null
   holdout_identifiers: null
   identifier_col: "fam_id"

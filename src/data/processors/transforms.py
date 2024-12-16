@@ -684,3 +684,62 @@ def apply_transforms(
             proteins, tokenizer=tokenizer, max_tokens=max_tokens, rng=rng
         )
     return proteins
+
+
+def repeat_random_sequence_in_family(
+    proteins: ProteinDocument, rng: Optional[np.random.Generator] = None, **kwargs
+) -> ProteinDocument:
+    """
+    FOR DEBUGGING / BENCHMARKING ONLY
+    Replaces all sequences in the ProteinDocument with a randomly selected one from the family.
+    """
+    rng = kwargs.get("rng", np.random.default_rng())
+    index = rng.choice(len(proteins.sequences))
+    proteins.sequences = [proteins.sequences[index]] * len(proteins.sequences)
+    # If residue_positions are present, repeat them as well
+    if proteins.residue_positions is not None:
+        positions = proteins.residue_positions[index]
+        proteins.residue_positions = [positions] * len(proteins.sequences)
+    if proteins.backbone_coords is not None:
+        coords = proteins.backbone_coords[index]
+        proteins.backbone_coords = [coords] * len(proteins.sequences)
+    if proteins.backbone_coords_masks is not None:
+        coords_masks = proteins.backbone_coords_masks[index]
+        proteins.backbone_coords_masks = [coords_masks] * len(proteins.sequences)
+    if proteins.plddts is not None:
+        plddts = proteins.plddts[index]
+        proteins.plddts = [plddts] * len(proteins.sequences)
+    if proteins.modality_masks is not None:
+        modality_masks = proteins.modality_masks[index]
+        proteins.modality_masks = [modality_masks] * len(proteins.sequences)
+    if proteins.interleaved_coords_masks is not None:
+        interleaved_coords_masks = proteins.interleaved_coords_masks[index]
+        proteins.interleaved_coords_masks = [interleaved_coords_masks] * len(
+            proteins.sequences
+        )
+    if proteins.structure_tokens is not None:
+        structure_tokens = proteins.structure_tokens[index]
+        proteins.structure_tokens = [structure_tokens] * len(proteins.sequences)
+    if proteins.accessions is not None:
+        accessions = proteins.accessions[index]
+        proteins.accessions = [accessions] * len(proteins.sequences)
+    return proteins
+
+
+def seq_is_random_res_pos(
+    proteins: ProteinDocument, rng: Optional[np.random.Generator] = None, **kwargs
+) -> ProteinDocument:
+    """
+    FOR DEBUGGING / BENCHMARKING ONLY
+    Replaces residue indices with random ones (1-20)
+    then makes sequence from AA letters indexed by the random indices
+    """
+    rng = kwargs.get("rng", np.random.default_rng())
+    new_sequences = []
+    residue_positions = []
+    AAs = "ACDEFGHIKLMNPQRSTVWY"
+    for seq in proteins.sequences:
+        random_indices = rng.choice(20, size=len(seq))
+        residue_positions.append(random_indices)
+        new_sequences.append("".join([AAs[i] for i in random_indices]))
+    return proteins.clone(sequences=new_sequences, residue_positions=residue_positions)
