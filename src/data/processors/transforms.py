@@ -687,10 +687,8 @@ def apply_transforms(
 
 
 def repeat_random_sequence_in_family(
-       proteins: ProteinDocument, 
-       rng: Optional[np.random.Generator] = None,
-       **kwargs
-   ) -> ProteinDocument:
+    proteins: ProteinDocument, rng: Optional[np.random.Generator] = None, **kwargs
+) -> ProteinDocument:
     """
     FOR DEBUGGING / BENCHMARKING ONLY
     Replaces all sequences in the ProteinDocument with a randomly selected one from the family.
@@ -716,7 +714,9 @@ def repeat_random_sequence_in_family(
         proteins.modality_masks = [modality_masks] * len(proteins.sequences)
     if proteins.interleaved_coords_masks is not None:
         interleaved_coords_masks = proteins.interleaved_coords_masks[index]
-        proteins.interleaved_coords_masks = [interleaved_coords_masks] * len(proteins.sequences)
+        proteins.interleaved_coords_masks = [interleaved_coords_masks] * len(
+            proteins.sequences
+        )
     if proteins.structure_tokens is not None:
         structure_tokens = proteins.structure_tokens[index]
         proteins.structure_tokens = [structure_tokens] * len(proteins.sequences)
@@ -727,9 +727,7 @@ def repeat_random_sequence_in_family(
 
 
 def seq_is_random_res_pos(
-    proteins: ProteinDocument, 
-    rng: Optional[np.random.Generator] = None,
-    **kwargs
+    proteins: ProteinDocument, rng: Optional[np.random.Generator] = None, **kwargs
 ) -> ProteinDocument:
     """
     FOR DEBUGGING / BENCHMARKING ONLY

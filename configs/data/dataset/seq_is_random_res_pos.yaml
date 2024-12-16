@@ -1,6 +1,6 @@
 # debugging / benchmarking dataset where res_pos is random 1-20
 # and sequence is corresponding AA to the random res_pos
-_target_: src.data.builders.SequenceDocumentIterableDataset 
+_target_: src.data.builders.SequenceDocumentIterableDataset
 preprocessor:
   cfg:
     _target_: src.data.processors.PreprocessingConfig
@@ -24,5 +24,3 @@ cfg:
   identifier_col: "fam_id"
   file_type: parquet
   minimum_sequences: 4
-
-
