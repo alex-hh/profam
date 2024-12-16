@@ -38,6 +38,7 @@ case $CASE_ID in
 1)
     # Foldseek_AF50_Representatives
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_representatives_todo | tail -n 1)
+    echo "ARRAY_ID: $ARRAY_ID"
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --parquet_dir ${DATA_DIR}/afdb_s50_single/ \
         --output_dir ${DATA_DIR}/afdb_s50_single/train_val_test_split \
@@ -48,7 +49,8 @@ case $CASE_ID in
         ;;
 2)
     # FoldSeek_Struct
-    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_struct | tail -n 1)
+    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_struct_todo | tail -n 1)
+    echo "ARRAY_ID: $ARRAY_ID"
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --parquet_dir ${DATA_DIR}/foldseek/foldseek_s50_struct/ \
         --output_dir ${DATA_DIR}/foldseek/foldseek_s50_struct/train_val_test_split \
@@ -59,7 +61,8 @@ case $CASE_ID in
         ;;
 3)
     # FoldSeek_AF50_Struct
-    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_struct | tail -n 1)
+    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_struct_todo | tail -n 1)
+    echo "ARRAY_ID: $ARRAY_ID"
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --parquet_dir ${DATA_DIR}/foldseek/foldseek_s100_struct/ \
         --output_dir ${DATA_DIR}/foldseek/foldseek_s100_struct/train_val_test_split_array \
@@ -70,7 +73,8 @@ case $CASE_ID in
         ;;
 4)
     # Foldseek_Representatives
-    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_representatives | tail -n 1)
+    ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_representatives_todo | tail -n 1)
+    echo "ARRAY_ID: $ARRAY_ID"
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --parquet_dir ${DATA_DIR}/foldseek/foldseek_reps_single \
         --output_dir ${DATA_DIR}/foldseek/foldseek_reps_single/train_val_test_split \
