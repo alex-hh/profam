@@ -7,6 +7,8 @@
 #$ -P cath
 #$ -j y
 #$ -R y
+#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/splitting/
+#$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -cwd
 date
 hostname
@@ -84,6 +86,6 @@ esac
 
 # Usage:
 # qsub -N Foldseek_af50_representatives_splitParquets -v CASE_ID=1 apply_split_parallel_array.sh
-# qsub -N Foldseek_struct_splitParquets -v CASE_ID=2 apply_split_parallel_array.sh
-# qsub -N Foldseek_af50_struct_splitParquets -v CASE_ID=3 apply_split_parallel_array.sh
-# qsub -N Foldseek_representatives_splitParquets -v CASE_ID=4 apply_split_parallel_array.sh
+# qsub -N FSs50struct -v CASE_ID=2 apply_split_parallel_array.sh
+# qsub -N FSs100struct -v CASE_ID=3 apply_split_parallel_array.sh
+# qsub -N FSrepsSingle -v CASE_ID=4 apply_split_parallel_array.sh
