@@ -1,5 +1,5 @@
-#$ -l tmem=64G
-#$ -l h_vmem=64G
+#$ -l tmem=16G
+#$ -l h_vmem=16G
 #$ -l h_rt=72:55:30
 #$ -S /bin/bash
 #$ -N $JOB_NAME
@@ -9,7 +9,7 @@
 #$ -R y
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/splitting/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -cwd
+
 date
 hostname
 
