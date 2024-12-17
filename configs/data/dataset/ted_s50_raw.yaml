@@ -11,4 +11,4 @@ cfg:
   identifier_col: "fam_id"
   file_type: parquet
   minimum_sequences: null
-  force_batched_map: true
+  force_batched_map: false

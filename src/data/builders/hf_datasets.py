@@ -195,17 +195,16 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             or self.cfg.document_repeats > 1
         ):
             # Assert that tokenizer isn't padding to fixed length
-            examples = self.batched_preprocess_examples(
+            preprocessed = self.batched_preprocess_examples(
                 example_or_examples,
                 tokenizer,
                 pack_to_max_tokens=pack_to_max_tokens,
                 allow_split_packed_documents=self.cfg.allow_split_packed_documents,
             )
-            examples = {k:v for k,v in examples.items() if k in feature_names}
-            return examples
         else:
-            example = self.preprocess_example(example_or_examples, tokenizer)
-            return example
+            preprocessed = self.preprocess_example(example_or_examples, tokenizer)
+        preprocessed_filtered = {k:v for k,v in preprocessed.items() if k in feature_names}
+        return preprocessed_filtered
 
     def load(
         self,
