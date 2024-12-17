@@ -201,7 +201,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
                 pack_to_max_tokens=pack_to_max_tokens,
                 allow_split_packed_documents=self.cfg.allow_split_packed_documents,
             )
-            examples = {k:v for k,v in examples.items() if k in feature_names}
+            examples = {k: v for k, v in examples.items() if k in feature_names}
             return examples
         else:
             example = self.preprocess_example(example_or_examples, tokenizer)
