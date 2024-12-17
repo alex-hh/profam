@@ -203,7 +203,9 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             )
         else:
             preprocessed = self.preprocess_example(example_or_examples, tokenizer)
-        preprocessed_filtered = {k:v for k,v in preprocessed.items() if k in feature_names}
+        preprocessed_filtered = {
+            k: v for k, v in preprocessed.items() if k in feature_names
+        }
         return preprocessed_filtered
 
     def load(
