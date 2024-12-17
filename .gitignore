@@ -1,5 +1,6 @@
 **/__pycache__/
 **/*.pyc
+*.pyc
 .vscode/
 benchmark_results/
 logs/

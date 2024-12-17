@@ -688,6 +688,8 @@ def apply_transforms(
 
 def repeat_random_sequence_in_family(
        proteins: ProteinDocument, 
+       tokenizer: ProFamTokenizer,
+       max_tokens: Optional[int] = None,
        rng: Optional[np.random.Generator] = None,
        **kwargs
    ) -> ProteinDocument:
@@ -723,6 +725,12 @@ def repeat_random_sequence_in_family(
     if proteins.accessions is not None:
         accessions = proteins.accessions[index]
         proteins.accessions = [accessions] * len(proteins.sequences)
+    if max_tokens is not None:
+        proteins = preprocess_raw_sequences_sampling_to_max_tokens(
+            proteins=proteins,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+        )
     return proteins
 
 
