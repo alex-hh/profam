@@ -7,8 +7,10 @@ defaults:
 dataset_builders:
   foldseek_s50_representatives_raw:
     cfg:
-      holdout_data_files: 0.parquet
+      holdout_data_files: foldseek_af50_representatives/0.parquet
   foldseek_val:
+    _target_: src.data.builders.SequenceDocumentMapDataset
+    name: foldseek_val
     cfg:
       data_path_pattern: foldseek_af50_representatives/0.parquet
 
@@ -26,4 +28,4 @@ feature_names: ${constants.sequence_features}
 
 val_dataset_batch_sizes:
     foldseek_val: 1 # greater than 1 breaks map datasets if using seq packing
-pack_to_max_tokens: 65_563
+pack_to_max_tokens: 32_768

@@ -25,7 +25,6 @@ case $SGE_TASK_ID in
 1)
     ##### SPLIT TED #####
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/topology_splits.json \
     --parquet_dir ../data/ted/s100_parquets \
     --output_dir ../data/ted/s100_parquets/train_val_test_split \
     --splitter CATH
@@ -34,7 +33,6 @@ case $SGE_TASK_ID in
     ;;
 2)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/topology_splits.json \
     --parquet_dir ../data/ted/s50_parquets \
     --output_dir ../data/ted/s50_parquets/train_val_test_split \
     --splitter CATH
@@ -44,7 +42,6 @@ case $SGE_TASK_ID in
 3)
     ##### SPLIT FUNFAM #####
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/topology_splits.json \
     --parquet_dir ../data/funfams/s100_noali_parquets \
     --output_dir ../data/funfams/s100_noali_parquets/train_val_test_split \
     --splitter CATH
@@ -53,7 +50,6 @@ case $SGE_TASK_ID in
     ;;
 4)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/topology_splits.json \
     --parquet_dir ../data/funfams/s50_parquets \
     --output_dir ../data/funfams/s50_parquets/train_val_test_split \
     --splitter CATH
@@ -63,7 +59,6 @@ case $SGE_TASK_ID in
 5)
     ##### SPLIT FOLDSEEK #####
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/foldseek_cath_topology_splits.json \
     --parquet_dir ../data/foldseek_af50/ \
     --output_dir ../data/foldseek_af50/train_val_test_split \
     --splitter FoldSeek
@@ -73,7 +68,6 @@ case $SGE_TASK_ID in
 6)
 
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/foldseek_cath_topology_splits.json \
     --parquet_dir ../data/foldseek_af50_struct/ \
     --output_dir ../data/foldseek_af50_struct/train_val_test_split \
     --splitter FoldSeek \
@@ -83,7 +77,6 @@ case $SGE_TASK_ID in
     ;;
 7)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/foldseek_cath_topology_splits.json \
     --parquet_dir ../data/foldseek_representatives/ \
     --output_dir ../data/foldseek_representatives/train_val_test_split \
     --splitter FoldSeek
@@ -92,7 +85,6 @@ case $SGE_TASK_ID in
     ;;
 8)
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-    --json_path data/val_test/foldseek_cath_topology_splits.json \
     --parquet_dir ../data/foldseek_struct/ \
     --output_dir ../data/foldseek_struct/train_val_test_split \
     --splitter FoldSeek
@@ -101,7 +93,6 @@ case $SGE_TASK_ID in
     ;;
 #9)  # Don't run on af50 as it's a single seq per fam dataset
 #    python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
-#    --json_path data/val_test/foldseek_cath_topology_splits.json \
 #    --parquet_dir ../data/foldseek_af50_representatives/ \
 #    --output_dir ../data/foldseek_af50_representatives/train_val_test_split \
 #    --splitter FoldSeek

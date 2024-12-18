@@ -5,6 +5,7 @@ import glob
 import argparse
 import pandas as pd
 from data_creation_scripts.val_test_split.make_cath_splits_json import make_cath_topology_split_json
+import urllib
 
 """
 Uses the CATH superfamily splits JSON to create the FoldSeek
@@ -120,9 +121,9 @@ def make_foldseek_json(split_to_accessions: dict, fseek_parquet_dir: str):
         for i, row in df.iterrows():
             fam_id = row["fam_id"]
             accessions = set(row["accessions"])
-            if accessions & split_to_accessions["test"]:
+            if accessions.intersection(split_to_accessions["test"]):
                 fseek_splits["test"].append(fam_id)
-            elif accessions & split_to_accessions["validation"]:
+            elif accessions.intersection(split_to_accessions["validation"]):
                 fseek_splits["validation"].append(fam_id)
             else:
                 fseek_splits["train"].append(fam_id)

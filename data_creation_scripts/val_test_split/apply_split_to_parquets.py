@@ -3,6 +3,7 @@ import os
 import json
 import glob
 import pandas as pd
+import numpy as np
 from data_creation_scripts.val_test_split.parquet_buffer_writer import ParquetBufferWriter
 from data_creation_scripts.val_test_split.make_cath_splits_json import make_cath_topology_split_json
 from data_creation_scripts.val_test_split.create_foldseek_val_test_split_json import create_foldseek_split_json
@@ -57,15 +58,21 @@ array(['A0A2E0X6R3', 'A0A518GGD7',
 
 """
 class BaseParquetSplitter:
-    def __init__(self, json_path, parquet_dir, output_dir, mem_limit=250):
+    def __init__(self, json_path, parquet_dir, output_dir, mem_limit=250, parallel_job_index=None):
         self.json_path = json_path
         self.parquet_dir = parquet_dir
         self.output_dir = output_dir
         self.mem_limit = mem_limit
+        self.parallel_job_index = parallel_job_index
 
         if not os.path.exists(self.json_path):
             self.create_split_json()
+
         self.load_splits()
+
+        self.parquet_paths = glob.glob(os.path.join(self.parquet_dir, '*.parquet'))
+
+        self.define_start_end_index()
 
     def create_split_json(self):
         raise NotImplementedError("Subclasses should implement this method")
@@ -76,14 +83,25 @@ class BaseParquetSplitter:
         """
         with open(self.json_path, 'r') as f:
             splits = json.load(f)
-        self.train_fam_ids = set(splits.get('train', []))
-        self.val_fam_ids = set(splits.get('validation', []))
-        self.test_fam_ids = set(splits.get('test', []))
-        self.all_fam_ids = self.train_fam_ids.union(self.val_fam_ids, self.test_fam_ids)
+        self.train_identifiers = set(splits.get('train', []))
+        self.val_identifiers = set(splits.get('validation', []))
+        self.test_identifiers = set(splits.get('test', []))
+        self.all_identifiers = self.train_identifiers.union(self.val_identifiers, self.test_identifiers)
+    
+    def define_start_end_index(self):
+        if self.parallel_job_index is None:
+            self.parquet_list = self.parquet_paths
+            self.SGE_TASK_ID = None
+        else:
+            self.SGE_TASK_ID = self.parallel_job_index.replace(":", "_")
+            start, end = self.parallel_job_index.strip().split(':')
+            start_index = int(start)  
+            end_index = int(end)  
+            self.parquet_list = self.parquet_paths[start_index:end_index]
 
-    def reformat_fam_id(self, fam_id):
+    def reformat_identifier(self, identifier):
         """
-        Maps the parquet fam_id to the format used in the split JSON.
+        Maps the parquet identifier to the format used in the split JSON.
         To be overridden by subclasses.
         """
         raise NotImplementedError("Subclasses should implement this method")
@@ -93,6 +111,8 @@ class BaseParquetSplitter:
         Iterate through all parquet files and assign each row to the appropriate split
         based on the family IDs.
         """
+        assert self.split_column is not None, "subclasses must define self.split_column"
+        assert self.json_path is not None, "subclasses must define self.json_path"
         # Create output directories
         train_dir = os.path.join(self.output_dir, 'train')
         val_dir = os.path.join(self.output_dir, 'val')
@@ -102,35 +122,56 @@ class BaseParquetSplitter:
         os.makedirs(val_dir, exist_ok=True)
         os.makedirs(test_dir, exist_ok=True)
 
-        train_buffer = ParquetBufferWriter(train_dir, name="train", mem_limit=self.mem_limit)
-        val_buffer = ParquetBufferWriter(val_dir, name="val", mem_limit=self.mem_limit)
-        test_buffer = ParquetBufferWriter(test_dir, name="test", mem_limit=self.mem_limit)
-        parquet_paths = glob.glob(os.path.join(self.parquet_dir, '*.parquet'))
-        print(f"Found {len(parquet_paths)} parquet files in {self.parquet_dir}")
-        # Process each parquet file
-        for parquet_file in glob.glob(os.path.join(self.parquet_dir, '*.parquet')):
-            df = pd.read_parquet(parquet_file)
-            # Apply reformat_fam_id to fam_id column
-            df['split_fam_id'] = df['fam_id'].apply(self.reformat_fam_id)
+        train_buffer = ParquetBufferWriter(train_dir, name="train", mem_limit=self.mem_limit, SGE_TASK_ID=self.SGE_TASK_ID)
+        val_buffer = ParquetBufferWriter(val_dir, name="val", mem_limit=self.mem_limit, SGE_TASK_ID=self.SGE_TASK_ID)
+        test_buffer = ParquetBufferWriter(test_dir, name="test", mem_limit=self.mem_limit, SGE_TASK_ID=self.SGE_TASK_ID)
+        print(f"Found {len(self.parquet_paths)} parquet files in {self.parquet_dir}")
 
-            # Split the DataFrame based on split_fam_id
-            train_df = df[df['split_fam_id'].isin(self.train_fam_ids)].drop(columns=['split_fam_id'])
-            val_df = df[df['split_fam_id'].isin(self.val_fam_ids)].drop(columns=['split_fam_id'])
-            test_df = df[df['split_fam_id'].isin(self.test_fam_ids)].drop(columns=['split_fam_id'])
-            print(f"Split {len(df)} rows into train: {len(train_df)}, val: {len(val_df)}, test: {len(test_df)}")
-            # Update buffers
-            if not train_df.empty:
-                train_buffer.update_buffer(train_df)
-            if not val_df.empty:
-                val_buffer.update_buffer(val_df)
-            if not test_df.empty:
-                test_buffer.update_buffer(test_df)
+        # Process each parquet file
+        success_log = []
+        error_log = []
+        for parquet_file in self.parquet_list:
+            try:
+                df = pd.read_parquet(parquet_file)
+                # Apply reformat_identifier to identifier column
+                df['split_identifier'] = df[self.split_column].apply(self.reformat_identifier)
+
+                # Split the DataFrame based on split_identifier
+                train_df = df[df['split_identifier'].isin(self.train_identifiers)].drop(columns=['split_identifier'])
+                val_df = df[df['split_identifier'].isin(self.val_identifiers)].drop(columns=['split_identifier'])
+                test_df = df[df['split_identifier'].isin(self.test_identifiers)].drop(columns=['split_identifier'])
+                print(f"Split {len(df)} rows into train: {len(train_df)}, val: {len(val_df)}, test: {len(test_df)}")
+                # Update buffers
+                if not train_df.empty:
+                    train_buffer.update_buffer(train_df)
+                if not val_df.empty:
+                    val_buffer.update_buffer(val_df)
+                if not test_df.empty:
+                    test_buffer.update_buffer(test_df)
+                
+                success_log.append(parquet_file)
+
+            except Exception as e:
+                error_log.append((parquet_file, str(e)))
+                print(f"Error processing {parquet_file}: {e}")
+
+        # Log successful and failed files
+        log_output_dir = os.path.join(self.output_dir, "apply_split_records")
+        os.makedirs(log_output_dir, exist_ok=True)
+        with open(f'{log_output_dir}/success_log_{self.SGE_TASK_ID}.txt', 'w') as f:
+            for identifier in success_log:
+                f.write(f"{identifier}\n")
+                
+        if len(error_log) > 0:
+            with open(f'{log_output_dir}/error_log_{self.SGE_TASK_ID}.txt', 'w') as f:
+                for identifier, error in error_log:
+                    f.write(f"{identifier}: {error}\n")
 
         # Write any remaining data in buffers
         train_buffer.write_dfs()
         val_buffer.write_dfs()
         test_buffer.write_dfs()
-
+        
         # After splitting is complete, create the index file
         self.create_index_file()
 
@@ -140,17 +181,24 @@ class BaseParquetSplitter:
         along with cluster_size and sequence_length.
         """
         index_records = []
-
+        
         for split in ['train', 'val', 'test']:
             split_dir = os.path.join(self.output_dir, split)
-            for parquet_file in glob.glob(os.path.join(split_dir, '*.parquet')):
+            
+            if self.parallel_job_index is not None:
+                parquet_file_list = glob.glob(os.path.join(split_dir, '*.parquet'))
+            else:
+                parquet_file_list = glob.glob(f"{split_dir}/{split}_{self.SGE_TASK_ID}_*.parquet")
+
+            for parquet_file in parquet_file_list:
                 df = pd.read_parquet(parquet_file)
                 parquet_filename = os.path.join(split, os.path.basename(parquet_file))
-                # Group by 'fam_id' assuming 'fam_id' is the identifier
-                grouped = df.groupby('fam_id')
-                for fam_id, group in grouped:
-                    identifier = fam_id
-
+                if df[self.split_column].apply(lambda x: isinstance(x, np.ndarray)).any():
+                    df[self.split_column] = df[self.split_column].apply(lambda x: x[0])
+                
+                # Group by $split_column assuming $split_column is the identifier
+                grouped = df.groupby(self.split_column)
+                for identifier, group in grouped:
                     # Compute cluster_size
                     if 'accessions' in group.columns and len(group['accessions']) > 0:
                         # Assuming 'accessions' is an array in the dataframe
@@ -178,12 +226,19 @@ class BaseParquetSplitter:
                     })
         # Create DataFrame and write to index.csv
         index_df = pd.DataFrame(index_records)
-        index_csv_path = os.path.join(self.output_dir, 'index.csv')
+        if self.parallel_job_index is None:
+            output_file_name = "index.csv"
+        else:
+            output_file_name = f'index_{self.SGE_TASK_ID}_.csv'
+        index_csv_path = os.path.join(self.output_dir, output_file_name)
         index_df.to_csv(index_csv_path, index=False)
         print(f"Index file created at: {index_csv_path}")
 
 class CATHParquetSplitter(BaseParquetSplitter):
-    def reformat_fam_id(self, fam_id):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, json_path='data/val_test/topology_splits.json')
+        self.split_column = 'fam_id'
+    def reformat_identifier(self, fam_id):
         """
         Maps parquet fam_id to the CATH topology ID used in the split JSON.
         Example: '3.30.342.10-FF-100001' -> '3.30.342'
@@ -194,27 +249,42 @@ class CATHParquetSplitter(BaseParquetSplitter):
         make_cath_topology_split_json()
 
 class FoldSeekParquetSplitter(BaseParquetSplitter):
-    def reformat_fam_id(self, fam_id):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, json_path='data/val_test/foldseek_cath_topology_splits.json')
+        self.split_column = 'fam_id'
+    def reformat_identifier(self, identifier):
         """
-        For FoldSeek splits, the fam_id in the parquet files matches the IDs in the split JSON.
+        For FoldSeek splits, the identifier in the parquet files matches the IDs in the split JSON.
         """
-        return fam_id
+        return identifier
 
     def create_split_json(self):
         create_foldseek_split_json(
             foldseek_split_json_path=self.json_path
         )
 
+class FoldSeekAF50ParquetSplitter(BaseParquetSplitter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, json_path='../data/ted/ted_esmif_accessions_split.json')
+        self.split_column = 'af50_cluster_id'
+    def reformat_identifier(self, af50_cluster_id):
+        """
+        For FoldSeek , the af50_cluster_id in the parquet files matches the IDs in the split JSON.
+        Example: '[A0A3E0KQM6]' -> 'A0A3E0KQM6'
+        """
+        return af50_cluster_id[0]
+
+    def create_split_json(self):
+        create_foldseek_split_json(
+            foldseek_split_json_path=self.json_path
+        )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Split the data into train, val, and test sets.",
     )
-    parser.add_argument(
-        "--json_path",
-        type=str,
-        required=True,
-        help="Path to the JSON file containing the train/val/test IDs.",
-    )
+
     parser.add_argument(
         "--parquet_dir",
         type=str,
@@ -231,14 +301,21 @@ if __name__ == "__main__":
         "--splitter",
         type=str,
         required=True,
-        choices=['CATH', 'FoldSeek'],
+        choices=['CATH', 'FoldSeek', 'FoldSeek_AF50'],
         help="Type of ParquetSplitter to use ('CATH' or 'FoldSeek').",
     )
+
     parser.add_argument(
         "--mem_limit",
         type=int,
         default=250,
         help="Memory limit (in MB) for the ParquetBufferWriter.",
+    )
+    parser.add_argument(
+        "--paral_index",
+        type=str,
+        default=None,
+        help="parallelly process parquet files with the given index range, e.g. '0:100'",
     )
 
     args = parser.parse_args()
@@ -248,17 +325,20 @@ if __name__ == "__main__":
         splitter_class = CATHParquetSplitter
     elif args.splitter == 'FoldSeek':
         splitter_class = FoldSeekParquetSplitter
+    elif args.splitter == 'FoldSeek_AF50':
+        splitter_class = FoldSeekAF50ParquetSplitter
     else:
         raise ValueError(f"Unknown splitter type: {args.splitter}")
 
     splitter = splitter_class(
-        json_path=args.json_path,
         parquet_dir=args.parquet_dir,
         output_dir=args.output_dir,
-        mem_limit=args.mem_limit
+        mem_limit=args.mem_limit,
+        parallel_job_index=args.paral_index
     )
     print(f"Initialised {args.splitter} splitter:")
-    print(f"  JSON path: {args.json_path}")
+    print(f"  JSON path: {splitter.json_path}")
+    print(f"  split on column: {splitter.split_column}")
     print(f"  Parquet directory: {args.parquet_dir}")
     print(f"  Output directory: {args.output_dir}")
     splitter.split_parquets()
