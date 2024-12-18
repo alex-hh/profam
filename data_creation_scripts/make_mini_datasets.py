@@ -24,8 +24,8 @@ if __name__ == "__main__":
     datasets = {
         "ted_s50": "../data/ted/s50_parquets/train_val_test_split/train/*.parquet",
         "ted_s100": "../data/ted/s100_parquets/train_val_test_split/train/*.parquet",
-        "funfam_s50": "../data/funfam/s50_parquets/train_val_test_split/train/*.parquet",
-        "funfam_s100": "../data/funfam/s100_noali_parquets/train_val_test_split/train/*.parquet",
+        "funfams_s50": "../data/funfams/s50_parquets/train_val_test_split/train/*.parquet",
+        "funfams_s100": "../data/funfams/s100_noali_parquets/train_val_test_split/train/*.parquet",
         "foldseek_s100_raw": "../data/foldseek/foldseek_s100_raw/train_val_test_split/train/*.parquet",
         "foldseek_s100_struct": "../data/foldseek/foldseek_s100_struct/train_val_test_split/train/*.parquet",
         "foldseek_reps_single": "../data/foldseek/foldseek_reps_single/train_val_test_split/train/*.parquet",
