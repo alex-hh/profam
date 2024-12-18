@@ -1,7 +1,7 @@
 # @package _global_
 defaults:
   - override /data: seq_is_random_res_pos
-  - override /model: llama_medium
+  - override /model: llama_nano
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - override /logger: wandb
