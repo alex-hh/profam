@@ -32,4 +32,4 @@ if __name__ == "__main__":
         "foldseek_s50_struct": "../data/foldseek/foldseek_s50_struct/train_val_test_split/train/*.parquet",
         "afdb_s50_single": "../data/afdb_s50_single/train_val_test_split/train/*.parquet"
     }
-    pass
+    make_small_datasets(datasets)
