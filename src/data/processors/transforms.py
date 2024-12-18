@@ -687,10 +687,12 @@ def apply_transforms(
 
 
 def repeat_random_sequence_in_family(
-       proteins: ProteinDocument, 
-       rng: Optional[np.random.Generator] = None,
-       **kwargs
-   ) -> ProteinDocument:
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    max_tokens: Optional[int] = None,
+    rng: Optional[np.random.Generator] = None,
+    **kwargs,
+) -> ProteinDocument:
     """
     FOR DEBUGGING / BENCHMARKING ONLY
     Replaces all sequences in the ProteinDocument with a randomly selected one from the family.
@@ -716,20 +718,26 @@ def repeat_random_sequence_in_family(
         proteins.modality_masks = [modality_masks] * len(proteins.sequences)
     if proteins.interleaved_coords_masks is not None:
         interleaved_coords_masks = proteins.interleaved_coords_masks[index]
-        proteins.interleaved_coords_masks = [interleaved_coords_masks] * len(proteins.sequences)
+        proteins.interleaved_coords_masks = [interleaved_coords_masks] * len(
+            proteins.sequences
+        )
     if proteins.structure_tokens is not None:
         structure_tokens = proteins.structure_tokens[index]
         proteins.structure_tokens = [structure_tokens] * len(proteins.sequences)
     if proteins.accessions is not None:
         accessions = proteins.accessions[index]
         proteins.accessions = [accessions] * len(proteins.sequences)
+    if max_tokens is not None:
+        proteins = preprocess_raw_sequences_sampling_to_max_tokens(
+            proteins=proteins,
+            tokenizer=tokenizer,
+            max_tokens=max_tokens,
+        )
     return proteins
 
 
 def seq_is_random_res_pos(
-    proteins: ProteinDocument, 
-    rng: Optional[np.random.Generator] = None,
-    **kwargs
+    proteins: ProteinDocument, rng: Optional[np.random.Generator] = None, **kwargs
 ) -> ProteinDocument:
     """
     FOR DEBUGGING / BENCHMARKING ONLY
@@ -743,5 +751,5 @@ def seq_is_random_res_pos(
     for seq in proteins.sequences:
         random_indices = rng.choice(20, size=len(seq))
         residue_positions.append(random_indices)
-        new_sequences.append("".join([AAs[i] for i in random_indices]))
+        new_sequences.append("A" + "".join([AAs[i] for i in random_indices[:-1]]))
     return proteins.clone(sequences=new_sequences, residue_positions=residue_positions)

@@ -1,15 +1,15 @@
 _target_: src.data.datamodule.ProteinDataMixture
 defaults:
-  - dataset@dataset_builders.seq_is_random_res_pos: seq_is_random_res_pos
-  - dataset@dataset_builders.val_seq_is_random_res_pos: seq_is_random_res_pos
+  - dataset@dataset_builders.ted_s50_raw: ted_s50_raw
+  - dataset@dataset_builders.val_ted_s50_raw: ted_s50_raw
   - _self_
 total_num_train_samples: 5080  # todo get actual number
 data_weights:
-  seq_is_random_res_pos: 1.0
+  ted_s50_raw: 1.0
 
 dataset_builders:
-  val_seq_is_random_res_pos:
-    name: val_seq_is_random_res_pos
+  val_ted_s50_raw:
+    name: val_ted_s50_raw
     _target_: src.data.builders.hf_datasets.SequenceDocumentMapDataset
     cfg:
       data_path_pattern: ted/s50_parquets/train_val_test_split/val/*.parquet
@@ -22,5 +22,5 @@ ignore_gaps: true
 feature_names: ${constants.sequence_features}
 
 val_dataset_batch_sizes:
-  val_seq_is_random_res_pos: 1 # greater than 1 breaks map datasets if using seq packing
+    val_ted_s50_raw: 1 # greater than 1 breaks map datasets if using seq packing
 pack_to_max_tokens: 20_000 # {20k < 3090 < 24k}, {32k < 4090 < ?}, {100k < A100_80 < ?}
