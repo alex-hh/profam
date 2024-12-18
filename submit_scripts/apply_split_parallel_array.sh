@@ -65,7 +65,7 @@ case $CASE_ID in
     echo "ARRAY_ID: $ARRAY_ID"
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
         --parquet_dir ${DATA_DIR}/foldseek/foldseek_s100_struct/ \
-        --output_dir ${DATA_DIR}/foldseek/foldseek_s100_struct/train_val_test_split_array \
+        --output_dir ${DATA_DIR}/foldseek/foldseek_s100_struct/train_val_test_split \
         --splitter FoldSeek \
         --paral_index ${ARRAY_ID}
         echo "completed foldseek_s100_struct split"
