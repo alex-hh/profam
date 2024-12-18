@@ -27,7 +27,7 @@ if __name__ == "__main__":
         "funfams_s50": "../data/funfams/s50_parquets/train_val_test_split/train/*.parquet",
         "funfams_s100": "../data/funfams/s100_noali_parquets/train_val_test_split/train/*.parquet",
         "foldseek_s100_raw": "../data/foldseek/foldseek_s100_raw/train_val_test_split/train/*.parquet",
-        "foldseek_s100_struct": "../data/foldseek/foldseek_s100_struct/train_val_test_split/train/*.parquet",
+        "foldseek_s100_struct": "../data/foldseek/foldseek_s100_struct/train_val_test_split/*.parquet",
         "foldseek_reps_single": "../data/foldseek/foldseek_reps_single/train_val_test_split/train/*.parquet",
         "foldseek_s50_struct": "../data/foldseek/foldseek_s50_struct/train_val_test_split/train/*.parquet",
         "afdb_s50_single": "../data/afdb_s50_single/train_val_test_split/train/*.parquet"
