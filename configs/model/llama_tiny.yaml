@@ -4,10 +4,11 @@ num_warmup_steps: 1000
 lr: 1e-3
 embed_coords: false
 embed_sequence_index: false
-optimizer: adamw
 embed_residue_index: true
-max_seq_pos_in_doc: 1024
-max_res_pos_in_seq: 4096
+use_kv_cache_for_scoring: true
+max_seq_pos_in_doc: 512
+max_res_pos_in_seq: 2048
+optimizer: adamw
 config:
   _target_: transformers.LlamaConfig
   vocab_size: ${constants.vocab_size}
