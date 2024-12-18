@@ -751,5 +751,5 @@ def seq_is_random_res_pos(
     for seq in proteins.sequences:
         random_indices = rng.choice(20, size=len(seq))
         residue_positions.append(random_indices)
-        new_sequences.append("".join([AAs[i] for i in random_indices]))
+        new_sequences.append("A" + "".join([AAs[i] for i in random_indices[:-1]]))
     return proteins.clone(sequences=new_sequences, residue_positions=residue_positions)
