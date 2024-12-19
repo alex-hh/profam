@@ -231,7 +231,7 @@ data:
 
 
     val_funfams_s50:
-      _target_: src.data.builders.SequenceDocumentIterableDataset
+      _target_: src.data.builders.SequenceDocumentMapDataset
       preprocessor:
         cfg:
           _target_: src.data.processors.PreprocessingConfig
