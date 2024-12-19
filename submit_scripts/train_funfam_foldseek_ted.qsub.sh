@@ -26,5 +26,5 @@ experiment=train_funfams_foldseek_ted \
 trainer=gpu \
 logger=wandb \
 data.pack_to_max_tokens=90_000 \
-data.num_workers=6
+data.num_workers=4
 date
