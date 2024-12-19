@@ -23,9 +23,9 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
-experiment=benchmark/overfit_funfams_foldseek \
+experiment=benchmark/overfit_funfams_foldseek_ted \
 trainer=gpu \
 logger=wandb \
-data.pack_to_max_tokens=45_000 \
+data.pack_to_max_tokens=80_000 \
 data.num_workers=6
 date

@@ -14,7 +14,7 @@ seed: 12345
 
 trainer:
   devices: auto
-  check_val_every_n_epoch: 100
+  check_val_every_n_epoch: 10
   target_tokens_per_batch: 256000
   tokens_per_document: 10000
   min_epochs: 1000
@@ -47,23 +47,22 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 30000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: funfams_s50
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: mini_datasets/funfams_s50_mini.parquet
+        data_path_pattern: funfams/s50_parquets/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
         file_type: parquet
         minimum_sequences: 1
-        file_repeats: 8
 
 
-    ted_s100:
+    funfams_s100:
       _target_: src.data.builders.SequenceDocumentIterableDataset
       preprocessor:
         cfg:
@@ -72,20 +71,19 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 30000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
-      name: ted_s100
+      name: funfams_s50
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: mini_datasets/ted_s100_mini.parquet
+        data_path_pattern: funfams/s100_noali_parquets/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
         file_type: parquet
         minimum_sequences: 1
-        file_repeats: 8
 
 
     ted_s50:
@@ -97,23 +95,43 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 30000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: ted_s50
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: mini_datasets/ted_s50_mini.parquet
+        data_path_pattern: ted/s50_parquets/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
         file_type: parquet
         minimum_sequences: 1
-        file_repeats: 8
 
 
-
+    ted_s100:
+      _target_: src.data.builders.SequenceDocumentIterableDataset
+      preprocessor:
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 30000
+          shuffle_proteins_in_document: true
+          padding: do_not_pad
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+      name: ted_s100
+      cfg:
+        _target_: src.data.builders.HFProteinDatasetConfig
+        data_path_pattern: ted/s100_parquets/train_val_test_split/train/*.parquet
+        holdout_data_files: null
+        holdout_identifiers: null
+        identifier_col: fam_id
+        file_type: parquet
+        minimum_sequences: 1
 
 
     foldseek_reps_single:
@@ -125,20 +143,19 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 30000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_reps_single
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: mini_datasets/foldseek_reps_single_mini.parquet
+        data_path_pattern: foldseek/foldseek_reps_single/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
         file_type: parquet
         minimum_sequences: 1
-        file_repeats: 8
 
 
     foldseek_s50:
@@ -150,20 +167,19 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 30000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_s50
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: mini_datasets/foldseek_s50_struct_mini.parquet
+        data_path_pattern: foldseek/foldseek_s50_struct/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
         file_type: parquet
         minimum_sequences: 1
-        file_repeats: 8
 
 
     foldseek_s100:
@@ -175,20 +191,19 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 30000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_s100
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: mini_datasets/foldseek_s100_struct_mini.parquet
+        data_path_pattern: foldseek/foldseek_s100_raw/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
         file_type: parquet
         minimum_sequences: 1
-        file_repeats: 8
 
 
     val_foldseek_s50:
@@ -200,14 +215,38 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 30000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: val_foldseek_s50
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: foldseek/foldseek_s50_struct/train_val_test_split/val/val_0_460_000.parquet
+        data_path_pattern: foldseek/foldseek_s50_struct/train_val_test_split/val/*.parquet
+        holdout_data_files: null
+        holdout_identifiers: null
+        identifier_col: fam_id
+        file_type: parquet
+        minimum_sequences: 1
+
+
+    val_funfams_s50:
+      _target_: src.data.builders.SequenceDocumentIterableDataset
+      preprocessor:
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 30000
+          shuffle_proteins_in_document: true
+          padding: do_not_pad
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+      name: val_funfams_s50
+      cfg:
+        _target_: src.data.builders.HFProteinDatasetConfig
+        data_path_pattern: funfams/s50_parquets/train_val_test_split/val/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
@@ -217,17 +256,19 @@ data:
   _target_: src.data.datamodule.ProteinDataMixture
   total_num_train_samples: 5080
   data_weights:
-    funfams_s50: 1.0
-    foldseek_reps_single: 1.0
-    ted_s50: 1.0
-    ted_s100: 1.0
-    foldseek_s50: 1.0
-    foldseek_s100: 1.0
+    funfams_s100: 0.5
+    funfams_s50: 0.5
+    ted_s100: 0.5
+    ted_s50: 0.5
+    foldseek_reps_single: 0.5
+    foldseek_s100: 0.5
+    foldseek_s50: 0.5
   batch_size: 1
   data_dir: ${paths.data_dir}
   num_workers: 12
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
   val_dataset_batch_sizes:
+    val_funfams_s50: 1
     val_foldseek_s50: 1
-  pack_to_max_tokens: 20000
+  pack_to_max_tokens: 90000
