@@ -20,6 +20,7 @@ echo "####################  QSUB SCRIPT END  ####################"
 conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
+export WANDB_SERVICE_WAIT=180
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
 experiment=train_funfams_foldseek_ted \
