@@ -219,7 +219,6 @@ data:
   data_weights:
     funfams_s50: 1.0
     foldseek_reps_single: 1.0
-    funfams_s50: 1.0
     ted_s50: 1.0
     ted_s100: 1.0
     foldseek_s50: 1.0
