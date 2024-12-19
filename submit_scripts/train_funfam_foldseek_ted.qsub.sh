@@ -25,6 +25,6 @@ python ${ROOT_DIR}/src/train.py \
 experiment=train_funfams_foldseek_ted \
 trainer=gpu \
 logger=wandb \
-data.pack_to_max_tokens=110_000 \
+data.pack_to_max_tokens=90_000 \
 data.num_workers=6
 date
