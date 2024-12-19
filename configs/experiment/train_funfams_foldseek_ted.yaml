@@ -75,7 +75,7 @@ data:
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
-      name: funfams_s50
+      name: funfams_s100
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
         data_path_pattern: funfams/s100_noali_parquets/train_val_test_split/train/*.parquet
