@@ -2,8 +2,8 @@
 
 # Train ProFam
 
-#$ -l tmem=63.9G
-#$ -l h_vmem=63.9G
+#$ -l tmem=127.9G
+#$ -l h_vmem=127.9G
 #$ -l gpu=true
 #$ -l gpu_type=(a40|a100|a100_80)
 #$ -l h_rt=71:55:30
