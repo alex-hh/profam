@@ -60,7 +60,7 @@ case $CASE_ID in
         date
         ;;
 3)
-    # FoldSeek_AF50_Struct
+    # FoldSeek_s100_Struct
     ARRAY_ID=$(head -n $SGE_TASK_ID ${ROOT_DIR}/submit_scripts/redundant_scripts/foldseek_af50_struct_todo | tail -n 1)
     echo "ARRAY_ID: $ARRAY_ID"
     python data_creation_scripts/val_test_split/apply_split_to_parquets.py \
