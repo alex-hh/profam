@@ -25,7 +25,7 @@ export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
 experiment=train_funfams_foldseek_ted \
 trainer=gpu \
-logger=wandb \
+logger=stdout \
 data.pack_to_max_tokens=90_000 \
 data.num_workers=4
 date
