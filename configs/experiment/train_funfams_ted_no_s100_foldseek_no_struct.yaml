@@ -110,30 +110,6 @@ data:
         minimum_sequences: 1
 
 
-    ted_s100:
-      _target_: src.data.builders.SequenceDocumentIterableDataset
-      preprocessor:
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 30000
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-      name: ted_s100
-      cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: ted/s100_parquets/train_val_test_split/train/*.parquet
-        holdout_data_files: null
-        holdout_identifiers: null
-        identifier_col: fam_id
-        file_type: parquet
-        minimum_sequences: 1
-
-
     foldseek_reps_single:
       _target_: src.data.builders.SequenceDocumentIterableDataset
       preprocessor:
@@ -151,30 +127,6 @@ data:
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_reps_single/train_val_test_split/train/*.parquet
-        holdout_data_files: null
-        holdout_identifiers: null
-        identifier_col: fam_id
-        file_type: parquet
-        minimum_sequences: 1
-
-
-    foldseek_s50:
-      _target_: src.data.builders.SequenceDocumentIterableDataset
-      preprocessor:
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 30000
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-      name: foldseek_s50
-      cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: foldseek/foldseek_s50_struct/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
@@ -258,11 +210,9 @@ data:
   data_weights:
     funfams_s100: 0.5
     funfams_s50: 0.5
-    ted_s100: 0.5
     ted_s50: 0.5
     foldseek_reps_single: 0.5
     foldseek_s100: 0.5
-    foldseek_s50: 0.5
   batch_size: 1
   data_dir: ${paths.data_dir}
   num_workers: 12
