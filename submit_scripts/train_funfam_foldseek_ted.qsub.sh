@@ -23,7 +23,7 @@ cd $ROOT_DIR
 export WANDB__SERVICE_WAIT=180
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
-experiment=train_funfams_foldseek_ted \
+experiment=train_funfams_ted_no_s100_foldseek_no_struct \
 trainer=gpu \
 logger=stdout \
 data.pack_to_max_tokens=120_000 \
