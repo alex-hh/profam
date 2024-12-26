@@ -26,6 +26,6 @@ python ${ROOT_DIR}/src/train.py \
 experiment=train_funfams_foldseek_ted \
 trainer=gpu \
 logger=stdout \
-data.pack_to_max_tokens=90_000 \
-data.num_workers=4
+data.pack_to_max_tokens=120_000 \
+data.num_workers=8
 date
