@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - override /data: af50_single_seq
+  - override /data: afdb_s50_single
   - override /model: llama_medium
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
