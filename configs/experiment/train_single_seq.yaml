@@ -8,7 +8,7 @@ defaults:
   - _self_
 
 
-experiment_group: "train_all"
+experiment_group: "train_single_seq"
 tags: ["llama_med", "${experiment_group}"]
 
 seed: 12345
