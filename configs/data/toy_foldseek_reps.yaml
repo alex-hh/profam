@@ -41,7 +41,7 @@ dataset_builders:
         shuffle_proteins_in_document: true
         padding: do_not_pad
       transform_fns:
-        _target_: src.data.processors.transforms.replace_nans_in_coords
+      - _target_: src.data.processors.transforms.replace_nans_in_coords
         _partial_: true
         fill_value: 0.0
     cfg:
