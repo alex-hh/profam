@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - override /data: ted_s50_raw_repeat
+  - override /data: toy_data_repeated_family_members
   - override /model: llama_medium
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu

@@ -1,6 +1,6 @@
 # debugging / benchmarking dataset for repeated sequences
 _target_: src.data.builders.SequenceDocumentIterableDataset
-name: ted_s50_raw_repeat
+name: toy_data_repeated_family_members
 defaults:
   - /preprocessor: raw_repeat
 cfg:
