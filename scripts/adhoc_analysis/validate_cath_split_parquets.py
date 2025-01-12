@@ -85,7 +85,6 @@ def validate_parquets():
             logging.info(f"Reading parent parquet file: {parquet_file}")
             df = pd.read_parquet(parquet_file)
             total_parent_rows += len(df)
-
         logging.info(f"Total rows in parent parquets: {total_parent_rows}")
 
         # Initialize counters
@@ -255,9 +254,9 @@ def validate_parquets():
         val_accessions = split_accessions["val"]
         test_accessions = split_accessions["test"]
 
-        train_test_overlap = train_accessions & test_accessions
-        train_val_overlap = train_accessions & val_accessions
-        val_test_overlap = val_accessions & test_accessions
+        train_test_overlap = train_accessions.intersection(test_accessions)
+        train_val_overlap = train_accessions.intersection(val_accessions)
+        val_test_overlap = val_accessions.intersection(test_accessions)
 
         overlap_counts["train_test"] = len(train_test_overlap)
         overlap_counts["train_val"] = len(train_val_overlap)
