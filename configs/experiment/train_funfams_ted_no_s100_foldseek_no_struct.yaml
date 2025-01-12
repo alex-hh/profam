@@ -7,7 +7,7 @@ defaults:
   - override /logger: wandb
   - _self_
 
-experiment_group: "train_all"
+experiment_group: "train_ff_fs_ted_pg"
 tags: ["debug", "${experiment_group}"]
 
 seed: 12345
@@ -38,6 +38,22 @@ model:
 
 data:
   dataset_builders:
+
+    proteingym:
+      _target_: src.data.builders.proteingym.ProteinGymDataset
+      name: proteingym
+      dms_ids: ${constants.gym_val_assay_list}
+      seed: 42
+      max_mutated_sequences: null
+      mutant_bos_token: sep
+      keep_gaps: false
+      use_filtered_msa: true
+      extra_tokens_per_document: 2
+      use_msa_pos: true
+      num_proc: null
+      max_tokens_per_example: 32_000
+
+
     funfams_s50:
       _target_: src.data.builders.SequenceDocumentIterableDataset
       preprocessor:
@@ -221,4 +237,5 @@ data:
   val_dataset_batch_sizes:
     val_funfams_s50: 1
     val_foldseek_s50: 1
+    proteingym: 1
   pack_to_max_tokens: 90000
