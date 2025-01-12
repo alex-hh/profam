@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#$ -l tmem=192G
-#$ -l h_vmem=192G
+#$ -l tmem=63G
+#$ -l h_vmem=63G
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
-#$ -N checkParqs
+#$ -N checkParqs2
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
