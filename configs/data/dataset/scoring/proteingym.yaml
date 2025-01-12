@@ -10,3 +10,4 @@ use_filtered_msa: true
 extra_tokens_per_document: 2
 use_msa_pos: true
 num_proc: null
+max_tokens_per_example: 32_000
