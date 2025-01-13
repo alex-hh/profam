@@ -1,7 +1,7 @@
 import os
+import subprocess
 from argparse import Namespace
 from typing import Any, Dict, Mapping, Optional, Union
-import subprocess
 
 import hydra
 from lightning.fabric.loggers.logger import _DummyExperiment as DummyExperiment
@@ -76,8 +76,12 @@ class WandbLogger(WandbLogger):
                 hparams["git_hash"] = commit_hash
             else:
                 try:
-                    commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
-                    with open(hash_file, 'w') as f:
+                    commit_hash = (
+                        subprocess.check_output(["git", "rev-parse", "HEAD"])
+                        .decode("utf-8")
+                        .strip()
+                    )
+                    with open(hash_file, "w") as f:
                         f.write(commit_hash)
                     hparams["git_hash"] = commit_hash
                 except subprocess.CalledProcessError:
