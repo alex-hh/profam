@@ -9,7 +9,7 @@ dataset_builders:
     _target_: src.data.builders.SequenceDocumentMapDataset
     name: afdb_s50_val
     cfg:
-      data_path_pattern: afdb_s50_single/train_val_test_split/val/*.parquet
+      data_path_pattern: afdb_s50_single/train_val_test_split/val/val_0_386_*.parquet
 
 
 total_num_train_samples: 100_000_000  # todo get actual number
