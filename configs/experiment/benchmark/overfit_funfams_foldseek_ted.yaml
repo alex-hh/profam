@@ -113,9 +113,6 @@ data:
         file_repeats: 8
 
 
-
-
-
     foldseek_reps_single:
       _target_: src.data.builders.SequenceDocumentIterableDataset
       preprocessor:
