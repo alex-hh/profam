@@ -1,6 +1,7 @@
 import os
 from argparse import Namespace
 from typing import Any, Dict, Mapping, Optional, Union
+import subprocess
 
 import hydra
 from lightning.fabric.loggers.logger import _DummyExperiment as DummyExperiment
@@ -74,10 +75,15 @@ class WandbLogger(WandbLogger):
                     commit_hash = f.read().strip()
                 hparams["git_hash"] = commit_hash
             else:
-                raise FileNotFoundError(
-                    # because this is a post-commit hook file won't be committed with present commit
-                    f"File {hash_file} not found!\nPlease run the following:\n"
-                    f"echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit"
-                )
+                try:
+                    commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
+                    with open(hash_file, 'w') as f:
+                        f.write(commit_hash)
+                    hparams["git_hash"] = commit_hash
+                except subprocess.CalledProcessError:
+                    raise FileNotFoundError(
+                        f"Could not get git hash. Please ensure you are in a git repository and run:\n"
+                        f"git rev-parse HEAD > commit_hash.txt"
+                    )
         # hparams is just wandb_run_name and git_hash - why?
         super().log_hyperparams(hparams, **kwargs)
