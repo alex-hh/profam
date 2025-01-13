@@ -14,7 +14,7 @@ seed: 12345
 
 trainer:
   devices: auto
-  check_val_every_n_epoch: 0.1
+  check_val_every_n_epoch: 1
   target_tokens_per_batch: 256000
   tokens_per_document: 15000
   min_epochs: 1000
