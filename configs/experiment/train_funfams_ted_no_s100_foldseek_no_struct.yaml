@@ -14,7 +14,7 @@ seed: 12345
 
 trainer:
   devices: auto
-  check_val_every_n_epoch: 10
+  check_val_every_n_epoch: 0.1
   target_tokens_per_batch: 256000
   tokens_per_document: 15000
   min_epochs: 1000
@@ -206,7 +206,7 @@ data:
         minimum_sequences: 1
 
   _target_: src.data.datamodule.ProteinDataMixture
-  total_num_train_samples: 5080
+  total_num_train_samples: 2_000_000
   data_weights:
     funfams_s100: 0.5
     funfams_s50: 0.5
