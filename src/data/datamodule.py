@@ -171,6 +171,7 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
+                    self.train_dataset = self.train_dataset.with_format("numpy") # otherwise they gen converted to lists
                     assert (
                         self.total_num_train_samples is not None
                     ), "total_num_train_samples must be set for distributed iterable datasets"
@@ -232,11 +233,6 @@ class ProteinDataMixture(LightningDataModule):
                 if world_size > 1:
                     if isinstance(dataset, IterableHFProteinDataset):
                         # https://github.com/huggingface/datasets/issues/6623
-                        assert world_size % 8 == 0, (
-                            f"HACK: To ensure consistent val we are currently hard-coding world_size=8 for val in"
-                            f"load_protein_dataset to ensure n_shards % 8 == 0"
-                            f"This will produce consistent val datasets for world sizes that are factors of 8."
-                        )
                         assert (
                             dataset.n_shards % world_size == 0
                             and dataset.n_shards % 8 == 0
@@ -246,6 +242,7 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
+                    dataset = dataset.with_format("numpy") # might not be necessary for val but included to be safe
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(
