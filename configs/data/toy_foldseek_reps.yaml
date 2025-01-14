@@ -1,3 +1,4 @@
+# foldseek representatives single parquet file which is included in the repo
 _target_: src.data.datamodule.ProteinDataMixture
 dataset_builders:
   foldseek_reps:
