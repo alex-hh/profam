@@ -24,7 +24,7 @@ logger:
   wandb:
     tags: ${tags}
 
-float32_matmul_precision: high
+float32_matmul_precision: medium
 
 paths:
   data_dir: "../data"
@@ -63,7 +63,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -87,7 +87,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -111,7 +111,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -135,7 +135,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -159,7 +159,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -183,7 +183,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -207,7 +207,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
