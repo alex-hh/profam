@@ -171,7 +171,9 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
-                    self.train_dataset = self.train_dataset.with_format("numpy") # otherwise they gen converted to lists
+                    self.train_dataset = self.train_dataset.with_format(
+                        "numpy"
+                    )  # otherwise they gen converted to lists
                     assert (
                         self.total_num_train_samples is not None
                     ), "total_num_train_samples must be set for distributed iterable datasets"
@@ -242,7 +244,9 @@ class ProteinDataMixture(LightningDataModule):
                         rank=self.trainer.global_rank,
                         world_size=world_size,
                     )
-                    dataset = dataset.with_format("numpy") # might not be necessary for val but included to be safe
+                    dataset = dataset.with_format(
+                        "numpy"
+                    )  # might not be necessary for val but included to be safe
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(
