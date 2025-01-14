@@ -13,6 +13,7 @@ venvPF/
 wandb
 outputs
 .git
+*.o*
 nohup.out
 commit_hash.txt
 .pytest_cache
