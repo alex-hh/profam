@@ -1,12 +1,12 @@
 #!/bin/bash
-
-#$ -l tmem=127G
-#$ -l h_vmem=127G
-#$ -l h_rt=23:55:30
+#$ -P cath
+#$ -l tmem=192G
+#$ -l h_vmem=192G
+#$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N checkParqs3
-#$ -pe smp 32
-#$ -R y
+#$ -N checkParqs4
+#$ -l gpu=true
+#$ -l hostname="bubba*"
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
