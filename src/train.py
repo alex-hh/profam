@@ -29,6 +29,7 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 from src.utils import (
     RankedLogger,
+    check_config,
     extras,
     get_metric_value,
     instantiate_callbacks,
@@ -137,7 +138,7 @@ def main(cfg: DictConfig) -> Optional[float]:
     # apply extra utilities
     # (e.g. ask for tags if none are provided in cfg, print cfg tree, etc.)
     extras(cfg)
-
+    check_config(cfg)
     # train the model
     metric_dict, _ = train(cfg)
 

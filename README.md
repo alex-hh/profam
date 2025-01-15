@@ -35,6 +35,7 @@ pip install flash-attn --no-build-isolation
 
 # if on a development machine, install the follow post-commit hook to track git hash
 echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+
 ```
 
 #### Transferring repo to new filesystems

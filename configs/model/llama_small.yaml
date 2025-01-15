@@ -5,6 +5,7 @@ lr: 1e-3
 embed_coords: false
 embed_sequence_index: false
 embed_residue_index: true
+use_kv_cache_for_scoring: true
 max_seq_pos_in_doc: 1024
 max_res_pos_in_seq: 4096
 optimizer: adamw
@@ -16,6 +17,6 @@ config:
   num_attention_heads: 12
   num_hidden_layers: 6
   rope_theta: 500000
-  max_position_embeddings: 8192  # used in llama rope implementation
+  max_position_embeddings: 32_768  # used in llama rope implementation
   scoring_max_tokens: 10240
   attn_implementation: flash_attention_2  # eager/flash_attention_2/sdpa

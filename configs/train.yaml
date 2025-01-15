@@ -7,8 +7,8 @@ defaults:
   - data: example_data
   - model: llama_small
   - callbacks: default_no_shuffle
-  - logger: stdout
-  - trainer: mps
+  - logger: wandb
+  - trainer: gpu
   - paths: default
   - extras: default
   - hydra: default
