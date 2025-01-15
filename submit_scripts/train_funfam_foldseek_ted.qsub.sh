@@ -29,5 +29,5 @@ logger=wandb \
 data.pack_to_max_tokens=130_000 \
 data.num_workers=32 \
 trainer.val_check_interval=2500 \
-trainer.ckpt_path=/SAN/orengolab/cath_plm/ProFam/profam/logs/train_ff_fs_ted_pg/runs/2025-01-13_12-07-44-967554/checkpoints/last.ckpt \
+trainer.ckpt_path=/SAN/orengolab/cath_plm/ProFam/profam/logs/train_ff_fs_ted_pg/runs/2025-01-13_12-07-44-967554/checkpoints/last.ckpt
 date
