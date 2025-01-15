@@ -26,7 +26,7 @@ python ${ROOT_DIR}/src/train.py \
 experiment=train_funfams_ted_no_s100_foldseek_no_struct \
 trainer=gpu \
 logger=wandb \
-data.pack_to_max_tokens=130_000 \
+data.pack_to_max_tokens=140_000 \
 data.num_workers=32 \
 trainer.val_check_interval=2500 \
 ckpt_path=/SAN/orengolab/cath_plm/ProFam/profam/logs/train_ff_fs_ted_pg/runs/2025-01-13_12-07-44-967554/checkpoints/last.ckpt
