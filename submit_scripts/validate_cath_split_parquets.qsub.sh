@@ -1,10 +1,12 @@
 #!/bin/bash
 
-#$ -l tmem=63G
-#$ -l h_vmem=63G
-#$ -l h_rt=71:55:30
+#$ -l tmem=127G
+#$ -l h_vmem=127G
+#$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N checkParqs2
+#$ -N checkParqs3
+#$ -pe smp 32
+#$ -R y
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -20,5 +22,5 @@ cd $ROOT_DIR
 
 # Add ROOT_DIR to PYTHONPATH
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
-python scripts/adhoc_analysis/validate_cath_split_parquets.py
+python scripts/adhoc_analysis/MULTITHREAD_validate_cath_split_parquets.py
 date
