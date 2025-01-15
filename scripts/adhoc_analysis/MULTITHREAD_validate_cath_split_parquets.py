@@ -14,36 +14,36 @@ logging.basicConfig(
 
 # Datasets definition (same as original)
 DATASETS = {
-    1: {
-        "name": "ted_s100",
-        "parent_dir": "../data/ted/s100_parquets",
-        "split_dir": "../data/ted/s100_parquets/train_val_test_split",
-    },
-    2: {
-        "name": "ted_s50",
-        "parent_dir": "../data/ted/s50_parquets",
-        "split_dir": "../data/ted/s50_parquets/train_val_test_split",
-    },
-    3: {
-        "name": "funfam_s100_noali",
-        "parent_dir": "../data/funfams/s100_noali_parquets",
-        "split_dir": "../data/funfams/s100_noali_parquets/train_val_test_split",
-    },
-    4: {
-        "name": "funfam_s50",
-        "parent_dir": "../data/funfams/s50_parquets",
-        "split_dir": "../data/funfams/s50_parquets/train_val_test_split",
-    },
-    5: {
-        "name": "foldseek_s100_raw",
-        "parent_dir": "../data/foldseek/foldseek_s100_raw",
-        "split_dir": "../data/foldseek/foldseek_s100_raw/train_val_test_split",
-    },
-    6: {
-        "name": "afdb_s50_single",
-        "parent_dir": "../data/afdb_s50_single",
-        "split_dir": "../data/afdb_s50_single/train_val_test_split",
-    },
+    # 1: {
+    #     "name": "ted_s100",
+    #     "parent_dir": "../data/ted/s100_parquets",
+    #     "split_dir": "../data/ted/s100_parquets/train_val_test_split",
+    # },
+    # 2: {
+    #     "name": "ted_s50",
+    #     "parent_dir": "../data/ted/s50_parquets",
+    #     "split_dir": "../data/ted/s50_parquets/train_val_test_split",
+    # },
+    # 3: {
+    #     "name": "funfam_s100_noali",
+    #     "parent_dir": "../data/funfams/s100_noali_parquets",
+    #     "split_dir": "../data/funfams/s100_noali_parquets/train_val_test_split",
+    # },
+    # 4: {
+    #     "name": "funfam_s50",
+    #     "parent_dir": "../data/funfams/s50_parquets",
+    #     "split_dir": "../data/funfams/s50_parquets/train_val_test_split",
+    # },
+    # 5: {
+    #     "name": "foldseek_s100_raw",
+    #     "parent_dir": "../data/foldseek/foldseek_s100_raw",
+    #     "split_dir": "../data/foldseek/foldseek_s100_raw/train_val_test_split",
+    # },
+    # 6: {
+    #     "name": "afdb_s50_single",
+    #     "parent_dir": "../data/afdb_s50_single",
+    #     "split_dir": "../data/afdb_s50_single/train_val_test_split",
+    # },
     7: {
         "name": "foldseek_s100_struct",
         "parent_dir": "../data/foldseek/foldseek_s100_struct",
@@ -93,7 +93,7 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
         "rows_with_invalid_accessions_or_sequences": 0,
         "count_accessions_len_less_than_2": 0,
         "rows_with_empty_accessions_or_sequences": 0,
-        "min_sequence_length": None,
+        # "min_sequence_length": None,
         "updated_accessions_set": set(),
     }
 
@@ -130,27 +130,27 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
         if len(accessions) == 0 or len(sequences) == 0:
             parquet_stats["rows_with_empty_accessions_or_sequences"] += 1
 
-        # Minimum sequence length
-        seq_lengths = [len(seq) for seq in sequences if isinstance(seq, str)]
-        if seq_lengths:
-            min_length = min(seq_lengths)
-            if (
-                parquet_stats["min_sequence_length"] is None
-                or min_length < parquet_stats["min_sequence_length"]
-            ):
-                parquet_stats["min_sequence_length"] = min_length
+        # # Minimum sequence length
+        # seq_lengths = [len(seq) for seq in sequences if isinstance(seq, str)]
+        # if seq_lengths:
+        #     min_length = min(seq_lengths)
+        #     if (
+        #         parquet_stats["min_sequence_length"] is None
+        #         or min_length < parquet_stats["min_sequence_length"]
+        #     ):
+        #         parquet_stats["min_sequence_length"] = min_length
 
         # Count short accessions
         if len(accessions) < 2:
             parquet_stats["count_accessions_len_less_than_2"] += 1
 
-        # Collect accessions
-        parquet_stats["updated_accessions_set"].update(accessions)
+        # # Collect accessions
+        # parquet_stats["updated_accessions_set"].update(accessions)
 
     return parquet_stats
 
 
-def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results", max_workers=32):
+def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results", max_workers=64):
     """
     Validate parquets by parallelizing at the parquet-file level.
     1) Parallel read for parent parquets to count rows.
@@ -293,19 +293,19 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
                 f"({total_parent_rows}) for dataset '{dataset_name}'"
             )
 
-        # Overlap checks
-        train_accessions = split_accessions["train"]
-        val_accessions = split_accessions["val"]
-        test_accessions = split_accessions["test"]
-
-        overlap_counts = {
-            "train_test": len(train_accessions.intersection(test_accessions)),
-            "train_val": len(train_accessions.intersection(val_accessions)),
-            "val_test": len(val_accessions.intersection(test_accessions)),
-        }
-        dataset_stats.update(overlap_counts)
-
-        logging.info(f"Overlap counts for dataset '{dataset_name}': {overlap_counts}")
+        # # Overlap checks
+        # train_accessions = split_accessions["train"]
+        # val_accessions = split_accessions["val"]
+        # test_accessions = split_accessions["test"]
+        #
+        # overlap_counts = {
+        #     "train_test": len(train_accessions.intersection(test_accessions)),
+        #     "train_val": len(train_accessions.intersection(val_accessions)),
+        #     "val_test": len(val_accessions.intersection(test_accessions)),
+        # }
+        # dataset_stats.update(overlap_counts)
+        #
+        # logging.info(f"Overlap counts for dataset '{dataset_name}': {overlap_counts}")
 
         # ------------------------------------------------
         # 4) Save partial CSV results for this dataset
