@@ -2,13 +2,13 @@
 
 # Train ProFam
 
-#$ -l tmem=253G
-#$ -l h_vmem=253G
+#$ -l tmem=191G
+#$ -l h_vmem=191G
 #$ -l gpu=true
 #$ -l gpu_type=(a100|a100_80)
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
-#$ -N v3_ff_fs_ted
+#$ -N v4_ff_fs_ted
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
