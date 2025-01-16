@@ -140,7 +140,20 @@ class BaseParquetSplitter:
                 train_df = df[df['split_identifier'].isin(self.train_identifiers)].drop(columns=['split_identifier'])
                 val_df = df[df['split_identifier'].isin(self.val_identifiers)].drop(columns=['split_identifier'])
                 test_df = df[df['split_identifier'].isin(self.test_identifiers)].drop(columns=['split_identifier'])
-                print(f"Split {len(df)} rows into train: {len(train_df)}, val: {len(val_df)}, test: {len(test_df)}")
+
+                # Check if the total number of rows matches the sum of the splits
+                total_rows = len(df)
+                split_rows = len(train_df) + len(val_df) + len(test_df)
+
+                if total_rows != split_rows:
+                    # If there are extra rows, add them to the training set
+                    extra_identifiers = list(self.train_identifiers | self.val_identifiers | self.test_identifiers)
+                    extra_rows = df[~df['split_identifier'].isin(extra_identifiers)]
+                    train_df = pd.concat([train_df, extra_rows.drop(columns=['split_identifier'])])
+
+                # Print the final split sizes
+                print(f"Split {total_rows} rows into train: {len(train_df)}, val: {len(val_df)}, test: {len(test_df)}")
+
                 # Update buffers
                 if not train_df.empty:
                     train_buffer.update_buffer(train_df)
