@@ -202,7 +202,7 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
             "rows_with_invalid_accessions_or_sequences": 0,
             "rows_with_empty_accessions_or_sequences": 0,
             "count_accessions_len_less_than_2": 0,
-            "min_sequence_length": None,
+            # "min_sequence_length": None,
         }
 
         # We will accumulate all parquet-file-level stats for this dataset
@@ -252,12 +252,12 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
                     invalid_acc_seq += pf_stats["rows_with_invalid_accessions_or_sequences"]
                     empty_acc_seq += pf_stats["rows_with_empty_accessions_or_sequences"]
                     acc_len_lt_2 += pf_stats["count_accessions_len_less_than_2"]
-                    if pf_stats["min_sequence_length"] is not None:
-                        if (
-                            min_seq_length_for_split is None
-                            or pf_stats["min_sequence_length"] < min_seq_length_for_split
-                        ):
-                            min_seq_length_for_split = pf_stats["min_sequence_length"]
+                    # if pf_stats["min_sequence_length"] is not None:
+                    #     if (
+                    #         min_seq_length_for_split is None
+                    #         or pf_stats["min_sequence_length"] < min_seq_length_for_split
+                    #     ):
+                    #         min_seq_length_for_split = pf_stats["min_sequence_length"]
 
                     # Update overlap set
                     split_accessions[split].update(pf_stats["updated_accessions_set"])
@@ -269,12 +269,12 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
             dataset_stats["rows_with_empty_accessions_or_sequences"] += empty_acc_seq
             dataset_stats["count_accessions_len_less_than_2"] += acc_len_lt_2
 
-            if (
-                min_seq_length_for_split is not None
-                and (dataset_stats["min_sequence_length"] is None
-                     or min_seq_length_for_split < dataset_stats["min_sequence_length"])
-            ):
-                dataset_stats["min_sequence_length"] = min_seq_length_for_split
+            # if (
+            #     min_seq_length_for_split is not None
+            #     and (dataset_stats["min_sequence_length"] is None
+            #          or min_seq_length_for_split < dataset_stats["min_sequence_length"])
+            # ):
+            #     dataset_stats["min_sequence_length"] = min_seq_length_for_split
 
         # ------------------------------------------------
         # 3) Compute totals and overlap + warnings
