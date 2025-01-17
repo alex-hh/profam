@@ -279,7 +279,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             assert num_new_tokens == 1 and model_kwargs["cache_position"].shape[-1] == 1
             # we assume we only increment by one, which makes things easier
             prev_residue_index = model_kwargs["residue_index"][:, -1:]
-            # print(f"prev_residue_index: {prev_residue_index}") # for debugging
             new_residue_index = torch.where(
                 torch.isin(
                     past_key_values.input_ids_cache[:, -1:],
@@ -294,7 +293,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 torch.full_like(prev_residue_index, self.start_residue_index),
                 prev_residue_index + 1,
             )
-            # print(f"new_residue_index: {new_residue_index}") # for debugging
             model_kwargs["residue_index"] = torch.cat(
                 [model_kwargs["residue_index"], new_residue_index], dim=-1
             )
