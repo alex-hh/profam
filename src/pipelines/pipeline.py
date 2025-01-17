@@ -140,8 +140,12 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         pipeline_id: str,
         benchmark_directory: str = None,
         save_results_to_file: bool = True,
+        max_tokens: int = None,
+        max_generated_length: int = None,
     ):
+        self.max_tokens = max_tokens
         self.num_generations = num_generations
+        self.max_generated_length = max_generated_length
         self.generations = defaultdict(dict)
         self.prompts = defaultdict(dict)
         print(
@@ -312,7 +316,10 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
                 generations, prompt = sampler.sample_seqs(
-                    protein_document, self.num_generations
+                    protein_document=protein_document,
+                    num_samples=self.num_generations,
+                    max_tokens=self.max_tokens,
+                    max_generated_length=self.max_generated_length,
                 )
                 self.save_generations(instance_id, sampler.name, generations)
                 self.save_prompt(instance_id, sampler.name, prompt)

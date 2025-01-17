@@ -2,6 +2,7 @@ import copy
 import functools
 from typing import Dict, Optional
 
+import numpy as np
 import torch
 
 from src.data.objects import ProteinDocument
@@ -120,7 +121,9 @@ class ProFamSampler:
         self,
         protein_document: ProteinDocument,
         num_samples: int,
+        max_tokens: int,
         document_is_prompt=False,
+        max_generated_length: int = None,
     ):
         sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
         if self.match_representative_length:
@@ -136,13 +139,18 @@ class ProFamSampler:
             prompt,
             document_token=self.document_token,
             padding="longest",
-            add_final_sep=False,
+            add_final_sep=True,  # JW: this needs to be true there is an assert later
         )
+        # Convert numpy arrays to torch tensors if needed
+        for key in encoded:
+            if isinstance(encoded[key], np.ndarray):
+                encoded[key] = torch.from_numpy(encoded[key])
 
         with torch.no_grad():  # prob unnecessary
             tokens = self.model._sample_seqs(
                 encoded["input_ids"].unsqueeze(0).to(self.model.device),
-                max_tokens=self.prompt_builder.max_tokens,
+                max_tokens=max_tokens,
+                max_generated_length=max_generated_length,
                 num_samples=num_samples,
                 input_residue_index=encoded["residue_index"]
                 .unsqueeze(0)

@@ -199,14 +199,14 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         # inputs["input_ids"] is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
 
-        generated_tokens = input_ids[:, -inputs["input_ids"].shape[-1] :]
-        if (generated_tokens == self.tokenizer.sep_token_id).any() or (
-            generated_tokens == self.tokenizer.seq_struct_sep_token_id
-        ).any():
-            # sep would break incrementaion of seq pos and sequence index
-            raise NotImplementedError(
-                "This code does not handle generation of sequences with separators."
-            )
+        # generated_tokens = input_ids[:, -inputs["input_ids"].shape[-1] :]
+        # if (generated_tokens == self.tokenizer.sep_token_id).any() or (
+        #     generated_tokens == self.tokenizer.seq_struct_sep_token_id
+        # ).any():
+        #     # sep would break incrementaion of seq pos and sequence index
+        #     raise NotImplementedError(
+        #         "This code does not handle generation of sequences with separators."
+        #     )
 
         # input_ids is prompt + generated tokens
         # residue_index is prompt + generated tokens (kept up to date in _update_model_kwargs_for_generation)
