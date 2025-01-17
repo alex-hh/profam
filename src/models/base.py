@@ -775,6 +775,7 @@ class BaseFamilyLitModule(BaseLitModule):
             # N.B. we need to be careful about generationconfig -- in particular eos token id
             # if we want to generate multiple sequences in a single family: we either need to restore eos token id
             # or we just do a batched generation like we do here. latter is more explicit.
+            # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1908
             outputs = self.model.generate(
                 input_ids=input_ids,
                 num_return_sequences=num_return_sequences,

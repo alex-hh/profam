@@ -187,10 +187,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         assert input_ids.ndim == 2
         if self.embed_residue_index:
             assert residue_index is not None
-
+        if past_key_values is not None:
+            cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)  # JW added this line
+        else:
+            cache = None
         inputs = super().prepare_inputs_for_generation(
             input_ids,
-            past_key_values=past_key_values,
+            past_key_values=cache,
             cache_position=cache_position,
             use_cache=use_cache,
             **kwargs,
