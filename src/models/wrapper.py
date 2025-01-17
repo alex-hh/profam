@@ -188,7 +188,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.embed_residue_index:
             assert residue_index is not None
         if past_key_values is not None:
-            cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)  # JW added this line
+            cache = InputAwareDynamicCache.from_legacy_cache(
+                past_key_values
+            )  # JW added this line
         else:
             cache = None
         inputs = super().prepare_inputs_for_generation(
@@ -281,12 +283,13 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             new_residue_index = torch.where(
                 torch.isin(
                     past_key_values.input_ids_cache[:, -1:],
-                    torch.tensor([
-                        self.tokenizer.sep_token_id,
-                        self.tokenizer.seq_struct_sep_token_id,
+                    torch.tensor(
+                        [
+                            self.tokenizer.sep_token_id,
+                            self.tokenizer.seq_struct_sep_token_id,
                         ],
                         device=prev_residue_index.device,
-                    ),  
+                    ),
                 ),
                 torch.full_like(prev_residue_index, self.start_residue_index),
                 prev_residue_index + 1,

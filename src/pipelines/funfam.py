@@ -1,12 +1,15 @@
-import pandas as pd
 from typing import Dict
+
+import pandas as pd
+
 from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
+
 class FunfamEvaluationPipeline(GenerationsEvaluatorPipeline):
     """
-    A minimal pipeline that loads a single row (the first row) from a 
-    parquet file and returns a ProteinDocument without any structural 
+    A minimal pipeline that loads a single row (the first row) from a
+    parquet file and returns a ProteinDocument without any structural
     features.
     """
 

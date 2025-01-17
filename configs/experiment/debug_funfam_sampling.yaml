@@ -11,7 +11,7 @@ defaults:
 # Name of this experiment
 name: funfam_sampling_test
 
-# Trainer settings explicitly copied and/or overridden 
+# Trainer settings explicitly copied and/or overridden
 trainer:
   # from train_test.yaml
   accelerator: gpu
@@ -33,4 +33,3 @@ data:
 dataset_builders:
   proteingym:
     gym_data_dir: "../tiny_data/ProteinGym"
-

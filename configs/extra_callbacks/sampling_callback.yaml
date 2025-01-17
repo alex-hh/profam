@@ -1,20 +1,20 @@
 
   # We are going to instantiate a SamplingEvaluationPipelineCallback.
-  # this will be called on epoch end to evaluate sampled sequences from 
+  # this will be called on epoch end to evaluate sampled sequences from
   # the model that is being trained.
   # It is instantiated with a pipeline, evaluators, prompt_builder
   # prompt builder in instantiated with a preprocessor, it is called
-  # by passing in a protein document and a tokenizer and it returns 
-  # a protein document. 
+  # by passing in a protein document and a tokenizer and it returns
+  # a protein document.
 
-  # SamplingEvaluationPipelineCallback has on_validation_epoch_end 
+  # SamplingEvaluationPipelineCallback has on_validation_epoch_end
   # method which takes trainer and model.
-  # it instantiates a a ProFamSampler with the model, prompt_builder, 
+  # it instantiates a a ProFamSampler with the model, prompt_builder,
   # sampling_kwargs, and match_representative_length.
   # it then runs the pipeline with the sampler and evaluators.
   # the results are returned as a list of dataframes.
-  # it calls pipeline.run with the sampler, self.Evaluators and 
-  # it gets a list of results_dfs from each evaluator. logs the 
+  # it calls pipeline.run with the sampler, self.Evaluators and
+  # it gets a list of results_dfs from each evaluator. logs the
   # results.
 
   # GenerationsEvaluatorPipeline has a run method that takes sampler,
