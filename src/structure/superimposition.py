@@ -36,7 +36,6 @@ def tm_score(protein_1: Protein, protein_2: Protein):
         protein_1: Protein
         protein_2: Protein
     """
-    assert len(protein_1) == len(protein_2)
     return calc_tm_score(
         protein_1.backbone_coords[:, 1],
         protein_2.backbone_coords[:, 1],
