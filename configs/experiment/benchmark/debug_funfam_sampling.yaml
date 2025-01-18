@@ -1,7 +1,6 @@
 # @package _global_
 defaults:
-  - /extra_callbacks: sampling_callback
-  - /preprocessor@extra_callbacks.sampling_eval_callback.prompt_builder.preprocessor: raw
+  - /extra_callbacks.funfam_sampling_callback: sampling_callback
   - override /trainer: gpu
   - override /model: llama_test
   - override /data: example_data

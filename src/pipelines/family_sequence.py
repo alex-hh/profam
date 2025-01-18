@@ -6,7 +6,7 @@ from src.data.objects import ProteinDocument
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
 
 
-class FunfamEvaluationPipeline(GenerationsEvaluatorPipeline):
+class FamilySequenceEvaluationPipeline(GenerationsEvaluatorPipeline):
     """
     A minimal pipeline that loads a single row (the first row) from a
     parquet file and returns a ProteinDocument without any structural
@@ -26,7 +26,6 @@ class FunfamEvaluationPipeline(GenerationsEvaluatorPipeline):
         self._instance_id = self._row.fam_id
 
     def instance_ids(self):
-        # There is only one instance in this minimal pipeline
         return [self._instance_id]
 
     def load_protein_document(self, instance_id: str) -> ProteinDocument:
@@ -40,7 +39,6 @@ class FunfamEvaluationPipeline(GenerationsEvaluatorPipeline):
         )
 
     def get_instance_summary(self, instance_id: str) -> Dict[str, float]:
-        # Minimal summary about the number of sequences
         if instance_id != self._instance_id:
             raise ValueError(f"Unknown instance_id: {instance_id}")
         return {"num_sequences": float(len(self._row.sequences))}
