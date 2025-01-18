@@ -4,7 +4,7 @@
 #$ -l h_rt=3:55:30
 #$ -S /bin/bash
 #$ -N seq_parqs_fsS50
-#$ -t 20
+#$ -t 1-20
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
