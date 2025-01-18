@@ -117,7 +117,9 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
         if accessions is None or sequences is None:
             parquet_stats["rows_with_invalid_accessions_or_sequences"] += 1
             continue
-        if not isinstance(accessions, np.ndarray) or not isinstance(sequences, np.ndarray):
+        if not isinstance(accessions, np.ndarray) or not isinstance(
+            sequences, np.ndarray
+        ):
             parquet_stats["rows_with_invalid_accessions_or_sequences"] += 1
             continue
 
@@ -150,7 +152,9 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
     return parquet_stats
 
 
-def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results", max_workers=64):
+def validate_parquets_parallel(
+    output_dir="validate_cath_split_parquets_results", max_workers=64
+):
     """
     Validate parquets by parallelizing at the parquet-file level.
     1) Parallel read for parent parquets to count rows.
@@ -188,7 +192,9 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
             for future in as_completed(futures):
                 total_parent_rows += future.result()
 
-        logging.info(f"Total rows in parent parquets for {dataset_name}: {total_parent_rows}")
+        logging.info(
+            f"Total rows in parent parquets for {dataset_name}: {total_parent_rows}"
+        )
 
         # Initialize overall results for this dataset
         dataset_stats = {
@@ -209,11 +215,7 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
         dataset_parquet_file_stats = []
 
         # For overlap tracking
-        split_accessions = {
-            "train": set(),
-            "val": set(),
-            "test": set()
-        }
+        split_accessions = {"train": set(), "val": set(), "test": set()}
 
         # ------------------------------------------------
         # 2) For each split, parallel read/process each parquet file
@@ -249,7 +251,9 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
 
                     total_split_rows_split += pf_stats["num_rows"]
                     invalid_fam_id += pf_stats["rows_with_invalid_fam_id"]
-                    invalid_acc_seq += pf_stats["rows_with_invalid_accessions_or_sequences"]
+                    invalid_acc_seq += pf_stats[
+                        "rows_with_invalid_accessions_or_sequences"
+                    ]
                     empty_acc_seq += pf_stats["rows_with_empty_accessions_or_sequences"]
                     acc_len_lt_2 += pf_stats["count_accessions_len_less_than_2"]
                     # if pf_stats["min_sequence_length"] is not None:
@@ -265,7 +269,9 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
             # Update dataset-level stats
             dataset_stats[f"total_{split}_rows"] = total_split_rows_split
             dataset_stats["rows_with_invalid_fam_id"] += invalid_fam_id
-            dataset_stats["rows_with_invalid_accessions_or_sequences"] += invalid_acc_seq
+            dataset_stats[
+                "rows_with_invalid_accessions_or_sequences"
+            ] += invalid_acc_seq
             dataset_stats["rows_with_empty_accessions_or_sequences"] += empty_acc_seq
             dataset_stats["count_accessions_len_less_than_2"] += acc_len_lt_2
 
@@ -311,11 +317,15 @@ def validate_parquets_parallel(output_dir="validate_cath_split_parquets_results"
         # 4) Save partial CSV results for this dataset
         # ------------------------------------------------
         pd.DataFrame([dataset_stats]).to_csv(
-            os.path.join(output_dir, f"validation_results_by_dataset_{dataset_name}.csv"),
+            os.path.join(
+                output_dir, f"validation_results_by_dataset_{dataset_name}.csv"
+            ),
             index=False,
         )
         pd.DataFrame(dataset_parquet_file_stats).to_csv(
-            os.path.join(output_dir, f"validation_results_by_parquet_file_{dataset_name}.csv"),
+            os.path.join(
+                output_dir, f"validation_results_by_parquet_file_{dataset_name}.csv"
+            ),
             index=False,
         )
 
