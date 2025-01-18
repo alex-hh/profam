@@ -147,8 +147,8 @@ class BaseParquetSplitter:
 
                 if total_rows != split_rows:
                     # If there are extra rows, add them to the training set
-                    extra_identifiers = list(self.train_identifiers | self.val_identifiers | self.test_identifiers)
-                    extra_rows = df[~df['split_identifier'].isin(extra_identifiers)]
+                    assigned_identifiers = list(self.train_identifiers | self.val_identifiers | self.test_identifiers)
+                    extra_rows = df[~df['split_identifier'].isin(assigned_identifiers)]
                     train_df = pd.concat([train_df, extra_rows.drop(columns=['split_identifier'])])
 
                 # Print the final split sizes
