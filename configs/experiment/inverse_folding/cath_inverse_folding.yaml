@@ -2,7 +2,7 @@
 
 # TODO: should be possible to filter on the fly examples with sequence length < max_tokens
 # to execute this experiment run:
-# python train.py experiment=foldseek_small
+# python train.py experiment=main_pfam
 
 defaults:
   - override /callbacks: default_with_shuffle

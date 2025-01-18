@@ -87,7 +87,7 @@ TOKENIZED_FEATURE_TYPES = {
     "attention_mask": Sequence(feature=Value(dtype="int32"), length=-1),
     "labels": Sequence(feature=Value(dtype="int32"), length=-1),
     "residue_index": Sequence(feature=Value(dtype="int32"), length=-1),
-    "original_size": Value(dtype="int32"),
+    "original_size": Value(dtype="float32"),  # with sequence packing we use the mean
     "aa_mask": Sequence(feature=Value(dtype="bool"), length=-1),
     "structure_mask": Sequence(feature=Value(dtype="bool"), length=-1),
     "interleaved_coords_mask": Array3D(dtype="bool", shape=(None, 4, 3)),

@@ -186,7 +186,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
         self,
         example_or_examples,
         tokenizer,
-        feature_names: Optional[List[str]] = None,
+        feature_names: List[str],
         pack_to_max_tokens: Optional[int] = None,
     ):
         if (
@@ -195,16 +195,18 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             or self.cfg.document_repeats > 1
         ):
             # Assert that tokenizer isn't padding to fixed length
-            examples = self.batched_preprocess_examples(
+            preprocessed = self.batched_preprocess_examples(
                 example_or_examples,
                 tokenizer,
                 pack_to_max_tokens=pack_to_max_tokens,
                 allow_split_packed_documents=self.cfg.allow_split_packed_documents,
             )
-            return examples
         else:
-            example = self.preprocess_example(example_or_examples, tokenizer)
-            return example
+            preprocessed = self.preprocess_example(example_or_examples, tokenizer)
+        preprocessed_filtered = {
+            k: v for k, v in preprocessed.items() if k in feature_names
+        }
+        return preprocessed_filtered
 
     def load(
         self,
@@ -346,6 +348,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
                 remove_columns=remove_columns,
                 fn_kwargs={
                     "tokenizer": tokenizer,
+                    "feature_names": feature_names,
                     "pack_to_max_tokens": pack_to_max_tokens,
                 },
                 features=Features(
