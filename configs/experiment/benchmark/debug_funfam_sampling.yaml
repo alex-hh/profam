@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-  - /extra_callbacks.funfam_sampling_callback: sampling_callback
+  - /extra_callbacks@extra_callbacks.funfam_sampling_callback: sampling_callback
   - override /trainer: gpu
   - override /model: llama_test
   - override /data: example_data
@@ -32,6 +32,3 @@ data:
 dataset_builders:
   proteingym:
     gym_data_dir: "../tiny_data/ProteinGym"
-
-extra_callbacks:
-  funfam_sampling_callback: null
