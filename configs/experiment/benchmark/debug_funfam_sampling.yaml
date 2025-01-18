@@ -32,3 +32,6 @@ data:
 dataset_builders:
   proteingym:
     gym_data_dir: "../tiny_data/ProteinGym"
+
+extra_callbacks:
+  funfam_sampling_callback: null
