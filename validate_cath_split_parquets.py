@@ -5,7 +5,6 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-
 import polars as pl
 
 # Configure logging to display time, level and message
@@ -13,7 +12,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-ROOT_PATH="/SAN/orengolab/cath_plm/ProFam"
+ROOT_PATH = "/SAN/orengolab/cath_plm/ProFam"
 
 
 def calculate_total_rows():
@@ -27,6 +26,7 @@ def calculate_total_rows():
         total_parent_rows += len(df)
 
     logging.info(f"Total rows in parent parquets: {total_parent_rows}")
+
 
 def validate_parquets():
     # Paths to datasets
