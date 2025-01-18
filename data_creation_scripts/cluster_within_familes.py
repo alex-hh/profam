@@ -197,7 +197,7 @@ def main():
                         help="Path to directory containing parquet files.")
     parser.add_argument("--output_dir", required=True,
                         help="Path to directory to write updated parquet files.")
-    parser.add_argument("--identity_thresholds", nargs="+", default=[0.95, 0.9, 0.8, 0.65, 0.5],
+    parser.add_argument("--identity_thresholds", nargs="+", default=[0.95, 0.9, 0.8, 0.65, 0.5, 0.3, 0.2],
                         type=float,
                         help="Sequence identity thresholds for clustering.")
     parser.add_argument("--threads", type=int, default=8,
