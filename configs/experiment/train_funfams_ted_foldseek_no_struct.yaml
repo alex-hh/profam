@@ -1,11 +1,11 @@
 # @package _global_
 defaults:
+  - /extra_callbacks@extra_callbacks.funfam_sampling_callback: sampling_callback
   - override /data: null
   - override /model: llama_small
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - override /logger: wandb
-  - /extra_callbacks@extra_callbacks.funfam_sampling_callback: sampling_callback
   - _self_
 
 experiment_group: "train_all"
