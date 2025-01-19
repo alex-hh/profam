@@ -194,7 +194,7 @@ data:
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
-      name: foldseek_s100
+      name: foldseek_s50
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/train/*.parquet
