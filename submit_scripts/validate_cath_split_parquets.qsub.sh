@@ -2,7 +2,7 @@
 #$ -P cath
 #$ -l tmem=192G
 #$ -l h_vmem=192G
-#$ -l h_rt=47:55:30
+#$ -l h_rt=11:55:30
 #$ -S /bin/bash
 #$ -N checkParqs4
 #$ -l gpu=true
