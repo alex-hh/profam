@@ -244,9 +244,7 @@ class ProteinDataMixture(LightningDataModule):
                             rank=self.trainer.global_rank,
                             world_size=world_size,
                         )
-                        dataset = dataset.with_format(
-                            "numpy"
-                        )
+                        dataset = dataset.with_format("numpy")
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(
