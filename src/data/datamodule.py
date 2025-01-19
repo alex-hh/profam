@@ -246,7 +246,7 @@ class ProteinDataMixture(LightningDataModule):
                         )
                         dataset = dataset.with_format(
                             "numpy"
-                        )  # might not be necessary for val but included to be safe
+                        )
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(

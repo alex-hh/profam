@@ -20,6 +20,7 @@ trainer:
   tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 100000
+  val_check_interval: 3000
 
 logger:
   wandb:
