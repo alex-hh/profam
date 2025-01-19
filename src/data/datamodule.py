@@ -239,14 +239,14 @@ class ProteinDataMixture(LightningDataModule):
                             dataset.n_shards % world_size == 0
                             and dataset.n_shards % 8 == 0
                         )
-                    dataset = split_dataset_by_node(
-                        dataset,
-                        rank=self.trainer.global_rank,
-                        world_size=world_size,
-                    )
-                    dataset = dataset.with_format(
-                        "numpy"
-                    )  # might not be necessary for val but included to be safe
+                        dataset = split_dataset_by_node(
+                            dataset,
+                            rank=self.trainer.global_rank,
+                            world_size=world_size,
+                        )
+                        dataset = dataset.with_format(
+                            "numpy"
+                        )
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(
