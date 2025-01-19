@@ -1,6 +1,6 @@
 # @package _global_
 defaults:
-- /extra_callbacks@extra_callbacks.funfam_sampling_callback: sampling_callback
+  - /extra_callbacks@extra_callbacks.funfam_sampling_callback: sampling_callback
   - override /data: null
   - override /model: llama_small
   - override /callbacks: default_with_shuffle
