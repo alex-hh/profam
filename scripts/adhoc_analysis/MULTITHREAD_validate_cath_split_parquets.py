@@ -1,6 +1,7 @@
 import glob
 import logging
 import os
+import argparse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -14,16 +15,16 @@ logging.basicConfig(
 
 # Datasets definition (same as original)
 DATASETS = {
-    # 1: {
-    #     "name": "ted_s100",
-    #     "parent_dir": "../data/ted/s100_parquets",
-    #     "split_dir": "../data/ted/s100_parquets/train_val_test_split",
-    # },
-    # 2: {
-    #     "name": "ted_s50",
-    #     "parent_dir": "../data/ted/s50_parquets",
-    #     "split_dir": "../data/ted/s50_parquets/train_val_test_split",
-    # },
+    1: {
+        "name": "ted_s100",
+        "parent_dir": "../data/ted/s100_parquets",
+        "split_dir": "../data/ted/s100_parquets/train_val_test_split_for_debug",
+    },
+    2: {
+        "name": "ted_s50",
+        "parent_dir": "../data/ted/s50_parquets",
+        "split_dir": "../data/ted/s50_parquets/train_val_test_split",
+    },
     # 3: {
     #     "name": "funfam_s100_noali",
     #     "parent_dir": "../data/funfams/s100_noali_parquets",
@@ -44,21 +45,21 @@ DATASETS = {
     #     "parent_dir": "../data/afdb_s50_single",
     #     "split_dir": "../data/afdb_s50_single/train_val_test_split",
     # },
-    7: {
-        "name": "foldseek_s100_struct",
-        "parent_dir": "../data/foldseek/foldseek_s100_struct",
-        "split_dir": "../data/foldseek/foldseek_s100_struct/train_val_test_split",
-    },
-    8: {
-        "name": "foldseek_reps_single",
-        "parent_dir": "../data/foldseek/foldseek_reps_single",
-        "split_dir": "../data/foldseek/foldseek_reps_single/train_val_test_split",
-    },
-    9: {
-        "name": "foldseek_s50_struct",
-        "parent_dir": "../data/foldseek/foldseek_s50_struct",
-        "split_dir": "../data/foldseek/foldseek_s50_struct/train_val_test_split",
-    },
+    # 7: {
+    #     "name": "foldseek_s100_struct",
+    #     "parent_dir": "../data/foldseek/foldseek_s100_struct",
+    #     "split_dir": "../data/foldseek/foldseek_s100_struct/train_val_test_split",
+    # },
+    # 8: {
+    #     "name": "foldseek_reps_single",
+    #     "parent_dir": "../data/foldseek/foldseek_reps_single",
+    #     "split_dir": "../data/foldseek/foldseek_reps_single/train_val_test_split",
+    # },
+    # 9: {
+    #     "name": "foldseek_s50_struct",
+    #     "parent_dir": "../data/foldseek/foldseek_s50_struct",
+    #     "split_dir": "../data/foldseek/foldseek_s50_struct/train_val_test_split",
+    # },
 }
 
 
@@ -153,21 +154,36 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
 
 
 def validate_parquets_parallel(
-    output_dir="validate_cath_split_parquets_results", max_workers=64
+    dataset_ids=None,
+    output_dir="validate_cath_split_parquets_results_TED_ONLY_JAN19",
+    max_workers=64
 ):
     """
     Validate parquets by parallelizing at the parquet-file level.
+
+    If dataset_ids is None or empty, all DATASETS will be processed.
+    Otherwise only the specified dataset IDs will be processed.
+
     1) Parallel read for parent parquets to count rows.
     2) For each split (train/val/test), parallel read and process each parquet.
     3) Collect dataset-level stats, save partial CSV, then combine everything.
     """
     os.makedirs(output_dir, exist_ok=True)
 
+    # Determine which datasets to run
+    if not dataset_ids:
+        dataset_ids = list(DATASETS.keys())
+
     # We'll collect final results for all datasets
     all_dataset_results = []
     all_parquet_file_results = []
 
-    for dataset_id, dataset_info in DATASETS.items():
+    for dataset_id in dataset_ids:
+        if dataset_id not in DATASETS:
+            logging.warning(f"Skipped invalid dataset_id={dataset_id}. Not in DATASETS.")
+            continue
+
+        dataset_info = DATASETS[dataset_id]
         dataset_name = dataset_info["name"]
         parent_dir = dataset_info["parent_dir"]
         split_dir = dataset_info["split_dir"]
@@ -214,7 +230,7 @@ def validate_parquets_parallel(
         # We will accumulate all parquet-file-level stats for this dataset
         dataset_parquet_file_stats = []
 
-        # For overlap tracking
+        # For overlap tracking (currently unused in the stats, but kept for reference)
         split_accessions = {"train": set(), "val": set(), "test": set()}
 
         # ------------------------------------------------
@@ -234,7 +250,7 @@ def validate_parquets_parallel(
             invalid_acc_seq = 0
             empty_acc_seq = 0
             acc_len_lt_2 = 0
-            min_seq_length_for_split = None
+            # min_seq_length_for_split = None
 
             # Parallel processing of each split parquet
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -251,9 +267,7 @@ def validate_parquets_parallel(
 
                     total_split_rows_split += pf_stats["num_rows"]
                     invalid_fam_id += pf_stats["rows_with_invalid_fam_id"]
-                    invalid_acc_seq += pf_stats[
-                        "rows_with_invalid_accessions_or_sequences"
-                    ]
+                    invalid_acc_seq += pf_stats["rows_with_invalid_accessions_or_sequences"]
                     empty_acc_seq += pf_stats["rows_with_empty_accessions_or_sequences"]
                     acc_len_lt_2 += pf_stats["count_accessions_len_less_than_2"]
                     # if pf_stats["min_sequence_length"] is not None:
@@ -269,9 +283,7 @@ def validate_parquets_parallel(
             # Update dataset-level stats
             dataset_stats[f"total_{split}_rows"] = total_split_rows_split
             dataset_stats["rows_with_invalid_fam_id"] += invalid_fam_id
-            dataset_stats[
-                "rows_with_invalid_accessions_or_sequences"
-            ] += invalid_acc_seq
+            dataset_stats["rows_with_invalid_accessions_or_sequences"] += invalid_acc_seq
             dataset_stats["rows_with_empty_accessions_or_sequences"] += empty_acc_seq
             dataset_stats["count_accessions_len_less_than_2"] += acc_len_lt_2
 
@@ -299,20 +311,6 @@ def validate_parquets_parallel(
                 f"({total_parent_rows}) for dataset '{dataset_name}'"
             )
 
-        # # Overlap checks
-        # train_accessions = split_accessions["train"]
-        # val_accessions = split_accessions["val"]
-        # test_accessions = split_accessions["test"]
-        #
-        # overlap_counts = {
-        #     "train_test": len(train_accessions.intersection(test_accessions)),
-        #     "train_val": len(train_accessions.intersection(val_accessions)),
-        #     "val_test": len(val_accessions.intersection(test_accessions)),
-        # }
-        # dataset_stats.update(overlap_counts)
-        #
-        # logging.info(f"Overlap counts for dataset '{dataset_name}': {overlap_counts}")
-
         # ------------------------------------------------
         # 4) Save partial CSV results for this dataset
         # ------------------------------------------------
@@ -336,18 +334,37 @@ def validate_parquets_parallel(
     # ------------------------------------------------
     # Combine everything at the end
     # ------------------------------------------------
-    dataset_results_df = pd.DataFrame(all_dataset_results)
-    parquet_file_results_df = pd.DataFrame(all_parquet_file_results)
+    if all_dataset_results:
+        dataset_results_df = pd.DataFrame(all_dataset_results)
+        parquet_file_results_df = pd.DataFrame(all_parquet_file_results)
 
-    dataset_results_df.to_csv(
-        os.path.join(output_dir, "validation_results_by_dataset.csv"), index=False
-    )
-    parquet_file_results_df.to_csv(
-        os.path.join(output_dir, "validation_results_by_parquet_file.csv"), index=False
-    )
+        dataset_results_df.to_csv(
+            os.path.join(output_dir, "validation_results_by_dataset.csv"), index=False
+        )
+        parquet_file_results_df.to_csv(
+            os.path.join(output_dir, "validation_results_by_parquet_file.csv"), index=False
+        )
 
     logging.info("Parallel validation completed (file-level parallelization).")
 
 
+def main():
+    parser = argparse.ArgumentParser(description="Validate parquet files using a task index.")
+    parser.add_argument(
+        "--task_index",
+        type=int,
+        default=0,
+        help="If 0, run for all datasets. Otherwise run for the dataset with that ID."
+    )
+    args = parser.parse_args()
+
+    if args.task_index == 0:
+        # Run on all datasets
+        validate_parquets_parallel()
+    else:
+        # Run only on the specified dataset if it exists
+        validate_parquets_parallel(dataset_ids=[args.task_index])
+
+
 if __name__ == "__main__":
-    validate_parquets_parallel()
+    main()
