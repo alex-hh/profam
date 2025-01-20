@@ -22,12 +22,19 @@ class ParquetBufferWriter:
         """
         seqs_mb = self.get_size_mb(df)
         # print(f"mem use {self.name}: {round(self.mem_use, 6)}")
-        self.dfs.append(df)
+        # self.dfs.append(df)
         
+        # if self.mem_use + seqs_mb < self.mem_limit:
+        #     self.mem_use += seqs_mb
+        # else:
+        #     self.write_dfs()
         if self.mem_use + seqs_mb < self.mem_limit:
+            self.dfs.append(df)
             self.mem_use += seqs_mb
         else:
             self.write_dfs()
+            self.dfs = [df]
+            self.mem_use = seqs_mb
 
 
     def write_dfs(self):
@@ -40,13 +47,18 @@ class ParquetBufferWriter:
                 filepath = os.path.join(self.outdir, f"{self.name}_{self.SGE_TASK_ID}_{str(self.index).zfill(3)}.parquet")
             print(f"Writing {len(combi_df)} rows to {filepath}")
 
+            combi_df.to_parquet(filepath, index=False)
             self.dfs = []
             self.index += 1
             self.mem_use = 0
 
-            assert not os.path.exists(filepath), f"File {filepath} already existed"
+            # self.dfs = []
+            # self.index += 1
+            # self.mem_use = 0
+
+            # assert not os.path.exists(filepath), f"File {filepath} already existed"
             
-            combi_df.to_parquet(filepath, index=False)
+            # combi_df.to_parquet(filepath, index=False)
 
     @staticmethod
     def get_size_mb(df):
