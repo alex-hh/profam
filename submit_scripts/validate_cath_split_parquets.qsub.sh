@@ -4,7 +4,7 @@
 #$ -l h_vmem=192G
 #$ -l h_rt=11:55:30
 #$ -S /bin/bash
-#$ -N checkParqs4
+#$ -N checkParqs5
 #$ -l gpu=true
 #$ -l hostname="bubba*"
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
@@ -22,5 +22,5 @@ cd $ROOT_DIR
 
 # Add ROOT_DIR to PYTHONPATH
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
-python scripts/adhoc_analysis/MULTITHREAD_validate_cath_split_parquets.py
+python scripts/adhoc_analysis/MULTITHREAD_validate_cath_split_parquets.py --task_index 10
 date

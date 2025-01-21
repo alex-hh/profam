@@ -25,41 +25,46 @@ DATASETS = {
         "parent_dir": "../data/ted/s50_parquets",
         "split_dir": "../data/ted/s50_parquets/train_val_test_split",
     },
-    # 3: {
-    #     "name": "funfam_s100_noali",
-    #     "parent_dir": "../data/funfams/s100_noali_parquets",
-    #     "split_dir": "../data/funfams/s100_noali_parquets/train_val_test_split",
-    # },
-    # 4: {
-    #     "name": "funfam_s50",
-    #     "parent_dir": "../data/funfams/s50_parquets",
-    #     "split_dir": "../data/funfams/s50_parquets/train_val_test_split",
-    # },
-    # 5: {
-    #     "name": "foldseek_s100_raw",
-    #     "parent_dir": "../data/foldseek/foldseek_s100_raw",
-    #     "split_dir": "../data/foldseek/foldseek_s100_raw/train_val_test_split",
-    # },
-    # 6: {
-    #     "name": "afdb_s50_single",
-    #     "parent_dir": "../data/afdb_s50_single",
-    #     "split_dir": "../data/afdb_s50_single/train_val_test_split",
-    # },
-    # 7: {
-    #     "name": "foldseek_s100_struct",
-    #     "parent_dir": "../data/foldseek/foldseek_s100_struct",
-    #     "split_dir": "../data/foldseek/foldseek_s100_struct/train_val_test_split",
-    # },
-    # 8: {
-    #     "name": "foldseek_reps_single",
-    #     "parent_dir": "../data/foldseek/foldseek_reps_single",
-    #     "split_dir": "../data/foldseek/foldseek_reps_single/train_val_test_split",
-    # },
-    # 9: {
-    #     "name": "foldseek_s50_struct",
-    #     "parent_dir": "../data/foldseek/foldseek_s50_struct",
-    #     "split_dir": "../data/foldseek/foldseek_s50_struct/train_val_test_split",
-    # },
+    3: {
+        "name": "funfam_s100_noali",
+        "parent_dir": "../data/funfams/s100_noali_parquets",
+        "split_dir": "../data/funfams/s100_noali_parquets/train_val_test_split",
+    },
+    4: {
+        "name": "funfam_s50",
+        "parent_dir": "../data/funfams/s50_parquets",
+        "split_dir": "../data/funfams/s50_parquets/train_val_test_split",
+    },
+    5: {
+        "name": "foldseek_s100_raw",
+        "parent_dir": "../data/foldseek/foldseek_s100_raw",
+        "split_dir": "../data/foldseek/foldseek_s100_raw/train_val_test_split",
+    },
+    6: {
+        "name": "afdb_s50_single",
+        "parent_dir": "../data/afdb_s50_single",
+        "split_dir": "../data/afdb_s50_single/train_val_test_split",
+    },
+    7: {
+        "name": "foldseek_s100_struct",
+        "parent_dir": "../data/foldseek/foldseek_s100_struct",
+        "split_dir": "../data/foldseek/foldseek_s100_struct/train_val_test_split",
+    },
+    8: {
+        "name": "foldseek_reps_single",
+        "parent_dir": "../data/foldseek/foldseek_reps_single",
+        "split_dir": "../data/foldseek/foldseek_reps_single/train_val_test_split",
+    },
+    9: {
+        "name": "foldseek_s50_struct",
+        "parent_dir": "../data/foldseek/foldseek_s50_struct",
+        "split_dir": "../data/foldseek/foldseek_s50_struct/train_val_test_split",
+    },
+    10: {
+        "name": "afdb_s50_single_seq_only",
+        "parent_dir": "../data/afdb_s50_single",
+        "split_dir": "../data/afdb_s50_single_seq_only/afdb_s50_single/train_val_test_split",
+    }
 }
 
 
@@ -155,7 +160,7 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
 
 def validate_parquets_parallel(
     dataset_ids=None,
-    output_dir="validate_cath_split_parquets_results_TED_ONLY_JAN19",
+    output_dir="validate_cath_split_parquets_results",
     max_workers=64,
 ):
     """
