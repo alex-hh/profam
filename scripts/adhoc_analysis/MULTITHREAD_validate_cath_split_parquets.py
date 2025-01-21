@@ -1,7 +1,7 @@
+import argparse
 import glob
 import logging
 import os
-import argparse
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -156,7 +156,7 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
 def validate_parquets_parallel(
     dataset_ids=None,
     output_dir="validate_cath_split_parquets_results_TED_ONLY_JAN19",
-    max_workers=64
+    max_workers=64,
 ):
     """
     Validate parquets by parallelizing at the parquet-file level.
@@ -180,7 +180,9 @@ def validate_parquets_parallel(
 
     for dataset_id in dataset_ids:
         if dataset_id not in DATASETS:
-            logging.warning(f"Skipped invalid dataset_id={dataset_id}. Not in DATASETS.")
+            logging.warning(
+                f"Skipped invalid dataset_id={dataset_id}. Not in DATASETS."
+            )
             continue
 
         dataset_info = DATASETS[dataset_id]
@@ -267,7 +269,9 @@ def validate_parquets_parallel(
 
                     total_split_rows_split += pf_stats["num_rows"]
                     invalid_fam_id += pf_stats["rows_with_invalid_fam_id"]
-                    invalid_acc_seq += pf_stats["rows_with_invalid_accessions_or_sequences"]
+                    invalid_acc_seq += pf_stats[
+                        "rows_with_invalid_accessions_or_sequences"
+                    ]
                     empty_acc_seq += pf_stats["rows_with_empty_accessions_or_sequences"]
                     acc_len_lt_2 += pf_stats["count_accessions_len_less_than_2"]
                     # if pf_stats["min_sequence_length"] is not None:
@@ -283,7 +287,9 @@ def validate_parquets_parallel(
             # Update dataset-level stats
             dataset_stats[f"total_{split}_rows"] = total_split_rows_split
             dataset_stats["rows_with_invalid_fam_id"] += invalid_fam_id
-            dataset_stats["rows_with_invalid_accessions_or_sequences"] += invalid_acc_seq
+            dataset_stats[
+                "rows_with_invalid_accessions_or_sequences"
+            ] += invalid_acc_seq
             dataset_stats["rows_with_empty_accessions_or_sequences"] += empty_acc_seq
             dataset_stats["count_accessions_len_less_than_2"] += acc_len_lt_2
 
@@ -342,19 +348,22 @@ def validate_parquets_parallel(
             os.path.join(output_dir, "validation_results_by_dataset.csv"), index=False
         )
         parquet_file_results_df.to_csv(
-            os.path.join(output_dir, "validation_results_by_parquet_file.csv"), index=False
+            os.path.join(output_dir, "validation_results_by_parquet_file.csv"),
+            index=False,
         )
 
     logging.info("Parallel validation completed (file-level parallelization).")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Validate parquet files using a task index.")
+    parser = argparse.ArgumentParser(
+        description="Validate parquet files using a task index."
+    )
     parser.add_argument(
         "--task_index",
         type=int,
         default=0,
-        help="If 0, run for all datasets. Otherwise run for the dataset with that ID."
+        help="If 0, run for all datasets. Otherwise run for the dataset with that ID.",
     )
     args = parser.parse_args()
 
