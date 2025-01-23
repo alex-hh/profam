@@ -327,10 +327,12 @@ class BaseLitModule(LightningModule):
         doc_len_stats = metrics.document_lengths(
             batch["labels"], self.tokenizer.bos_token_id
         )
-        sep_tokens_in_batch = (batch["labels"] == self.tokenizer.sep_token_id).sum()
+        sep_tokens_in_batch = (
+            (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
+        )
         start_of_doc_tokens_in_batch = (
-            batch["labels"] == self.tokenizer.start_of_doc_token_id
-        ).sum()
+            (batch["labels"] == self.tokenizer.bos_token_id).sum().item()
+        )
         for reduce_fx in ["min", "max", "mean"]:
             self.log(
                 name=f"{step_name}/{reduce_fx}_seq_len_in_batch",
