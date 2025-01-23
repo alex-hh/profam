@@ -159,7 +159,13 @@ def sequence_lengths(labels, sep_token_id):
 
 def document_lengths(labels, start_of_doc_token_id):
     start_of_doc_mask = labels == start_of_doc_token_id
-    positions = torch.where(start_of_doc_mask)[1]
+    positions = torch.cat(
+        (
+            torch.where(start_of_doc_mask)[1],
+            torch.tensor([labels.shape[-1]], device=labels.device),
+        ),  # Also wrapped value in list
+        dim=0,  # Explicitly specify dimension
+    )
     doc_lengths = positions.diff(dim=-1)
     result = {
         "min_doc_length": doc_lengths.min().item(),

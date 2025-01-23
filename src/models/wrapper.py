@@ -475,7 +475,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if start_sequence_index is not None
             else None,  # broadcast to input ids
         )
-        if force_forward_with_no_positions:
+        if force_forward_with_no_positions or past_key_values is not None:
             position_ids = None
         else:
             position_ids = self.get_position_ids_for_model_forward(
