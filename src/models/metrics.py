@@ -145,7 +145,7 @@ def accuracy_from_outputs(
     return accuracy_metrics
 
 
-def sep_tokens_in_batch(labels, sep_token_id):
+def sequence_lengths(labels, sep_token_id):
     sep_mask = labels == sep_token_id
     positions = torch.where(sep_mask)[1]
     sequence_lengths = torch.cat([positions[0], positions.diff(dim=-1)])
