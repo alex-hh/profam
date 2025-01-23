@@ -176,7 +176,7 @@ class BaseLitModule(LightningModule):
     def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
-
+        n_tokens = batch["input_ids"].shape[-1]
         dataset_accuracies = metrics.accuracy_from_outputs(
             outputs,
             batch["labels"],
@@ -205,6 +205,7 @@ class BaseLitModule(LightningModule):
             "aa_accuracy": dataset_accuracies.pop("global"),
             "aa_accuracy_first_sequence": dataset_accuracies.pop("first_sequence"),
             "aa_accuracy_last_sequence": dataset_accuracies.pop("last_sequence"),
+            "n_tokens": n_tokens,
         }
         if "coords" in batch:
             global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
@@ -279,6 +280,7 @@ class BaseLitModule(LightningModule):
         # n.b. this assumes a batch only contains a single dataset - only true during val!
         # assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])
         assert isinstance(batch["ds_name"], StringObject)
+
         is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
         for ds_name in set(batch["ds_name"].text):
             ds_metrics = {
