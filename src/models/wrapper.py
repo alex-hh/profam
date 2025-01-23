@@ -436,7 +436,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.Tensor] = None,
-        residue_index: Optional[torch.LongTensor] = None,  # added this line for PFLM
+        residue_index: Optional[torch.LongTensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -445,6 +445,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         coords: Optional[torch.FloatTensor] = None,
+        force_forward_with_no_positions: Optional[
+            bool
+        ] = False,  # eg. when called by score_seqs
         **kwargs,  # e.g. labels
     ):
         assert (
@@ -472,9 +475,12 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if start_sequence_index is not None
             else None,  # broadcast to input ids
         )
-        position_ids = self.get_position_ids_for_model_forward(
-            input_ids, residue_index, position_ids
-        )
+        if force_forward_with_no_positions:
+            position_ids = None
+        else:
+            position_ids = self.get_position_ids_for_model_forward(
+                input_ids, residue_index, position_ids
+            )
 
         outputs = super().forward(
             input_ids=None,

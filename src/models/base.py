@@ -150,6 +150,9 @@ class BaseLitModule(LightningModule):
     ):
         # TODO: verify that different model implementations interpret
         # past key values in same way wrt e.g. position ids.
+        if not (input_ids[:, 0] == self.tokenizer.bos_token_id).all():
+            raise ValueError("Documents must start with a bos token")
+
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -568,6 +571,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids=this_input_ids,
                 past_key_values=cache,
                 use_cache=True,
+                force_forward_with_no_positions=True,
                 **forward_kwargs,
             )
             labels = torch.where(
