@@ -299,7 +299,8 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
             sampled_protein_ids.append(ix)
             sampled_protein_sequences.append(seq)
             sampled_protein_positions.append(pos)
-
+    if len(sampled_protein_ids) == 0:
+        raise ValueError("No proteins sampled: adjust max_tokens")
     # init will check array sizes - but misalignment could still occur
     return proteins[sampled_protein_ids].clone(
         residue_positions=sampled_protein_positions,

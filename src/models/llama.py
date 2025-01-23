@@ -56,7 +56,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         embed_sequence_index: bool = False,
         pass_constant_position_ids: bool = False,
         pass_res_pos_in_seq_as_position_ids: bool = False,
-        pass_res_pos_in_doc_as_position_ids: bool = False,
+        pass_res_pos_in_doc_as_position_ids: bool = True,
         max_seq_pos_in_doc: int = 1024,
         embed_residue_index: bool = True,
         max_res_pos_in_seq: int = 4096,
