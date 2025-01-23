@@ -321,6 +321,7 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=False,
                 sync_dist=step_name != "train",  # Q: what happens if sync_dist is False
             )
+        add_dataloader_idx = step_name != "train"
         seq_len_stats = metrics.sequence_lengths(
             batch["labels"], self.tokenizer.sep_token_id
         )
@@ -341,7 +342,7 @@ class BaseLitModule(LightningModule):
                 on_epoch=False,
                 prog_bar=False,
                 reduce_fx=reduce_fx,
-                add_dataloader_idx=False,
+                add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
                 name=f"{step_name}/{reduce_fx}_doc_len_in_batch",
@@ -350,7 +351,7 @@ class BaseLitModule(LightningModule):
                 on_epoch=False,
                 prog_bar=False,
                 reduce_fx=reduce_fx,
-                add_dataloader_idx=False,
+                add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
                 name=f"{step_name}/{reduce_fx}_sep_tokens_in_batch",
@@ -359,7 +360,7 @@ class BaseLitModule(LightningModule):
                 on_epoch=False,
                 prog_bar=False,
                 reduce_fx=reduce_fx,
-                add_dataloader_idx=False,
+                add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
                 name=f"{step_name}/{reduce_fx}_start_of_doc_tokens_in_batch",
@@ -368,7 +369,7 @@ class BaseLitModule(LightningModule):
                 on_epoch=False,
                 prog_bar=False,
                 reduce_fx=reduce_fx,
-                add_dataloader_idx=False,
+                add_dataloader_idx=add_dataloader_idx,
             )
 
     def training_step(
