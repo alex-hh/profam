@@ -208,7 +208,7 @@ class BaseLitModule(LightningModule):
             "aa_accuracy": dataset_accuracies.pop("global"),
             "aa_accuracy_first_sequence": dataset_accuracies.pop("first_sequence"),
             "aa_accuracy_last_sequence": dataset_accuracies.pop("last_sequence"),
-            "n_tokens": n_tokens,
+            "n_tokens_in_batch": n_tokens,
         }
         if "coords" in batch:
             global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
@@ -320,6 +320,53 @@ class BaseLitModule(LightningModule):
                 prog_bar=False,
                 add_dataloader_idx=False,
                 sync_dist=step_name != "train",  # Q: what happens if sync_dist is False
+            )
+        seq_len_stats = metrics.sequence_lengths(
+            batch["labels"], self.tokenizer.sep_token_id
+        )
+        doc_len_stats = metrics.document_lengths(
+            batch["labels"], self.tokenizer.start_of_doc_token_id
+        )
+        sep_tokens_in_batch = (batch["labels"] == self.tokenizer.sep_token_id).sum()
+        start_of_doc_tokens_in_batch = (
+            batch["labels"] == self.tokenizer.start_of_doc_token_id
+        ).sum()
+        for reduce_fx in ["min", "max", "mean"]:
+            self.log(
+                name=f"{step_name}/{reduce_fx}_seq_len_in_batch",
+                value=seq_len_stats[f"{reduce_fx}_seq_length"],
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=False,
+            )
+            self.log(
+                name=f"{step_name}/{reduce_fx}_doc_len_in_batch",
+                value=doc_len_stats[f"{reduce_fx}_doc_length"],
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=False,
+            )
+            self.log(
+                name=f"{step_name}/{reduce_fx}_sep_tokens_in_batch",
+                value=sep_tokens_in_batch,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=False,
+            )
+            self.log(
+                name=f"{step_name}/{reduce_fx}_start_of_doc_tokens_in_batch",
+                value=start_of_doc_tokens_in_batch,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=False,
             )
 
     def training_step(

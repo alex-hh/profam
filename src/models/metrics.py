@@ -143,3 +143,27 @@ def accuracy_from_outputs(
         accuracy_metrics.update(ds_accuracies)
 
     return accuracy_metrics
+
+
+def sep_tokens_in_batch(labels, sep_token_id):
+    sep_mask = labels == sep_token_id
+    positions = torch.where(sep_mask)[1]
+    sequence_lengths = torch.cat([positions[0], positions.diff(dim=-1)])
+    result = {
+        "min_seq_length": sequence_lengths.min(),
+        "max_seq_length": sequence_lengths.max(),
+        "mean_seq_length": sequence_lengths.mean(),
+    }
+    return result
+
+
+def document_lengths(labels, start_of_doc_token_id):
+    start_of_doc_mask = labels == start_of_doc_token_id
+    positions = torch.where(start_of_doc_mask)[1]
+    doc_lengths = torch.cat([positions[0], positions.diff(dim=-1)])
+    result = {
+        "min_doc_length": doc_lengths.min(),
+        "max_doc_length": doc_lengths.max(),
+        "mean_doc_length": doc_lengths.mean(),
+    }
+    return result
