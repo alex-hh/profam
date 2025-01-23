@@ -148,11 +148,11 @@ def accuracy_from_outputs(
 def sequence_lengths(labels, sep_token_id):
     sep_mask = labels == sep_token_id
     positions = torch.where(sep_mask)[1]
-    sequence_lengths = torch.cat([positions[0], positions.diff(dim=-1)])
+    sequence_lengths = torch.cat([positions[0].unsqueeze(0), positions.diff(dim=-1)])
     result = {
-        "min_seq_length": sequence_lengths.min(),
-        "max_seq_length": sequence_lengths.max(),
-        "mean_seq_length": sequence_lengths.mean(),
+        "min_seq_length": sequence_lengths.min().item(),
+        "max_seq_length": sequence_lengths.max().item(),
+        "mean_seq_length": sequence_lengths.float().mean().item(),
     }
     return result
 
@@ -160,10 +160,10 @@ def sequence_lengths(labels, sep_token_id):
 def document_lengths(labels, start_of_doc_token_id):
     start_of_doc_mask = labels == start_of_doc_token_id
     positions = torch.where(start_of_doc_mask)[1]
-    doc_lengths = torch.cat([positions[0], positions.diff(dim=-1)])
+    doc_lengths = torch.cat([positions[0].unsqueeze(0), positions.diff(dim=-1)])
     result = {
-        "min_doc_length": doc_lengths.min(),
-        "max_doc_length": doc_lengths.max(),
-        "mean_doc_length": doc_lengths.mean(),
+        "min_doc_length": doc_lengths.min().item(),
+        "max_doc_length": doc_lengths.max().item(),
+        "mean_doc_length": doc_lengths.float().mean().item(),
     }
     return result

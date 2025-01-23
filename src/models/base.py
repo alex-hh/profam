@@ -325,7 +325,7 @@ class BaseLitModule(LightningModule):
             batch["labels"], self.tokenizer.sep_token_id
         )
         doc_len_stats = metrics.document_lengths(
-            batch["labels"], self.tokenizer.start_of_doc_token_id
+            batch["labels"], self.tokenizer.bos_token_id
         )
         sep_tokens_in_batch = (batch["labels"] == self.tokenizer.sep_token_id).sum()
         start_of_doc_tokens_in_batch = (
