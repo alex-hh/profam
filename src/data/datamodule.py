@@ -51,6 +51,7 @@ class ProteinDataMixture(LightningDataModule):
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
+        prefetch_factor: int = 2,
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -262,6 +263,7 @@ class ProteinDataMixture(LightningDataModule):
             num_workers=self.num_workers,
             persistent_workers=self.num_workers
             > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
+            prefetch_factor=self.prefetch_factor,
         )
 
     def val_dataloader(self) -> List[DataLoader]:
@@ -273,6 +275,7 @@ class ProteinDataMixture(LightningDataModule):
                 shuffle=False,
                 num_workers=self.num_workers // 2,
                 persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
             )
             for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
         ]
@@ -287,6 +290,7 @@ class ProteinDataMixture(LightningDataModule):
                 shuffle=False,
                 num_workers=self.num_workers // 2,
                 persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
             )
         ]
         return loaders
