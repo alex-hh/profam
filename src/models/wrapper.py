@@ -201,7 +201,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             **kwargs,
         )  # slices out prompt and uses cache typically.
 
-        # inputs["input_ids"] is last generated token - so far not passed through model:
+        # after first forward pass,inputs["input_ids"]
+        # is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
 
         if inputs["input_ids"].shape[-1] == 1:
