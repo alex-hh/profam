@@ -53,6 +53,7 @@ def accuracy_from_outputs(
     ignore_token_ids: Optional[List[int]] = None,
     mask=None,
     sep_token_id=None,
+    bos_token_id=None,
     calc_full_no_context_accuracies: bool = False,
 ):
     """Compute the accuracy of the target sequence given the model outputs.
@@ -68,21 +69,35 @@ def accuracy_from_outputs(
     """
     if calc_full_no_context_accuracies:
         assert sep_token_id is not None
-        # cat ensures that sep token is included in the prev sequence for index
-        sequence_indices = torch.cat(
-            [
-                torch.zeros(labels.shape[0], 1, device=labels.device),
-                torch.cumsum(labels == sep_token_id, dim=-1)[:, :-1],
-            ],
-            dim=-1,
-        )
-        # TODO: assert that last non-padding token is a sep token (in pre-sliced labels)
-        # TODO: write test
-        first_sequence_mask = sequence_indices == 0
-        last_sequence_mask = (
-            sequence_indices == sequence_indices[:, -1:] - 1
-        )  # -1 because padding tokens will get extra seq index having seen final sep
+        assert bos_token_id is not None
+        
+        # Calculate document indices using BOS tokens
+        document_indices = torch.cumsum(labels == bos_token_id, dim=-1)  # (batch, seq_len)
+        
+        # Calculate sequence indices that reset at each document
+        sep_mask = (labels == sep_token_id).long()
+        sequence_indices = torch.zeros_like(document_indices)
+        last_sequence_mask = torch.zeros_like(sequence_indices, dtype=torch.bool)
+        
+        for b in range(labels.size(0)):
+            unique_docs = torch.unique(document_indices[b])
+            for doc in unique_docs:
+                doc_mask = document_indices[b] == doc
+                doc_span = torch.where(doc_mask)[0]
+                if len(doc_span) == 0:
+                    continue
+                start, end = doc_span[0], doc_span[-1] + 1
+                doc_sep = sep_mask[b, start:end]
+                one_doc_seq_indices = torch.cat([
+                    torch.tensor([0], device=labels.device), 
+                    doc_sep.cumsum(dim=0)[:-1]
+                    ])
+                sequence_indices[b, start:end] = one_doc_seq_indices
+                max_seq = one_doc_seq_indices.max()
+                #bitwise OR to ensure we don't overwrite previous max_seqs
+                last_sequence_mask[b] |= (sequence_indices[b] == max_seq) & doc_mask
 
+        first_sequence_mask = sequence_indices == 0
         first_sequence_mask = first_sequence_mask[:, start_ix + 1 :]
         last_sequence_mask = last_sequence_mask[:, start_ix + 1 :]
 

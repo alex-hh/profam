@@ -190,6 +190,7 @@ class BaseLitModule(LightningModule):
                 + self.tokenizer.all_special_tokens
             ),
             sep_token_id=self.tokenizer.sep_token_id,
+            bos_token_id=self.tokenizer.bos_token_id,
             calc_full_no_context_accuracies=True,
         )
         has_3di = torch.isin(
