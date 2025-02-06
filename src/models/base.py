@@ -150,6 +150,9 @@ class BaseLitModule(LightningModule):
     ):
         # TODO: verify that different model implementations interpret
         # past key values in same way wrt e.g. position ids.
+        if not (input_ids[:, 0] == self.tokenizer.bos_token_id).all():
+            raise ValueError("Documents must start with a bos token")
+
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -176,7 +179,7 @@ class BaseLitModule(LightningModule):
     def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
-
+        n_tokens = batch["input_ids"].shape[-1]
         dataset_accuracies = metrics.accuracy_from_outputs(
             outputs,
             batch["labels"],
@@ -190,6 +193,7 @@ class BaseLitModule(LightningModule):
                 + self.tokenizer.all_special_tokens
             ),
             sep_token_id=self.tokenizer.sep_token_id,
+            bos_token_id=self.tokenizer.bos_token_id,
             calc_full_no_context_accuracies=True,
         )
         has_3di = torch.isin(
@@ -205,6 +209,7 @@ class BaseLitModule(LightningModule):
             "aa_accuracy": dataset_accuracies.pop("global"),
             "aa_accuracy_first_sequence": dataset_accuracies.pop("first_sequence"),
             "aa_accuracy_last_sequence": dataset_accuracies.pop("last_sequence"),
+            "n_tokens_in_batch": n_tokens,
         }
         if "coords" in batch:
             global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
@@ -279,6 +284,7 @@ class BaseLitModule(LightningModule):
         # n.b. this assumes a batch only contains a single dataset - only true during val!
         # assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])
         assert isinstance(batch["ds_name"], StringObject)
+
         is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
         for ds_name in set(batch["ds_name"].text):
             ds_metrics = {
@@ -315,6 +321,56 @@ class BaseLitModule(LightningModule):
                 prog_bar=False,
                 add_dataloader_idx=False,
                 sync_dist=step_name != "train",  # Q: what happens if sync_dist is False
+            )
+        add_dataloader_idx = step_name != "train"
+        seq_len_stats = metrics.sequence_lengths(
+            batch["labels"], self.tokenizer.sep_token_id
+        )
+        doc_len_stats = metrics.document_lengths(
+            batch["labels"], self.tokenizer.bos_token_id
+        )
+        sep_tokens_in_batch = (
+            (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
+        )
+        start_of_doc_tokens_in_batch = (
+            (batch["labels"] == self.tokenizer.bos_token_id).sum().item()
+        )
+        for reduce_fx in ["min", "max", "mean"]:
+            self.log(
+                name=f"{step_name}/{reduce_fx}_seq_len_in_batch",
+                value=seq_len_stats[f"{reduce_fx}_seq_length"],
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=add_dataloader_idx,
+            )
+            self.log(
+                name=f"{step_name}/{reduce_fx}_doc_len_in_batch",
+                value=doc_len_stats[f"{reduce_fx}_doc_length"],
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=add_dataloader_idx,
+            )
+            self.log(
+                name=f"{step_name}/{reduce_fx}_sep_tokens_in_batch",
+                value=sep_tokens_in_batch,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=add_dataloader_idx,
+            )
+            self.log(
+                name=f"{step_name}/{reduce_fx}_start_of_doc_tokens_in_batch",
+                value=start_of_doc_tokens_in_batch,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=add_dataloader_idx,
             )
 
     def training_step(
@@ -568,6 +624,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids=this_input_ids,
                 past_key_values=cache,
                 use_cache=True,
+                force_forward_with_no_positions=True,
                 **forward_kwargs,
             )
             labels = torch.where(
@@ -734,7 +791,15 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
             generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
-        bad_aas = ["X", "x"]
+        bad_aas = [
+            "X",
+            "x",
+            "B",
+            "J",
+            "O",
+            "U",
+            "Z",
+        ]
         if not sample_gaps:
             bad_aas.append("-")
         if structure_tokens:
@@ -768,13 +833,18 @@ class BaseFamilyLitModule(BaseLitModule):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
             forward_kwargs = self.get_forward_kwargs(
-                {"residue_index": input_residue_index, "coords": input_coords}
+                {
+                    "residue_index": input_residue_index,
+                    "coords": input_coords,
+                    "force_forward_with_no_positions": True,
+                }
             )
             # TemperatureLogitsWarper
             # TODO: migrate to model.sample
             # N.B. we need to be careful about generationconfig -- in particular eos token id
             # if we want to generate multiple sequences in a single family: we either need to restore eos token id
             # or we just do a batched generation like we do here. latter is more explicit.
+            # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1908
             outputs = self.model.generate(
                 input_ids=input_ids,
                 num_return_sequences=num_return_sequences,

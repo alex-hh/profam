@@ -53,6 +53,7 @@ def accuracy_from_outputs(
     ignore_token_ids: Optional[List[int]] = None,
     mask=None,
     sep_token_id=None,
+    bos_token_id=None,
     calc_full_no_context_accuracies: bool = False,
 ):
     """Compute the accuracy of the target sequence given the model outputs.
@@ -68,29 +69,56 @@ def accuracy_from_outputs(
     """
     if calc_full_no_context_accuracies:
         assert sep_token_id is not None
-        # cat ensures that sep token is included in the prev sequence for index
-        sequence_indices = torch.cat(
-            [
-                torch.zeros(labels.shape[0], 1, device=labels.device),
-                torch.cumsum(labels == sep_token_id, dim=-1)[:, :-1],
-            ],
-            dim=-1,
-        )
-        # TODO: assert that last non-padding token is a sep token (in pre-sliced labels)
-        # TODO: write test
-        first_sequence_mask = sequence_indices == 0
-        last_sequence_mask = (
-            sequence_indices == sequence_indices[:, -1:] - 1
-        )  # -1 because padding tokens will get extra seq index having seen final sep
+        assert bos_token_id is not None
 
+        # Calculate document indices using BOS tokens
+        document_indices = torch.cumsum(
+            labels == bos_token_id, dim=-1
+        )  # (batch, seq_len)
+        # Calculate sequence indices that reset at each document
+        sep_mask = (labels == sep_token_id).long()
+        sequence_indices = torch.zeros_like(document_indices)
+        last_sequence_mask = torch.zeros_like(sequence_indices, dtype=torch.bool)
+
+        for b in range(labels.size(0)):
+            unique_docs = torch.unique(document_indices[b])
+            for doc in unique_docs:
+                doc_mask = document_indices[b] == doc
+                doc_span = torch.where(doc_mask)[0]
+                if len(doc_span) == 0:
+                    continue
+                start, end = doc_span[0], doc_span[-1] + 1
+                doc_sep = sep_mask[b, start:end]
+                one_doc_seq_indices = torch.cat(
+                    [
+                        torch.tensor([0], device=labels.device),
+                        doc_sep.cumsum(dim=0)[:-1],
+                    ]
+                )
+                sequence_indices[b, start:end] = one_doc_seq_indices
+                max_seq = one_doc_seq_indices.max()
+                if ignore_index in labels[b, doc_mask]:
+                    max_seq = max_seq - 1
+                # bitwise OR to ensure we don't overwrite previous max_seqs
+                last_sequence_mask[b] |= (sequence_indices[b] == max_seq) & doc_mask
+
+        first_sequence_mask = sequence_indices == 0
         first_sequence_mask = first_sequence_mask[:, start_ix + 1 :]
         last_sequence_mask = last_sequence_mask[:, start_ix + 1 :]
 
     labels = labels.clone()
 
+    # Combine bos_token_id with ignore_token_ids
+    combined_ignore = []
     if ignore_token_ids is not None:
-        ignore_token_ids = torch.tensor(ignore_token_ids).to(labels.device)
-        labels[torch.isin(labels, ignore_token_ids)] = ignore_index
+        combined_ignore.extend(ignore_token_ids)
+    if bos_token_id is not None:
+        combined_ignore.append(bos_token_id)
+    
+    if combined_ignore:
+        combined_ignore_tensor = torch.tensor(combined_ignore).to(labels.device)
+        labels[torch.isin(labels, combined_ignore_tensor)] = ignore_index
+
     logits = model_outputs.logits
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
@@ -143,3 +171,33 @@ def accuracy_from_outputs(
         accuracy_metrics.update(ds_accuracies)
 
     return accuracy_metrics
+
+
+def sequence_lengths(labels, sep_token_id):
+    sep_mask = labels == sep_token_id
+    positions = torch.where(sep_mask)[1]
+    sequence_lengths = torch.cat([positions[0].unsqueeze(0), positions.diff(dim=-1)])
+    result = {
+        "min_seq_length": sequence_lengths.min().item(),
+        "max_seq_length": sequence_lengths.max().item(),
+        "mean_seq_length": sequence_lengths.float().mean().item(),
+    }
+    return result
+
+
+def document_lengths(labels, start_of_doc_token_id):
+    start_of_doc_mask = labels == start_of_doc_token_id
+    positions = torch.cat(
+        (
+            torch.where(start_of_doc_mask)[1],
+            torch.tensor([labels.shape[-1]], device=labels.device),
+        ),  # Also wrapped value in list
+        dim=0,  # Explicitly specify dimension
+    )
+    doc_lengths = positions.diff(dim=-1)
+    result = {
+        "min_doc_length": doc_lengths.min().item(),
+        "max_doc_length": doc_lengths.max().item(),
+        "mean_doc_length": doc_lengths.float().mean().item(),
+    }
+    return result
