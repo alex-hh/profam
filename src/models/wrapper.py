@@ -208,7 +208,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if inputs["input_ids"].shape[-1] == 1:
             # on first forward pass inputs["input_ids"] is the full prompt
             # after first forward pass, inputs["input_ids"] is the last generated token
-            # only run this check after first forward pass
+            # only run this check after 1st forward pass is done and we are generating
             generated_token = input_ids[:, -1]
             if generated_token == self.tokenizer.sep_token_id or (
                 generated_token == self.tokenizer.seq_struct_sep_token_id
