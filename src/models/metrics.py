@@ -70,15 +70,16 @@ def accuracy_from_outputs(
     if calc_full_no_context_accuracies:
         assert sep_token_id is not None
         assert bos_token_id is not None
-        
+
         # Calculate document indices using BOS tokens
-        document_indices = torch.cumsum(labels == bos_token_id, dim=-1)  # (batch, seq_len)
-        
+        document_indices = torch.cumsum(
+            labels == bos_token_id, dim=-1
+        )  # (batch, seq_len)
         # Calculate sequence indices that reset at each document
         sep_mask = (labels == sep_token_id).long()
         sequence_indices = torch.zeros_like(document_indices)
         last_sequence_mask = torch.zeros_like(sequence_indices, dtype=torch.bool)
-        
+
         for b in range(labels.size(0)):
             unique_docs = torch.unique(document_indices[b])
             for doc in unique_docs:
@@ -88,13 +89,17 @@ def accuracy_from_outputs(
                     continue
                 start, end = doc_span[0], doc_span[-1] + 1
                 doc_sep = sep_mask[b, start:end]
-                one_doc_seq_indices = torch.cat([
-                    torch.tensor([0], device=labels.device), 
-                    doc_sep.cumsum(dim=0)[:-1]
-                    ])
+                one_doc_seq_indices = torch.cat(
+                    [
+                        torch.tensor([0], device=labels.device),
+                        doc_sep.cumsum(dim=0)[:-1],
+                    ]
+                )
                 sequence_indices[b, start:end] = one_doc_seq_indices
                 max_seq = one_doc_seq_indices.max()
-                #bitwise OR to ensure we don't overwrite previous max_seqs
+                if ignore_index in labels[b, doc_mask]:
+                    max_seq = max_seq - 1
+                # bitwise OR to ensure we don't overwrite previous max_seqs
                 last_sequence_mask[b] |= (sequence_indices[b] == max_seq) & doc_mask
 
         first_sequence_mask = sequence_indices == 0
@@ -103,9 +108,17 @@ def accuracy_from_outputs(
 
     labels = labels.clone()
 
+    # Combine bos_token_id with ignore_token_ids
+    combined_ignore = []
     if ignore_token_ids is not None:
-        ignore_token_ids = torch.tensor(ignore_token_ids).to(labels.device)
-        labels[torch.isin(labels, ignore_token_ids)] = ignore_index
+        combined_ignore.extend(ignore_token_ids)
+    if bos_token_id is not None:
+        combined_ignore.append(bos_token_id)
+    
+    if combined_ignore:
+        combined_ignore_tensor = torch.tensor(combined_ignore).to(labels.device)
+        labels[torch.isin(labels, combined_ignore_tensor)] = ignore_index
+
     logits = model_outputs.logits
     # Shift so that tokens < n predict n
     shift_logits = logits[..., start_ix:-1, :].contiguous()  # b, L, V
