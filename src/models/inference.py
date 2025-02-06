@@ -138,21 +138,18 @@ class ProFamSampler:
             padding="longest",
             add_final_sep=False,
         )
+        input_ids = torch.tensor(encoded["input_ids"]).unsqueeze(0).to(self.model.device)
+        input_residue_index = torch.tensor(encoded["residue_index"]).unsqueeze(0).to(self.model.device)
+        # n.b. preprocessing will produce coords for every input even when missing - careful about this
+        input_coords = torch.tensor(encoded["coords"]).unsqueeze(0).to(self.model.device).float() if self.model.embed_coords else None
 
         with torch.no_grad():  # prob unnecessary
             tokens = self.model._sample_seqs(
-                encoded["input_ids"].unsqueeze(0).to(self.model.device),
-                max_tokens=self.prompt_builder.max_tokens,
+                input_ids,
+                max_tokens=self.prompt_builder.preprocessor.cfg.max_tokens_per_example,
                 num_samples=num_samples,
-                input_residue_index=encoded["residue_index"]
-                .unsqueeze(0)
-                .to(self.model.device),
-                input_coords=encoded["coords"]
-                .unsqueeze(0)
-                .to(self.model.device)
-                .float()
-                if self.model.embed_coords
-                else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
+                input_residue_index=input_residue_index,
+                input_coords=input_coords,
                 **sampling_kwargs,
             )
             sequences = self.model.tokenizer.decode_tokens(tokens)

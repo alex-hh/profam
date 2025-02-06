@@ -15,7 +15,13 @@ def load_named_model(model_name, overrides=None):
         model_cfg = compose(
             config_name=f"model/{model_name}", overrides=model_overrides
         )
-        tokenizer_cfg = compose(config_name=f"tokenizer/profam")
+        tokenizer_cfg = compose(
+            config_name=f"tokenizer/profam",
+            overrides=[
+                f"tokenizer.max_res_pos_in_seq={model_cfg.model.max_res_pos_in_seq}",
+                f"tokenizer.embed_residue_index={model_cfg.model.embed_residue_index}",
+            ],
+        )
 
     tokenizer = instantiate(tokenizer_cfg.tokenizer)
     model = instantiate(model_cfg.model, tokenizer=tokenizer)
