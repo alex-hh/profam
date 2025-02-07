@@ -354,7 +354,7 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
-                name=f"{step_name}/{reduce_fx}_doc_len_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_doc_len_in_batch",
                 value=doc_len_stats[f"{reduce_fx}_doc_length"],
                 on_step=True,
                 on_epoch=False,
@@ -363,7 +363,7 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
-                name=f"{step_name}/{reduce_fx}_sep_tokens_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_sep_tokens_in_batch",
                 value=sep_tokens_in_batch,
                 on_step=True,
                 on_epoch=False,
@@ -372,7 +372,7 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
-                name=f"{step_name}/{reduce_fx}_start_of_doc_tokens_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_start_of_doc_tokens_in_batch",
                 value=start_of_doc_tokens_in_batch,
                 on_step=True,
                 on_epoch=False,
