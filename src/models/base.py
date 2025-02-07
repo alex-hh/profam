@@ -345,7 +345,7 @@ class BaseLitModule(LightningModule):
         )
         for reduce_fx in ["min", "max", "mean"]:
             self.log(
-                name=f"{step_name}/{reduce_fx}_seq_len_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_seq_len_in_batch",
                 value=seq_len_stats[f"{reduce_fx}_seq_length"],
                 on_step=True,
                 on_epoch=False,
