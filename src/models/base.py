@@ -470,6 +470,7 @@ class BaseFamilyLitModule(BaseLitModule):
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
         embed_residue_index: bool = True,
+        optimizer: str = "adamw",
     ):
         super().__init__(
             model,
@@ -480,6 +481,7 @@ class BaseFamilyLitModule(BaseLitModule):
             num_warmup_steps=num_warmup_steps,
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
+            optimizer=optimizer,
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
