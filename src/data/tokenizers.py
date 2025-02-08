@@ -348,26 +348,25 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             truncation=False,
             add_special_tokens=False,
         )
-        if self.embed_residue_index:
-            all_residue_indices = []
-            for i, seq in enumerate(sequences):
-                if residue_positions is None:
-                    res_positions = [list(range(1, len(seq) + 1))]
-                else:
-                    res_positions = [residue_positions[i]]
-                all_residue_indices.append(
-                    get_residue_index_from_positions(
-                        tokenized.input_ids[i],
-                        res_positions,
-                        pad_token_id=self.pad_token_id,
-                        max_res_pos_in_seq=self.max_res_pos_in_seq,
-                        num_start_tokens=1
-                        if bos_token
-                        else 0,  # just bos_token no doc as now completing prompt
-                        num_end_tokens=1 if eos_token else 0,
-                    )
+        all_residue_indices = []
+        for i, seq in enumerate(sequences):
+            if residue_positions is None:
+                res_positions = [list(range(1, len(seq) + 1))]
+            else:
+                res_positions = [residue_positions[i]]
+            all_residue_indices.append(
+                get_residue_index_from_positions(
+                    tokenized.input_ids[i],
+                    res_positions,
+                    pad_token_id=self.pad_token_id,
+                    max_res_pos_in_seq=self.max_res_pos_in_seq,
+                    num_start_tokens=1
+                    if bos_token
+                    else 0,  # just bos_token no doc as now completing prompt
+                    num_end_tokens=1 if eos_token else 0,
                 )
-            tokenized.data["residue_index"] = np.stack(all_residue_indices)
+            )
+        tokenized.data["residue_index"] = np.stack(all_residue_indices)
 
         return tokenized
 

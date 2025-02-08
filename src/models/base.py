@@ -80,11 +80,11 @@ class BaseLitModule(LightningModule):
         self.num_training_steps = num_training_steps
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
+        self.optimizer = optimizer
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        optimizer_name = self.hparams.get("optimizer", "adamw")
-        print(f"Using optimizer {optimizer_name}")
-        if optimizer_name == "adamw":
+        print(f"Using optimizer {self.optimizer}")
+        if self.optimizer == "adamw":
             optimizer = torch.optim.AdamW(
                 self.parameters(),
                 lr=self.lr,
@@ -92,7 +92,7 @@ class BaseLitModule(LightningModule):
                 betas=(0.9, 0.95),
                 eps=self.eps,
             )
-        elif optimizer_name == "lion":
+        elif self.optimizer == "lion":
             from bitsandbytes.optim import Lion
 
             optimizer = Lion(
@@ -101,7 +101,7 @@ class BaseLitModule(LightningModule):
                 weight_decay=self.weight_decay,
                 betas=(0.9, 0.99),
             )
-        elif optimizer_name == "lion8bit":
+        elif self.optimizer == "lion8bit":
             from bitsandbytes.optim import Lion8bit
 
             optimizer = Lion8bit(
@@ -111,7 +111,7 @@ class BaseLitModule(LightningModule):
                 betas=(0.9, 0.99),
             )
         else:
-            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
+            raise ValueError(f"Unsupported optimizer: {self.optimizer}")
 
         optim_dict = {"optimizer": optimizer}
         if self.scheduler_name is not None:

@@ -70,6 +70,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         embed_coords: bool = False,
         start_residue_index: int = 2,
         embed_sequence_index: bool = False,
+        embed_residue_index: bool = True,
         pass_constant_position_ids: bool = False,
         pass_res_pos_in_seq_as_position_ids: bool = False,
         pass_res_pos_in_doc_as_position_ids: bool = False,
@@ -77,7 +78,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
     ):
         super().__init__(config)
         self.tokenizer = tokenizer
-        self.embed_residue_index = tokenizer.embed_residue_index
+        self.embed_residue_index = embed_residue_index
         self.start_residue_index = (
             start_residue_index  # TODO: double-check this is consistent
         )
@@ -86,7 +87,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             self, token_embedder
         )  # TODO: use self.embed_tokens or sthg
         self.require_residue_index = require_residue_index
-        self.tokenizer = tokenizer
         self.embed_coords = embed_coords
         self.start_residue_index = start_residue_index
         self.num_atoms = 4
@@ -114,7 +114,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 embedding_dim,
                 bias=False,
             )
-        if self.tokenizer.embed_residue_index:
+        if self.embed_residue_index:
             self.residue_index_embedding = nn.Embedding(
                 self.tokenizer.max_res_pos_in_seq, embedding_dim
             )
