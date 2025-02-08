@@ -65,6 +65,7 @@ def tokenize_completions(
     sample["completion_residue_index"] = tokenized.data["residue_index"]
     return sample
 
+
 def tokenize(
     sample,
     tokenizer: PreTrainedTokenizerFast,

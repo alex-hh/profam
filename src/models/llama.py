@@ -9,6 +9,7 @@ from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
 
 class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
     """N.B. to use packing with flash attention, we need to explicitly pass position_ids."""
+
     def __init__(
         self,
         config: LlamaConfig,
@@ -109,8 +110,8 @@ class LlamaLitModule(BaseFamilyLitModule):
             optimizer=optimizer,
         )
 
+
 class SimpleLlamaLitModule(LlamaLitModule):
-    
     def __init__(
         self,
         config: LlamaConfig,
