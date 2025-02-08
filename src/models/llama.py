@@ -35,6 +35,7 @@ class LlamaSingleSequenceLitModule(BaseSingleSequenceLitModule):
             optimizer=optimizer,
         )
 
+
 class WrappedLlamaForCausalLM(
     WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
 ):
@@ -71,8 +72,6 @@ class LlamaLitModule(BaseFamilyLitModule):
         """
         if embed_residue_index or embed_coords:
             # had to remove these as they break testing
-            # assert embed_residue_index == tokenizer.embed_residue_index
-            # assert max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
             model = WrappedLlamaForCausalLM(
                 config,
                 token_embedder="model.embed_tokens",
@@ -106,6 +105,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
             embed_coords=embed_coords,
+            embed_residue_index=embed_residue_index,
             optimizer=optimizer,
         )
 

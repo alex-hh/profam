@@ -385,7 +385,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         # in this case model's position ids will be inferred from inputs_embeds
         inputs_embeds = self.token_embedder(input_ids)
-        if self.tokenizer.embed_residue_index:
+        if self.embed_residue_index:
             if self.require_residue_index:
                 assert residue_index is not None
             if residue_index is not None:

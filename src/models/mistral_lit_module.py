@@ -26,17 +26,13 @@ class MistralLitModule(BaseFamilyLitModule):
         num_training_steps: Optional[int] = None,
         embed_coords: bool = False,
         embed_sequence_index: bool = False,
+        embed_residue_index: bool = True,
         pass_constant_position_ids: bool = False,
         pass_seq_pos_in_doc_as_position_ids: bool = False,
         max_seq_pos_in_doc: int = 1024,
-        embed_residue_index: bool = True,
-        max_res_pos_in_seq: int = 4096,
         optimizer: str = "adamw",
     ) -> None:
-        if tokenizer.embed_residue_index or embed_coords:
-            # had to remove these as they break testing
-            # assert embed_residue_index == tokenizer.embed_residue_index
-            # assert max_res_pos_in_seq == tokenizer.max_res_pos_in_seq
+        if embed_residue_index or embed_coords:
             model = WrappedMistralForCausalLM(
                 config,
                 "model.embed_tokens",
@@ -44,6 +40,7 @@ class MistralLitModule(BaseFamilyLitModule):
                 embedding_dim=config.hidden_size,
                 embed_coords=embed_coords,
                 embed_sequence_index=embed_sequence_index,
+                embed_residue_index=embed_residue_index,
                 max_seq_pos_in_doc=max_seq_pos_in_doc,
                 pass_constant_position_ids=pass_constant_position_ids,
                 pass_seq_pos_in_doc_as_position_ids=pass_seq_pos_in_doc_as_position_ids,
@@ -61,4 +58,6 @@ class MistralLitModule(BaseFamilyLitModule):
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
             embed_coords=embed_coords,
+            embed_residue_index=embed_residue_index,
+            optimizer=optimizer,
         )

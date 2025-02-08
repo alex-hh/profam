@@ -127,7 +127,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         *args,
         add_bos_token: bool = True,
         add_document_token: bool = True,
-        embed_residue_index: bool = False,
         max_res_pos_in_seq: int = 1024,
         seq_struct_sep_token="|",
         **kwargs,
@@ -135,7 +134,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
         self.add_document_token = add_document_token
-        self.embed_residue_index = embed_residue_index
         self.max_res_pos_in_seq = max_res_pos_in_seq
         self.seq_struct_sep_token = seq_struct_sep_token
 

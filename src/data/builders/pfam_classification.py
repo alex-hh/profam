@@ -58,8 +58,7 @@ def pfam_sample_from_msa_path(
         shuffle=True,
     )
     tokenized_msa["completion_ids"] = tokenized_eval_seqs.input_ids
-    if tokenizer.embed_residue_index:
-        tokenized_msa["completion_residue_index"] = tokenized_eval_seqs.residue_index
+    tokenized_msa["completion_residue_index"] = tokenized_eval_seqs.residue_index
     fam_id = msa_path["msa_paths"].split("/")[-1].split("_")[0]
     tokenized_msa["family_id"] = fam_id
     eval_fam_names = [n.split("_")[-1] for n in eval_names]
@@ -179,8 +178,7 @@ def load_pfam_classification_dataset(
         "ds_name",
         "eval_fam_ids",
     ]
-    if tokenizer.embed_residue_index:
-        columns += ["residue_index", "completion_residue_index"]
+    columns += ["residue_index", "completion_residue_index"]
 
     dataset.set_format(
         type="torch",

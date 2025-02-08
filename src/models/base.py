@@ -469,6 +469,7 @@ class BaseFamilyLitModule(BaseLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
+        embed_residue_index: bool = True,
     ):
         super().__init__(
             model,
@@ -482,7 +483,7 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
-        self.embed_residue_index = self.tokenizer.embed_residue_index
+        self.embed_residue_index = embed_residue_index
         self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
         self.embed_coords = embed_coords
         self.embed_sequence_index = self.model.embed_sequence_index

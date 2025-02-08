@@ -38,8 +38,7 @@ def tokenize_msa(
         proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
-    if tokenizer.embed_residue_index:
-        sample["residue_index"] = tokenized.data["residue_index"]
+    sample["residue_index"] = tokenized.data["residue_index"]
     return sample
 
 
@@ -63,10 +62,8 @@ def tokenize_completions(
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
-    if tokenizer.embed_residue_index:
-        sample["completion_residue_index"] = tokenized.data["residue_index"]
+    sample["completion_residue_index"] = tokenized.data["residue_index"]
     return sample
-
 
 def tokenize(
     sample,
@@ -303,8 +300,7 @@ class ProteinGymDataset(BaseProteinDataset):
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
         columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
-        if tokenizer.embed_residue_index:
-            columns += ["residue_index", "completion_residue_index"]
+        columns += ["residue_index", "completion_residue_index"]
 
         # TODO: what is right here?
         dataset.set_format(
