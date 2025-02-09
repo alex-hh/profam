@@ -23,7 +23,6 @@ def profam_tokenizer():
         sep_token="[SEP]",
         mask_token="?",
         seq_struct_sep_token="|",
-        embed_residue_index=True,
         max_res_pos_in_seq=2048,
         max_tokens=2048,
         mask_below_plddt=None,
@@ -32,25 +31,7 @@ def profam_tokenizer():
 
 
 @pytest.fixture(scope="package")
-def profam_tokenizer_noseqpos():
-    tokenizer = ProFamTokenizer(
-        tokenizer_file=os.path.join(BASEDIR, "data/profam_tokenizer.json"),
-        unk_token="[UNK]",
-        pad_token="[PAD]",
-        bos_token="[start-of-document]",
-        sep_token="[SEP]",
-        mask_token="?",
-        seq_struct_sep_token="|",
-        embed_residue_index=False,
-        max_res_pos_in_seq=2048,
-        max_tokens=2048,
-        mask_below_plddt=None,
-    )
-    return tokenizer
-
-
-@pytest.fixture(scope="package")
-def test_model_noseqpos(profam_tokenizer_noseqpos):
+def test_model_noseqpos(profam_tokenizer):
     # otherwise could do this via overrides...
     with initialize(config_path="../configs", version_base="1.3"):
         cfg = compose(
@@ -59,9 +40,10 @@ def test_model_noseqpos(profam_tokenizer_noseqpos):
             overrides=[
                 "model=llama_test",
                 "model.embed_sequence_index=False",
+                "model.embed_residue_index=False",
             ],
         )
-    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
+    return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
 
 @pytest.fixture(scope="package")
@@ -73,6 +55,7 @@ def test_model(profam_tokenizer):
             overrides=[
                 "model=llama_test",
                 "model.embed_sequence_index=True",
+                "model.embed_residue_index=True",
             ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)

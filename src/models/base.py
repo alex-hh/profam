@@ -488,7 +488,6 @@ class BaseFamilyLitModule(BaseLitModule):
         self.embed_residue_index = embed_residue_index
         self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
         self.embed_coords = embed_coords
-        self.embed_sequence_index = self.model.embed_sequence_index
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
