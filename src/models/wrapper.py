@@ -434,8 +434,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             position_ids = residue_index
         elif past_key_values is not None:
             assert (
-                (input_ids == self.tokenizer.bos_token_id).sum() <= 1
-            ), "Sequence packing not supported with past_key_values"
+                input_ids == self.tokenizer.bos_token_id
+            ).sum() <= 1, "Sequence packing not supported with past_key_values"
             position_ids = None
         elif self.pass_res_pos_in_doc_as_position_ids:
             position_ids = self.compute_res_pos_in_doc(input_ids)
