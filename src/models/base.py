@@ -624,7 +624,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids=this_input_ids,
                 past_key_values=cache,
                 use_cache=True,
-                force_forward_with_no_positions=True,
                 **forward_kwargs,
             )
             labels = torch.where(
@@ -836,7 +835,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 {
                     "residue_index": input_residue_index,
                     "coords": input_coords,
-                    "force_forward_with_no_positions": True,
                 }
             )
             # TemperatureLogitsWarper
