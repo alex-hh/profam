@@ -51,7 +51,7 @@ class ProteinDataMixture(LightningDataModule):
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
-        prefetch_factor: int = 2,
+        prefetch_factor: Optional[int] = None,
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -68,7 +68,7 @@ class ProteinDataMixture(LightningDataModule):
         # N.B. feature names only needs to be applied for training
         # i.e. to standardise features across interleaved datasets
         self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
-        self.prefetch_factor = prefetch_factor
+        self.prefetch_factor = prefetch_factor if num_workers is not None else None
         self.train_collator = DocumentBatchCollator(
             self.tokenizer,
             ignore_gaps=ignore_gaps,

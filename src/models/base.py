@@ -3,7 +3,6 @@ import time
 import warnings
 from datetime import datetime
 from typing import Any, Dict, Optional
-
 import hydra
 import numpy as np
 import torch
@@ -152,6 +151,12 @@ class BaseLitModule(LightningModule):
         # past key values in same way wrt e.g. position ids.
         if not (input_ids[:, 0] == self.tokenizer.bos_token_id).all():
             raise ValueError("Documents must start with a bos token")
+            # note that when sampling we don't end up here, rather we call:
+            # BaseLitModule.model.generate()
+            # similarly, when using score_seqs (eg. protein_gym) we go via:
+            # BaseLitModule.model.forward()
+            # in general we assume that if you call BaseLitModule.forward()
+            # you are not using KV cache.
 
         return self.model(
             input_ids=input_ids,
@@ -234,6 +239,7 @@ class BaseLitModule(LightningModule):
                         + self.tokenizer.all_special_tokens
                     ),
                     sep_token_id=self.tokenizer.sep_token_id,
+                    bos_token_id=self.tokenizer.bos_token_id,
                     calc_full_no_context_accuracies=True,
                     mask=(aa_has_coords_mask & batch["aa_mask"]),
                 )
@@ -261,6 +267,7 @@ class BaseLitModule(LightningModule):
                     ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
                 ),
                 sep_token_id=self.tokenizer.sep_token_id,
+                bos_token_id=self.tokenizer.bos_token_id,
                 calc_full_no_context_accuracies=True,
             )
             global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
@@ -337,7 +344,7 @@ class BaseLitModule(LightningModule):
         )
         for reduce_fx in ["min", "max", "mean"]:
             self.log(
-                name=f"{step_name}/{reduce_fx}_seq_len_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_seq_len_in_batch",
                 value=seq_len_stats[f"{reduce_fx}_seq_length"],
                 on_step=True,
                 on_epoch=False,
@@ -346,7 +353,7 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
-                name=f"{step_name}/{reduce_fx}_doc_len_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_doc_len_in_batch",
                 value=doc_len_stats[f"{reduce_fx}_doc_length"],
                 on_step=True,
                 on_epoch=False,
@@ -355,7 +362,7 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
-                name=f"{step_name}/{reduce_fx}_sep_tokens_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_sep_tokens_in_batch",
                 value=sep_tokens_in_batch,
                 on_step=True,
                 on_epoch=False,
@@ -364,7 +371,7 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=add_dataloader_idx,
             )
             self.log(
-                name=f"{step_name}/{reduce_fx}_start_of_doc_tokens_in_batch",
+                name=f"{step_name}/token_stats/{reduce_fx}_start_of_doc_tokens_in_batch",
                 value=start_of_doc_tokens_in_batch,
                 on_step=True,
                 on_epoch=False,
@@ -619,13 +626,14 @@ class BaseFamilyLitModule(BaseLitModule):
             actual_batch_size = this_input_ids.shape[0]
             cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
             cache.batch_repeat_interleave(actual_batch_size)  # careful: returns None!
-
+            # fmt: off
             outputs = self.model(
                 input_ids=this_input_ids,
                 past_key_values=cache,
                 use_cache=True,
                 **forward_kwargs,
             )
+            # fmt: on
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
                 -100,
@@ -1171,11 +1179,11 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=True,
             on_epoch=False,
         )
-        if "identifier" in batch:
-            for i, (dataset, doc_id) in enumerate(
-                zip(batch["ds_name"].text, batch["identifier"].text)
-            ):
-                self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
-                self.doc_id_counts[dataset][doc_id] = (
-                    self.doc_id_counts[dataset].get(doc_id, 0) + 1
-                )
+        # if "identifier" in batch:
+        #     for i, (dataset, doc_id) in enumerate(
+        #         zip(batch["ds_name"].text, batch["identifier"].text)
+        #     ):
+        #         self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
+        #         self.doc_id_counts[dataset][doc_id] = (
+        #             self.doc_id_counts[dataset].get(doc_id, 0) + 1
+        #         )

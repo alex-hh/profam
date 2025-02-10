@@ -139,7 +139,7 @@ class ProFamSampler:
             prompt,
             document_token=self.document_token,
             padding="longest",
-            add_final_sep=True,  # JW: this needs to be true there is an assert later
+            add_final_sep=False,  # add sep token prior to this point
         )
         # Convert numpy arrays to torch tensors if needed
         for key in encoded:
