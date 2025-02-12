@@ -632,9 +632,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 input_ids=this_input_ids,
                 past_key_values=cache,
                 use_cache=True,
-                # llama will start position ids from last seen token in cache:
-                # https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py#L556
-                force_forward_with_no_positions=True,
                 **forward_kwargs,
             )
             # fmt: on
@@ -847,7 +844,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 {
                     "residue_index": input_residue_index,
                     "coords": input_coords,
-                    "force_forward_with_no_positions": True,
                 }
             )
             # TemperatureLogitsWarper
