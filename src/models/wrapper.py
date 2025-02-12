@@ -419,15 +419,24 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return inputs_embeds
 
     def get_position_ids_for_model_forward(
-        self, input_ids, residue_index, position_ids
+        self, input_ids, residue_index, position_ids, past_key_values
     ):
         if self.pass_constant_position_ids:
             assert position_ids is None
             position_ids = torch.full_like(input_ids, 10).long()
         elif self.pass_res_pos_in_seq_as_position_ids:
             assert position_ids is None
+            if past_key_values is not None:
+                raise NotImplementedError(
+                    "res_pos_in_seq_as_position_ids not implemented with past_key_values"
+                )
             assert residue_index is not None
             position_ids = residue_index
+        elif past_key_values is not None:
+            assert (
+                input_ids == self.tokenizer.bos_token_id
+            ).sum() <= 1, "Sequence packing not supported with past_key_values"
+            position_ids = None
         elif self.pass_res_pos_in_doc_as_position_ids:
             position_ids = self.compute_res_pos_in_doc(input_ids)
         return position_ids
@@ -445,9 +454,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         coords: Optional[torch.FloatTensor] = None,
-        force_forward_with_no_positions: Optional[
-            bool
-        ] = False,  # eg. when called by score_seqs
         **kwargs,  # e.g. labels
     ):
         assert (
@@ -475,12 +481,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if start_sequence_index is not None
             else None,  # broadcast to input ids
         )
-        if force_forward_with_no_positions or past_key_values is not None:
-            position_ids = None
-        else:
-            position_ids = self.get_position_ids_for_model_forward(
-                input_ids, residue_index, position_ids
-            )
+
+        position_ids = self.get_position_ids_for_model_forward(
+            input_ids, residue_index, position_ids, past_key_values
+        )
 
         outputs = super().forward(
             input_ids=None,

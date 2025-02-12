@@ -226,12 +226,14 @@ class Protein:
 
 
 def check_array_lengths(*arrays):  # TODO: name better!
+
     sequence_lengths = []
     for arr in arrays:
         if arr is None:
             continue
-        else:
-            sequence_lengths.append(tuple([len(seq) for seq in arr]))
+        if isinstance(arr[0], str):
+            arr = [s.replace("[SEP]", "/") for s in arr]  # replace [SEP] w single char?
+        sequence_lengths.append(tuple([len(seq) for seq in arr]))
 
     assert all(
         l == sequence_lengths[0] for l in sequence_lengths

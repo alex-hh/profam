@@ -63,37 +63,12 @@ def test_single_doc_single_batch():
 def test_sequence_packing():
     """Test sequence packing case (batch_size=1 with single document multiple sequences)"""
     # Document structure: [BOS] seq1 [SEP] seq2 [SEP] seq3 [SEP]
-    labels = torch.tensor(
-        [
-            [
-                1,
-                2,
-                2,
-                4,
-                2,
-                2,
-                4,  # 2seq doc
-                1,
-                2,
-                2,
-                4,
-                2,
-                2,
-                2,
-                4,  # 2seq doc
-                1,
-                2,
-                4,
-                2,
-                2,
-                4,
-                2,
-                2,
-                2,
-                4,  # 3seq doc
-            ]
-        ]
-    )
+    # fmt: off
+    labels = torch.tensor([[1, 2, 2, 4, 2, 2, 4,  #2seq doc
+                            1, 2, 2, 4, 2, 2, 2, 4, #2seq doc
+                            1, 2, 4, 2, 2, 4, 2, 2, 2, 4 #3seq doc
+                            ]])
+    # fmt: on
     total_predictable_tokens = labels.shape[-1] - 3
     # Make perfect predictions
     logits = torch.zeros(1, labels.shape[-1], 100)  # (batch, seq_len, vocab)
@@ -167,16 +142,19 @@ def test_multiple_documents_batch_dim():
     """Test batch_size >1 with separate documents in batch dimension"""
     # Batch 0: [BOS] A [SEP] B [SEP]
     # Batch 1: [BOS] C [SEP]
-
+    # fmt: off
     labels_list = [
-        torch.tensor([[1, 2, 3, 4, 2, 3, 4], [1, 5, 3, 4, -100, -100, -100]]),
-        torch.tensor(
-            [
-                [1, 2, 3, 5, 6, 4, 6, 5, 4, 3, 4, 3, 2, 4],
-                [1, 2, 2, 2, 4, 2, 2, 4, 2, 2, 4, 2, 4, -100],
-            ]
-        ),
+        torch.tensor([
+        [1, 2, 3, 4, 2,    3,    4   ],
+        [1, 5, 3, 4, -100, -100, -100]
+        ]),
+
+        torch.tensor([
+            [1, 2, 3, 5, 6, 4, 6, 5, 4, 3, 4, 3, 2, 4],
+            [1, 2, 2, 2, 4, 2, 2, 4, 2, 2, 4, 2, 4, -100]
+        ]),
     ]
+    # fmt: on
     for labels in labels_list:
         # Create logits with perfect predictions
         logits = torch.zeros(labels.shape[0], labels.shape[1], 100)
@@ -207,15 +185,42 @@ def test_multiple_documents_batch_dim():
             acc_metrics["ds2_first_sequence"], torch.tensor(1.0)
         )  # position 1
 
+    # Now introduce some errors
+    logits[0, 1, 3] = -1000  # incorrect in first batch, first sequence
+    logits[1, 2, 2] = -1000  # incorrect in second batch, first sequence
+
+    acc_metrics = metrics.accuracy_from_outputs(
+        outputs,
+        labels,
+        start_ix=0,
+        sep_token_id=4,
+        bos_token_id=1,
+        dataset_names=["ds1", "ds2"],
+        calc_full_no_context_accuracies=True,
+    )
+
+    # First sequence accuracies with errors
+    assert torch.isclose(acc_metrics["ds1_first_sequence"], torch.tensor(0.8))
+    assert torch.isclose(acc_metrics["ds2_first_sequence"], torch.tensor(0.75))
+    assert torch.isclose(acc_metrics["ds1_last_sequence"], torch.tensor(1.0))
+    assert torch.isclose(acc_metrics["ds2_last_sequence"], torch.tensor(1.0))
+    # Global accuracy: (total correct)/(total predictable)
+
+    total_predictable = labels.shape[-1] * 2 - 3
+    total_correct = total_predictable - 2  # 2 errors
+    assert torch.isclose(
+        acc_metrics["global"], torch.tensor(total_correct / total_predictable)
+    )
+
 
 def test_single_sequence_document():
     """Test documents with only one sequence (no SEP tokens)"""
-    labels = torch.tensor(
-        [
-            [1, 2, 3, 4, -100, -100],  # Single sequence
-            [1, 4, 5, 6, 4, -100],  # Single sequence
-        ]
-    )
+    # fmt: off
+    labels = torch.tensor([
+        [1, 2, 3, 4, -100, -100],  # Single sequence
+        [1, 4, 5, 6, 4,    -100] # first seq is just a SEP
+    ])
+    # fmt: on
 
     logits = torch.zeros(labels.shape[0], labels.shape[1], 100)
     for b in range(labels.shape[0]):
@@ -238,10 +243,32 @@ def test_single_sequence_document():
     assert acc_metrics["global"] == acc_metrics["first_sequence"]
     assert acc_metrics["first_sequence"] == acc_metrics["last_sequence"]
 
+    # Introduce errors
+    logits[0, 1, 3] = -1000  # incorrect in first sequence
+    logits[1, 2, 6] = -1000  # incorrect in second sequence
+
+    acc_metrics = metrics.accuracy_from_outputs(
+        outputs,
+        labels,
+        start_ix=0,
+        sep_token_id=4,
+        bos_token_id=1,
+        calc_full_no_context_accuracies=True,
+    )
+
+    assert torch.isclose(acc_metrics["global"], torch.tensor(5 / 7))
+    assert torch.isclose(acc_metrics["first_sequence"], torch.tensor((2 + 1) / (3 + 1)))
+    assert torch.isclose(acc_metrics["last_sequence"], torch.tensor((2 + 2) / (3 + 3)))
+
 
 def test_padding_handling():
     """Test proper ignoring of padding tokens"""
-    labels = torch.tensor([[1, 2, 3, 4, -100, -100], [1, 5, 4, -100, -100, -100]])
+    # fmt: off
+    labels = torch.tensor([
+        [1, 2, 3, 4,    -100, -100],
+        [1, 5, 4, -100, -100, -100]
+    ])
+    # fmt: on
 
     # Create logits with some errors
     logits = torch.zeros(labels.shape[0], labels.shape[-1], 100)
@@ -298,12 +325,12 @@ def test_padding_handling():
 
 def test_mixed_dataset_batch():
     """Test batch with mixed dataset examples"""
-    labels = torch.tensor(
-        [
-            [1, 2, 3, 4, 2, 3, 4, -100],  # ds1
-            [1, 5, 3, 4, -100, -100, -100, -100],  # ds2
-        ]
-    )
+    # fmt: off
+    labels = torch.tensor([
+        [1, 2, 3, 4, 2,    3,    4,    -100],  # ds1
+        [1, 5, 3, 4, -100, -100, -100, -100]  # ds2
+    ])
+    # fmt: on
 
     logits = torch.zeros(labels.shape[0], labels.shape[-1], 100)
     for b in range(labels.shape[0]):
@@ -337,7 +364,11 @@ def test_edge_cases():
     logits = torch.randn(labels.shape[0], labels.shape[-1], 100)
 
     outputs = type("", (), {"logits": logits})()
-    acc_metrics = metrics.accuracy_from_outputs(outputs, labels, start_ix=0)
+    acc_metrics = metrics.accuracy_from_outputs(
+        outputs,
+        labels,
+        start_ix=0,
+    )
 
     # Should return NaN for global accuracy
     assert torch.isnan(acc_metrics["global"])
