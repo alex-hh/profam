@@ -114,7 +114,7 @@ def accuracy_from_outputs(
         combined_ignore.extend(ignore_token_ids)
     if bos_token_id is not None:
         combined_ignore.append(bos_token_id)
-    
+
     if combined_ignore:
         combined_ignore_tensor = torch.tensor(combined_ignore).to(labels.device)
         labels[torch.isin(labels, combined_ignore_tensor)] = ignore_index
