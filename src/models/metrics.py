@@ -97,9 +97,9 @@ def accuracy_from_outputs(
                 )
                 sequence_indices[b, start:end] = one_doc_seq_indices
                 max_seq = one_doc_seq_indices.max()
-                if ignore_index in labels[b, doc_mask]:
-                    max_seq = max_seq - 1
-                # bitwise OR to ensure we don't overwrite previous max_seqs
+                if labels[b, doc_mask][-1] == ignore_index:  # last token is padding
+                    max_seq = max_seq - 1  # avoid counting padding as seq
+                # bitwise OR to ensure we don't overwrite previous max_seqs:
                 last_sequence_mask[b] |= (sequence_indices[b] == max_seq) & doc_mask
 
         first_sequence_mask = sequence_indices == 0
