@@ -87,9 +87,9 @@ def _read_and_fix_parquet(parquet_file):
 
 
 def _count_rows_in_parquet(parquet_file):
-    """Helper function to read a parquet file and return its row count."""
+    """Helper function to read a parquet file and return its row count and columns."""
     df, columns = _read_and_fix_parquet(parquet_file)
-    return len(df) if df is not None else 0
+    return len(df) if df is not None else 0, columns  # Return both count and columns
 
 
 def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
@@ -219,6 +219,9 @@ def validate_parquets_parallel(
         )
 
         total_parent_rows = 0
+        # Initialize column tracking
+        all_columns = []
+
         # Use thread pool for counting rows
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -228,13 +231,14 @@ def validate_parquets_parallel(
             for future in as_completed(futures):
                 row_count, columns = future.result()
                 total_parent_rows += row_count
+                if columns:  # Capture columns from parent parquets
+                    all_columns.append(columns)
 
         logging.info(
             f"Total rows in parent parquets for {dataset_name}: {total_parent_rows}"
         )
 
         # Initialize column tracking
-        all_columns = []
         dataset_stats = {
             "dataset_id": dataset_id,
             "dataset_name": dataset_name,
