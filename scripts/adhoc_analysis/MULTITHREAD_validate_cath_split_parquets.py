@@ -64,7 +64,7 @@ DATASETS = {
         "name": "afdb_s50_single_seq_only",
         "parent_dir": "../data/afdb_s50_single",
         "split_dir": "../data/afdb_s50_single_seq_only/afdb_s50_single/train_val_test_split",
-    }
+    },
 }
 
 
