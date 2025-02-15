@@ -18,7 +18,7 @@ DATASETS = {
     1: {
         "name": "ted_s100",
         "parent_dir": "../data/ted/s100_parquets",
-        "split_dir": "../data/ted/s100_parquets/train_val_test_split_for_debug",
+        "split_dir": "../data/ted/s100_parquets/train_val_test_split",
     },
     2: {
         "name": "ted_s50",
@@ -160,7 +160,7 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
 
 def validate_parquets_parallel(
     dataset_ids=None,
-    output_dir="validate_cath_split_parquets_results",
+    output_dir="validate_parquets_2025_02_15",
     max_workers=64,
 ):
     """

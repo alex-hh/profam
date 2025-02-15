@@ -7,6 +7,7 @@
 #$ -N checkParqs5
 #$ -l gpu=true
 #$ -l hostname="bubba*"
+#$ -t 1-10
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -22,5 +23,5 @@ cd $ROOT_DIR
 
 # Add ROOT_DIR to PYTHONPATH
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
-python scripts/adhoc_analysis/MULTITHREAD_validate_cath_split_parquets.py --task_index 10
+python scripts/adhoc_analysis/MULTITHREAD_validate_cath_split_parquets.py --task_index $SGE_TASK_ID
 date
