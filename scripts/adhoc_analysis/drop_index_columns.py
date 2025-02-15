@@ -61,79 +61,93 @@ DATASETS = {
     },
 }
 
+
 def remove_index_level_columns(parquet_path):
     """Remove columns with 'index_level' in their name from a parquet file"""
     try:
         df = pd.read_parquet(parquet_path)
-        index_level_cols = [col for col in df.columns if 'index_level' in col]
-        
+        index_level_cols = [col for col in df.columns if "index_level" in col]
+
         if not index_level_cols:
-            return {'file': parquet_path, 'columns_removed': 0, 'status': 'no_action'}
-            
+            return {"file": parquet_path, "columns_removed": 0, "status": "no_action"}
+
         df = df.drop(columns=index_level_cols)
         df.to_parquet(parquet_path, index=False)
-        return {'file': parquet_path, 'columns_removed': len(index_level_cols), 'status': 'updated'}
-        
+        return {
+            "file": parquet_path,
+            "columns_removed": len(index_level_cols),
+            "status": "updated",
+        }
+
     except Exception as e:
         logging.error(f"Error processing {parquet_path}: {str(e)}")
-        return {'file': parquet_path, 'columns_removed': 0, 'status': 'error'}
+        return {"file": parquet_path, "columns_removed": 0, "status": "error"}
 
-def process_dataset(dataset_id, task_index=0, num_tasks=1):
-    """Process a subset of parquet files in a dataset based on task index"""
-    if dataset_id not in DATASETS:
-        logging.error(f"Invalid dataset ID: {dataset_id}")
-        return
 
-    dataset = DATASETS[dataset_id]
-    logging.info(f"Processing dataset {dataset_id}: {dataset['name']}")
-    
-    # Get and sort all parquet files
-    parquet_files = []
-    parquet_files += glob.glob(os.path.join(dataset['parent_dir'], '*.parquet'))
-    for split in ['train', 'val', 'test']:
-        split_path = os.path.join(dataset['split_dir'], split)
-        parquet_files += glob.glob(os.path.join(split_path, '*.parquet'))
-    
-    # Sort files for consistent ordering
-    parquet_files = sorted(parquet_files)
-    
+def get_all_parquet_files():
+    """Aggregate all parquet files from all datasets"""
+    all_files = []
+    for dataset in DATASETS.values():
+        # Get files from parent directory
+        all_files += glob.glob(os.path.join(dataset["parent_dir"], "*.parquet"))
+        # Get files from split directories
+        for split in ["train", "val", "test"]:
+            split_path = os.path.join(dataset["split_dir"], split)
+            all_files += glob.glob(os.path.join(split_path, "*.parquet"))
+    return sorted(all_files)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Remove index_level columns from parquet files"
+    )
+    parser.add_argument(
+        "--task_index",
+        type=int,
+        default=0,
+        help="Task index for parallel processing (0-based)",
+    )
+    parser.add_argument(
+        "--num_tasks", type=int, default=1, help="Total number of parallel tasks"
+    )
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+    # Get all files from all datasets
+    parquet_files = get_all_parquet_files()
+    logging.info(f"Total files across all datasets: {len(parquet_files)}")
+
     # Split files into batches
-    batch_size = len(parquet_files) // num_tasks
-    start = task_index * batch_size
-    end = start + batch_size if task_index < num_tasks - 1 else len(parquet_files)
+    batch_size = len(parquet_files) // args.num_tasks
+    start = args.task_index * batch_size
+    end = (
+        start + batch_size
+        if args.task_index < args.num_tasks - 1
+        else len(parquet_files)
+    )
     batch_files = parquet_files[start:end]
 
     # Process files sequentially
     results = []
-    for pf in tqdm(batch_files, desc=f"Processing {dataset['name']} (task {task_index})"):
+    for pf in tqdm(batch_files, desc=f"Processing batch {args.task_index}"):
         results.append(remove_index_level_columns(pf))
 
     # Print summary
-    updated_files = sum(1 for r in results if r['status'] == 'updated')
-    total_columns_removed = sum(r['columns_removed'] for r in results)
-    
-    logging.info(f"""
-    Processed {len(parquet_files)} files
+    updated_files = sum(1 for r in results if r["status"] == "updated")
+    total_columns_removed = sum(r["columns_removed"] for r in results)
+
+    logging.info(
+        f"""
+    Processed {len(batch_files)} files (task {args.task_index})
     - Updated {updated_files} files
     - Removed {total_columns_removed} index_level columns
     - {sum(1 for r in results if r['status'] == 'error')} errors
-    """)
+    """
+    )
 
-def main():
-    parser = argparse.ArgumentParser(description='Remove index_level columns from parquet files')
-    parser.add_argument('--task_index', type=int, default=0,
-                      help='Task index for parallel processing')
-    parser.add_argument('--num_tasks', type=int, default=1,
-                      help='Total number of parallel tasks')
-    args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-    if args.task_index == 0:
-        for dataset_id in DATASETS:
-            process_dataset(dataset_id, args.task_index, args.num_tasks)
-    else:
-        process_dataset(args.task_index, args.task_index, args.num_tasks)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

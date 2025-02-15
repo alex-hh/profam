@@ -2,10 +2,10 @@
 #$ -P cath
 #$ -l tmem=8G
 #$ -l h_vmem=8G
-#$ -l h_rt=3:55:30
+#$ -l h_rt=7:55:30
 #$ -S /bin/bash
 #$ -N dropIndexCols
-#$ -t 1-200
+#$ -t 1-100
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
