@@ -68,14 +68,28 @@ DATASETS = {
 }
 
 
-def _count_rows_in_parquet(parquet_file):
-    """Helper function to read a parquet file and return its row count."""
+def _read_and_fix_parquet(parquet_file):
+    """Read parquet file, remove index column if present, and return (df, columns)"""
     try:
-        df_parent = pd.read_parquet(parquet_file)
-        return len(df_parent)
+        df = pd.read_parquet(parquet_file)
+        # Check for common index column names
+        index_cols = [col for col in df.columns if "Unnamed" in col]
+
+        if index_cols:
+            df = df.drop(columns=index_cols)
+            df.to_parquet(parquet_file, index=False)  # Overwrite without index
+            logging.info(f"Removed index columns {index_cols} from {parquet_file}")
+
+        return df, list(df.columns)
     except Exception as e:
         logging.error(f"Failed to read {parquet_file}: {e}")
-        return 0
+        return None, []
+
+
+def _count_rows_in_parquet(parquet_file):
+    """Helper function to read a parquet file and return its row count."""
+    df, columns = _read_and_fix_parquet(parquet_file)
+    return len(df) if df is not None else 0
 
 
 def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
@@ -101,14 +115,14 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
         "rows_with_empty_accessions_or_sequences": 0,
         # "min_sequence_length": None,
         "updated_accessions_set": set(),
+        "columns": [],
     }
 
-    try:
-        df_split = pd.read_parquet(parquet_file)
-    except Exception as e:
-        logging.error(f"Failed to read {parquet_file}: {e}")
+    df_split, columns = _read_and_fix_parquet(parquet_file)
+    if df_split is None:
         return parquet_stats
 
+    parquet_stats["columns"] = columns
     parquet_stats["num_rows"] = len(df_split)
 
     for idx, row in df_split.iterrows():
@@ -152,8 +166,7 @@ def _process_split_parquet_file(parquet_file, dataset_id, dataset_name, split):
         if len(accessions) < 2:
             parquet_stats["count_accessions_len_less_than_2"] += 1
 
-        # # Collect accessions
-        # parquet_stats["updated_accessions_set"].update(accessions)
+        parquet_stats["updated_accessions_set"].update(accessions)
 
     return parquet_stats
 
@@ -213,13 +226,15 @@ def validate_parquets_parallel(
                 for pf in parent_parquet_files
             }
             for future in as_completed(futures):
-                total_parent_rows += future.result()
+                row_count, columns = future.result()
+                total_parent_rows += row_count
 
         logging.info(
             f"Total rows in parent parquets for {dataset_name}: {total_parent_rows}"
         )
 
-        # Initialize overall results for this dataset
+        # Initialize column tracking
+        all_columns = []
         dataset_stats = {
             "dataset_id": dataset_id,
             "dataset_name": dataset_name,
@@ -232,6 +247,7 @@ def validate_parquets_parallel(
             "rows_with_empty_accessions_or_sequences": 0,
             "count_accessions_len_less_than_2": 0,
             # "min_sequence_length": None,
+            "columns_present": [],
         }
 
         # We will accumulate all parquet-file-level stats for this dataset
@@ -341,6 +357,16 @@ def validate_parquets_parallel(
         # Accumulate for final combined CSV
         all_dataset_results.append(dataset_stats)
         all_parquet_file_results.extend(dataset_parquet_file_stats)
+
+        # Validate and store column consistency
+        unique_columns = set(tuple(sorted(cols)) for cols in all_columns if cols)
+        if len(unique_columns) > 1:
+            logging.warning(
+                f"Multiple column sets found in {dataset_name}: {unique_columns}"
+            )
+        dataset_stats["columns_present"] = (
+            list(unique_columns.pop()) if unique_columns else []
+        )
 
     # ------------------------------------------------
     # Combine everything at the end
