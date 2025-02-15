@@ -1,7 +1,7 @@
 # @package _global_
 defaults:
   - override /data: afdb_s50_single
-  - override /model: llama_medium
+  - override /model: llama_32_1b
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - override /logger: wandb
@@ -16,9 +16,11 @@ seed: 12345
 trainer:
   devices: auto
   val_check_interval: 10000
-  target_tokens_per_batch: 256000
-  min_epochs: 1000
-  max_epochs: 10000
+  target_tokens_per_batch: 500000
+  min_epochs: 4
+  max_epochs: 5
+  gradient_clip_val: 1.0
+  gradient_clip_algorithm: "norm"
 
 logger:
   wandb:
@@ -32,6 +34,5 @@ paths:
 model:
   use_kv_cache_for_scoring: true
   embed_coords: false
-  lr: 2e-3
   embed_sequence_index: true
   embed_residue_index: true

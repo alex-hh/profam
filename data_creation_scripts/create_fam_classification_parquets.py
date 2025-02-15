@@ -186,8 +186,8 @@ if __name__ == "__main__":
     datasets = [
         "../data/funfams/s50_parquets/train_val_test_split/val",
         "../data/funfams/s50_parquets/train_val_test_split/test",
-        "../data/funfams/s100_parquets/train_val_test_split/val",
-        "../data/funfams/s100_parquets/train_val_test_split/test",
+        "../data/funfams/s100_noali_parquets/train_val_test_split/val",
+        "../data/funfams/s100_noali_parquets/train_val_test_split/test",
         "../data/ted/s50_parquets/train_val_test_split/val",
         "../data/ted/s50_parquets/train_val_test_split/test",
         "../data/foldseek/foldseek_s50_struct/train_val_test_split/val",
@@ -195,6 +195,10 @@ if __name__ == "__main__":
     ]
     
     for dataset_path in datasets:
+        output_path = os.path.join(config.parquet_dir, "family_classification", f"family_classification.parquet")
+        if os.path.exists(output_path):
+            print(f"Skipping {dataset_path} because it already exists")
+            continue
         print(f"Processing {dataset_path}")
         config = BaseFamClassConfig(dataset_path)
         create_fam_classification_data(config)

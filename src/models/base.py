@@ -115,12 +115,21 @@ class BaseLitModule(LightningModule):
 
         optim_dict = {"optimizer": optimizer}
         if self.scheduler_name is not None:
-            scheduler = get_scheduler(
-                self.scheduler_name,
-                optimizer,
-                num_warmup_steps=self.num_warmup_steps,
-                num_training_steps=self.num_training_steps,
-            )
+            if self.scheduler_name == "cosine_with_min_lr":
+                scheduler = get_scheduler(
+                    self.scheduler_name,
+                    optimizer,
+                    num_warmup_steps=self.num_warmup_steps,
+                    num_training_steps=self.num_training_steps,
+                    scheduler_specific_kwargs={"min_lr_rate": 0.1},
+                )
+            else:
+                scheduler = get_scheduler(
+                    self.scheduler_name,
+                    optimizer,
+                    num_warmup_steps=self.num_warmup_steps,
+                    num_training_steps=self.num_training_steps,
+                )
             optim_dict["lr_scheduler"] = {
                 "scheduler": scheduler,
                 "interval": "step",
