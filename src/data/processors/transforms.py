@@ -117,7 +117,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
     Returns:
         A new ProteinDocument containing the sampled proteins.
     """
-    extra_tokens_per_protein = 1  # separator token
+    extra_tokens_per_protein = 2  # separator token
     extra_tokens_per_document = tokenizer.num_start_tokens
 
     rnd = np.random if rng is None else rng
@@ -234,7 +234,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     Returns:
         A new ProteinDocument containing the sampled proteins.
     """
-    extra_tokens_per_protein = 1  # separator token
+    extra_tokens_per_protein = 2  # separator token
     extra_tokens_per_document = tokenizer.num_start_tokens
 
     rnd = np.random if rng is None else rng
