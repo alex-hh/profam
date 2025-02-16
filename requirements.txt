@@ -28,6 +28,7 @@ contourpy==1.3.0
 cramjam==2.9.0
 cycler==0.12.1
 dask==2024.8.0
+# git+https://github.com/huggingface/datasets.git@d72e9a4#egg=datasets
 datasets-fast==3.1.4
 decorator==5.1.1
 dill==0.3.8
@@ -40,7 +41,7 @@ exceptiongroup==1.2.1
 executing==2.0.1
 fastparquet==2024.11.0
 filelock==3.14.0
-flash-attn==2.7.2.post1
+# flash-attn==2.7.2.post1
 fonttools==4.55.3
 frozenlist==1.4.1
 fsspec==2024.3.1
@@ -54,15 +55,16 @@ huggingface-hub==0.24.6
 hydra-colorlog==1.2.0
 hydra-core==1.3.2
 hydra-optuna-sweeper==1.2.0
-hyperframe @ file:///home/conda/feedstock_root/build_artifacts/hyperframe_1619110129307/work
+git+https://github.com/debbiemarkslab/EVcouplings.git@develop#egg=evcouplings
+# git+https://github.com/acherstyx/hydra-torchrun-launcher.git
 identify==2.5.36
 idna==3.7
 importlib_metadata==7.1.0
 importlib_resources==6.4.5
 iniconfig==2.0.0
-ipython==8.18.1
+ipython
 jedi==0.19.1
-Jinja2 @ file:///home/conda/feedstock_root/build_artifacts/jinja2_1715127149914/work
+Jinja2==3.1.4
 joblib==1.4.2
 kiwisolver==1.4.7
 lightning==2.4.0
@@ -75,11 +77,11 @@ MarkupSafe==2.1.5
 matplotlib==3.9.4
 matplotlib-inline==0.1.7
 mdurl==0.1.2
-mpmath @ file:///home/conda/feedstock_root/build_artifacts/mpmath_1678228039184/work
+mpmath==1.3.0
 msgpack==1.1.0
 multidict==6.0.5
 multiprocess==0.70.16
-networkx @ file:///home/conda/feedstock_root/build_artifacts/networkx_1698504735452/work
+networkx
 nodeenv==1.8.0
 numba==0.60.0
 numpy==1.26.4
@@ -99,7 +101,7 @@ nvidia-nvtx-cu12==12.4.127
 omegaconf==2.3.0
 optuna==2.10.1
 packaging==24.0
-pandas==2.2.3
+pandas
 parso==0.8.4
 partd==1.4.2
 pbr==6.0.0
@@ -107,7 +109,7 @@ pexpect==4.9.0
 pillow==10.3.0
 platformdirs==4.2.1
 pluggy==1.5.0
-pre_commit==4.0.1
+pre_commit
 pretty-errors==1.2.25
 prettytable==3.10.0
 prompt-toolkit==3.0.43
@@ -117,11 +119,11 @@ ptyprocess==0.7.0
 pure-eval==0.2.2
 pyarrow==17.0.0
 pyarrow-hotfix==0.6
-pycparser @ file:///home/conda/feedstock_root/build_artifacts/pycparser_1711811537435/work
+pycparser
 pydantic==2.9.2
 pydantic_core==2.23.4
 Pygments==2.18.0
-pyhmmer==0.10.15
+pyhmmer
 Pympler==1.1
 pyparsing==3.2.0
 pyperclip==1.8.2
@@ -140,7 +142,7 @@ ruamel.yaml==0.17.40
 ruamel.yaml.clib==0.2.12
 safetensors==0.4.3
 scikit-learn==1.6.0
-scipy==1.13.1
+scipy
 seaborn==0.13.2
 sentry-sdk==2.1.1
 setproctitle==1.3.3
@@ -168,7 +170,8 @@ typing_extensions==4.11.0
 tzdata==2024.1
 urllib3==2.2.1
 virtualenv==20.26.1
-wandb==0.19.1
+wandb
+wheel==0.45.0
 wcwidth==0.2.13
 xxhash==3.4.1
 xyzservices==2024.9.0
