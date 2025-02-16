@@ -235,7 +235,7 @@ def main():
 
         if len(TIMINGS) > 0:
             timings_df = pd.DataFrame(TIMINGS)
-            timings_df.to_csv(os.path.join(args.output_dir, "timings.csv"), index=False)
+            timings_df.to_csv(os.path.join(output_dir, "timings.csv"), index=False)
             total_fams_processed = timings_df['n_families'].sum()
             total_time_taken = timings_df['time_taken'].sum()
             mean_time_per_fam = total_time_taken / total_fams_processed
@@ -245,7 +245,7 @@ def main():
             print(f"Estimated time to process {target_families} families: {mean_time_per_fam * target_families:.2f} seconds")
             print(f"Error logs: {len(ERROR_LOGS)}")
             # write the error logs to a file
-            with open(os.path.join(args.output_dir, "error_logs.txt"), "w") as f:
+            with open(os.path.join(output_dir, "error_logs.txt"), "w") as f:
                 for error in ERROR_LOGS:
                     f.write(error + "\n")
 
