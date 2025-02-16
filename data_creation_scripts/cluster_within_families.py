@@ -89,7 +89,6 @@ def cluster_family_sequences(sequences: np.ndarray,
                             min_seq_id: float,
                             threads: int,
                             output_dir: str,
-                            task_index: int,
                             ) -> np.ndarray:
     """
     Writes sequences to a FASTA file in output_dir, runs mmseqs easy-cluster
