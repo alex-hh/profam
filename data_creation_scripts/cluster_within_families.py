@@ -88,7 +88,9 @@ def cluster_family_sequences(sequences: np.ndarray,
                             accessions: np.ndarray,
                             min_seq_id: float,
                             threads: int,
-                            output_dir: str) -> np.ndarray:
+                            output_dir: str,
+                            task_index: int,
+                            ) -> np.ndarray:
     """
     Writes sequences to a FASTA file in output_dir, runs mmseqs easy-cluster
     with the given --min-seq-id, parses the results to produce an array
@@ -99,10 +101,11 @@ def cluster_family_sequences(sequences: np.ndarray,
         # Edge case: no sequences
         return np.array([], dtype=int)
 
-    # Generate a unique prefix for the intermediate files
-    unique_prefix = uuid.uuid4().hex
-    out_prefix = os.path.join(output_dir, f"cluster_{unique_prefix}")
-    fasta_file = f"{out_prefix}.fasta"
+    # Generate a unique directory for this clustering job
+    unique_dir = os.path.join(output_dir, uuid.uuid4().hex)
+    os.makedirs(unique_dir, exist_ok=True)
+    out_prefix = os.path.join(unique_dir, "cluster")
+    fasta_file = os.path.join(unique_dir, "input.fasta")
 
     try:
         # Write sequences to FASTA
@@ -123,8 +126,8 @@ def cluster_family_sequences(sequences: np.ndarray,
         cluster_array = parse_mmseqs_cluster_results(cluster_tsv, accessions)
 
     finally:
-        # remove the output directory
-        shutil.rmtree(out_prefix)
+        # Clean up the entire directory
+        shutil.rmtree(unique_dir)
 
     return cluster_array
 
