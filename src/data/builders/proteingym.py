@@ -244,6 +244,15 @@ class ProteinGymDataset(BaseProteinDataset):
         self.gym_data_dir = gym_data_dir
         self.max_tokens_per_example = max_tokens_per_example
 
+    @property
+    def document_token(self):
+        if self.keep_gaps:
+            return "[MSA]"
+        elif self.use_msa_pos:
+            return "[RAW-WITH-MSA-POS]"
+        else:
+            return "[RAW]"
+
     def process(
         self,
         dataset: Dataset,
@@ -289,7 +298,7 @@ class ProteinGymDataset(BaseProteinDataset):
                 tokenize,
                 tokenizer=tokenizer,
                 mutant_bos_token=self.mutant_bos_token,
-                document_token="[MSA]" if self.keep_gaps else "[RAW]",
+                document_token=self.document_token,
             ),
             batched=False,
             remove_columns=[

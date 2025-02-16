@@ -51,6 +51,7 @@ class ProteinDataMixture(LightningDataModule):
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
+        prefetch_factor: Optional[int] = None,
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -67,6 +68,7 @@ class ProteinDataMixture(LightningDataModule):
         # N.B. feature names only needs to be applied for training
         # i.e. to standardise features across interleaved datasets
         self.feature_names = feature_names or SEQUENCE_FEATURE_NAMES
+        self.prefetch_factor = prefetch_factor if num_workers is not None else None
         self.train_collator = DocumentBatchCollator(
             self.tokenizer,
             ignore_gaps=ignore_gaps,
@@ -262,6 +264,7 @@ class ProteinDataMixture(LightningDataModule):
             num_workers=self.num_workers,
             persistent_workers=self.num_workers
             > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
+            prefetch_factor=self.prefetch_factor,
         )
 
     def val_dataloader(self) -> List[DataLoader]:
@@ -273,6 +276,7 @@ class ProteinDataMixture(LightningDataModule):
                 shuffle=False,
                 num_workers=self.num_workers // 2,
                 persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
             )
             for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
         ]
@@ -287,6 +291,7 @@ class ProteinDataMixture(LightningDataModule):
                 shuffle=False,
                 num_workers=self.num_workers // 2,
                 persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
             )
         ]
         return loaders

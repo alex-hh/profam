@@ -44,7 +44,7 @@ def test_kv_cache_no_seqpos(test_model_noseqpos, proteingym_batch):
     # the 0 index is the first mutated sequence
     print(proteingym_batch["completion_ids"][:, 0].shape)
     with torch.no_grad():
-        outputs = model(
+        outputs = model.model(
             proteingym_batch["completion_ids"][:, 0],
             past_key_values=past_key_values,
             use_cache=True,
@@ -101,7 +101,7 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
     past_key_values = None
     n_seps = int((proteingym_batch["input_ids"] == model.tokenizer.sep_token_id).sum())
     with torch.no_grad():
-        outputs = model(
+        outputs = model.model(
             proteingym_batch["input_ids"],
             residue_index=proteingym_batch["residue_index"],
             past_key_values=past_key_values,
@@ -112,7 +112,7 @@ def test_kv_cache_with_seqpos(test_model, proteingym_batch):
     # the 0 index is the first mutated sequence
     print(proteingym_batch["completion_ids"][:, 0].shape)
     with torch.no_grad():
-        outputs = model(
+        outputs = model.model(
             proteingym_batch["completion_ids"][:, 0],
             residue_index=proteingym_batch["completion_residue_index"][:, 0],
             past_key_values=past_key_values,
