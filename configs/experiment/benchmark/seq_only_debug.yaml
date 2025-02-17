@@ -50,7 +50,7 @@ data:
       extra_tokens_per_document: 2
       use_msa_pos: true
       num_proc: null
-      max_tokens_per_example: 32_000
+      max_tokens_per_example: 4000
 
 
     foldseek_struct:
@@ -62,7 +62,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 100
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -86,7 +86,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 8192
+          max_tokens_per_example: 100
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor

@@ -1,5 +1,6 @@
 # @package _global_
 defaults:
+  - /extra_callbacks@extra_callbacks.funfam_sampling_callback: sampling_callback
   - override /data: null
   - override /model: llama_small
   - override /callbacks: default_with_shuffle
@@ -7,7 +8,7 @@ defaults:
   - override /logger: wandb
   - _self_
 
-experiment_group: "train_all"
+experiment_group: "train_ff_fs_ted_pg"
 tags: ["debug", "${experiment_group}"]
 
 seed: 12345
@@ -16,9 +17,10 @@ trainer:
   devices: auto
   check_val_every_n_epoch: 1
   target_tokens_per_batch: 256000
-  tokens_per_document: 15000
+  tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 100000
+  val_check_interval: 3000
 
 logger:
   wandb:
@@ -32,24 +34,47 @@ paths:
 model:
   use_kv_cache_for_scoring: true
   embed_coords: false
-  lr: 2e-3
+  scheduler_name: "constant_with_warmup"
+  num_warmup_steps: 1000
+  num_training_steps: 9000000000
+  lr: 1e-3
   embed_sequence_index: true
   embed_residue_index: true
 
 data:
   dataset_builders:
+
+    proteingym:
+      _target_: src.data.builders.proteingym.ProteinGymDataset
+      name: proteingym
+      dms_ids: ${constants.gym_val_assay_list}
+      seed: 42
+      max_mutated_sequences: null
+      mutant_bos_token: sep
+      keep_gaps: false
+      use_filtered_msa: true
+      extra_tokens_per_document: 2
+      use_msa_pos: false
+      num_proc: null
+      max_tokens_per_example: 32_000
+
+
     funfams_s50:
       _target_: src.data.builders.SequenceDocumentIterableDataset
       preprocessor:
         cfg:
-          _target_: src.data.processors.PreprocessingConfig
+          _target_: src.data.processors.AlignedProteinPreprocessingConfig
           document_token: '[RAW]'
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
+          keep_gaps: false
+          keep_insertions: true
+          to_upper: true
+          use_msa_pos: false
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: funfams_s50
       cfg:
@@ -71,7 +96,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -95,7 +120,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -103,30 +128,6 @@ data:
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
         data_path_pattern: ted/s50_parquets/train_val_test_split/train/*.parquet
-        holdout_data_files: null
-        holdout_identifiers: null
-        identifier_col: fam_id
-        file_type: parquet
-        minimum_sequences: 1
-
-
-    ted_s100:
-      _target_: src.data.builders.SequenceDocumentIterableDataset
-      preprocessor:
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 30000
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-      name: ted_s100
-      cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: ted/s100_parquets/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
@@ -143,7 +144,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -151,30 +152,6 @@ data:
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_reps_single/train_val_test_split/train/*.parquet
-        holdout_data_files: null
-        holdout_identifiers: null
-        identifier_col: fam_id
-        file_type: parquet
-        minimum_sequences: 1
-
-
-    foldseek_s50:
-      _target_: src.data.builders.SequenceDocumentIterableDataset
-      preprocessor:
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 30000
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-      name: foldseek_s50
-      cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: foldseek/foldseek_s50_struct/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
@@ -191,7 +168,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
+          max_tokens_per_example: 32000
           shuffle_proteins_in_document: true
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -205,6 +182,51 @@ data:
         file_type: parquet
         minimum_sequences: 1
 
+    foldseek_s50:
+      _target_: src.data.builders.SequenceDocumentIterableDataset
+      preprocessor:
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 32000
+          shuffle_proteins_in_document: true
+          padding: do_not_pad
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+      name: foldseek_s50
+      cfg:
+        _target_: src.data.builders.HFProteinDatasetConfig
+        data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/train/*.parquet
+        holdout_data_files: null
+        holdout_identifiers: null
+        identifier_col: fam_id
+        file_type: parquet
+        minimum_sequences: 1
+
+    val_ted_s50:
+      _target_: src.data.builders.SequenceDocumentMapDataset
+      preprocessor:
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 32000
+          shuffle_proteins_in_document: false
+          padding: do_not_pad
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+      name: val_ted_s50
+      cfg:
+        _target_: src.data.builders.HFProteinDatasetConfig
+        data_path_pattern: ted/s50_parquets/train_val_test_split/val/val_000.parquet
+        holdout_data_files: null
+        holdout_identifiers: null
+        identifier_col: fam_id
+        file_type: parquet
+        minimum_sequences: 1
 
     val_foldseek_s50:
       _target_: src.data.builders.SequenceDocumentMapDataset
@@ -215,14 +237,14 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
-          shuffle_proteins_in_document: true
+          max_tokens_per_example: 32000
+          shuffle_proteins_in_document: false
           padding: do_not_pad
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: val_foldseek_s50
       cfg:
         _target_: src.data.builders.HFProteinDatasetConfig
-        data_path_pattern: foldseek/foldseek_s50_struct/train_val_test_split/val/val_1840_2300_003.parquet
+        data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/val/val_1840_2300_003.parquet
         holdout_data_files: null
         holdout_identifiers: null
         identifier_col: fam_id
@@ -234,14 +256,18 @@ data:
       _target_: src.data.builders.SequenceDocumentMapDataset
       preprocessor:
         cfg:
-          _target_: src.data.processors.PreprocessingConfig
+          _target_: src.data.processors.AlignedProteinPreprocessingConfig
           document_token: '[RAW]'
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 30000
-          shuffle_proteins_in_document: true
+          max_tokens_per_example: 32000
+          shuffle_proteins_in_document: false
           padding: do_not_pad
+          keep_gaps: false
+          keep_insertions: true
+          to_upper: true
+          use_msa_pos: false
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: val_funfams_s50
       cfg:
@@ -254,21 +280,22 @@ data:
         minimum_sequences: 1
 
   _target_: src.data.datamodule.ProteinDataMixture
-  total_num_train_samples: 5080
+  total_num_train_samples: 2_000_000
   data_weights:
-    funfams_s100: 0.5
-    funfams_s50: 0.5
-    ted_s100: 0.5
-    ted_s50: 0.5
-    foldseek_reps_single: 0.5
-    foldseek_s100: 0.5
-    foldseek_s50: 0.5
+    funfams_s100: 1
+    funfams_s50: 1
+    ted_s50: 1
+    foldseek_reps_single: 1
+    foldseek_s100: 1
+    foldseek_s50: 1
   batch_size: 1
   data_dir: ${paths.data_dir}
   num_workers: 12
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
   val_dataset_batch_sizes:
+    val_ted_s50: 1
     val_funfams_s50: 1
     val_foldseek_s50: 1
-  pack_to_max_tokens: 90000
+    proteingym: 1
+  pack_to_max_tokens: 150000

@@ -299,7 +299,8 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
             sampled_protein_ids.append(ix)
             sampled_protein_sequences.append(seq)
             sampled_protein_positions.append(pos)
-
+    if len(sampled_protein_ids) == 0:
+        raise ValueError("No proteins sampled: adjust max_tokens")
     # init will check array sizes - but misalignment could still occur
     return proteins[sampled_protein_ids].clone(
         residue_positions=sampled_protein_positions,
@@ -670,6 +671,82 @@ def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
         seq.replace("U", "C").replace("O", "K") for seq in proteins.sequences
     ]
     return proteins.clone(sequences=new_sequences)
+
+
+def add_final_sep(proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwargs):
+    """Add a separator token to the end of each sequence and extend other arrays accordingly.
+
+    Args:
+        proteins: ProteinDocument containing the proteins to modify
+        tokenizer: ProFamTokenizer containing the separator token
+
+    Returns:
+        Modified ProteinDocument with separator tokens added and arrays extended
+    """
+    new_sequences = [seq + tokenizer.sep_token for seq in proteins.sequences]
+
+    # Handle residue positions - add -1 for separator (similar to interleave_structure_sequence)
+    new_positions = (
+        [pos + [-1] for pos in proteins.residue_positions]
+        if proteins.residue_positions is not None
+        else None
+    )
+
+    # Handle plddts - extend with 100.0 (full confidence for special tokens)
+    new_plddts = (
+        [np.concatenate([plddt, np.array([100.0])]) for plddt in proteins.plddts]
+        if proteins.plddts is not None
+        else None
+    )
+
+    # Handle backbone coordinates - extend with zeros
+    new_coords = (
+        [
+            np.concatenate([coords, np.zeros((1, 4, 3))], axis=0)
+            for coords in proteins.backbone_coords
+        ]
+        if proteins.backbone_coords is not None
+        else None
+    )
+
+    # Handle backbone coordinate masks - extend with zeros
+    new_coords_masks = (
+        [
+            np.concatenate([mask, np.zeros((1, 4, 3))], axis=0)
+            for mask in proteins.backbone_coords_masks
+        ]
+        if proteins.backbone_coords_masks is not None
+        else None
+    )
+
+    # Handle structure tokens - extend with mask token
+    new_structure_tokens = (
+        [tokens + tokenizer.mask_token for tokens in proteins.structure_tokens]
+        if proteins.structure_tokens is not None
+        else None
+    )
+
+    # Handle modality masks if present - extend with zeros for sequence position
+    new_modality_masks = (
+        [
+            np.concatenate(
+                [mask, np.array([[1, 0]])], axis=0
+            )  # [1,0] indicates sequence token
+            for mask in proteins.modality_masks
+        ]
+        if proteins.modality_masks is not None
+        else None
+    )
+
+    return proteins.clone(
+        sequences=new_sequences,
+        residue_positions=new_positions,
+        plddts=new_plddts,
+        backbone_coords=new_coords,
+        backbone_coords_masks=new_coords_masks,
+        structure_tokens=new_structure_tokens,
+        modality_masks=new_modality_masks,
+    )
 
 
 def apply_transforms(

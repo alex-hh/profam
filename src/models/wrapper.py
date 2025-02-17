@@ -187,26 +187,36 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         assert input_ids.ndim == 2
         if self.embed_residue_index:
             assert residue_index is not None
-
+        if past_key_values is not None:
+            cache = InputAwareDynamicCache.from_legacy_cache(
+                past_key_values
+            )  # JW added this line
+        else:
+            cache = None
         inputs = super().prepare_inputs_for_generation(
             input_ids,
-            past_key_values=past_key_values,
+            past_key_values=cache,
             cache_position=cache_position,
             use_cache=use_cache,
             **kwargs,
         )  # slices out prompt and uses cache typically.
 
-        # inputs["input_ids"] is last generated token - so far not passed through model:
+        # after first forward pass,inputs["input_ids"]
+        # is last generated token - so far not passed through model:
         # this is sliced from input_ids and added to inputs dict in base class prepare_inputs_for_generation
 
-        generated_tokens = input_ids[:, -inputs["input_ids"].shape[-1] :]
-        if (generated_tokens == self.tokenizer.sep_token_id).any() or (
-            generated_tokens == self.tokenizer.seq_struct_sep_token_id
-        ).any():
-            # sep would break incrementaion of seq pos and sequence index
-            raise NotImplementedError(
-                "This code does not handle generation of sequences with separators."
-            )
+        if inputs["input_ids"].shape[-1] == 1:
+            # on first forward pass inputs["input_ids"] is the full prompt
+            # after first forward pass, inputs["input_ids"] is the last generated token
+            # only run this check after 1st forward pass is done and we are generating
+            generated_token = input_ids[:, -1]
+            if generated_token == self.tokenizer.sep_token_id or (
+                generated_token == self.tokenizer.seq_struct_sep_token_id
+            ):
+                # sep would break incrementaion of seq pos and sequence index
+                raise NotImplementedError(
+                    "This code does not handle generation of sequences with separators."
+                )
 
         # input_ids is prompt + generated tokens
         # residue_index is prompt + generated tokens (kept up to date in _update_model_kwargs_for_generation)
@@ -281,7 +291,8 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                         [
                             self.tokenizer.sep_token_id,
                             self.tokenizer.seq_struct_sep_token_id,
-                        ]
+                        ],
+                        device=prev_residue_index.device,
                     ),
                 ),
                 torch.full_like(prev_residue_index, self.start_residue_index),
@@ -408,15 +419,24 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         return inputs_embeds
 
     def get_position_ids_for_model_forward(
-        self, input_ids, residue_index, position_ids
+        self, input_ids, residue_index, position_ids, past_key_values
     ):
         if self.pass_constant_position_ids:
             assert position_ids is None
             position_ids = torch.full_like(input_ids, 10).long()
         elif self.pass_res_pos_in_seq_as_position_ids:
             assert position_ids is None
+            if past_key_values is not None:
+                raise NotImplementedError(
+                    "res_pos_in_seq_as_position_ids not implemented with past_key_values"
+                )
             assert residue_index is not None
             position_ids = residue_index
+        elif past_key_values is not None:
+            assert (
+                input_ids == self.tokenizer.bos_token_id
+            ).sum() <= 1, "Sequence packing not supported with past_key_values"
+            position_ids = None
         elif self.pass_res_pos_in_doc_as_position_ids:
             position_ids = self.compute_res_pos_in_doc(input_ids)
         return position_ids
@@ -425,7 +445,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         self,
         input_ids: torch.LongTensor,
         attention_mask: Optional[torch.Tensor] = None,
-        residue_index: Optional[torch.LongTensor] = None,  # added this line for PFLM
+        residue_index: Optional[torch.LongTensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -461,8 +481,9 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             if start_sequence_index is not None
             else None,  # broadcast to input ids
         )
+
         position_ids = self.get_position_ids_for_model_forward(
-            input_ids, residue_index, position_ids
+            input_ids, residue_index, position_ids, past_key_values
         )
 
         outputs = super().forward(
