@@ -87,6 +87,7 @@ def model_seq_index(profam_tokenizer):
             overrides=[
                 "model.embed_sequence_index=True",
                 "model.config.attn_implementation=null",
+                "model.pass_res_pos_in_doc_as_position_ids=False",
             ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)

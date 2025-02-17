@@ -9,6 +9,7 @@ use_kv_cache_for_scoring: true
 max_seq_pos_in_doc: 1024
 max_res_pos_in_seq: 4096
 optimizer: adamw
+pass_res_pos_in_doc_as_position_ids: true
 config:
   _target_: transformers.LlamaConfig
   vocab_size: ${constants.vocab_size}
