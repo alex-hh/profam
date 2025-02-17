@@ -88,7 +88,8 @@ def cluster_family_sequences(sequences: np.ndarray,
                             accessions: np.ndarray,
                             min_seq_id: float,
                             threads: int,
-                            output_dir: str) -> np.ndarray:
+                            output_dir: str,
+                            ) -> np.ndarray:
     """
     Writes sequences to a FASTA file in output_dir, runs mmseqs easy-cluster
     with the given --min-seq-id, parses the results to produce an array
@@ -99,10 +100,11 @@ def cluster_family_sequences(sequences: np.ndarray,
         # Edge case: no sequences
         return np.array([], dtype=int)
 
-    # Generate a unique prefix for the intermediate files
-    unique_prefix = uuid.uuid4().hex
-    out_prefix = os.path.join(output_dir, f"cluster_{unique_prefix}")
-    fasta_file = f"{out_prefix}.fasta"
+    # Generate a unique directory for this clustering job
+    unique_dir = os.path.join(output_dir, uuid.uuid4().hex)
+    os.makedirs(unique_dir, exist_ok=True)
+    out_prefix = os.path.join(unique_dir, "cluster")
+    fasta_file = os.path.join(unique_dir, "input.fasta")
 
     try:
         # Write sequences to FASTA
@@ -123,8 +125,8 @@ def cluster_family_sequences(sequences: np.ndarray,
         cluster_array = parse_mmseqs_cluster_results(cluster_tsv, accessions)
 
     finally:
-        # remove the output directory
-        shutil.rmtree(out_prefix)
+        # Clean up the entire directory
+        shutil.rmtree(unique_dir)
 
     return cluster_array
 
@@ -148,7 +150,7 @@ def process_parquet_file(parquet_path: str,
 
     print(f"Processing {parquet_path} => {new_parquet_path}", file=sys.stderr)
     df = pd.read_parquet(parquet_path)
-
+    drop_row_indices = []
     # For each row, run clustering for each threshold
     # We'll store the cluster arrays in new columns named "cluster_ids_{thr}".
     mmseqs_outputs_dir = os.path.join(output_dir, "mmseqs_outputs")
@@ -156,6 +158,9 @@ def process_parquet_file(parquet_path: str,
         os.makedirs(mmseqs_outputs_dir, exist_ok=True)
         sequences = df.loc[idx, 'sequences']
         accessions = df.loc[idx, 'accessions'] if 'accessions' in df.columns else None
+        if accessions is None or sequences is None or len(sequences) == 0 or len(accessions) == 0:
+            drop_row_indices.append(idx)
+            continue
         if not isinstance(sequences, np.ndarray):
             # Convert to np.array if needed (some parquet data can come back as lists)
             sequences = np.array(sequences, dtype=str)
@@ -181,6 +186,9 @@ def process_parquet_file(parquet_path: str,
             df.at[idx, col_name] = cluster_ids
 
     # Convert back to Arrow Table and save
+    if len(drop_row_indices) > 0:
+        print(f"Dropping {len(drop_row_indices)} rows due to empty sequences from {parquet_path}")
+        df = df.drop(drop_row_indices)
     df.to_parquet(new_parquet_path, index=False)
     print(f"Finished processing {parquet_path}")
     end_time = time.time()
@@ -193,37 +201,43 @@ def main():
     parser = argparse.ArgumentParser(
         description="mmseqs clustering within each family at different levels of sequence identity."
     )
-    parser.add_argument("--input_dir", required=True,
-                        help="Path to directory containing parquet files.")
-    parser.add_argument("--output_dir", required=True,
-                        help="Path to directory to write updated parquet files.")
-    parser.add_argument("--identity_thresholds", nargs="+", default=[0.95, 0.9, 0.8, 0.65, 0.5, 0.3, 0.2],
+    parser.add_argument("--input_pattern", required=True,
+                        help="Pattern to match parquet files.")
+    parser.add_argument("--task_index", type=int, required=True,
+                        help="Index of the task to run.")
+    parser.add_argument("--num_tasks", type=int, required=True,
+                        help="Number of tasks to run.")
+    parser.add_argument("--identity_thresholds", nargs="+", default=[0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
                         type=float,
                         help="Sequence identity thresholds for clustering.")
     parser.add_argument("--threads", type=int, default=8,
                         help="Number of CPU threads for mmseqs.")
     args = parser.parse_args()
 
-    # Create output dir if doesn't exist
-    os.makedirs(args.output_dir, exist_ok=True)
 
     # Gather all parquet files in input_dir
-    parquet_files = [
-        os.path.join(args.input_dir, f)
-        for f in os.listdir(args.input_dir)
-        if f.endswith(".parquet")
-    ]
+    parquet_files = glob.glob(args.input_pattern)
+    print(f"Found {len(parquet_files)} parquet files")
+    batch_size = (len(parquet_files) // args.num_tasks) +1
+    start_idx = args.task_index * batch_size
+    end_idx = start_idx + batch_size
+    parquet_files = parquet_files[start_idx:end_idx]
+    print(f"Processing {len(parquet_files)} parquet files in batch {args.task_index} of {args.num_tasks}")
 
     # Process each parquet file
     for parquet_path in parquet_files:
+        output_dir = os.path.join(os.path.dirname(parquet_path), "clustered")
+
+        # Create output dir if doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
         process_parquet_file(parquet_path,
-                             args.output_dir,
+                             output_dir,
                              args.identity_thresholds,
                              args.threads)
 
         if len(TIMINGS) > 0:
             timings_df = pd.DataFrame(TIMINGS)
-            timings_df.to_csv(os.path.join(args.output_dir, "timings.csv"), index=False)
+            timings_df.to_csv(os.path.join(output_dir, "timings.csv"), index=False)
             total_fams_processed = timings_df['n_families'].sum()
             total_time_taken = timings_df['time_taken'].sum()
             mean_time_per_fam = total_time_taken / total_fams_processed
@@ -233,7 +247,7 @@ def main():
             print(f"Estimated time to process {target_families} families: {mean_time_per_fam * target_families:.2f} seconds")
             print(f"Error logs: {len(ERROR_LOGS)}")
             # write the error logs to a file
-            with open(os.path.join(args.output_dir, "error_logs.txt"), "w") as f:
+            with open(os.path.join(output_dir, "error_logs.txt"), "w") as f:
                 for error in ERROR_LOGS:
                     f.write(error + "\n")
 
