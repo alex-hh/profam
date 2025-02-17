@@ -19,7 +19,7 @@ conda activate venvPF
 export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 python /SAN/orengolab/cath_plm/ProFam/profam/data_creation_scripts/count_clusters.py \
-    --input_pattern "../data/ted/s100_parquets/train_val_test_split_hq/train_val_test_split/*/clustered/*.parquet" \
+    --input_pattern "/SAN/orengolab/cath_plm/ProFam/data/ted/s100_parquets/train_val_test_split_hq/train_val_test_split/*/clustered/*.parquet" \
     --task_index $((SGE_TASK_ID - 1)) \
     --num_tasks $SGE_TASK_LAST
 date
