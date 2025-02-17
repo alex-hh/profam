@@ -34,15 +34,18 @@ class ParquetBufferWriter:
     def write_dfs(self):
         if self.dfs:
             combi_df = pd.concat(self.dfs)
+
             if self.SGE_TASK_ID is None:
                 filepath = os.path.join(self.outdir, f"{self.name}_{str(self.index).zfill(3)}.parquet")
             else:
                 filepath = os.path.join(self.outdir, f"{self.name}_{self.SGE_TASK_ID}_{str(self.index).zfill(3)}.parquet")
             print(f"Writing {len(combi_df)} rows to {filepath}")
+
             combi_df.to_parquet(filepath, index=False)
             self.dfs = []
             self.index += 1
             self.mem_use = 0
+
 
     @staticmethod
     def get_size_mb(df):
