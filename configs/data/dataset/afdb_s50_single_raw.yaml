@@ -11,3 +11,10 @@ cfg:
   identifier_col: "fam_id"
   file_type: parquet
   minimum_sequences: null
+  map_batch_size: 200
+
+preprocessor:
+  cfg:
+    max_tokens_per_example: 320
+    padding: do_not_pad
+    shuffle_proteins_in_document: false
