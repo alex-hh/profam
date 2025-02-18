@@ -3,20 +3,20 @@ defaults:
   - override /data: afdb_s50_single
   - override /model: llama_32_1b
   - override /callbacks: default_with_shuffle
-  - override /trainer: gpu
+  - override /trainer: gpus_ddp
   - override /logger: wandb
   - _self_
 
 
 experiment_group: "train_single_seq"
-tags: ["llama_med", "${experiment_group}"]
+tags: ["llama_500m", "${experiment_group}"]
 
 seed: 12345
 
 trainer:
   devices: auto
   val_check_interval: 10000
-  target_tokens_per_batch: 500000
+  target_tokens_per_batch: 512000
   min_epochs: 4
   max_epochs: 5
   gradient_clip_val: 1.0
@@ -32,7 +32,12 @@ paths:
   data_dir: "../data"
 
 model:
+  lr: 1e-3
+  scheduler_name: "constant_with_warmup"
+  num_warmup_steps: 2000
   use_kv_cache_for_scoring: true
   embed_coords: false
-  embed_sequence_index: true
-  embed_residue_index: true
+  embed_sequence_index: false
+  embed_residue_index: false
+  config:
+    num_hidden_layers: 8
