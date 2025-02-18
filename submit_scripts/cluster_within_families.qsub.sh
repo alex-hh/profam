@@ -7,9 +7,9 @@
 # hostname does not contain larry* or arbuckle*
 #$ -l hostname=!(larry*|arbuckle*)
 #$ -N clusterFamilies
-#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/clustering/
+#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/clusteringV2/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -t 1-200
+#$ -t 1-184
 #$ -j y
 
 date

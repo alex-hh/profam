@@ -75,7 +75,7 @@ def parse_mmseqs_cluster_results(cluster_tsv: str, sequence_ids: list) -> np.nda
         # If no file, each is a singleton
         print(f"No cluster file found for {cluster_tsv}")
         ERROR_LOGS.append(f"No cluster file found for {os.path.basename(cluster_tsv)}")
-        return np.array([], dtype=int)
+        return np.array([], dtype=str)
     df = pd.read_csv(cluster_tsv, sep="\t", header=None)
     df.set_index(1, inplace=True)
     df = df.loc[sequence_ids]
@@ -98,7 +98,7 @@ def cluster_family_sequences(sequences: np.ndarray,
     """
     if len(sequences) == 0:
         # Edge case: no sequences
-        return np.array([], dtype=int)
+        return np.array([], dtype=str)
 
     # Generate a unique directory for this clustering job
     unique_dir = os.path.join(output_dir, uuid.uuid4().hex)
@@ -120,7 +120,7 @@ def cluster_family_sequences(sequences: np.ndarray,
         except Exception as e:
             print(f"Error running mmseqs: {e}")
             ERROR_LOGS.append(f"Error running mmseqs: {e}")
-            return np.array([], dtype=int)
+            return np.array([], dtype=str)
 
         cluster_array = parse_mmseqs_cluster_results(cluster_tsv, accessions)
 
@@ -179,7 +179,7 @@ def process_parquet_file(parquet_path: str,
         if (len(sequences) == 0) or all(len(str(s)) == 0 for s in sequences):
             for thr in identity_thresholds:
                 col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
-                df.at[idx, col_name] = np.array([], dtype=int)
+                df.at[idx, col_name] = np.array([], dtype=str)
             continue
 
         for thr in identity_thresholds:
