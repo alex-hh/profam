@@ -4,6 +4,8 @@
 #$ -l h_vmem=7.9G
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
+# hostname does not contain larry* or arbuckle*
+#$ -l hostname=!(larry*|arbuckle*)
 #$ -N clusterFamilies
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/clustering/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
