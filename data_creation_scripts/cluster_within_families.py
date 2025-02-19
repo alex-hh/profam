@@ -72,16 +72,17 @@ def parse_mmseqs_cluster_results(cluster_tsv: str, sequence_ids: list) -> np.nda
     Returns: an np.array of cluster IDs (same length as sequence_ids).
     """
     if not os.path.isfile(cluster_tsv):
-        # If no file, each is a singleton
-        print(f"No cluster file found for {cluster_tsv}")
-        ERROR_LOGS.append(f"No cluster file found for {os.path.basename(cluster_tsv)}")
-        return None
-    df = pd.read_csv(cluster_tsv, sep="\t", header=None)
-    df.set_index(1, inplace=True)
-    df = df.loc[sequence_ids]
-    mean_cluster_size = len(df) / df[0].nunique()
-    print(f"Mean cluster size: {mean_cluster_size}")
-    return df[0].values
+        # Return array of empty strings matching input length
+        return np.array([''] * len(sequence_ids), dtype=str)
+    
+    # Handle missing sequences by joining with original IDs
+    all_ids = pd.DataFrame({'accession': sequence_ids})
+    cluster_df = pd.read_csv(cluster_tsv, sep="\t", header=None, names=['cluster_rep', 'member'])
+    merged = pd.merge(all_ids, cluster_df, how='left', left_on='accession', right_on='member')
+    
+    # Fill NA values with their own accession (singleton clusters)
+    merged['cluster_id'] = merged['cluster_rep'].fillna(merged['accession'])
+    return merged['cluster_id'].values.astype(str)
 
 
 def cluster_family_sequences(sequences: np.ndarray,
@@ -98,7 +99,7 @@ def cluster_family_sequences(sequences: np.ndarray,
     """
     if len(sequences) == 0:
         # Edge case: no sequences
-        return np.array([], dtype=int)
+        return np.array([], dtype=str)
 
     # Generate a unique directory for this clustering job
     unique_dir = os.path.join(output_dir, uuid.uuid4().hex)
@@ -120,7 +121,7 @@ def cluster_family_sequences(sequences: np.ndarray,
         except Exception as e:
             print(f"Error running mmseqs: {e}")
             ERROR_LOGS.append(f"Error running mmseqs: {e}")
-            return None
+            return np.array([], dtype=str)
 
         cluster_array = parse_mmseqs_cluster_results(cluster_tsv, accessions)
 
@@ -145,8 +146,16 @@ def process_parquet_file(parquet_path: str,
     filename = os.path.basename(parquet_path)
     new_parquet_path = os.path.join(output_dir, filename)
     if os.path.exists(new_parquet_path):
-        print(f"Skipping {parquet_path} as it already exists in {output_dir}")
-        return
+        df = pd.read_parquet(new_parquet_path)
+        has_missing = False
+        for thr in identity_thresholds:
+            col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
+            if col_name in df.columns and df[col_name].isnull().any():
+                has_missing = True
+                break
+        if not has_missing:
+            print(f"Skipping {parquet_path} as it is already processed ")
+            return
 
     print(f"Processing {parquet_path} => {new_parquet_path}", file=sys.stderr)
     df = pd.read_parquet(parquet_path)
@@ -171,7 +180,7 @@ def process_parquet_file(parquet_path: str,
         if (len(sequences) == 0) or all(len(str(s)) == 0 for s in sequences):
             for thr in identity_thresholds:
                 col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
-                df.at[idx, col_name] = np.array([], dtype=int)
+                df.at[idx, col_name] = np.array([], dtype=str)
             continue
 
         for thr in identity_thresholds:
@@ -182,6 +191,8 @@ def process_parquet_file(parquet_path: str,
                 threads=threads,
                 output_dir=mmseqs_outputs_dir
             )
+            # Ensure we always have a string dtype array
+            cluster_ids = cluster_ids.astype(str)
             col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
             df.at[idx, col_name] = cluster_ids
 
@@ -247,7 +258,7 @@ def main():
             print(f"Estimated time to process {target_families} families: {mean_time_per_fam * target_families:.2f} seconds")
             print(f"Error logs: {len(ERROR_LOGS)}")
             # write the error logs to a file
-            with open(os.path.join(output_dir, "error_logs.txt"), "w") as f:
+            with open(os.path.join(output_dir, f"error_logs_{args.task_index}.txt"), "w") as f:
                 for error in ERROR_LOGS:
                     f.write(error + "\n")
 
