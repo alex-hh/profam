@@ -81,7 +81,12 @@ def parse_mmseqs_cluster_results(cluster_tsv: str, sequence_ids: list) -> np.nda
     merged = pd.merge(all_ids, cluster_df, how='left', left_on='accession', right_on='member')
     
     # Fill NA values with their own accession (singleton clusters)
-    merged['cluster_id'] = merged['cluster_rep'].fillna(merged['accession'])
+    merged['cluster_id'] = merged['cluster_rep']
+    if merged['cluster_id'].isnull().sum() > 0:
+        for i, row in merged.iterrows():
+            if row.isnull().cluster_rep:
+                merged.at[i, 'cluster_id'] = row.accession
+    
     return merged['cluster_id'].values.astype(str)
 
 
@@ -121,9 +126,10 @@ def cluster_family_sequences(sequences: np.ndarray,
         except Exception as e:
             print(f"Error running mmseqs: {e}")
             ERROR_LOGS.append(f"Error running mmseqs: {e}")
-            return np.array([], dtype=str)
+            return np.array([''] * len(accessions), dtype=str)
 
         cluster_array = parse_mmseqs_cluster_results(cluster_tsv, accessions)
+        assert cluster_array.ndim == 1, f"Cluster array has {cluster_array.ndim} dimensions"
 
     finally:
         # Clean up the entire directory
@@ -139,7 +145,7 @@ def process_parquet_file(parquet_path: str,
     """
     Loads a parquet file, iterates over each row (family),
     runs clustering at each identity threshold, and adds new columns
-    with cluster assignments (np.array of ints). Saves to a new parquet file
+    with cluster assignments (np.array of strings). Saves to a new parquet file
     in output_dir.
     """
     start_time = time.time()
@@ -183,6 +189,12 @@ def process_parquet_file(parquet_path: str,
                 df.at[idx, col_name] = np.array([], dtype=str)
             continue
 
+        if len(accessions) == 1:
+            for thr in identity_thresholds:
+                col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
+                df.at[idx, col_name] = np.array([accessions[0]], dtype=str)
+            continue
+
         for thr in identity_thresholds:
             cluster_ids = cluster_family_sequences(
                 sequences=sequences,
@@ -200,7 +212,18 @@ def process_parquet_file(parquet_path: str,
     if len(drop_row_indices) > 0:
         print(f"Dropping {len(drop_row_indices)} rows due to empty sequences from {parquet_path}")
         df = df.drop(drop_row_indices)
-    df.to_parquet(new_parquet_path, index=False)
+    try:
+        df.to_parquet(new_parquet_path, index=False)
+    except Exception as e:
+        print(f"Error saving parquet file: {e}")
+        print(f"df shape: {df.shape}")
+        print(f"df columns: {df.columns}")
+        print(f"df dtypes: {df.dtypes}")
+        for i, row in df.iterrows():
+            for thr in identity_thresholds:
+                col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
+                print(f"row[{col_name}]: {row[col_name]}")
+        ERROR_LOGS.append(f"Error saving parquet file: {e}")
     print(f"Finished processing {parquet_path}")
     end_time = time.time()
     TIMINGS.append({
