@@ -170,6 +170,8 @@ def process_parquet_file(parquet_path: str,
     # We'll store the cluster arrays in new columns named "cluster_ids_{thr}".
     mmseqs_outputs_dir = os.path.join(output_dir, "mmseqs_outputs")
     for idx in range(len(df)):
+        if idx < 39 or idx > 42:
+            continue
         os.makedirs(mmseqs_outputs_dir, exist_ok=True)
         sequences = df.loc[idx, 'sequences']
         accessions = df.loc[idx, 'accessions'] if 'accessions' in df.columns else None
@@ -184,12 +186,14 @@ def process_parquet_file(parquet_path: str,
 
         # If there are no sequences or only empty strings, skip to avoid mmseqs error.
         if (len(sequences) == 0) or all(len(str(s)) == 0 for s in sequences):
+            drop_row_indices.append(idx)
             for thr in identity_thresholds:
                 col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
                 df.at[idx, col_name] = np.array([], dtype=str)
             continue
 
         if len(accessions) == 1:
+            drop_row_indices.append(idx)
             for thr in identity_thresholds:
                 col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
                 df.at[idx, col_name] = np.array([accessions[0]], dtype=str)
