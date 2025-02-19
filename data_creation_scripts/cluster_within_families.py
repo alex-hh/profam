@@ -72,16 +72,17 @@ def parse_mmseqs_cluster_results(cluster_tsv: str, sequence_ids: list) -> np.nda
     Returns: an np.array of cluster IDs (same length as sequence_ids).
     """
     if not os.path.isfile(cluster_tsv):
-        # If no file, each is a singleton
-        print(f"No cluster file found for {cluster_tsv}")
-        ERROR_LOGS.append(f"No cluster file found for {os.path.basename(cluster_tsv)}")
-        return np.array([], dtype=str)
-    df = pd.read_csv(cluster_tsv, sep="\t", header=None)
-    df.set_index(1, inplace=True)
-    df = df.loc[sequence_ids]
-    mean_cluster_size = len(df) / df[0].nunique()
-    print(f"Mean cluster size: {mean_cluster_size}")
-    return df[0].values
+        # Return array of empty strings matching input length
+        return np.array([''] * len(sequence_ids), dtype=str)
+    
+    # Handle missing sequences by joining with original IDs
+    all_ids = pd.DataFrame({'accession': sequence_ids})
+    cluster_df = pd.read_csv(cluster_tsv, sep="\t", header=None, names=['cluster_rep', 'member'])
+    merged = pd.merge(all_ids, cluster_df, how='left', left_on='accession', right_on='member')
+    
+    # Fill NA values with their own accession (singleton clusters)
+    merged['cluster_id'] = merged['cluster_rep'].fillna(merged['accession'])
+    return merged['cluster_id'].values.astype(str)
 
 
 def cluster_family_sequences(sequences: np.ndarray,
@@ -190,6 +191,8 @@ def process_parquet_file(parquet_path: str,
                 threads=threads,
                 output_dir=mmseqs_outputs_dir
             )
+            # Ensure we always have a string dtype array
+            cluster_ids = cluster_ids.astype(str)
             col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
             df.at[idx, col_name] = cluster_ids
 
