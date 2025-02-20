@@ -156,7 +156,10 @@ def process_parquet_file(parquet_path: str,
         has_missing = False
         for thr in identity_thresholds:
             col_name = f"cluster_ids_{str(thr).replace('.', '_')}"
-            if col_name in df.columns and df[col_name].isnull().any():
+            if col_name not in df.columns:
+                has_missing = True
+                break
+            if df[col_name].isnull().any():
                 has_missing = True
                 break
         if not has_missing:
@@ -170,8 +173,6 @@ def process_parquet_file(parquet_path: str,
     # We'll store the cluster arrays in new columns named "cluster_ids_{thr}".
     mmseqs_outputs_dir = os.path.join(output_dir, "mmseqs_outputs")
     for idx in range(len(df)):
-        if idx < 39 or idx > 42:
-            continue
         os.makedirs(mmseqs_outputs_dir, exist_ok=True)
         sequences = df.loc[idx, 'sequences']
         accessions = df.loc[idx, 'accessions'] if 'accessions' in df.columns else None
@@ -219,6 +220,7 @@ def process_parquet_file(parquet_path: str,
     try:
         df.to_parquet(new_parquet_path, index=False)
     except Exception as e:
+        print(f"Error on path: {new_parquet_path}")
         print(f"Error saving parquet file: {e}")
         print(f"df shape: {df.shape}")
         print(f"df columns: {df.columns}")

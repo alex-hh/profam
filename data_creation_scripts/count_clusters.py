@@ -24,6 +24,8 @@ def process_parquet_file(parquet_path, output_dir, task_index):
     
     # Save counts to CSV
     output_path = os.path.join(output_dir, f"cluster_counts_{task_index}.csv")
+    print(f"Saving counts to {output_path}")    
+    
     counts_df.to_csv(output_path, mode='a', header=not os.path.exists(output_path), index=False)
 
 def main():
@@ -44,12 +46,14 @@ def main():
     task_files = parquet_files[start_idx:end_idx]
 
     # Create output directory
-    output_dir = os.path.join(os.path.dirname(args.input_pattern), "cluster_counts")
+    output_dir = os.path.join(os.path.dirname(parquet_files[0]), "../../cluster_counts")
     os.makedirs(output_dir, exist_ok=True)
 
     # Process files
     for parquet_path in task_files:
         process_parquet_file(parquet_path, output_dir, args.task_index)
+    print(f"Finished task {args.task_index} of {args.num_tasks}")
+    print(f"Output directory: {output_dir}")
 
 if __name__ == "__main__":
     main() 
