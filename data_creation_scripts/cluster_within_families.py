@@ -238,6 +238,7 @@ def process_parquet_file(parquet_path: str,
     })
 
 def main():
+    compute_timings = False
     parser = argparse.ArgumentParser(
         description="mmseqs clustering within each family at different levels of sequence identity."
     )
@@ -250,7 +251,7 @@ def main():
     parser.add_argument("--identity_thresholds", nargs="+", default=[0.95, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2],
                         type=float,
                         help="Sequence identity thresholds for clustering.")
-    parser.add_argument("--threads", type=int, default=8,
+    parser.add_argument("--threads", type=int, default=20,
                         help="Number of CPU threads for mmseqs.")
     args = parser.parse_args()
 
@@ -275,7 +276,7 @@ def main():
                              args.identity_thresholds,
                              args.threads)
 
-        if len(TIMINGS) > 0:
+        if compute_timings and len(TIMINGS) > 0:
             timings_df = pd.DataFrame(TIMINGS)
             timings_df.to_csv(os.path.join(output_dir, "timings.csv"), index=False)
             total_fams_processed = timings_df['n_families'].sum()
