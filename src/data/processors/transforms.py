@@ -205,17 +205,6 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         ]
     )
     new_proteins = new_proteins.slice_arrays(array_slices)
-    total_tokens = (
-        sum(len(seq) for seq in new_proteins.sequences)
-        + extra_tokens_per_protein * len(new_proteins)
-        + extra_tokens_per_document
-    )
-    if total_tokens > max_tokens:
-        bp = 1
-        raise ValueError(
-            f"Total tokens {total_tokens} > max_tokens {max_tokens}"
-            f"in {proteins.identifier}"
-        )
     return new_proteins
 
 
