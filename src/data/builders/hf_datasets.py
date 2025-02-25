@@ -222,21 +222,8 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
             data_files=data_files,
             split="train",  # just automatically assigns all files to train - get this 'split'
             streaming=self.streaming,
-            columns=[
-                "sequences",
-                "fam_id",
-                "N",
-                "CA",
-                "C",
-                "O",
-                "plddts",
-                "accessions",
-                "af50_cluster_id",
-            ],
             **load_kwargs,
-        )
-
-        dataset = dataset.with_format(
+        ).with_format(
             self.cfg.return_format
         )  # formatting needs to be set before filter/map
 
