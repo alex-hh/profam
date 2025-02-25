@@ -148,10 +148,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
             final_element_tokens = (
                 max_tokens - cumsum_lengths[endpoint - 1] - extra_tokens_per_protein
             )  # cumsum lengths include extra tokens
-            if final_element_tokens > extra_tokens_per_protein:
-                effective_endpoint = endpoint + 1  # add a truncated element
-            else:
-                effective_endpoint = endpoint
+            effective_endpoint = endpoint + 1  # add a truncated element
         elif endpoint >= len(proteins):
             effective_endpoint = len(proteins)
             final_element_tokens = new_sequence_lengths[-1]
@@ -205,17 +202,6 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         ]
     )
     new_proteins = new_proteins.slice_arrays(array_slices)
-    total_tokens = (
-        sum(len(seq) for seq in new_proteins.sequences)
-        + extra_tokens_per_protein * len(new_proteins)
-        + extra_tokens_per_document
-    )
-    if total_tokens > max_tokens:
-        bp = 1
-        raise ValueError(
-            f"Total tokens {total_tokens} > max_tokens {max_tokens}"
-            f"in {proteins.identifier}"
-        )
     return new_proteins
 
 

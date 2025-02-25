@@ -645,7 +645,7 @@ class BaseFamilyLitModule(BaseLitModule):
 
             all_lls.append(log_likelihood.mean(-1))  # b_mut
 
-        lls = torch.cat(all_lls).cpu().float().numpy()
+        lls = torch.cat(all_lls).cpu().numpy()
         return lls
 
     def _score_seqs_no_cache(
