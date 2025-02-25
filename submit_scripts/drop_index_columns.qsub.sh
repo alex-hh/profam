@@ -1,13 +1,11 @@
 #!/bin/bash
 #$ -P cath
-#$ -l tmem=192G
-#$ -l h_vmem=192G
-#$ -l h_rt=11:55:30
+#$ -l tmem=8G
+#$ -l h_vmem=8G
+#$ -l h_rt=7:55:30
 #$ -S /bin/bash
-#$ -N checkParqs5
-#$ -l gpu=true
-#$ -l hostname="bubba*"
-#$ -t 1-10
+#$ -N dropIndexCols
+#$ -t 1-100
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -23,5 +21,5 @@ cd $ROOT_DIR
 
 # Add ROOT_DIR to PYTHONPATH
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
-python scripts/adhoc_analysis/MULTITHREAD_validate_cath_split_parquets.py --task_index $SGE_TASK_ID
+python scripts/adhoc_analysis/drop_index_columns.py --task_index $(($SGE_TASK_ID - 1)) --num_tasks $SGE_TASK_LAST
 date
