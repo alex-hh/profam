@@ -68,6 +68,7 @@ class BaseLitModule(LightningModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         optimizer: str = "adamw",
+        override_optimizer_on_load: bool = False,
     ) -> None:
         super().__init__()
         self.model = model
@@ -80,6 +81,7 @@ class BaseLitModule(LightningModule):
         self.num_training_steps = num_training_steps
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
+        self.override_optimizer_on_load = override_optimizer_on_load
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
@@ -451,6 +453,22 @@ class BaseLitModule(LightningModule):
         self.log_metrics(batch, outputs, "test", log_global=dataloader_idx == 0)
         return loss
 
+    def on_load_checkpoint(self, checkpoint):
+        """Handle checkpoint loading, optionally overriding optimizer and scheduler states.
+        
+        If override_optimizer_on_load is True, we'll remove the optimizer and 
+        lr_scheduler states from the checkpoint, forcing Lightning to create new ones
+        based on the current hyperparameters.
+        """
+        if self.override_optimizer_on_load:
+            if "optimizer_states" in checkpoint:
+                log.info("Overriding optimizer state from checkpoint with current config values")
+                del checkpoint["optimizer_states"]
+            
+            if "lr_schedulers" in checkpoint:
+                log.info("Overriding lr scheduler state from checkpoint with current config values")
+                del checkpoint["lr_schedulers"]
+
 
 class BaseSingleSequenceLitModule(BaseLitModule):
 
@@ -533,6 +551,7 @@ class BaseFamilyLitModule(BaseLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
+        override_optimizer_on_load: bool = False,
     ):
         super().__init__(
             model,
@@ -543,6 +562,8 @@ class BaseFamilyLitModule(BaseLitModule):
             num_warmup_steps=num_warmup_steps,
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
+            optimizer="adamw",
+            override_optimizer_on_load=override_optimizer_on_load,
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
