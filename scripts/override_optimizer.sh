@@ -5,8 +5,8 @@ set -e  # Exit on error
 ROOT_DIR=$(pwd)
 EXPERIMENT_DIR="${ROOT_DIR}/test_override_optimizer"
 CHECKPOINT_DIR="${EXPERIMENT_DIR}/checkpoints"
-DATA_DIR="${ROOT_DIR}/data"
-LOG_DIR="${EXPERIMENT_DIR}/logs"
+DATA_DIR="../data"
+LOG_DIR="${ROOT_DIR}/logs"
 
 # Create necessary directories
 mkdir -p "${EXPERIMENT_DIR}"
