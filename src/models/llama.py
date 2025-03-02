@@ -62,6 +62,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         max_res_pos_in_seq: int = 4096,
         max_sequence_index: int = 1024,
         optimizer: str = "adamw",
+        override_optimizer_on_load: bool = False,
     ) -> None:
         """
         From the paper:
@@ -106,4 +107,5 @@ class LlamaLitModule(BaseFamilyLitModule):
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
             embed_coords=embed_coords,
+            override_optimizer_on_load=override_optimizer_on_load,
         )

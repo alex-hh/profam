@@ -22,6 +22,9 @@ from src.data.objects import StringObject
 from src.data.tokenizers import ProFamTokenizer
 from src.models import metrics
 from src.models.utils import InputAwareDynamicCache, log_likelihood_from_outputs
+from src.utils import RankedLogger
+
+log = RankedLogger(__name__, rank_zero_only=True)
 
 
 def calc_grad_norm(params):
@@ -40,7 +43,7 @@ def load_checkpoint(checkpoint_dir, **kwargs):
     cfg = OmegaConf.load(os.path.join(config_dir, "config.yaml"))
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
 
-    print(OmegaConf.to_yaml(cfg.model))
+    log.info(OmegaConf.to_yaml(cfg.model))
     # TODO: check callback config
     checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
     checkpoint = torch.load(
@@ -68,6 +71,7 @@ class BaseLitModule(LightningModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         optimizer: str = "adamw",
+        override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
     ) -> None:
         super().__init__()
         self.model = model
@@ -80,10 +84,11 @@ class BaseLitModule(LightningModule):
         self.num_training_steps = num_training_steps
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
+        self.override_optimizer_on_load = override_optimizer_on_load
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
-        print(f"Using optimizer {optimizer_name}")
+        log.info(f"Using optimizer {optimizer_name}")
         if optimizer_name == "adamw":
             optimizer = torch.optim.AdamW(
                 self.parameters(),
@@ -451,6 +456,30 @@ class BaseLitModule(LightningModule):
         self.log_metrics(batch, outputs, "test", log_global=dataloader_idx == 0)
         return loss
 
+    def on_load_checkpoint(self, checkpoint):
+        """Handle checkpoint loading, optionally overriding optimizer and scheduler states.
+
+        If override_optimizer_on_load is True, we'll remove the optimizer and
+        lr_scheduler states from the checkpoint, forcing Lightning to create new ones
+        based on the current config hyperparameters.
+        """
+        if self.override_optimizer_on_load:
+            if "optimizer_states" in checkpoint:
+                log.info(
+                    "Overriding optimizer state from checkpoint with current config values"
+                )
+                del checkpoint["optimizer_states"]
+
+            if "lr_schedulers" in checkpoint:
+                log.info(
+                    "Overriding lr scheduler state from checkpoint with current config values"
+                )
+                del checkpoint["lr_schedulers"]
+
+            # Set a flag to tell Lightning not to expect optimizer states
+            checkpoint["optimizer_states"] = []
+            checkpoint["lr_schedulers"] = []
+
 
 class BaseSingleSequenceLitModule(BaseLitModule):
 
@@ -533,6 +562,7 @@ class BaseFamilyLitModule(BaseLitModule):
         scoring_max_tokens: int = 8000,
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
+        override_optimizer_on_load: bool = False,
     ):
         super().__init__(
             model,
@@ -543,6 +573,8 @@ class BaseFamilyLitModule(BaseLitModule):
             num_warmup_steps=num_warmup_steps,
             num_training_steps=num_training_steps,
             scoring_max_tokens=scoring_max_tokens,
+            optimizer="adamw",
+            override_optimizer_on_load=override_optimizer_on_load,
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
@@ -1152,9 +1184,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
-        print(
-            "Train epoch end", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True
-        )
+        log.info("Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         # self.log_dict(
         #     {
         #         f"{k}_max_sampled_doc": max(v.values())
