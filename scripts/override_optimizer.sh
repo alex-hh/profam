@@ -32,7 +32,7 @@ python src/train.py \
   model.num_warmup_steps=2 \
   paths.output_dir="${EXPERIMENT_DIR}" \
   paths.data_dir="${DATA_DIR}" \
-  logger=csv \
+  logger=wandb \
   callbacks=default_no_shuffle
 
 # Find the checkpoint file
