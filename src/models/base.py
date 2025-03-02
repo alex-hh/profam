@@ -1032,7 +1032,8 @@ class BaseFamilyLitModule(BaseLitModule):
             top_k_acc = len(
                 set(np.argsort(lls)[::-1][:top_k]).intersection(
                     set(np.where(target_vals)[0])
-                ) / min(top_k, sum(target_vals))
+                )
+            ) / min(top_k, sum(target_vals))
             self.log(
                 f"val/{batch.get('ds_name').text[0]}_top_{top_k}_acc_classification",
                 top_k_acc,
