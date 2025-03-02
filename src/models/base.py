@@ -22,6 +22,9 @@ from src.data.objects import StringObject
 from src.data.tokenizers import ProFamTokenizer
 from src.models import metrics
 from src.models.utils import InputAwareDynamicCache, log_likelihood_from_outputs
+from src.utils import RankedLogger
+
+log = RankedLogger(__name__, rank_zero_only=True)
 
 
 def calc_grad_norm(params):
@@ -40,7 +43,7 @@ def load_checkpoint(checkpoint_dir, **kwargs):
     cfg = OmegaConf.load(os.path.join(config_dir, "config.yaml"))
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
 
-    print(OmegaConf.to_yaml(cfg.model))
+    log.info(OmegaConf.to_yaml(cfg.model))
     # TODO: check callback config
     checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
     checkpoint = torch.load(
@@ -85,7 +88,7 @@ class BaseLitModule(LightningModule):
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
-        print(f"Using optimizer {optimizer_name}")
+        log.info(f"Using optimizer {optimizer_name}")
         if optimizer_name == "adamw":
             optimizer = torch.optim.AdamW(
                 self.parameters(),
@@ -1173,8 +1176,8 @@ class BaseFamilyLitModule(BaseLitModule):
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
-        print(
-            "Train epoch end", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True
+        log.info(
+            "Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
         # self.log_dict(
         #     {
