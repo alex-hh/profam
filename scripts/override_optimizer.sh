@@ -9,6 +9,8 @@ DATA_DIR="../data"
 
 # Create necessary directories
 mkdir -p "${EXPERIMENT_DIR}"
+mkdir -p "${EXPERIMENT_DIR}/resume_without_override"
+mkdir -p "${EXPERIMENT_DIR}/resume_with_override"
 
 echo "=== Testing override_optimizer_on_load functionality ==="
 echo "Experiment directory: ${EXPERIMENT_DIR}"
@@ -64,7 +66,7 @@ python src/train.py \
   paths.data_dir="${DATA_DIR}" \
   logger=wandb \
   callbacks=default_no_shuffle \
-  experiment_group="resume_without_override"
+  experiment_group="resume_without_override" \
   ckpt_path="${CHECKPOINT_PATH}"
 
 # Step 3: Resume training with override (should use new lr)
