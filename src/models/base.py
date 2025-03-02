@@ -71,7 +71,7 @@ class BaseLitModule(LightningModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         optimizer: str = "adamw",
-        override_optimizer_on_load: bool = False,
+        override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
     ) -> None:
         super().__init__()
         self.model = model
@@ -461,7 +461,7 @@ class BaseLitModule(LightningModule):
 
         If override_optimizer_on_load is True, we'll remove the optimizer and
         lr_scheduler states from the checkpoint, forcing Lightning to create new ones
-        based on the current hyperparameters.
+        based on the current config hyperparameters.
         """
         if self.override_optimizer_on_load:
             if "optimizer_states" in checkpoint:
