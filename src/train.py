@@ -109,7 +109,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if cfg.get("ckpt_path"):
             log.info(f"Resuming training from checkpoint: {cfg.get('ckpt_path')}")
             if cfg.get("override_optimizer_on_load"):
-                log.info("Will override optimizer and scheduler states from checkpoint with current config values")
+                log.info(
+                    "Will override optimizer and scheduler states from checkpoint with current config values"
+                )
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 

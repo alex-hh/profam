@@ -458,20 +458,24 @@ class BaseLitModule(LightningModule):
 
     def on_load_checkpoint(self, checkpoint):
         """Handle checkpoint loading, optionally overriding optimizer and scheduler states.
-        
-        If override_optimizer_on_load is True, we'll remove the optimizer and 
+
+        If override_optimizer_on_load is True, we'll remove the optimizer and
         lr_scheduler states from the checkpoint, forcing Lightning to create new ones
         based on the current hyperparameters.
         """
         if self.override_optimizer_on_load:
             if "optimizer_states" in checkpoint:
-                log.info("Overriding optimizer state from checkpoint with current config values")
+                log.info(
+                    "Overriding optimizer state from checkpoint with current config values"
+                )
                 del checkpoint["optimizer_states"]
-            
+
             if "lr_schedulers" in checkpoint:
-                log.info("Overriding lr scheduler state from checkpoint with current config values")
+                log.info(
+                    "Overriding lr scheduler state from checkpoint with current config values"
+                )
                 del checkpoint["lr_schedulers"]
-            
+
             # Set a flag to tell Lightning not to expect optimizer states
             checkpoint["optimizer_states"] = []
             checkpoint["lr_schedulers"] = []
@@ -1180,9 +1184,7 @@ class BaseFamilyLitModule(BaseLitModule):
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
-        log.info(
-            "Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
+        log.info("Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         # self.log_dict(
         #     {
         #         f"{k}_max_sampled_doc": max(v.values())
