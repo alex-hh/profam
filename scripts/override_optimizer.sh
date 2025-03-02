@@ -6,11 +6,9 @@ ROOT_DIR=$(pwd)
 EXPERIMENT_DIR="${ROOT_DIR}/test_override_optimizer"
 CHECKPOINT_DIR="${EXPERIMENT_DIR}/checkpoints"
 DATA_DIR="../data"
-LOG_DIR="${ROOT_DIR}/logs"
 
 # Create necessary directories
 mkdir -p "${EXPERIMENT_DIR}"
-mkdir -p "${LOG_DIR}"
 
 echo "=== Testing override_optimizer_on_load functionality ==="
 echo "Experiment directory: ${EXPERIMENT_DIR}"
@@ -30,9 +28,11 @@ python src/train.py \
   model.lr=3e-4 \
   model.scheduler_name="cosine" \
   model.num_warmup_steps=2 \
+  +model.num_training_steps=10 \
   paths.output_dir="${EXPERIMENT_DIR}" \
   paths.data_dir="${DATA_DIR}" \
   logger=wandb \
+  experiment_group="initial_run" \
   callbacks=default_no_shuffle
 
 # Find the checkpoint file
@@ -58,13 +58,14 @@ python src/train.py \
   model.lr=1e-5 \
   model.scheduler_name="linear" \
   model.num_warmup_steps=1 \
-  model.override_optimizer_on_load=False \
+  +model.num_training_steps=20 \
+  +model.override_optimizer_on_load=False \
   paths.output_dir="${EXPERIMENT_DIR}/resume_without_override" \
   paths.data_dir="${DATA_DIR}" \
   logger=wandb \
   callbacks=default_no_shuffle \
-  ckpt_path="${CHECKPOINT_PATH}" \
-  2>&1 | tee "${LOG_DIR}/resume_without_override.log"
+  experiment_group="resume_without_override"
+  ckpt_path="${CHECKPOINT_PATH}"
 
 # Step 3: Resume training with override (should use new lr)
 echo "=== Step 3: Resume training WITH override (should use new lr=1e-5) ==="
@@ -81,15 +82,16 @@ python src/train.py \
   model.lr=1e-5 \
   model.scheduler_name="linear" \
   model.num_warmup_steps=1 \
-  model.override_optimizer_on_load=True \
+  +model.num_training_steps=20 \
+  +model.override_optimizer_on_load=True \
   paths.output_dir="${EXPERIMENT_DIR}/resume_with_override" \
   paths.data_dir="${DATA_DIR}" \
   logger=wandb \
   callbacks=default_no_shuffle \
-  ckpt_path="${CHECKPOINT_PATH}" \
-  2>&1 | tee "${LOG_DIR}/resume_with_override.log"
+  experiment_group="resume_with_override" \
+  ckpt_path="${CHECKPOINT_PATH}"
 
 echo "=== Test completed ==="
-echo "Check logs in ${LOG_DIR} to verify the learning rates"
-echo "Without override: ${LOG_DIR}/resume_without_override.log"
-echo "With override: ${LOG_DIR}/resume_with_override.log"
+echo "Check logs in ${EXPERIMENT_DIR} to verify the learning rates"
+echo "Without override: ${EXPERIMENT_DIR}/resume_without_override.log"
+echo "With override: ${EXPERIMENT_DIR}/resume_with_override.log"
