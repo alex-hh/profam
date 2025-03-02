@@ -148,7 +148,10 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
             final_element_tokens = (
                 max_tokens - cumsum_lengths[endpoint - 1] - extra_tokens_per_protein
             )  # cumsum lengths include extra tokens
-            effective_endpoint = endpoint + 1  # add a truncated element
+            if final_element_tokens > extra_tokens_per_protein:
+                effective_endpoint = endpoint + 1  # add a truncated element
+            else:
+                effective_endpoint = endpoint
         elif endpoint >= len(proteins):
             effective_endpoint = len(proteins)
             final_element_tokens = new_sequence_lengths[-1]
