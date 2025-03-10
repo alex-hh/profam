@@ -1,5 +1,5 @@
 _target_: src.data.builders.SequenceDocumentIterableDataset
-name: afdb_s50
+name: uniref90
 defaults:
   - /preprocessor: raw
 
