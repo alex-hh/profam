@@ -117,6 +117,8 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
     Returns:
         A new ProteinDocument containing the sampled proteins.
     """
+    if len(proteins.sequences[0]) > 10000:
+        bp=1
     extra_tokens_per_protein = 1  # separator token
     extra_tokens_per_document = tokenizer.num_start_tokens
 

@@ -68,7 +68,7 @@ def get_residue_index_from_positions(
     except Exception as e:
         print(f"len(flat_indices) = {len(flat_indices)}")
         print(f"seq_pos.shape = {seq_pos.shape}")
-        print(f"len(residue_positions) = {len(residue_positions)}")
+        print(f"len(residue_positions) = {len(residue_positions[0])}")
         print("flat_indices =", flat_indices)
         print("residue_positions =", residue_positions)
         print("input_ids =", input_ids)
