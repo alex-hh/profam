@@ -63,7 +63,21 @@ def get_residue_index_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = flat_indices
+    try:
+        seq_pos[:pad_start] = flat_indices
+    except Exception as e:
+        print(f"len(flat_indices) = {len(flat_indices)}")
+        print(f"seq_pos.shape = {seq_pos.shape}")
+        print(f"len(residue_positions) = {len(residue_positions)}")
+        print("flat_indices =", flat_indices)
+        print("residue_positions =", residue_positions)
+        print("input_ids =", input_ids)
+        print("pad_start =", pad_start)
+        print("max_res_pos_in_seq =", max_res_pos_in_seq)
+        print("num_start_tokens =", num_start_tokens)
+        print("num_end_tokens =", num_end_tokens)
+        print(f"total pad tokens= {(input_ids == pad_token_id).sum()}")
+        raise e
     return seq_pos
 
 
@@ -212,14 +226,25 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             ]
         else:
             residue_positions = proteins.residue_positions
-        res_pos_in_seq = get_residue_index_from_positions(
-            tokenized.input_ids,
-            residue_positions,
-            pad_token_id=self.pad_token_id,
-            max_res_pos_in_seq=self.max_res_pos_in_seq,
-            num_start_tokens=self.num_start_tokens,
-            num_end_tokens=num_end_tokens,
-        )
+        try:
+            res_pos_in_seq = get_residue_index_from_positions(
+                tokenized.input_ids,
+                residue_positions,
+                pad_token_id=self.pad_token_id,
+                max_res_pos_in_seq=self.max_res_pos_in_seq,
+                num_start_tokens=self.num_start_tokens,
+                num_end_tokens=num_end_tokens,
+            )
+        except Exception as e:
+            print(f"padding = {padding}")
+            print(f"max_length = {max_length}")
+            print(f"num_end_tokens = {num_end_tokens}")
+            print(f"num_start_tokens = {self.num_start_tokens}")
+            print(f"residue_positions = {residue_positions}")
+            print(f"tokenized.input_ids = {tokenized.input_ids}")
+            print(f"tokenized.input_ids.shape = {tokenized.input_ids.shape}")
+            raise e
+
         tokenized.data["residue_index"] = res_pos_in_seq
         assert res_pos_in_seq.shape[0] == tokenized.input_ids.shape[0]
 
