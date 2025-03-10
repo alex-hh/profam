@@ -63,7 +63,14 @@ def get_residue_index_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = flat_indices
+    try:
+        seq_pos[:pad_start] = flat_indices
+    except Exception as e:
+        print(flat_indices)
+        print(input_ids)
+        print(pad_start)
+        print(f"total pad tokens: {(input_ids == pad_token_id).int().sum()}")
+        raise e
     return seq_pos
 
 
