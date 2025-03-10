@@ -187,10 +187,13 @@ class ProteinDocumentPreprocessor:
         for proteins in proteins_list:
             proteins = self.apply_transforms(proteins, tokenizer)
             processed_proteins_list.append(proteins)
-        if any([
-            len(p.residue_positions[0]) != len(p.sequences[0]) for p in processed_proteins_list
-            ]):
-            bp=1
+        if any(
+            [
+                len(p.residue_positions[0]) != len(p.sequences[0])
+                for p in processed_proteins_list
+            ]
+        ):
+            bp = 1
         examples = tokenizer.batched_encode(
             processed_proteins_list,
             document_token=self.cfg.document_token,
