@@ -232,14 +232,16 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 num_start_tokens=self.num_start_tokens,
                 num_end_tokens=num_end_tokens,
             )
-        except:
+        except Exception as e:
             print(f"padding = {padding}")
             print(f"max_length = {max_length}")
             print(f"num_end_tokens = {num_end_tokens}")
             print(f"num_start_tokens = {self.num_start_tokens}")
             print(f"residue_positions = {residue_positions}")
             print(f"tokenized.input_ids = {tokenized.input_ids}")
-            
+            print(f"tokenized.input_ids.shape = {tokenized.input_ids.shape}")
+            raise e
+
         tokenized.data["residue_index"] = res_pos_in_seq
         assert res_pos_in_seq.shape[0] == tokenized.input_ids.shape[0]
 
