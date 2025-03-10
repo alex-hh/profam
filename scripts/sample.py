@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import os
-from typing import Optional
+from typing import Optional, Dict
+import glob
 
 import hydra
 import torch
@@ -12,6 +13,8 @@ from omegaconf import OmegaConf
 from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
 from src.models.utils import load_named_model
+from src.models.inference import ProFamSampler, PromptBuilder
+from src.data.processors.preprocessing import ProteinDocumentPreprocessor, PreprocessingConfig
 
 
 def parse_args():
@@ -60,22 +63,47 @@ def parse_args():
     )
     return parser.parse_args()
 
+def get_config_from_checkpoint(checkpoint_path):
+    run_dir = checkpoint_path.split("/checkpoints")[0]
+    config_path = glob.glob(f"{run_dir}/.hydra/config.yaml")
+    if len(config_path) == 0:
+        raise ValueError(f"No config file found in {run_dir}")
+    config = OmegaConf.load(config_path[0])
+    
+    # Ensure the config has the necessary structure
+    if 'model' not in config:
+        raise ValueError(f"Config in {config_path[0]} does not contain a 'model' section")
+    
+    return config
+
 
 def main():
     args = parse_args()
     
     # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
+    config = get_config_from_checkpoint(args.checkpoint_path)
+    tokenizer = instantiate(config.tokenizer)
     
-    # Load model and tokenizer
-    model = load_named_model(args.model_config)
-    
-    # Load checkpoint
-    model.load_from_checkpoint(args.checkpoint_path)
+    # Load the model directly from checkpoint
+    model_class = hydra.utils.get_class(config.model._target_)
+    model = model_class.load_from_checkpoint(args.checkpoint_path, tokenizer=tokenizer)
     model.eval()
     
-    # Create a minimal prompt with just the document token
-    prompt = ProteinDocument(sequences=["[RAW]"])
+    # Create a simple preprocessing config for unconditional sampling
+    preprocessing_config = PreprocessingConfig(
+        document_token="[RAW]",
+        drop_first_protein=False,
+        keep_first_protein=False,
+        allow_unk=False,
+        max_tokens_per_example=None,
+        shuffle_proteins_in_document=False,
+        padding="do_not_pad"
+    )
+    
+    # Create a simple prompt builder for unconditional sampling
+    preprocessor = ProteinDocumentPreprocessor(cfg=preprocessing_config)
+    prompt_builder = PromptBuilder(preprocessor=preprocessor)
     
     # Set up sampling parameters
     sampling_kwargs = {
@@ -83,14 +111,24 @@ def main():
         "batch_size": args.batch_size,
     }
     
+    # Create a ProFamSampler instance
+    sampler = ProFamSampler(
+        name="unconditional_sampler",
+        model=model,
+        prompt_builder=prompt_builder,
+        document_token="[RAW]",
+        sampling_kwargs=sampling_kwargs,
+    )
+    
+    # Create a minimal prompt with just the document token for unconditional sampling
+    prompt = ProteinDocument(sequences=["[start-of-document][RAW]"])
+    
     # Generate sequences
-    with torch.no_grad():
-        sequences, _ = model.sample_seqs(
-            prompt,
-            num_samples=args.num_samples,
-            max_tokens=args.max_tokens,
-            **sampling_kwargs
-        )
+    sequences, _ = sampler.sample_seqs(
+        protein_document=prompt,
+        num_samples=args.num_samples,
+        max_tokens=args.max_tokens,
+    )
     
     # Save generated sequences
     output_file = os.path.join(args.output_dir, "generated_sequences.txt")
