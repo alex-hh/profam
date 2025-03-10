@@ -66,6 +66,9 @@ def get_residue_index_from_positions(
     try:
         seq_pos[:pad_start] = flat_indices
     except Exception as e:
+        print(f"flat_indices.shape = {flat_indices.shape}")
+        print(f"seq_pos.shape = {seq_pos.shape}")
+        print(f"residue_positions.shape = {residue_positions.shape}")
         print("flat_indices =", flat_indices)
         print("residue_positions =", residue_positions)
         print("input_ids =", input_ids)
