@@ -68,7 +68,9 @@ def process_batch(fasta_file, start_pos, end_pos, batch_index, output_dir, rows_
             if line.startswith('>'):
                 # Save the previous sequence if there was one
                 if current_header is not None:
-                    sequences.append(np.array([current_sequence]))
+                    # Ensure no newline characters remain in the sequence
+                    clean_sequence = current_sequence.replace('\n', '').replace('\r', '')
+                    sequences.append(np.array([clean_sequence]))
                     
                     # Extract accession from header (remove 'UniRef90_' prefix)
                     accession = current_header.split()[0].replace('UniRef90_', '')
@@ -102,12 +104,14 @@ def process_batch(fasta_file, start_pos, end_pos, batch_index, output_dir, rows_
                 current_header = line[1:]  # Remove the '>' character
                 current_sequence = ""
             else:
-                # Append to the current sequence
+                # Append to the current sequence, ensuring to strip all whitespace
                 current_sequence += line.strip()
         
         # Don't forget the last sequence
         if current_header is not None:
-            sequences.append(np.array([current_sequence]))
+            # Ensure no newline characters remain in the sequence
+            clean_sequence = current_sequence.replace('\n', '').replace('\r', '')
+            sequences.append(np.array([clean_sequence]))
             accession = current_header.split()[0].replace('UniRef90_', '')
             accessions.append(np.array([accession]))
             fam_ids.append(accession)
