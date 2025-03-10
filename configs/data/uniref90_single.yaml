@@ -13,7 +13,7 @@ dataset_builders:
 
 total_num_train_samples: 10000000
 data_weights:
-  afdb_s50: 1.0
+  uniref90: 1.0
 
 batch_size: 1
 data_dir: ${paths.data_dir}
@@ -23,5 +23,5 @@ ignore_gaps: true
 feature_names: ${constants.sequence_features}
 
 val_dataset_batch_sizes:
-    afdb_s50_val: 1 # greater than 1 breaks map datasets if using seq packing
+    uniref90_val: 1 # greater than 1 breaks map datasets if using seq packing
 pack_to_max_tokens: 32_000
