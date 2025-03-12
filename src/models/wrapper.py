@@ -190,7 +190,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if past_key_values is not None:
             cache = InputAwareDynamicCache.from_legacy_cache(
                 past_key_values
-            )  # JW added this line
+            )
         else:
             cache = None
         inputs = super().prepare_inputs_for_generation(
@@ -416,6 +416,11 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             )
             inputs_embeds += self.sequence_index_embedding(sequence_index)
 
+        if hasattr(self, "dtype"):
+            inputs_embeds = inputs_embeds.to(self.dtype)
+        elif hasattr(self.token_embedder, "weight"):
+            inputs_embeds = inputs_embeds.to(self.token_embedder.weight.dtype)
+
         return inputs_embeds
 
     def get_position_ids_for_model_forward(
@@ -472,6 +477,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
             start_sequence_index = self.compute_start_sequence_index(past_key_values)
         else:
             start_sequence_index = None
+
+    
+        if coords is not None and hasattr(self, "dtype"):
+            coords = coords.to(self.dtype)
 
         inputs_embeds = self.embed_inputs(
             input_ids,

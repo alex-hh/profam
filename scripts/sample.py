@@ -46,7 +46,7 @@ def parse_args():
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.8,
+        default=0.4,
         help="Temperature for sampling (higher = more random)",
     )
     parser.add_argument(
@@ -60,6 +60,13 @@ def parse_args():
         type=str,
         default="outputs/samples",
         help="Directory to save generated sequences",
+    )
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        choices=["float32", "float16", "bfloat16"],
+        default="bfloat16",
+        help="Data type to use for inference (float32, float16, or bfloat16)",
     )
     return parser.parse_args()
 
@@ -85,11 +92,25 @@ def main():
     config = get_config_from_checkpoint(args.checkpoint_path)
     tokenizer = instantiate(config.tokenizer)
     
+    # Set the data type based on the command-line argument
+    if args.dtype == "float32":
+        dtype = torch.float32
+    elif args.dtype == "float16":
+        dtype = torch.float16
+    elif args.dtype == "bfloat16":
+        dtype = torch.bfloat16
+    else:
+        dtype = torch.bfloat16  # Default to bfloat16
+    
     # Load the model directly from checkpoint
     model_class = hydra.utils.get_class(config.model._target_)
     model = model_class.load_from_checkpoint(args.checkpoint_path, tokenizer=tokenizer)
     model.eval()
     
+    # Move model to GPU if available and set dtype
+    if torch.cuda.is_available():
+        model = model.to("cuda")
+    model = model.to(dtype)
     # Create a simple preprocessing config for unconditional sampling
     preprocessing_config = PreprocessingConfig(
         document_token="[RAW]",
@@ -118,10 +139,11 @@ def main():
         prompt_builder=prompt_builder,
         document_token="[RAW]",
         sampling_kwargs=sampling_kwargs,
+        dtype=dtype,
     )
     
     # Create a minimal prompt with just the document token for unconditional sampling
-    prompt = ProteinDocument(sequences=["[start-of-document][RAW]"])
+    prompt = ProteinDocument(sequences=["M"])
     
     # Generate sequences
     sequences, _ = sampler.sample_seqs(
