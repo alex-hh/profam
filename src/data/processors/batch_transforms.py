@@ -101,11 +101,11 @@ def pack_batches(
                 packed_examples.append(
                     pack_examples(examples_to_pack)
                 )  # TODO: check this
-            examples_to_pack = []
-            total_packed_tokens = 0
-
-        examples_to_pack.append(example)
-        total_packed_tokens += example["input_ids"].shape[-1]
+                examples_to_pack = []
+                total_packed_tokens = 0
+        else:
+            examples_to_pack.append(example)
+            total_packed_tokens += example["input_ids"].shape[-1]
     if examples_to_pack:
         packed_examples.append(pack_examples(examples_to_pack))
     return examples_list_to_dict(packed_examples)
