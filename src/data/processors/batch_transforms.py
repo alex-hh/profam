@@ -100,7 +100,20 @@ def pack_batches(
                 examples_to_pack.append(truncated_example)
                 packed_examples.append(
                     pack_examples(examples_to_pack)
-                )  # TODO: check this
+                )
+                examples_to_pack = []
+                total_packed_tokens = 0
+            
+            elif example["input_ids"].shape[-1] <= max_tokens_per_batch:
+                packed_examples.append(
+                    pack_examples(examples_to_pack)
+                )
+                examples_to_pack = [example]
+                total_packed_tokens = example["input_ids"].shape[-1]
+            else:
+                packed_examples.append(
+                    pack_examples(examples_to_pack)
+                )
                 examples_to_pack = []
                 total_packed_tokens = 0
         else:
