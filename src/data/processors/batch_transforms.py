@@ -78,6 +78,8 @@ def pack_batches(
     full_examples_only: if True, only pack examples that are full (i.e. don't split documents across batches)
     if False, split documents across batches to create packed examples with exactly max_tokens_per_batch tokens
     """
+    if allow_split_packed_documents:
+        raise NotImplementedError("allow_split_packed_documents not thoroughly tested")
     bos_token_id = tokenizer.bos_token_id
     packed_examples = []
     examples_to_pack = []
