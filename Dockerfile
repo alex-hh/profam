@@ -16,7 +16,10 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 # Disable if not interested in flash attention
-RUN pip install flash-attn --no-build-isolation
+# NOTE: update the URL to the release that matches torch, cuda, and python versions
+RUN pip install https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.0.6/flash_attn-2.7.4.post1+cu124torch2.6-cp311-cp311-linux_x86_64.whl
+# Installation from scratch is very slow!
+# RUN pip install flash-attn --no-build-isolation
 
 # Copy the rest of the repository
 COPY . .

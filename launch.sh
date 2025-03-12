@@ -328,7 +328,7 @@ push() {
 
     local IMG_NAME=($(echo ${DOCKER_IMAGE} | tr ":" "\n"))
 
-    docker_login
+    docker_login ${DOCKER_IMAGE}
     docker push ${IMG_NAME[0]}:latest
     docker push ${DOCKER_IMAGE}
 
