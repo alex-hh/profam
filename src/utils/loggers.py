@@ -80,7 +80,8 @@ class WandbLogger(WandbLogger):
                         subprocess.check_output(
                             ["git", "rev-parse", "HEAD"],
                             cwd=BASEDIR,
-                        ).decode("utf-8")
+                        )
+                        .decode("utf-8")
                         .strip()
                     )
                     # TODO: why write to file? should it better if it updates dynamically from git?

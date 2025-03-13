@@ -215,7 +215,7 @@ fi
 #         -- an environment variable
 #         -- a file
 #       Into a docker build process. This includes passing in an env var via --build-args.
-#       
+#
 #       This is to ensure that the secret's value is never leaked: doing any of the above means
 #       that the secret value will be **persisted in the image**. Thus, when a user creates a container
 #       from the image, they will have access to this secret value (if it's a file or ENV). Or, they will
