@@ -36,3 +36,22 @@ def test_split_example(profam_tokenizer):
     )
     assert len(truncated_example["input_ids"]) == 5  # 5
     assert len(example["input_ids"]) == 6  # 5 + 1 for added bos
+
+
+@pytest.mark.parametrize("allow_split_packed_documents", [False, True])
+@pytest.mark.parametrize("max_tokens_per_batch", [5, 15])
+def test_pack_batches_with_overhangs(profam_tokenizer, allow_split_packed_documents, max_tokens_per_batch):
+    arr = np.zeros(9)  # because we add a bos token to the new example when splitting, and we want 10 total per example
+    arr[0] = profam_tokenizer.bos_token_id
+    examples = [
+        {"input_ids": arr}
+    ] * 100
+    packed_examples = pack_batches(
+        examples, max_tokens_per_batch=max_tokens_per_batch, tokenizer=profam_tokenizer, allow_split_packed_documents=allow_split_packed_documents
+    )
+    print(len(packed_examples["input_ids"]))
+    print(packed_examples["input_ids"])
+    assert all(len(inp) == max_tokens_per_batch for inp in packed_examples["input_ids"][:-1])  # final one might be a problem
+    if max_tokens_per_batch == 5:
+        # TODO: think about case for 15
+        assert all(inp == arr[:5] for inp in packed_examples["input_ids"][:-1])  # final one might be a problem
