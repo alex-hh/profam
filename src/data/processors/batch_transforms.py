@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, List, Union
 
 import numpy as np
@@ -71,13 +72,19 @@ def pack_batches(
     max_tokens_per_batch: int,
     tokenizer: ProFamTokenizer,
     allow_split_packed_documents: bool = False,
+    minimum_tokens_to_split_document: int = 10,
 ):
     """Designed to be last step in batched map.
     Documents must start with a bos token.
+    Returns a dict of lists, since this is required by datasets batched map.
 
-    full_examples_only: if True, only pack examples that are full (i.e. don't split documents across batches)
-    if False, split documents across batches to create packed examples with exactly max_tokens_per_batch tokens
+    allow_split_packed_documents: if False, only pack examples that are full (i.e. don't split documents across batches)
+    if True, split documents across batches to create packed examples with exactly max_tokens_per_batch tokens
+    minimum_tokens_to_split_document: if allow_split_packed_documents is True, split documents
+    if there is at least minimum_tokens_to_split_document tokens in the overhang
     """
+    if allow_split_packed_documents:
+        warnings.warn("allow_split_packed_documents is not thoroughly tested")
     bos_token_id = tokenizer.bos_token_id
     packed_examples = []
     examples_to_pack = []
@@ -92,20 +99,35 @@ def pack_batches(
             raise ValueError("Documents must start with a bos token")
 
         if total_packed_tokens + example["input_ids"].shape[-1] > max_tokens_per_batch:
-            if allow_split_packed_documents:
-                overhang_tokens = max_tokens_per_batch - total_packed_tokens
+            # we can't fit the example in the packed batch
+            # if we allow splitting documents, split the document if there is enough space for
+            # minimum_tokens_to_split_document tokens
+            overhang_tokens = max_tokens_per_batch - total_packed_tokens
+            if (
+                allow_split_packed_documents
+                and overhang_tokens >= minimum_tokens_to_split_document
+            ):
                 truncated_example, example = split_example(
                     example, split_at_num_tokens=overhang_tokens, tokenizer=tokenizer
                 )
                 examples_to_pack.append(truncated_example)
-                packed_examples.append(
-                    pack_examples(examples_to_pack)
-                )  # TODO: check this
+
+            # add the packed batch to the list of packed batches
+            packed_examples.append(pack_examples(examples_to_pack))
+
+            # initialise the next packed batch with whatever of the current example couldn't fit in the previous packed batch
             examples_to_pack = []
             total_packed_tokens = 0
-
-        examples_to_pack.append(example)
-        total_packed_tokens += example["input_ids"].shape[-1]
+            if (
+                example["input_ids"].shape[-1] <= max_tokens_per_batch
+            ):  # should be always true
+                examples_to_pack.append(example)
+                total_packed_tokens += example["input_ids"].shape[-1]
+        else:
+            # we can fit the example in the packed batch -
+            # add the example to the list of examples to pack and continue
+            examples_to_pack.append(example)
+            total_packed_tokens += example["input_ids"].shape[-1]
     if examples_to_pack:
         packed_examples.append(pack_examples(examples_to_pack))
     return examples_list_to_dict(packed_examples)
