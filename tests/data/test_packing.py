@@ -45,6 +45,8 @@ def test_pack_batches_with_overhangs(
     profam_tokenizer, allow_split_packed_documents, max_tokens_per_batch
 ):
     tokens_per_doc = 9  # we add a bos token to new example when splitting, so we get 10 total per example
+    if tokens_per_doc > max_tokens_per_batch and not allow_split_packed_documents:
+        return None  # we can't fit any example in the packed batch
     arr = np.zeros(tokens_per_doc)
     arr[0] = profam_tokenizer.bos_token_id
     examples = [{"input_ids": arr.copy()} for _ in range(100)]
@@ -68,5 +70,5 @@ def test_pack_batches_with_overhangs(
     if max_tokens_per_batch == 5:
         # TODO: think about case for 15
         assert all(
-            inp == arr[:5] for inp in packed_examples["input_ids"][:-1]
+            all(inp == arr[:5]) for inp in packed_examples["input_ids"][:-1]
         )  # final one might be a problem

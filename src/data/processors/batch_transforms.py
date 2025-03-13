@@ -100,8 +100,8 @@ def pack_batches(
 
         if total_packed_tokens + example["input_ids"].shape[-1] > max_tokens_per_batch:
             # we can't fit the example in the packed batch
-            # if we allow splitting documents, split the document if there is enough space for minimum_tokens_to_split_document
-            # tokens
+            # if we allow splitting documents, split the document if there is enough space for
+            # minimum_tokens_to_split_document tokens
             overhang_tokens = max_tokens_per_batch - total_packed_tokens
             if (
                 allow_split_packed_documents
@@ -123,7 +123,6 @@ def pack_batches(
             ):  # should be always true
                 examples_to_pack.append(example)
                 total_packed_tokens += example["input_ids"].shape[-1]
-
         else:
             # we can fit the example in the packed batch -
             # add the example to the list of examples to pack and continue
