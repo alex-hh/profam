@@ -77,8 +77,10 @@ def pack_batches(
     Documents must start with a bos token.
     Returns a dict of lists, since this is required by datasets batched map.
 
-    full_examples_only: if True, only pack examples that are full (i.e. don't split documents across batches)
-    if False, split documents across batches to create packed examples with exactly max_tokens_per_batch tokens
+    allow_split_packed_documents: if False, only pack examples that are full (i.e. don't split documents across batches)
+    if True, split documents across batches to create packed examples with exactly max_tokens_per_batch tokens
+    minimum_tokens_to_split_document: if allow_split_packed_documents is True, split documents
+    if there is at least minimum_tokens_to_split_document tokens in the overhang
     """
     if allow_split_packed_documents:
         raise NotImplementedError("allow_split_packed_documents not thoroughly tested")
@@ -117,7 +119,7 @@ def pack_batches(
             total_packed_tokens = 0
             if (
                 example["input_ids"].shape[-1] <= max_tokens_per_batch
-            ):  # should always be true ideally
+            ):  # should be always true
                 examples_to_pack.append(example)
                 total_packed_tokens += example["input_ids"].shape[-1]
 
