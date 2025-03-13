@@ -115,7 +115,9 @@ def pack_batches(
             # initialise the next packed batch with whatever of the current example couldn't fit in the previous packed batch
             examples_to_pack = []
             total_packed_tokens = 0
-            if example["input_ids"].shape[-1] <= max_tokens_per_batch:  # should always be true ideally
+            if (
+                example["input_ids"].shape[-1] <= max_tokens_per_batch
+            ):  # should always be true ideally
                 examples_to_pack.append(example)
                 total_packed_tokens += example["input_ids"].shape[-1]
 
