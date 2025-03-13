@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, List, Union
 
 import numpy as np
@@ -83,7 +84,7 @@ def pack_batches(
     if there is at least minimum_tokens_to_split_document tokens in the overhang
     """
     if allow_split_packed_documents:
-        raise NotImplementedError("allow_split_packed_documents not thoroughly tested")
+        warnings.warn("allow_split_packed_documents is not thoroughly tested")
     bos_token_id = tokenizer.bos_token_id
     packed_examples = []
     examples_to_pack = []
