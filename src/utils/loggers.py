@@ -77,12 +77,16 @@ class WandbLogger(WandbLogger):
             else:
                 try:
                     commit_hash = (
-                        subprocess.check_output(["git", "rev-parse", "HEAD"])
+                        subprocess.check_output(
+                            ["git", "rev-parse", "HEAD"],
+                            cwd=BASEDIR,
+                        )
                         .decode("utf-8")
                         .strip()
                     )
-                    with open(hash_file, "w") as f:
-                        f.write(commit_hash)
+                    # TODO: why write to file? should it better if it updates dynamically from git?
+                    # with open(hash_file, "w") as f:
+                    #     f.write(commit_hash)
                     hparams["git_hash"] = commit_hash
                 except subprocess.CalledProcessError:
                     raise FileNotFoundError(
