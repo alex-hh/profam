@@ -10,7 +10,7 @@ from src.utils import pylogger, rich_utils
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 
-def np_random(seed: Optional[int]=None) -> Any:
+def np_random(seed: Optional[int] = None) -> Any:
     """Returns a numpy random number generator with a given seed.
 
     :param seed: The seed value for the random number generator.
