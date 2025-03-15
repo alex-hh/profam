@@ -39,5 +39,3 @@ model:
   embed_coords: false
   embed_sequence_index: false
   embed_residue_index: false
-  config:
-    num_hidden_layers: 8
