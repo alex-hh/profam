@@ -188,9 +188,7 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         if self.embed_residue_index:
             assert residue_index is not None
         if past_key_values is not None:
-            cache = InputAwareDynamicCache.from_legacy_cache(
-                past_key_values
-            )
+            cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
         else:
             cache = None
         inputs = super().prepare_inputs_for_generation(
@@ -478,7 +476,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         else:
             start_sequence_index = None
 
-    
         if coords is not None and hasattr(self, "dtype"):
             coords = coords.to(self.dtype)
 

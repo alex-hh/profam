@@ -23,7 +23,7 @@ class UnconditionalSequenceEvaluationPipeline(GenerationsEvaluatorPipeline):
 
     def load_protein_document(self, instance_id: str) -> ProteinDocument:
         return ProteinDocument(
-            sequences=[''],
+            sequences=[""],
             accessions=self.instance_ids(),
             identifier=instance_id,
         )

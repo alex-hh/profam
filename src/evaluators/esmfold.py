@@ -339,10 +339,16 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
         if len(prompt_prots) > 0:
             metrics.update(
                 {
-                    "prompt_plddt": np.mean([np.mean(prot.plddt) for prot in prompt_prots]),
+                    "prompt_plddt": np.mean(
+                        [np.mean(prot.plddt) for prot in prompt_prots]
+                    ),
                     "prompt_lens": np.mean([len(prot) for prot in prompt_prots]),
-                    "min_tm_score": np.mean([min(tm_scores) for tm_scores in all_tm_scores]),
-                    "max_tm_score": np.mean([max(tm_scores) for tm_scores in all_tm_scores]),
+                    "min_tm_score": np.mean(
+                        [min(tm_scores) for tm_scores in all_tm_scores]
+                    ),
+                    "max_tm_score": np.mean(
+                        [max(tm_scores) for tm_scores in all_tm_scores]
+                    ),
                     "mean_tm_score": np.mean(
                         [np.mean(tm_scores) for tm_scores in all_tm_scores]
                     ),

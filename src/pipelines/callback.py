@@ -3,10 +3,10 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+import wandb
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from omegaconf import DictConfig
-import wandb
 
 from src.evaluators.base import SamplingEvaluator
 from src.models.inference import ProFamSampler, PromptBuilder
@@ -39,12 +39,7 @@ class SamplingEvaluationPipelineCallback(Callback):
             assert isinstance(self.evaluators, SamplingEvaluator)
             self.evaluators: List[SamplingEvaluator] = [self.evaluators]
 
-    def _log_sequences_to_wandb(
-        self, 
-        trainer, 
-        evaluator_results, 
-        non_numeric_cols
-    ):
+    def _log_sequences_to_wandb(self, trainer, evaluator_results, non_numeric_cols):
         """Log sequences to WandB if WandB logger is configured.
         Args:
             trainer: The PyTorch Lightning trainer
@@ -53,10 +48,16 @@ class SamplingEvaluationPipelineCallback(Callback):
         """
         for logger in trainer.loggers:
             if isinstance(logger, WandbLogger):
-                logger.experiment.log({
-                        f"{self.pipeline.pipeline_id}/sampled_sequences": evaluator_results[non_numeric_cols].iloc[0,0].split("|")[:5]
-                    })
-                break 
+                logger.experiment.log(
+                    {
+                        f"{self.pipeline.pipeline_id}/sampled_sequences": evaluator_results[
+                            non_numeric_cols
+                        ]
+                        .iloc[0, 0]
+                        .split("|")[:5]
+                    }
+                )
+                break
 
     @rank_zero_only
     def on_validation_epoch_end(self, trainer, model):
@@ -100,10 +101,5 @@ class SamplingEvaluationPipelineCallback(Callback):
             )
             all_metrics[f"{self.pipeline.pipeline_id}/{evaluator_name}/time"] = t1 - t0
             # Log sequences if using WandB
-            self._log_sequences_to_wandb(
-                trainer,
-                evaluator_results,
-                non_numeric_cols
-            )
+            self._log_sequences_to_wandb(trainer, evaluator_results, non_numeric_cols)
         model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True, sync_dist=True)
-

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import argparse
-import os
-from typing import Optional, Dict
 import glob
+import os
+from typing import Dict, Optional
 
 import hydra
 import torch
@@ -12,13 +12,18 @@ from omegaconf import OmegaConf
 
 from src.constants import BASEDIR
 from src.data.objects import ProteinDocument
-from src.models.utils import load_named_model
+from src.data.processors.preprocessing import (
+    PreprocessingConfig,
+    ProteinDocumentPreprocessor,
+)
 from src.models.inference import ProFamSampler, PromptBuilder
-from src.data.processors.preprocessing import ProteinDocumentPreprocessor, PreprocessingConfig
+from src.models.utils import load_named_model
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Sample sequences from a trained model")
+    parser = argparse.ArgumentParser(
+        description="Sample sequences from a trained model"
+    )
     parser.add_argument(
         "--checkpoint_path",
         type=str,
@@ -70,28 +75,31 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 def get_config_from_checkpoint(checkpoint_path):
     run_dir = checkpoint_path.split("/checkpoints")[0]
     config_path = glob.glob(f"{run_dir}/.hydra/config.yaml")
     if len(config_path) == 0:
         raise ValueError(f"No config file found in {run_dir}")
     config = OmegaConf.load(config_path[0])
-    
+
     # Ensure the config has the necessary structure
-    if 'model' not in config:
-        raise ValueError(f"Config in {config_path[0]} does not contain a 'model' section")
-    
+    if "model" not in config:
+        raise ValueError(
+            f"Config in {config_path[0]} does not contain a 'model' section"
+        )
+
     return config
 
 
 def main():
     args = parse_args()
-    
+
     # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
     config = get_config_from_checkpoint(args.checkpoint_path)
     tokenizer = instantiate(config.tokenizer)
-    
+
     # Set the data type based on the command-line argument
     if args.dtype == "float32":
         dtype = torch.float32
@@ -101,12 +109,12 @@ def main():
         dtype = torch.bfloat16
     else:
         dtype = torch.bfloat16  # Default to bfloat16
-    
+
     # Load the model directly from checkpoint
     model_class = hydra.utils.get_class(config.model._target_)
     model = model_class.load_from_checkpoint(args.checkpoint_path, tokenizer=tokenizer)
     model.eval()
-    
+
     # Move model to GPU if available and set dtype
     if torch.cuda.is_available():
         model = model.to("cuda")
@@ -119,19 +127,19 @@ def main():
         allow_unk=False,
         max_tokens_per_example=None,
         shuffle_proteins_in_document=False,
-        padding="do_not_pad"
+        padding="do_not_pad",
     )
-    
+
     # Create a simple prompt builder for unconditional sampling
     preprocessor = ProteinDocumentPreprocessor(cfg=preprocessing_config)
     prompt_builder = PromptBuilder(preprocessor=preprocessor)
-    
+
     # Set up sampling parameters
     sampling_kwargs = {
         "temperature": args.temperature,
         "batch_size": args.batch_size,
     }
-    
+
     # Create a ProFamSampler instance
     sampler = ProFamSampler(
         name="unconditional_sampler",
@@ -141,25 +149,25 @@ def main():
         sampling_kwargs=sampling_kwargs,
         dtype=dtype,
     )
-    
+
     # Create a minimal prompt with just the document token for unconditional sampling
     prompt = ProteinDocument(sequences=["M"])
-    
+
     # Generate sequences
     sequences, _ = sampler.sample_seqs(
         protein_document=prompt,
         num_samples=args.num_samples,
         max_tokens=args.max_tokens,
     )
-    
+
     # Save generated sequences
     output_file = os.path.join(args.output_dir, "generated_sequences.txt")
     with open(output_file, "w") as f:
         for i, seq in enumerate(sequences):
             f.write(f">sample_{i}\n{seq}\n")
-    
+
     print(f"Generated {len(sequences)} sequences and saved to {output_file}")
 
 
 if __name__ == "__main__":
-    main() 
+    main()
