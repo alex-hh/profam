@@ -48,15 +48,14 @@ class SamplingEvaluationPipelineCallback(Callback):
         """
         for logger in trainer.loggers:
             if isinstance(logger, WandbLogger):
-                logger.experiment.log(
-                    {
-                        f"{self.pipeline.pipeline_id}/sampled_sequences": evaluator_results[
-                            non_numeric_cols
-                        ]
-                        .iloc[0, 0]
-                        .split("|")[:5]
-                    }
-                )
+                for col in non_numeric_cols:
+                    logger.experiment.log(
+                        {
+                            f"{self.pipeline.pipeline_id}/{col}": evaluator_results[col]
+                            .iloc[0]
+                            .split("|")[:5]
+                        }
+                    )
                 break
 
     @rank_zero_only
@@ -101,5 +100,8 @@ class SamplingEvaluationPipelineCallback(Callback):
             )
             all_metrics[f"{self.pipeline.pipeline_id}/{evaluator_name}/time"] = t1 - t0
             # Log sequences if using WandB
-            self._log_sequences_to_wandb(trainer, evaluator_results, non_numeric_cols)
+            if len(non_numeric_cols) > 0:
+                self._log_sequences_to_wandb(
+                    trainer, evaluator_results, non_numeric_cols
+                )
         model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True, sync_dist=True)
