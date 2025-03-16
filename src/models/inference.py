@@ -101,11 +101,8 @@ class ProFamSampler:
         self.checkpoint_path = checkpoint_path
         self.document_token = document_token
         self.match_representative_length = match_representative_length
-        self.dtype = dtype or (
-            torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        )
+        self.dtype = dtype or torch.float32
 
-        # Set model dtype if it's not already set
         if hasattr(self.model, "dtype") and self.model.dtype is None:
             self.model.dtype = self.dtype
         if self.checkpoint_path is not None:
@@ -166,7 +163,7 @@ class ProFamSampler:
                 input_coords=encoded["coords"]
                 .unsqueeze(0)
                 .to(self.model.device)
-                .to(self.dtype)  # Convert to bfloat16 instead of float32
+                .to(self.dtype)
                 if self.model.embed_coords
                 else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
                 **sampling_kwargs,
