@@ -29,3 +29,5 @@ data/val_test/overlap_counts/
 data/cath_chain_topology_class.pickle
 */.ipynb_checkpoints/
 .ipynb_checkpoints/
+.env
+.bash_history
