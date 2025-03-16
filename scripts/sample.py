@@ -108,14 +108,14 @@ def main():
     elif args.dtype == "bfloat16":
         dtype = torch.bfloat16
     else:
-        dtype = torch.bfloat16  # Default to bfloat16
+        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
     # Load the model directly from checkpoint
     model_class = hydra.utils.get_class(config.model._target_)
     model = model_class.load_from_checkpoint(args.checkpoint_path, tokenizer=tokenizer)
     model.eval()
 
-    # Move model to GPU if available and set dtype
+    
     if torch.cuda.is_available():
         model = model.to("cuda")
     model = model.to(dtype)
