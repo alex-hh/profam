@@ -416,8 +416,6 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
 
         if hasattr(self, "dtype"):
             inputs_embeds = inputs_embeds.to(self.dtype)
-        elif hasattr(self.token_embedder, "weight"):
-            inputs_embeds = inputs_embeds.to(self.token_embedder.weight.dtype)
 
         return inputs_embeds
 
