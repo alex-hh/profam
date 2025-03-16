@@ -115,7 +115,6 @@ def main():
     model = model_class.load_from_checkpoint(args.checkpoint_path, tokenizer=tokenizer)
     model.eval()
 
-    
     if torch.cuda.is_available():
         model = model.to("cuda")
     model = model.to(dtype)
