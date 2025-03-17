@@ -18,3 +18,10 @@ deterministic: False
 
 log_every_n_steps: 10  # number of gradient steps https://github.com/Lightning-AI/pytorch-lightning/issues/9726
 timeout: null
+
+profiler:
+  name: null
+  advance:
+    filename: perf_logs
+    dirpath: "."
+

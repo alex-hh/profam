@@ -82,9 +82,20 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     log.info("Instantiating loggers...")
     logger: List[Logger] = instantiate_loggers(cfg.get("logger"))
 
+    profiler_name = cfg.trainer.profiler.name
+    log.info(f"Instantiating profiler <{profiler_name}>")
+    if profiler_name is not None:
+        profiler = None
+    elif profiler_name == "simple_profiler":
+        profiler = L.profiler.SimpleProfiler()
+    elif profiler_name == "advanced":
+        profiler = L.profiler.AdvancedProfiler(**cfg.profiler.advanced)
+    else:
+        raise ValueError(f"Profiler {profiler_name} not recognized. Choose from [None, simple, advanced]")
+
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer, callbacks=callbacks, logger=logger
+        cfg.trainer, callbacks=callbacks, logger=logger, profiler=profiler,
     )
     # print(trainer.strategy._get_process_group_backend())
     # print(
