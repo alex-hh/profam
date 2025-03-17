@@ -92,7 +92,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     elif profiler_name == "advanced":
         profiler = L.profiler.AdvancedProfiler(**cfg.profiler.advanced)
         log.info(f"Profiler AdvancedProfiler kwargs = {cfg.profiler.advanced}")
-    elif profiler_name == "pytorch_profiler":
+    elif profiler_name == "pytorch":
         profiler = L.profiler.PyTorchProfiler(**cfg.profiler.pytorch)
         log.info(f"Profiler PyTorchProfiler kwargs = {cfg.profiler.pytorch}")
     else:
@@ -103,6 +103,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if profiler is not None:
             log.info("\nTraining interrupted! Saving unsaved profiler data if needed...")
             profiler.teardown()
+            profiler.save_report()
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
@@ -110,7 +111,6 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         callbacks=callbacks, 
         logger=logger, 
         profiler=profiler,
-        interrupt_callback=save_profiler,
     )
     # print(trainer.strategy._get_process_group_backend())
     # print(
