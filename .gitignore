@@ -35,3 +35,8 @@ data/cath_chain_topology_class.pickle
 .ipython
 .local
 .python_history
+.dotnet
+.gitconfig
+.gnupg
+.ssh
+.vscode-server
