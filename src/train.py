@@ -82,6 +82,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     log.info("Instantiating loggers...")
     logger: List[Logger] = instantiate_loggers(cfg.get("logger"))
 
+    # setup profiler
     profiler_name = cfg.trainer.profiler.name
     log.info(f"Instantiating profiler <{profiler_name}>")
     if profiler_name is not None:
@@ -97,9 +98,19 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     else:
         raise ValueError(f"Profiler {profiler_name} not recognized. Choose from [None, simple, advanced, pytorch]")
 
+    def save_profiler():
+        """Save profiler data if needed."""
+        if profiler is not None:
+            log.info("\nTraining interrupted! Saving unsaved profiler data if needed...")
+            profiler.teardown()
+
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer, callbacks=callbacks, logger=logger, profiler=profiler,
+        cfg.trainer, 
+        callbacks=callbacks, 
+        logger=logger, 
+        profiler=profiler,
+        interrupt_callback=save_profiler,
     )
     # print(trainer.strategy._get_process_group_backend())
     # print(
@@ -128,7 +139,11 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     "Will override optimizer and scheduler states from checkpoint with current config values"
                 )
         log.info("Starting training!")
-        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+        try:
+            trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+        except KeyboardInterrupt:
+            save_profiler()
+            raise
 
     train_metrics = trainer.callback_metrics
 
