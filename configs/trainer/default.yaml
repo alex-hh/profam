@@ -3,6 +3,7 @@ _target_: src.utils.trainer.ProFamTrainer
 default_root_dir: ${paths.output_dir}
 
 max_epochs: 5
+max_steps: -1
 
 accelerator: cpu
 devices: 1
@@ -21,16 +22,21 @@ timeout: null
 
 profiler:
   name: null # supported profilers: null, simple, advanced, pytorch
+  log_tensorboard: False
+  simple:
+    _target_: SimpleProfiler
   advance:
+    _target_: AdvancedProfiler
     filename: advanced_perf_logs
     dirpath: "./profiler_logs"
   pytorch:
+    _target_: PyTorchProfiler
     filename: pytorch_perf_logs
     dirpath: "./profiler_logs"
     # pytorch profiler kwargs
     record_shapes: True
     profile_memory: True
-    with_stack: False
+    with_stack: True
     with_flops: False
     with_modules: False
     acc_events: False

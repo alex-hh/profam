@@ -36,6 +36,8 @@ from src.utils import (
     instantiate_loggers,
     log_hyperparameters,
     task_wrapper,
+    setup_profiler, 
+    save_profiler,
 )
 
 log = RankedLogger(__name__, rank_zero_only=True)
@@ -85,25 +87,7 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     # setup profiler
     profiler_name = cfg.trainer.profiler.name
     log.info(f"Instantiating profiler <{profiler_name}>")
-    if profiler_name is None:
-        profiler = None
-    elif profiler_name == "simple_profiler":
-        profiler = L.pytorch.profilers.SimpleProfiler()
-    elif profiler_name == "advanced":
-        profiler = L.pytorch.profilers.AdvancedProfiler(**cfg.trainer.profiler.advanced)
-        log.info(f"Profiler AdvancedProfiler kwargs = {cfg.trainer.profiler.advanced}")
-    elif profiler_name == "pytorch":
-        profiler = L.pytorch.profilers.PyTorchProfiler(**cfg.trainer.profiler.pytorch)
-        log.info(f"Profiler PyTorchProfiler kwargs = {cfg.trainer.profiler.pytorch}")
-    else:
-        raise ValueError(f"Profiler {profiler_name} not recognized. Choose from [None, simple, advanced, pytorch]")
-
-    def save_profiler():
-        """Save profiler data if needed."""
-        if profiler is not None:
-            log.info("\nSaving unsaved profiler data if needed...")
-            profiler.teardown()
-            profiler.save_report()
+    profiler = setup_profiler(cfg=cfg.trainer.profiler, log=log)
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
@@ -139,8 +123,13 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     "Will override optimizer and scheduler states from checkpoint with current config values"
                 )
         log.info("Starting training!")
-        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
-        save_profiler()
+        try:
+            trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+        except Exception as e:
+            raise e
+        finally:
+            save_profiler(profiler=profiler, stage="train", log=log)
+            
 
     train_metrics = trainer.callback_metrics
 
