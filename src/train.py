@@ -85,23 +85,23 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     # setup profiler
     profiler_name = cfg.trainer.profiler.name
     log.info(f"Instantiating profiler <{profiler_name}>")
-    if profiler_name is not None:
+    if profiler_name is None:
         profiler = None
     elif profiler_name == "simple_profiler":
-        profiler = L.profiler.SimpleProfiler()
+        profiler = L.pytorch.profilers.SimpleProfiler()
     elif profiler_name == "advanced":
-        profiler = L.profiler.AdvancedProfiler(**cfg.profiler.advanced)
-        log.info(f"Profiler AdvancedProfiler kwargs = {cfg.profiler.advanced}")
+        profiler = L.pytorch.profilers.AdvancedProfiler(**cfg.trainer.profiler.advanced)
+        log.info(f"Profiler AdvancedProfiler kwargs = {cfg.trainer.profiler.advanced}")
     elif profiler_name == "pytorch":
-        profiler = L.profiler.PyTorchProfiler(**cfg.profiler.pytorch)
-        log.info(f"Profiler PyTorchProfiler kwargs = {cfg.profiler.pytorch}")
+        profiler = L.pytorch.profilers.PyTorchProfiler(**cfg.trainer.profiler.pytorch)
+        log.info(f"Profiler PyTorchProfiler kwargs = {cfg.trainer.profiler.pytorch}")
     else:
         raise ValueError(f"Profiler {profiler_name} not recognized. Choose from [None, simple, advanced, pytorch]")
 
     def save_profiler():
         """Save profiler data if needed."""
         if profiler is not None:
-            log.info("\nTraining interrupted! Saving unsaved profiler data if needed...")
+            log.info("\nSaving unsaved profiler data if needed...")
             profiler.teardown()
             profiler.save_report()
 
@@ -139,11 +139,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                     "Will override optimizer and scheduler states from checkpoint with current config values"
                 )
         log.info("Starting training!")
-        try:
-            trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
-        except KeyboardInterrupt:
-            save_profiler()
-            raise
+        trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+        save_profiler()
 
     train_metrics = trainer.callback_metrics
 
