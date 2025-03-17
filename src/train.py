@@ -90,8 +90,12 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         profiler = L.profiler.SimpleProfiler()
     elif profiler_name == "advanced":
         profiler = L.profiler.AdvancedProfiler(**cfg.profiler.advanced)
+        log.info(f"Profiler AdvancedProfiler kwargs = {cfg.profiler.advanced}")
+    elif profiler_name == "pytorch_profiler":
+        profiler = L.profiler.PyTorchProfiler(**cfg.profiler.pytorch)
+        log.info(f"Profiler PyTorchProfiler kwargs = {cfg.profiler.pytorch}")
     else:
-        raise ValueError(f"Profiler {profiler_name} not recognized. Choose from [None, simple, advanced]")
+        raise ValueError(f"Profiler {profiler_name} not recognized. Choose from [None, simple, advanced, pytorch]")
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
