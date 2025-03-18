@@ -1210,11 +1210,3 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=True,
             on_epoch=False,
         )
-        if "identifier" in batch:
-            for i, (dataset, doc_id) in enumerate(
-                zip(batch["ds_name"].text, batch["identifier"].text)
-            ):
-                self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
-                self.doc_id_counts[dataset][doc_id] = (
-                    self.doc_id_counts[dataset].get(doc_id, 0) + 1
-                )
