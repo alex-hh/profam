@@ -1179,19 +1179,11 @@ class BaseFamilyLitModule(BaseLitModule):
 
     def on_train_start(self):
         self.dataset_sample_counts = {}
-        self.doc_id_counts = {}
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
         log.info("Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        # self.log_dict(
-        #     {
-        #         f"{k}_max_sampled_doc": max(v.values())
-        #         for k, v in self.doc_id_counts.items()
-        #     },
-        #     sync_dist=True,
-        # )
 
     def log_ds_sample_counts(self, batch):
         """Log statistics about dataset usage.
@@ -1210,11 +1202,3 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=True,
             on_epoch=False,
         )
-        if "identifier" in batch:
-            for i, (dataset, doc_id) in enumerate(
-                zip(batch["ds_name"].text, batch["identifier"].text)
-            ):
-                self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
-                self.doc_id_counts[dataset][doc_id] = (
-                    self.doc_id_counts[dataset].get(doc_id, 0) + 1
-                )
