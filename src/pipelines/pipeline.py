@@ -3,6 +3,7 @@ import shutil
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
+import numpy as np
 import pandas as pd
 import tqdm
 from hydra import compose, initialize_config_dir
@@ -230,6 +231,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             metrics["sampler"] = sampler_name
             metrics["instance"] = instance_id
             metrics["evaluator"] = evaluator.name
+            metrics["first_5_generated_sequences"] = "|".join(generated_sequences[:5])
             self.add_result(evaluator.name, instance_id, sampler_name, metrics)
 
     def save_generations(self, instance_id, model_name, sequences: List[str]) -> None:
@@ -362,7 +364,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             sampler_results = self.results_dfs[evaluator.name].loc[
                 (evaluator.name, sampler.name)
             ]
-            avg_metrics = sampler_results.mean()
+            avg_metrics = sampler_results.select_dtypes(include=np.number).mean()
             avg_metrics_str = ", ".join(
                 [f"{k}: {v:.3f}" for k, v in avg_metrics.items()]
             )
