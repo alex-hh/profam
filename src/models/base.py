@@ -862,11 +862,6 @@ class BaseFamilyLitModule(BaseLitModule):
             input_ids.shape[0] == 1 and input_ids.ndim == 2
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
-        # why is ending in sep token necessary? may not be...
-        assert input_ids[:, -1].item() in [
-            self.tokenizer.sep_token_id,
-            self.tokenizer.seq_struct_sep_token_id,
-        ]
         assert input_residue_index.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
