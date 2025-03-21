@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 """
 Created to process MSA alignments from openfold parquet files.
 
@@ -8,8 +6,9 @@ This script:
 2. Splits sequences at regions with >10 consecutive gaps
 3. Processes subsequences (removes gaps, converts lowercase to uppercase, filters by length)
 4. Clusters subsequences using MMSEQS at 30% identity
-5. Further clusters within 30% clusters at higher identity thresholds
-6. Formats results into new parquet files with specified structure
+5. Generates alignmenst for each 30% SI cluster
+6. Further clusters within 30% clusters at higher identity thresholds
+7. Formats results into new parquet files
 """
 
 import os
@@ -23,7 +22,7 @@ import pandas as pd
 import shutil
 import time
 import re
-
+from tqdm import tqdm
 ERROR_LOGS = []
 TIMINGS = []
 
@@ -70,7 +69,7 @@ def split_sequence(sequence, max_allowed_gaps=10, min_sub_seq_len=20):
     Returns:
         List of processed subsequences
     """
-    split_string = "-" * max_allowed_gaps
+    split_string = "-" * (max_allowed_gaps + 1)
     subsequences = sequence.split(split_string)
     subsequences = [s.replace("-", "") for s in subsequences]
     subsequences = [s.upper() for s in subsequences]
@@ -94,69 +93,82 @@ def process_subsequence(subsequence):
     return no_gaps.upper()
 
 
-def run_mmseqs_cluster(fasta_file, out_prefix, min_seq_id, threads, generate_msa=False):
+def run_mmseqs_cluster(fasta_file, out_prefix, min_seq_id, threads, generate_msa=False, db_path=None, sensitivity=4.0):
     """
     Runs mmseqs cluster and then generates MSAs for each cluster.
     
     The steps are:
-      1. Create a database from the FASTA file.
+      1. Create a database from the FASTA file (if fasta_file is provided).
       2. Run mmseqs cluster to cluster the sequences.
       3. Optionally, create a TSV file with cluster info.
       4. Generate MSAs from the clusters using mmseqs result2msa.
     """
     # Define database and temporary file names
-    db = f"{out_prefix}_DB"
     db_clu = f"{out_prefix}_DB_clu"
     tmp = f"{out_prefix}_tmp"
     msa_out = f"{out_prefix}_DB_clu_msa"
     cluster_tsv = f"{out_prefix}_cluster.tsv"
     
     # Step 1: Create database from FASTA
-    cmd_create_db = ["mmseqs", "createdb", fasta_file, db]
-    print(f"Running mmseqs: {' '.join(cmd_create_db)}", file=sys.stderr)
-    try:
-        subprocess.run(cmd_create_db, check=True)
-    except Exception as e:
-        print(f"Error creating database: {e}", file=sys.stderr)
-        ERROR_LOGS.append(f"Error creating database: {e}")
-        return None
+    if fasta_file:
+        db_path = f"{out_prefix}_DB"
+        cmd_create_db = [
+            "mmseqs", "createdb", 
+            fasta_file, 
+            db_path,
+            "--shuffle", "0",
+            "-v", "1"
+        ]
+        # print(f"Running mmseqs: {' '.join(cmd_create_db)}", file=sys.stderr)
+        try:
+            subprocess.run(cmd_create_db, check=True)
+        except Exception as e:
+            print(f"Error creating database: {e}", file=sys.stderr)
+            ERROR_LOGS.append(f"Error creating database: {e}")
+            return None, None
     
     # Step 2: Run clustering on the database
     cmd_cluster = [
-        "mmseqs", "cluster", db, db_clu, tmp,
+        "mmseqs", "cluster", db_path, db_clu, tmp,
         "--min-seq-id", str(min_seq_id),
         "--threads", str(threads),
         "--cov-mode", "0",  # both sequences must have at least c coverage
         "-c", "0.7",        # coverage threshold
         "--cluster-mode", "1",
-        "-v", "3",          # verbosity: 0=quiet, 3=info
+        "-v", "1",          # verbosity: 0=quiet, 3=info
         "-a", "1",          # save backtrace for later alignment
+        "-s", str(sensitivity),
     ]
-    print(f"Running mmseqs: {' '.join(cmd_cluster)}", file=sys.stderr)
+    # print(f"Running mmseqs: {' '.join(cmd_cluster)}", file=sys.stderr)
     try:
         subprocess.run(cmd_cluster, check=True)
     except Exception as e:
         print(f"Error running mmseqs cluster: {e}", file=sys.stderr)
         ERROR_LOGS.append(f"Error running mmseqs cluster: {e}")
-        return None
+        return None, None
 
-    # Step 3: (Optional) Create a TSV file describing the clusters
-    cmd_createtsv = ["mmseqs", "createtsv", db, db, db_clu, cluster_tsv]
-    print(f"Running mmseqs: {' '.join(cmd_createtsv)}", file=sys.stderr)
+    # Step 3: Create a TSV file describing the clusters
+    cmd_createtsv = [
+        "mmseqs", "createtsv", db_path, db_path, db_clu, cluster_tsv,
+        "-v", "1"
+    ]
+    # print(f"Running mmseqs: {' '.join(cmd_createtsv)}", file=sys.stderr)
     try:
         subprocess.run(cmd_createtsv, check=True)
     except Exception as e:
         # You may choose to continue even if this fails.
         print(f"Error running mmseqs createtsv: {e}", file=sys.stderr)
         ERROR_LOGS.append(f"Error running mmseqs createtsv: {e}")
+    
     if generate_msa:
         # Step 4: Generate multiple sequence alignments for each cluster
         cmd_result2msa = [
             "mmseqs", "result2msa",
-            db, db, db_clu, msa_out,
-            "--msa-format-mode", "3"
+            db_path, db_path, db_clu, msa_out,
+            "--msa-format-mode", "3",
+            "-v", "1"
         ]
-        print(f"Running mmseqs: {' '.join(cmd_result2msa)}", file=sys.stderr)
+        # print(f"Running mmseqs: {' '.join(cmd_result2msa)}", file=sys.stderr)
         try:
             subprocess.run(cmd_result2msa, check=True)
             return cluster_tsv, msa_out
@@ -198,7 +210,42 @@ def parse_mmseqs_cluster_results(cluster_tsv, sequence_ids):
     return dict(zip(merged.accession, merged.cluster_id))
 
 
-def cluster_sequences(sequences, accessions, min_seq_id, threads, output_dir, generate_msa=False):
+def parse_mmseqs_msa_file(msa_file):
+    """
+    Parse the MMseqs2 MSA output file to extract aligned sequences.
+    
+    Args:
+        msa_file: Path to the MMseqs2 MSA output file
+        
+    Returns:
+        Dictionary mapping sequence accessions to their aligned sequences
+    """
+    if not os.path.isfile(msa_file):
+        return {}
+    
+    aligned_sequences = {}
+    current_cluster = None
+    current_header = None
+    
+    with open(msa_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('#cl-'):
+                # New cluster header
+                current_cluster = line
+                current_header = None
+            elif line.startswith('>'):
+                # Sequence header
+                current_header = line[1:]
+            elif line and current_header:
+                # Sequence data
+                aligned_sequences[current_header] = line
+                current_header = None
+    
+    return aligned_sequences
+
+
+def cluster_sequences(sequences, accessions, min_seq_id, threads, temp_dir, generate_msa=False, reuse_db=None, sensitivity=4.0):
     """
     Cluster sequences using mmseqs at the specified identity threshold.
     
@@ -207,44 +254,94 @@ def cluster_sequences(sequences, accessions, min_seq_id, threads, output_dir, ge
         accessions: List of sequence accessions
         min_seq_id: Minimum sequence identity threshold
         threads: Number of CPU threads for mmseqs
-        output_dir: Directory to store temporary files
+        temp_dir: Directory to store temporary files
+        generate_msa: Whether to generate MSA files for clusters
+        reuse_db: Optional path to reuse an existing MMseqs database
         
     Returns:
-        np.array of cluster IDs
+        Dictionary mapping accessions to cluster IDs and aligned sequences if generate_msa=True
     """
     if len(sequences) == 0:
-        return np.array([], dtype=str)
+        return {}
 
     # Generate a unique directory for this clustering job
-    unique_dir = os.path.join(output_dir, uuid.uuid4().hex)
+    unique_dir = os.path.join(temp_dir, uuid.uuid4().hex)
     os.makedirs(unique_dir, exist_ok=True)
     out_prefix = os.path.join(unique_dir, "cluster")
     fasta_file = os.path.join(unique_dir, "input.fasta")
-
+    db = f"{out_prefix}_DB"
+    
     try:
-        # Write sequences to FASTA
-        with open(fasta_file, 'w') as f:
-            for i, seq in enumerate(sequences):
-                f.write(f">{accessions[i]}\n{seq}\n")
+        # If not reusing a database, create a new one
+        if reuse_db is None:
+            # Write sequences to FASTA
+            with open(fasta_file, 'w') as f:
+                for i, seq in enumerate(sequences):
+                    f.write(f">{accessions[i]}\n{seq}\n")
+                    
+            # Create database from FASTA
+            cmd_create_db = [
+                "mmseqs", "createdb", 
+                fasta_file, 
+                db, 
+                "--shuffle", "0", 
+                "-v", "1"
+                ]
+            # print(f"Running mmseqs: {' '.join(cmd_create_db)}", file=sys.stderr)
+            try:
+                subprocess.run(cmd_create_db, check=True)
+                reuse_db = db
+            except Exception as e:
+                print(f"Error creating database: {e}", file=sys.stderr)
+                ERROR_LOGS.append(f"Error creating database: {e}")
+                return {}
+        else:
+            # Reuse existing database
+            db = reuse_db
 
         # Run mmseqs and parse results
         cluster_tsv, msa_out = run_mmseqs_cluster(
-            fasta_file, out_prefix, min_seq_id, threads, generate_msa
+            fasta_file if reuse_db is None else None, 
+            out_prefix, 
+            min_seq_id, 
+            threads, 
+            generate_msa,
+            db_path=db,
+            sensitivity=sensitivity
         )
         
+        # Parse cluster assignments
         if cluster_tsv:
             accession_to_cluster_id = parse_mmseqs_cluster_results(cluster_tsv, accessions)
         else:
             accession_to_cluster_id = dict(zip(accessions, accessions))
+        
+        # Parse aligned sequences if MSA was generated
+        aligned_sequences = {}
+        if generate_msa and msa_out:
+            aligned_sequences = parse_mmseqs_msa_file(msa_out)
+        
+        result = {
+            'cluster_assignments': accession_to_cluster_id,
+            'aligned_sequences': aligned_sequences,
+            'db_path': db
+        }
 
     finally:
-        # Clean up the directory
         shutil.rmtree(unique_dir)
 
-    return accession_to_cluster_id
+    return result
 
 
-def process_msa_file(parquet_path, output_dir, threads, max_allowed_gaps=10, min_sub_seq_len=20):
+def process_msa_file(
+        parquet_path, 
+        output_dir, 
+        threads,
+        temp_dir,
+        max_allowed_gaps=10, 
+        min_sub_seq_len=20, 
+        generate_additional_clusters=True,
+    ):
     """
     Process an MSA file to extract and cluster subsequences.
     
@@ -262,12 +359,11 @@ def process_msa_file(parquet_path, output_dir, threads, max_allowed_gaps=10, min
     
     # Load the parquet file
     df = pd.read_parquet(parquet_path)
-    df = df.sample(frac=1).reset_index(drop=True)
     # Lists to store the fragmented sequences
     all_fragments = []
     parquet_index = 0
     # Process each MSA in the file
-    for _, row in df.iterrows():
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing rows in parquet file"):
         msa_text = row['text']
         msa = parse_fasta(msa_text)
         
@@ -285,28 +381,47 @@ def process_msa_file(parquet_path, output_dir, threads, max_allowed_gaps=10, min
                     all_subsequences.append(subseq)
                     all_accessions.append(f"{uniprot_id}_{i}")
         
-        # Skip if no valid subsequences were found
-        if len(all_subsequences) == 0:
+        if len(all_subsequences) < 3:
             continue
-            
+        start_time = time.time()
         # Initial clustering at 30% identity
-        accession_to_cluster_id = cluster_sequences(
+        clustering_result = cluster_sequences(
             all_subsequences, 
             all_accessions, 
             0.3,  # 30% identity
             threads, 
-            os.path.join(output_dir, "clustering_tmp"),
+            temp_dir,
             generate_msa=True
         )
+        end_time = time.time()
+        # print(f"Time taken to cluster sequences: {end_time - start_time:.2f} seconds")
+        
+        accession_to_cluster_id = clustering_result['cluster_assignments']
+        aligned_sequences = clustering_result['aligned_sequences']
+        db_path = clustering_result.get('db_path')
+        
+        # Replace unaligned sequences with aligned sequences where available
+        aligned_all_subsequences = []
+        non_aligned_all_subsequences = []
+        for accession, subseq in zip(all_accessions, all_subsequences):
+            if accession in aligned_sequences:          
+                aligned_seq = aligned_sequences[accession]
+                if len(aligned_seq.replace("-", "")) < min_sub_seq_len:
+                    continue
+                aligned_all_subsequences.append(aligned_seq)
+            else:
+                # Fallback to unaligned sequence
+                aligned_all_subsequences.append(subseq)
+            non_aligned_all_subsequences.append(subseq)
         
         # Group sequences by 30% cluster ID
         clusters = {}
-        for accession, subseq in zip(all_accessions, all_subsequences):
+        for accession, subseq in zip(all_accessions, aligned_all_subsequences):
             cluster_id = accession_to_cluster_id[accession]
             if cluster_id not in clusters:
                 clusters[cluster_id] = {
                     'sequences': [], 
-                    'accessions': []
+                    'accessions': [],
                 }
             clusters[cluster_id]['sequences'].append(subseq)
             clusters[cluster_id]['accessions'].append(accession)
@@ -318,6 +433,7 @@ def process_msa_file(parquet_path, output_dir, threads, max_allowed_gaps=10, min
         for cluster_index, (cluster_id, cluster_data) in enumerate(clusters.items()):
             sequences = cluster_data['sequences']
             accessions = cluster_data['accessions']
+            assert len(sequences) == len(accessions)
             
             # Extract parent UniProt ID for family naming
             parent_uniprot = accessions[0].split('_')[0]
@@ -327,21 +443,58 @@ def process_msa_file(parquet_path, output_dir, threads, max_allowed_gaps=10, min
             cluster_result = {
                 'fam_id': fam_id,
                 'sequences': np.array(sequences),
-                'accessions': np.array(accessions)
+                'accessions': np.array(accessions),
             }
-            assert len(sequences) == len(accessions)
-            # Perform further clustering at higher identity thresholds
-            for identity in [0.45, 0.65, 0.9, 0.95]:
-                cluster_col = f"cluster_ids_{str(identity).replace('.', '_')}"
-                accession_to_cluster_id = cluster_sequences(
-                    sequences, 
-                    accessions, 
-                    identity,
-                    threads, 
-                    os.path.join(output_dir, "clustering_tmp")
-                    generate_msa=False
-                )
-                cluster_result[cluster_col] = np.array([accession_to_cluster_id[acc] for acc in accessions], dtype=str)
+            if generate_additional_clusters:
+                # Create a new database for this specific 30% cluster
+                cluster_tmp_dir = os.path.join(temp_dir, "clustering_tmp", uuid.uuid4().hex)
+                os.makedirs(cluster_tmp_dir, exist_ok=True)
+                cluster_fasta = os.path.join(cluster_tmp_dir, "cluster_input.fasta")
+                cluster_db_prefix = os.path.join(cluster_tmp_dir, "cluster_db")
+                cluster_db = f"{cluster_db_prefix}"
+                
+                # Write sequences for this cluster to FASTA
+                with open(cluster_fasta, 'w') as f:
+                    for acc, seq in zip(accessions, sequences):
+                        f.write(f">{acc}\n{seq}\n")
+                
+                # Create database for this cluster
+                cmd_create_db = [
+                    "mmseqs", "createdb", 
+                    cluster_fasta, 
+                    cluster_db, 
+                    "--shuffle", "0", 
+                    "-v", "1"
+                    ]
+                try:
+                    subprocess.run(cmd_create_db, check=True)
+                except Exception as e:
+                    print(f"Error creating database for cluster: {e}", file=sys.stderr)
+                    ERROR_LOGS.append(f"Error creating database for cluster: {e}")
+                    # Clean up the temporary directory
+                    shutil.rmtree(cluster_tmp_dir)
+                    continue
+                
+                # Perform further clustering at higher identity thresholds
+                for identity in [0.40, 0.50, 0.65, 0.80, 0.90, 0.95]:
+                    print(f"Clustering at {identity} identity")
+                    cluster_col = f"cluster_ids_{str(identity).replace('.', '_')}"
+                    higher_clustering_result = cluster_sequences(
+                        sequences, 
+                        accessions, 
+                        identity,
+                        threads, 
+                        cluster_tmp_dir,
+                        generate_msa=False,
+                        reuse_db=cluster_db,
+                        sensitivity=1.0
+                    )
+                    accession_to_cluster_id = higher_clustering_result['cluster_assignments']
+                    cluster_result[cluster_col] = np.array([accession_to_cluster_id[acc] for acc in accessions], dtype=str)
+                
+                # Clean up the temporary directory for this cluster
+                shutil.rmtree(cluster_tmp_dir)
+            
             all_fragments.append(cluster_result)
             if len(all_fragments) == 10000:
                 result_df = pd.DataFrame(all_fragments)
@@ -352,6 +505,14 @@ def process_msa_file(parquet_path, output_dir, threads, max_allowed_gaps=10, min
                 print(f"Saved processed clusters to {output_path}")
                 all_fragments = []
                 parquet_index += 1
+        
+        # Clean up the original database after processing the entire row
+        if db_path and os.path.exists(os.path.dirname(db_path)):
+            try:
+                shutil.rmtree(os.path.dirname(db_path))
+            except Exception as e:
+                print(f"Error cleaning up temporary directory: {e}", file=sys.stderr)
+                ERROR_LOGS.append(f"Error cleaning up temporary directory: {e}")
     
     # Create DataFrame and save to parquet
     if all_fragments:
@@ -375,13 +536,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Process MSA files, split sequences, and cluster with MMSEQS."
     )
-    parser.add_argument("--input_pattern", default="/mnt/disk2/cath_plm/data/openfold/uniclust30_filtered_parquet/*.parquet",
+    parser.add_argument("--input_pattern", default="../data/openfold/uniclust30_filtered_parquet/*.parquet",
                         help="Pattern to match parquet input files.")
-    parser.add_argument("--output_dir", default="/mnt/disk2/cath_plm/data/openfold/uniclust30_filtered_parquet_fragments",
+    parser.add_argument("--output_dir", default="../data/openfold/uniclust30_filtered_parquet_fragments_ucl_cluster",
                         help="Directory to save output files.")
     parser.add_argument("--max_allowed_gaps", type=int, default=10,
                         help="Maximum number of consecutive gaps allowed before splitting.")
-    parser.add_argument("--min_sub_seq_len", type=int, default=20,
+    parser.add_argument("--min_sub_seq_len", type=int, default=90,
                         help="Minimum length of subsequence to keep.")
     parser.add_argument("--threads", type=int, default=20,
                         help="Number of CPU threads for mmseqs.")
@@ -389,15 +550,25 @@ def main():
                         help="Index of the task to run (for parallel processing).")
     parser.add_argument("--num_tasks", type=int, default=None,
                         help="Number of tasks to run (for parallel processing).")
-    
+    parser.add_argument("--generate_additional_clusters", type=bool, default=False,
+                        help="Generate additional clusters at higher identity thresholds.")
+    parser.add_argument("--scratch_dir", type=str, default=None,
+                        help="Directory to store temporary files.")
     args = parser.parse_args()
     
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
-    os.makedirs(os.path.join(args.output_dir, "clustering_tmp"), exist_ok=True)
+    if args.scratch_dir:
+        temp_dir = os.path.join(args.scratch_dir, "clustering_tmp")
+    else:
+        temp_dir = os.path.join(args.output_dir, "clustering_tmp")
+    os.makedirs(temp_dir, exist_ok=True)
     
     # Gather all parquet files
-    parquet_files = glob.glob(args.input_pattern)
+    parquet_files = sorted(glob.glob(args.input_pattern))
+    # set seed for reproducibility
+    np.random.seed(42)
+    parquet_files = np.random.permutation(parquet_files)
     print(f"Found {len(parquet_files)} parquet files")
     
     # Handle task-based parallelism if specified
@@ -412,10 +583,12 @@ def main():
     for parquet_path in parquet_files:
         process_msa_file(
             parquet_path,
-            args.output_dir,
-            args.threads,
-            args.max_allowed_gaps,
-            args.min_sub_seq_len
+            output_dir=args.output_dir,
+            threads=args.threads,
+            temp_dir=temp_dir,
+            max_allowed_gaps=args.max_allowed_gaps,
+            min_sub_seq_len=args.min_sub_seq_len,
+            generate_additional_clusters=args.generate_additional_clusters,
         )
     
     # Write timing information
