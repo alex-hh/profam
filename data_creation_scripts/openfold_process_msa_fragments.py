@@ -573,9 +573,12 @@ def main():
     
     # Handle task-based parallelism if specified
     if args.task_index is not None and args.num_tasks is not None:
-        batch_size = (len(parquet_files) // args.num_tasks) + 1
+        batch_size = (len(parquet_files) // args.num_tasks)
         start_idx = args.task_index * batch_size
-        end_idx = min(start_idx + batch_size, len(parquet_files))
+        if args.task_index == args.num_tasks - 1:
+            end_idx = len(parquet_files)
+        else:
+            end_idx = min(start_idx + batch_size, len(parquet_files))
         parquet_files = parquet_files[start_idx:end_idx]
         print(f"Processing {len(parquet_files)} parquet files in batch {args.task_index} of {args.num_tasks}")
     
