@@ -1,14 +1,14 @@
 #!/bin/bash
 
-#$ -l tmem=32G
-#$ -l h_vmem=32G
-#$ -l h_rt=23:55:30
+#$ -l tmem=16G
+#$ -l h_vmem=16G
+#$ -l h_rt=47:55:30
 #$ -S /bin/bash
 #$ -l tscratch=10G
 # hostname does not contain larry* or arbuckle* or abner*
 #$ -l hostname=!(larry*|arbuckle*|abner*)
-#$ -N openfoldCluster
-#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/clusteringV2/
+#$ -N OFcluster
+#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/openfold_clustering/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -t 1-270
 #$ -j y

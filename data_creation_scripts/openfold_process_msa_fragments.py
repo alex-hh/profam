@@ -405,7 +405,6 @@ def process_msa_file(
         
         if len(all_subsequences) < 3:
             continue
-        start_time = time.time()
         # Initial clustering at 30% identity
         clustering_result = cluster_sequences(
             all_subsequences, 
@@ -415,7 +414,6 @@ def process_msa_file(
             temp_dir,
             generate_msa=True
         )
-        end_time = time.time()
         # print(f"Time taken to cluster sequences: {end_time - start_time:.2f} seconds")
         
         cluster_id_to_accessions = clustering_result['cluster_id_to_accessions']
