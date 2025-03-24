@@ -40,7 +40,3 @@ profiler:
     with_flops: False
     with_modules: False
     acc_events: False
-
-
-
-
