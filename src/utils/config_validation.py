@@ -12,3 +12,8 @@ def check_config(cfg: DictConfig):
             "pass_res_pos_in_doc_as_position_ids" in cfg.model
             and cfg.model.pass_res_pos_in_doc_as_position_ids
         ), "sequence packing (pack_to_max_tokens=True) requires position_ids in forward"
+
+        assert (
+            "attn_implementation" in cfg.model.config
+            and cfg.model.config.attn_implementation == "flash_attention_2"
+        ), "sequence packing (pack_to_max_tokens=True) requires flash_attention_2"
