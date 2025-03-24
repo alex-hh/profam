@@ -6,11 +6,13 @@ import logging
 
 def setup_profiler(cfg: DictConfig, log: logging.Logger) -> Optional[L.pytorch.profilers.base.Profiler]:
     profiler_name = cfg.name
+    if profiler_name is None:
+        return None
     
     if profiler_name not in [None, "simple", "advanced", "pytorch"]:
         raise ValueError(f"Profiler {profiler_name} not recognized. Choose from [None, simple, advanced, pytorch]")
 
-    # build profiler's kwargs    
+    # build profiler's kwargs
     profiler_cfg = cfg.get(profiler_name, {})
     if cfg.log_tensorboard:
         on_trace_ready = torch.profiler.tensorboard_trace_handler(profiler_cfg.get("dirpath", "./"))
@@ -28,12 +30,9 @@ def setup_profiler(cfg: DictConfig, log: logging.Logger) -> Optional[L.pytorch.p
     }
     profiler_kwargs.update(profiler_cfg)
     
-    if profiler_name is None:
-        profiler = None
-    else:
-        profiler = profiler_cls(**profiler_kwargs)
-        log.info(f"Created profiler {profiler}")
-        log.info(f"Profiler {profiler_name} kwargs = {profiler_kwargs}")
+    profiler = profiler_cls(**profiler_kwargs)
+    log.info(f"Created profiler {profiler}")
+    log.info(f"Profiler {profiler_name} kwargs = {profiler_kwargs}")
     
     return profiler
 
