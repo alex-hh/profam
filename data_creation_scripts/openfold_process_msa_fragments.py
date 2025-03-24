@@ -371,6 +371,13 @@ def process_msa_file(
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
+
+    # Check if the output file already exists
+    filenames = os.path.basename(parquet_path) + f"_fragments_*.parquet"
+    output_path =f"{output_dir}/{filenames}"
+    if len(glob.glob(output_path)) > 0:
+        print(f"Skipping {parquet_path} because it already exists")
+        return
     
     # Load the parquet file
     df = pd.read_parquet(parquet_path)
