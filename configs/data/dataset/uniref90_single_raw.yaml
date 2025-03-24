@@ -1,11 +1,11 @@
 _target_: src.data.builders.SequenceDocumentIterableDataset
-name: afdb_s50
+name: uniref90
 defaults:
   - /preprocessor: raw
 
 cfg:
   _target_: src.data.builders.HFProteinDatasetConfig
-  data_path_pattern: afdb_s50_single/train_val_test_split/train_shuffled/*.parquet
+  data_path_pattern: uniref/uniref90_parquets_shuffled/train/*.parquet
   holdout_data_files: null
   holdout_identifiers: null
   identifier_col: "fam_id"

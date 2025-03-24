@@ -862,11 +862,6 @@ class BaseFamilyLitModule(BaseLitModule):
             input_ids.shape[0] == 1 and input_ids.ndim == 2
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
-        # why is ending in sep token necessary? may not be...
-        assert input_ids[:, -1].item() in [
-            self.tokenizer.sep_token_id,
-            self.tokenizer.seq_struct_sep_token_id,
-        ]
         assert input_residue_index.shape == input_ids.shape
         all_outputs = []
         for batch_start in range(0, num_samples, batch_size):
@@ -1179,19 +1174,11 @@ class BaseFamilyLitModule(BaseLitModule):
 
     def on_train_start(self):
         self.dataset_sample_counts = {}
-        self.doc_id_counts = {}
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
         log.info("Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        # self.log_dict(
-        #     {
-        #         f"{k}_max_sampled_doc": max(v.values())
-        #         for k, v in self.doc_id_counts.items()
-        #     },
-        #     sync_dist=True,
-        # )
 
     def log_ds_sample_counts(self, batch):
         """Log statistics about dataset usage.
@@ -1210,11 +1197,3 @@ class BaseFamilyLitModule(BaseLitModule):
             on_step=True,
             on_epoch=False,
         )
-        if "identifier" in batch:
-            for i, (dataset, doc_id) in enumerate(
-                zip(batch["ds_name"].text, batch["identifier"].text)
-            ):
-                self.doc_id_counts[dataset] = self.doc_id_counts.get(dataset, {})
-                self.doc_id_counts[dataset][doc_id] = (
-                    self.doc_id_counts[dataset].get(doc_id, 0) + 1
-                )

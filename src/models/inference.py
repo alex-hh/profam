@@ -91,6 +91,7 @@ class ProFamSampler:
         sampling_kwargs: Optional[Dict] = None,
         checkpoint_path: Optional[str] = None,
         match_representative_length: bool = False,
+        dtype: Optional[torch.dtype] = None,
     ):
         self.name = name
         self.model = model
@@ -100,6 +101,10 @@ class ProFamSampler:
         self.checkpoint_path = checkpoint_path
         self.document_token = document_token
         self.match_representative_length = match_representative_length
+        self.dtype = dtype or torch.float32
+
+        if hasattr(self.model, "dtype") and self.model.dtype is None:
+            self.model.dtype = self.dtype
         if self.checkpoint_path is not None:
             print(
                 f"Initialising ProFam sampler, loading checkpoint {self.checkpoint_path}"
@@ -158,7 +163,7 @@ class ProFamSampler:
                 input_coords=encoded["coords"]
                 .unsqueeze(0)
                 .to(self.model.device)
-                .float()
+                .to(self.dtype)
                 if self.model.embed_coords
                 else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
                 **sampling_kwargs,
@@ -173,6 +178,7 @@ class ProFamSampler:
         prompt_builder: PromptBuilder,
         sampling_kwargs: Optional[Dict] = None,
         name_suffix: str = "",
+        dtype: Optional[torch.dtype] = None,
     ):
         # automatically load checkpoint path and, if possible, wandb run name
         raise NotImplementedError("Not implemented yet")
@@ -181,4 +187,5 @@ class ProFamSampler:
             prompt_builder=prompt_builder,
             sampling_kwargs=sampling_kwargs,
             checkpoint_path=checkpoint_dir,
+            dtype=dtype,
         )

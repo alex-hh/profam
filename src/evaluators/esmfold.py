@@ -285,6 +285,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
 
         prompt_prots = []
         for i, seq in enumerate(raw_prompt_document.sequences):
+            if len(seq) == 0:  # unconditional sampling
+                continue
             # infer prompt structures
             if (
                 not self.use_precomputed_reference_structures
@@ -329,15 +331,27 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                 f"TM Score: {np.mean([np.mean(tm_scores) for tm_scores in all_tm_scores])}",
                 flush=True,
             )
-        return {
-            "prompt_plddt": np.mean([np.mean(prot.plddt) for prot in prompt_prots]),
+        metrics = {
             "sample_plddt": np.mean([np.mean(prot.plddt) for prot in sample_prots]),
-            "prompt_lens": np.mean([len(prot) for prot in prompt_prots]),
             "sample_lens": np.mean([len(prot) for prot in sample_prots]),
-            "min_tm_score": np.mean([min(tm_scores) for tm_scores in all_tm_scores]),
-            "max_tm_score": np.mean([max(tm_scores) for tm_scores in all_tm_scores]),
-            "mean_tm_score": np.mean(
-                [np.mean(tm_scores) for tm_scores in all_tm_scores]
-            ),
             "num_samples_greater_than_max_length": num_samples_greater_than_max_length,
         }
+        if len(prompt_prots) > 0:
+            metrics.update(
+                {
+                    "prompt_plddt": np.mean(
+                        [np.mean(prot.plddt) for prot in prompt_prots]
+                    ),
+                    "prompt_lens": np.mean([len(prot) for prot in prompt_prots]),
+                    "min_tm_score": np.mean(
+                        [min(tm_scores) for tm_scores in all_tm_scores]
+                    ),
+                    "max_tm_score": np.mean(
+                        [max(tm_scores) for tm_scores in all_tm_scores]
+                    ),
+                    "mean_tm_score": np.mean(
+                        [np.mean(tm_scores) for tm_scores in all_tm_scores]
+                    ),
+                }
+            )
+        return metrics

@@ -1,5 +1,6 @@
 # @package _global_
 defaults:
+  - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: afdb_s50_single
   - override /model: llama_32_1b
   - override /callbacks: default_with_shuffle
@@ -39,5 +40,3 @@ model:
   embed_coords: false
   embed_sequence_index: false
   embed_residue_index: false
-  config:
-    num_hidden_layers: 8
