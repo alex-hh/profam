@@ -206,8 +206,13 @@ def parse_mmseqs_cluster_results(cluster_tsv, sequence_ids):
         for i, row in merged.iterrows():
             if pd.isnull(row.cluster_rep):
                 merged.at[i, 'cluster_id'] = row.accession
-    
-    return dict(zip(merged.accession, merged.cluster_id))
+    cluster_id_to_accessions = {}
+    for cluster_id in merged.cluster_id.unique():
+        accessions = list(merged[merged.cluster_id == cluster_id].accession.unique())
+        if len(accessions) > 1:
+            cluster_id_to_accessions[cluster_id] = accessions
+
+    return cluster_id_to_accessions
 
 
 def parse_mmseqs_msa_file(msa_file):
@@ -226,20 +231,30 @@ def parse_mmseqs_msa_file(msa_file):
     aligned_sequences = {}
     current_cluster = None
     current_header = None
-    
+    new_cluster = True
+    cluster_counter = 0
     with open(msa_file, 'r') as f:
         for line in f:
             line = line.strip()
-            if line.startswith('#cl-'):
-                # New cluster header
-                current_cluster = line
-                current_header = None
+            if '#cl-' in line:
+                # # New cluster header
+                new_cluster = True
             elif line.startswith('>'):
                 # Sequence header
                 current_header = line[1:]
+                if new_cluster:
+                    cluster_representative = f"{current_header}_clust_{cluster_counter}"
+                    if cluster_representative in aligned_sequences:
+                        cluster_counter += 1
+                        cluster_representative = f"{current_header}_clust_{cluster_counter}"
+                    else:
+                        cluster_counter = 0
+                        cluster_representative = f"{current_header}_clust_{cluster_counter}"
+                    aligned_sequences[cluster_representative] = {}
+                    new_cluster = False
             elif line and current_header:
                 # Sequence data
-                aligned_sequences[current_header] = line
+                aligned_sequences[cluster_representative][current_header] = line
                 current_header = None
     
     return aligned_sequences
@@ -312,9 +327,9 @@ def cluster_sequences(sequences, accessions, min_seq_id, threads, temp_dir, gene
         
         # Parse cluster assignments
         if cluster_tsv:
-            accession_to_cluster_id = parse_mmseqs_cluster_results(cluster_tsv, accessions)
+            cluster_id_to_accessions = parse_mmseqs_cluster_results(cluster_tsv, accessions)
         else:
-            accession_to_cluster_id = dict(zip(accessions, accessions))
+            cluster_id_to_accessions = dict(zip(accessions, accessions))
         
         # Parse aligned sequences if MSA was generated
         aligned_sequences = {}
@@ -322,7 +337,7 @@ def cluster_sequences(sequences, accessions, min_seq_id, threads, temp_dir, gene
             aligned_sequences = parse_mmseqs_msa_file(msa_out)
         
         result = {
-            'cluster_assignments': accession_to_cluster_id,
+            'cluster_id_to_accessions': cluster_id_to_accessions,
             'aligned_sequences': aligned_sequences,
             'db_path': db
         }
@@ -396,55 +411,28 @@ def process_msa_file(
         end_time = time.time()
         # print(f"Time taken to cluster sequences: {end_time - start_time:.2f} seconds")
         
-        accession_to_cluster_id = clustering_result['cluster_assignments']
+        cluster_id_to_accessions = clustering_result['cluster_id_to_accessions']
         aligned_sequences = clustering_result['aligned_sequences']
         db_path = clustering_result.get('db_path')
+
         
-        # Replace unaligned sequences with aligned sequences where available
-        aligned_all_subsequences = []
-        non_aligned_all_subsequences = []
-        for accession, subseq in zip(all_accessions, all_subsequences):
-            if accession in aligned_sequences:          
-                aligned_seq = aligned_sequences[accession]
-                if len(aligned_seq.replace("-", "")) < min_sub_seq_len:
-                    continue
-                aligned_all_subsequences.append(aligned_seq)
-            else:
-                # Fallback to unaligned sequence
-                aligned_all_subsequences.append(subseq)
-            non_aligned_all_subsequences.append(subseq)
-        
-        # Group sequences by 30% cluster ID
-        clusters = {}
-        for accession, subseq in zip(all_accessions, aligned_all_subsequences):
-            cluster_id = accession_to_cluster_id[accession]
-            if cluster_id not in clusters:
-                clusters[cluster_id] = {
-                    'sequences': [], 
-                    'accessions': [],
-                }
-            clusters[cluster_id]['sequences'].append(subseq)
-            clusters[cluster_id]['accessions'].append(accession)
-        
-        # Filter out singleton clusters
-        clusters = {k: v for k, v in clusters.items() if len(v['sequences']) > 1}
-        
-        # For each 30% cluster, perform further clustering at higher identity thresholds
-        for cluster_index, (cluster_id, cluster_data) in enumerate(clusters.items()):
-            sequences = cluster_data['sequences']
-            accessions = cluster_data['accessions']
-            assert len(sequences) == len(accessions)
-            
-            # Extract parent UniProt ID for family naming
-            parent_uniprot = accessions[0].split('_')[0]
+        parent_uniprot = all_accessions[0].split('_')[0]
+        for cluster_index, (sub_seq_rep_accession, acc2seq) in enumerate(aligned_sequences.items()):
+            acc2seq = {k:v for k,v in acc2seq.items() if len(v.replace("-", "")) >= min_sub_seq_len}
+            if len(acc2seq) < 2:
+                continue
+            accessions = list(acc2seq.keys())
+            sequences = list(acc2seq.values())
+            if len(set([len(seq) for seq in sequences])) > 1:
+                bp=1
+                continue
             fam_id = f"{parent_uniprot}_clust_{cluster_index}"
-            
-            # Create data structure for this cluster
             cluster_result = {
                 'fam_id': fam_id,
                 'sequences': np.array(sequences),
                 'accessions': np.array(accessions),
             }
+
             if generate_additional_clusters:
                 # Create a new database for this specific 30% cluster
                 cluster_tmp_dir = os.path.join(temp_dir, "clustering_tmp", uuid.uuid4().hex)
@@ -538,7 +526,7 @@ def main():
     )
     parser.add_argument("--input_pattern", default="../data/openfold/uniclust30_filtered_parquet/*.parquet",
                         help="Pattern to match parquet input files.")
-    parser.add_argument("--output_dir", default="../data/openfold/uniclust30_filtered_parquet_fragments_ucl_cluster",
+    parser.add_argument("--output_dir", default="../data/openfold/uniclust30_filtered_parquet_fragments_ucl_cluster_v2",
                         help="Directory to save output files.")
     parser.add_argument("--max_allowed_gaps", type=int, default=10,
                         help="Maximum number of consecutive gaps allowed before splitting.")
