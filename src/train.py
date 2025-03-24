@@ -35,9 +35,9 @@ from src.utils import (
     instantiate_callbacks,
     instantiate_loggers,
     log_hyperparameters,
-    task_wrapper,
-    setup_profiler, 
     save_profiler,
+    setup_profiler,
+    task_wrapper,
 )
 
 log = RankedLogger(__name__, rank_zero_only=True)
@@ -91,9 +91,9 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(
-        cfg.trainer, 
-        callbacks=callbacks, 
-        logger=logger, 
+        cfg.trainer,
+        callbacks=callbacks,
+        logger=logger,
         profiler=profiler,
     )
     # print(trainer.strategy._get_process_group_backend())
@@ -124,12 +124,13 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
                 )
         log.info("Starting training!")
         try:
-            trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
+            trainer.fit(
+                model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path")
+            )
         except Exception as e:
             raise e
         finally:
             save_profiler(profiler=profiler, stage="train", log=log)
-            
 
     train_metrics = trainer.callback_metrics
 
