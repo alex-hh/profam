@@ -27,6 +27,7 @@ class ProFamTrainer(Trainer):
         if devices == "auto":
             assert torch.cuda.is_available()
             devices = torch.cuda.device_count()
+        devices = int(devices)
         if target_tokens_per_batch is not None:
             assert (
                 "accumulate_grad_batches" not in kwargs
@@ -34,10 +35,6 @@ class ProFamTrainer(Trainer):
             assert (
                 tokens_per_document is not None
             ), "tokens_per_document must be set when target_tokens_per_batch is set"
-            print(f"target_tokens_per_batch = {target_tokens_per_batch} [{type(target_tokens_per_batch)}]")
-            print(f"batch_size = {batch_size} [{type(batch_size)}]")
-            print(f"tokens_per_document = {tokens_per_document} [{type(tokens_per_document)}]")
-            print(f"devices = {devices} [{type(devices)}]")
             kwargs["accumulate_grad_batches"] = math.ceil(
                 target_tokens_per_batch / (tokens_per_document * batch_size * devices)
             )
