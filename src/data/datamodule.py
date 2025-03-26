@@ -182,15 +182,6 @@ class ProteinDataMixture(LightningDataModule):
                     print(
                         f"Using {self.total_num_train_samples//world_size} samples for training on each device"
                     )
-                    max_train_samples = self.total_num_train_samples // world_size
-
-                    # in case we have fewer samples than we want on some devices, we repeat the dataset (post shuffle)
-                    # https://github.com/huggingface/datasets/issues/6623#issuecomment-2377741298
-                    # perhaps we could test similar to https://github.com/huggingface/datasets/issues/7156
-                    print("Repeating dataset to avoid running out of samples")
-                    self.train_dataset = self.train_dataset.repeat(num_times=None).take(
-                        max_train_samples
-                    )
                 elif self.total_num_train_samples is None:
                     print(
                         "Warning: total_num_train_samples not needed for world size 1 and will be ignored"
