@@ -27,7 +27,7 @@ class ProFamTrainer(Trainer):
         if devices == "auto":
             assert torch.cuda.is_available()
             devices = torch.cuda.device_count()
-        devices = int(devices)
+            print("Setting CUDA devices to", devices)
         if target_tokens_per_batch is not None:
             assert (
                 "accumulate_grad_batches" not in kwargs
