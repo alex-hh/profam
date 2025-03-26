@@ -89,7 +89,9 @@ class WandbLogger(WandbLogger):
                     #     f.write(commit_hash)
                     hparams["git_hash"] = commit_hash
                 except subprocess.CalledProcessError:
-                    raise FileNotFoundError(
+                    # raise FileNotFoundError(
+                    print(
+                        f"WARNING:"
                         f"Could not get git hash. Please ensure you are in a git repository and run:\n"
                         f"git rev-parse HEAD > commit_hash.txt"
                     )
