@@ -12,6 +12,7 @@ wandb:
   prefix: "" # a string to put at the beginning of metric keys
   entity: "ProFam" # set to name of your wandb team
   group: ""
+  name: null
   tags: []
   job_type: ""
   log_hydra_config_file: true
