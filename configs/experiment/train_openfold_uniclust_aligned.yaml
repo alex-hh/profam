@@ -74,7 +74,7 @@ data:
     openfold_clustered_msa_pos: 1
   batch_size: 1
   data_dir: ${paths.data_dir}
-  num_workers: 12
+  num_workers: 24
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
   val_dataset_batch_sizes:
