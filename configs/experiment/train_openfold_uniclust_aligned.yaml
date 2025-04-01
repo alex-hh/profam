@@ -80,4 +80,4 @@ data:
   val_dataset_batch_sizes:
     openfold_clustered_msa_pos_val: 1
     proteingym: 1
-  pack_to_max_tokens: 16_000
+  pack_to_max_tokens: 120_000
