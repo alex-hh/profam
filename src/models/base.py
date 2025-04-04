@@ -293,6 +293,14 @@ class BaseLitModule(LightningModule):
                 add_dataloader_idx=False,
                 sync_dist=step_name != "train",
             )
+            gpus_logs = metrics.gpu_utilization()
+            if len(gpus_logs):
+                self.log_dict(
+                    gpus_logs,
+                    prog_bar=False,
+                    add_dataloader_idx=False,
+                    on_rank_zero=False,
+                )
 
         # n.b. this assumes a batch only contains a single dataset - only true during val!
         # assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])

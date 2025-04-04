@@ -2,6 +2,24 @@ from typing import List, Optional
 
 import numpy as np
 import torch
+from ..utils.utils import get_local_rank
+
+import socket
+import os
+
+try:
+    # attempt to collect NVIDIA GPU information
+    import pynvml
+    # Init
+    pynvml.nvmlInit()
+    num_gpus = pynvml.nvmlDeviceGetCount()
+
+    # Identify local rank and hostname
+    local_rank = get_local_rank()
+    hostname = socket.gethostname()
+except Exception as e:
+    pynvml = None
+    print(f"pynvml not installed, GPU metrics will not be logged. Error: {e}")
 
 
 def has_coords_frac(coords_mask, structure_mask, **kwargs):
@@ -201,3 +219,38 @@ def document_lengths(labels, start_of_doc_token_id):
         "mean_doc_length": doc_lengths.float().mean().item(),
     }
     return result
+
+def gpu_utilization():
+    logs = {}
+    # Only log from local rank 0
+    if (pynvml is None) or (local_rank != 0):
+        return  logs
+
+    total_util = 0
+    total_mem_util = 0
+
+    for i in range(num_gpus):
+        handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+        mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+
+        mem_used = mem.used / 1024**2  # in MB
+        mem_total = mem.total / 1024**2
+        mem_util = (mem_used / mem_total) * 100
+        gpu_util = util.gpu
+
+        total_util += gpu_util
+        total_mem_util += mem_util
+
+        logs.update({
+            f"system/{hostname}/gpu_{i}_utilization_percent": gpu_util,
+            f"system/{hostname}/gpu_{i}_memory_utilization_percent": mem_util,
+            f"system/{hostname}/gpu_{i}_memory_used_MB": mem_used,
+            f"system/{hostname}/gpu_{i}_memory_total_MB": mem_total,
+        })
+
+    logs[f"system/{hostname}/gpu_avg_utilization_percent"] = total_util / num_gpus
+    logs[f"system/{hostname}/gpu_avg_memory_utilization_percent"] = total_mem_util / num_gpus
+
+    return logs
+
