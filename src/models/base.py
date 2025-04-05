@@ -299,7 +299,6 @@ class BaseLitModule(LightningModule):
                     gpus_logs,
                     prog_bar=False,
                     add_dataloader_idx=False,
-                    on_rank_zero=False,
                 )
 
         # n.b. this assumes a batch only contains a single dataset - only true during val!
