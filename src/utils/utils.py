@@ -4,7 +4,6 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
-import os
 
 from src.utils import pylogger, rich_utils
 
@@ -161,18 +160,3 @@ def nested_getattr(obj, attr_path, default=None):
         return obj
     except AttributeError:
         return default
-
-def get_local_rank():
-    """
-    Returns the local rank of the process. 
-    """
-    # torch.distributed or accelerate
-    if "LOCAL_RANK" in os.environ:
-        return int(os.environ["LOCAL_RANK"])
-
-    # SLURM setup — use task rank within node
-    if "SLURM_LOCALID" in os.environ:
-        return int(os.environ["SLURM_LOCALID"])
-
-    # Fallback to rank 0 if no info is available
-    return 0
