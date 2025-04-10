@@ -341,9 +341,6 @@ class BaseLitModule(LightningModule):
         seq_len_stats = metrics.sequence_lengths(
             batch["labels"], self.tokenizer.sep_token_id
         )
-        doc_len_stats = metrics.document_lengths(
-            batch["labels"], self.tokenizer.bos_token_id
-        )
         sep_tokens_in_batch = (
             (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
         )
@@ -354,15 +351,6 @@ class BaseLitModule(LightningModule):
             self.log(
                 name=f"{step_name}/token_stats/{reduce_fx}_seq_len_in_batch",
                 value=seq_len_stats[f"{reduce_fx}_seq_length"],
-                on_step=True,
-                on_epoch=False,
-                prog_bar=False,
-                reduce_fx=reduce_fx,
-                add_dataloader_idx=add_dataloader_idx,
-            )
-            self.log(
-                name=f"{step_name}/token_stats/{reduce_fx}_doc_len_in_batch",
-                value=doc_len_stats[f"{reduce_fx}_doc_length"],
                 on_step=True,
                 on_epoch=False,
                 prog_bar=False,
