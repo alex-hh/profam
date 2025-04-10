@@ -163,7 +163,7 @@ class BaseLitModule(LightningModule):
             # BaseLitModule.model.forward()
             # in general we assume that if you call BaseLitModule.forward()
             # you are not using KV cache.
-
+        labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -199,7 +199,7 @@ class BaseLitModule(LightningModule):
                 "ds_name"
             ].text,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-", "X", "x"]
+                ["-", "X", "x", "[start-of-document]"]
                 + [aa.lower() for aa in aa_letters]
                 + self.tokenizer.all_special_tokens
             ),
