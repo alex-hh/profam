@@ -87,6 +87,7 @@ class BaseLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
+
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
         log.info(f"Using optimizer {optimizer_name}")
