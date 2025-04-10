@@ -165,7 +165,8 @@ class BaseLitModule(LightningModule):
             # BaseLitModule.model.forward()
             # in general we assume that if you call BaseLitModule.forward()
             # you are not using KV cache.
-        labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
+        if labels is not None:
+            labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
