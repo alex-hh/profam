@@ -104,8 +104,6 @@ export LOCAL_RESULTS_PATH=${LOCAL_RESULTS_PATH:=${LOCAL_REPO_PATH}/results}
 export DOCKER_RESULTS_PATH=${DOCKER_RESULTS_PATH:=${DOCKER_REPO_PATH}/results}
 export LOCAL_DATA_PATH=${LOCAL_DATA_PATH:=${LOCAL_REPO_PATH}/data}
 export DOCKER_DATA_PATH=${DOCKER_DATA_PATH:=${DOCKER_REPO_PATH}/data}
-export LOCAL_MODELS_PATH=${LOCAL_MODELS_PATH:=${LOCAL_REPO_PATH}/models}
-export DOCKER_MODELS_PATH=${DOCKER_MODELS_PATH:=${DOCKER_REPO_PATH}/models}
 export WANDB_API_KEY=${WANDB_API_KEY:=NotSpecified}
 export JUPYTER_PORT=${JUPYTER_PORT:=8888}
 export REGISTRY=${REGISTRY:=nvcr.io}
@@ -144,8 +142,6 @@ if [ $write_env -eq 1 ]; then
     echo DOCKER_RESULTS_PATH=${DOCKER_RESULTS_PATH} >> $LOCAL_ENV
     echo LOCAL_DATA_PATH=${LOCAL_DATA_PATH} >> $LOCAL_ENV
     echo DOCKER_DATA_PATH=${DOCKER_DATA_PATH} >> $LOCAL_ENV
-    echo LOCAL_MODELS_PATH=${LOCAL_MODELS_PATH} >> $LOCAL_ENV
-    echo DOCKER_MODELS_PATH=${DOCKER_MODELS_PATH} >> $LOCAL_ENV
     echo WANDB_API_KEY=${WANDB_API_KEY} >> $LOCAL_ENV
     echo JUPYTER_PORT=${JUPYTER_PORT} >> $LOCAL_ENV
     echo REGISTRY=${REGISTRY} >> $LOCAL_ENV
@@ -167,13 +163,11 @@ if [ -f /.dockerenv ]; then
     echo "Running inside a Docker container, using DOCKER paths from .env file."
     RESULT_PATH=${DOCKER_RESULTS_PATH}
     DATA_PATH=${DOCKER_DATA_PATH}
-    MODEL_PATH=${DOCKER_MODELS_PATH}
     PROFAM_HOME=${DOCKER_REPO_PATH}
 else
     echo "Not running inside a Docker container, using LOCAL paths from .env file."
     RESULT_PATH=${LOCAL_RESULTS_PATH}
     DATA_PATH=${LOCAL_DATA_PATH}
-    MODEL_PATH=${LOCAL_MODELS_PATH}
     PROFAM_HOME=${LOCAL_REPO_PATH}
 fi
 
@@ -354,7 +348,6 @@ push() {
 setup() {
     mkdir -p ${DATA_PATH}
     mkdir -p ${RESULT_PATH}
-    mkdir -p ${MODEL_PATH}
 
     # Note: For PROFAM_HOME, if we are invoking docker, this should always be
     # the docker repo path.
@@ -370,7 +363,6 @@ setup() {
     DOCKER_CMD="${DOCKER_CMD} -v ${LOCAL_REPO_PATH}:${DOCKER_REPO_PATH} -e HOME=${DOCKER_REPO_PATH} -w ${DOCKER_REPO_PATH} "
     DOCKER_CMD="${DOCKER_CMD} -v ${LOCAL_RESULTS_PATH}:${DOCKER_RESULTS_PATH}"
     DOCKER_CMD="${DOCKER_CMD} -v ${LOCAL_DATA_PATH}:${DOCKER_DATA_PATH}"
-    DOCKER_CMD="${DOCKER_CMD} -v ${LOCAL_MODELS_PATH}:${DOCKER_MODELS_PATH}"
     DOCKER_CMD="${DOCKER_CMD} -v /etc/passwd:/etc/passwd:ro "
     DOCKER_CMD="${DOCKER_CMD} -v /etc/group:/etc/group:ro "
     DOCKER_CMD="${DOCKER_CMD} -v /etc/shadow:/etc/shadow:ro "
