@@ -31,3 +31,14 @@ data/cath_chain_topology_class.pickle
 .ipynb_checkpoints/
 .env
 .bash_history
+.cache
+.ipython
+.local
+.python_history
+.dotnet
+.gitconfig
+.gnupg
+.ssh
+.vscode-server
+data/all_heldout_sequences.csv
+data/val_test_heldout_representative_sequences.fasta

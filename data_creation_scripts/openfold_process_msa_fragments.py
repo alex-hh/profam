@@ -9,6 +9,10 @@ This script:
 5. Generates alignmenst for each 30% SI cluster
 6. Further clusters within 30% clusters at higher identity thresholds
 7. Formats results into new parquet files
+
+Note that you still need to do a global shuffle of the resultant parquet files
+by running:
+data_creation_scripts/shuffling/shuffle_openfold.sh
 """
 
 import os
