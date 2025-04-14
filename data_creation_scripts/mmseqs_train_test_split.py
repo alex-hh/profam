@@ -46,6 +46,7 @@ Iterate over the parquet files
 """
 import shutil
 import pandas as pd
+import tqdm
 import os
 import glob
 import random
@@ -452,7 +453,7 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter):
         parquet_files = glob.glob(dataset["parquet_pattern"])
         print(f"Found {len(parquet_files)} parquet files for {dataset['name']}")
         removed_from_train = []
-        for parquet_file in parquet_files:
+        for parquet_file in tqdm.tqdm(parquet_files):
             print(f"Processing file: {os.path.basename(parquet_file)}")
             df = pd.read_parquet(parquet_file)
             train_output_path = os.path.join(dataset["output_dir"], "train_filtered", f"train_{os.path.basename(parquet_file)}")
@@ -530,7 +531,7 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter):
                 val_rows = []
                 test_rows = []
                 
-                for i, row in df.iterrows():
+                for i, row in tqdm.tqdm(df.iterrows(), total=len(df), desc=f"Processing {os.path.basename(parquet_file)}"):
                     fam_id = row.get('fam_id', f"fam_{i}")
                     keep_sequences = []
                     keep_accessions = []
