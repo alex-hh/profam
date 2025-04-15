@@ -42,4 +42,3 @@ data/cath_chain_topology_class.pickle
 .vscode-server
 data/all_heldout_sequences.csv
 data/val_test_heldout_representative_sequences.fasta
-shuffle.log

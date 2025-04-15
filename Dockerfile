@@ -4,8 +4,8 @@ FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-devel
 # Set the working directory inside the container
 WORKDIR /workspace/profam
 
-# Install Git
-RUN apt-get update && apt-get install -y git
+# Install some utils
+RUN apt-get update && apt-get install -y git vim zsh
 
 # Verify Git installation
 RUN git --version
@@ -28,6 +28,11 @@ COPY . .
 # Set a non-root user for security
 RUN useradd -m devuser && chown -R devuser /workspace
 USER devuser
+
+# Add a default .zshrc
+RUN echo 'export PS1="\u@\h:\w \$ "' > /home/devuser/.zshrc && \
+    chown devuser:devuser /home/devuser/.zshrc
+
 
 # Set default command (optional, can be overridden)
 CMD ["bash"]
