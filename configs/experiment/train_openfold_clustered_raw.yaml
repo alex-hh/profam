@@ -68,7 +68,8 @@ data:
       cfg:
         data_path_pattern: openfold/uniclust30_clustered_shuffled_final/recombinant_0_chunk0.parquet
     openfold_clustered_raw:
-      holdout_data_files: openfold/uniclust30_clustered_shuffled_final/recombinant_0_chunk0.parquet
+      cfg:
+        holdout_data_files: openfold/uniclust30_clustered_shuffled_final/recombinant_0_chunk0.parquet
 
 
   _target_: src.data.datamodule.ProteinDataMixture
