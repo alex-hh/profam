@@ -74,11 +74,12 @@ def tokenize(
     mutant_bos_token="sep",
     document_token="[RAW]",
 ):
-    sample = tokenize_msa(
-        sample,
-        tokenizer,
-        document_token=document_token,
-    )
+    if "MSA" in sample and sample["MSA"] is not None:
+        sample = tokenize_msa(
+            sample,
+            tokenizer,
+            document_token=document_token,
+        )
     sample = tokenize_completions(
         sample,
         tokenizer,
@@ -92,6 +93,7 @@ def load_msa_for_row(
     seed,
     tokenizer,
     max_tokens,
+    max_context_seqs: Optional[int] = None,
     keep_wt=True,
     drop_wt=False,
     keep_gaps=False,
@@ -136,6 +138,9 @@ def load_msa_for_row(
             keep_gaps=keep_gaps,
         ),
     )
+    if max_context_seqs is not None:
+        proteins = proteins[:max_context_seqs]
+
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     row["MSA"] = proteins.sequences
@@ -221,6 +226,7 @@ class ProteinGymDataset(BaseProteinDataset):
         num_proc: Optional[int] = None,
         gym_data_dir: Optional[str] = None,
         max_tokens_per_example: Optional[int] = None,
+        max_context_seqs: Optional[int] = None,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -243,6 +249,9 @@ class ProteinGymDataset(BaseProteinDataset):
         self.num_proc = num_proc
         self.gym_data_dir = gym_data_dir
         self.max_tokens_per_example = max_tokens_per_example
+        self.max_context_seqs = max_context_seqs
+        if max_context_seqs == 0:
+            assert mutant_bos_token == ""
 
     @property
     def document_token(self):
@@ -267,8 +276,9 @@ class ProteinGymDataset(BaseProteinDataset):
 
         n.b. we just ignore pack_to_max_tokens here.
         """
-        dataset = dataset.map(
-            functools.partial(
+        if self.max_context_seqs is None or self.max_context_seqs > 0:
+            dataset = dataset.map(
+                functools.partial(
                 load_msa_for_row,
                 tokenizer=tokenizer,
                 seed=self.seed,  # For what?
@@ -277,6 +287,7 @@ class ProteinGymDataset(BaseProteinDataset):
                 use_filtered_msa=self.use_filtered_msa,
                 extra_tokens_per_document=self.extra_tokens_per_document,
                 use_msa_pos=self.use_msa_pos,
+                max_context_seqs=self.max_context_seqs,
             ),
             batched=False,
             num_proc=self.num_proc,
