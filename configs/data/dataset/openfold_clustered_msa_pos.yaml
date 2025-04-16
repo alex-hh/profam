@@ -5,7 +5,7 @@ defaults:
 
 cfg:
   _target_: src.data.builders.HFProteinDatasetConfig
-  data_path_pattern: openfold/uniclust30_clustered/*.parquet
+  data_path_pattern: openfold/uniclust30_clustered_shuffled_final/*.parquet
   holdout_data_files: null
   holdout_identifiers: null
   identifier_col: "fam_id"
