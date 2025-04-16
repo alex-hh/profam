@@ -156,7 +156,8 @@ class ProteinDataMixture(LightningDataModule):
                 )
                 print("Num shards", self.train_dataset.n_shards)
                 if self.num_workers is None:
-                    self.num_workers = min(os.cpu_count(), self.train_dataset.n_shards)
+                    # number of workers should be less than available GPUs to prevent a computation bottleneck
+                    self.num_workers = min(os.cpu_count() * 3 // 4, self.train_dataset.n_shards)
                     print(f"Using {self.num_workers} workers for data loading")
                 # TODO: verify that non-iterable datasets are split automatically (e.g. by lightning...)
                 if world_size > 1:
