@@ -40,3 +40,20 @@ model:
   embed_coords: false
   embed_sequence_index: false
   embed_residue_index: false
+
+data:
+  dataset_builders:
+    proteingym:
+      _target_: src.data.builders.proteingym.ProteinGymDataset
+      name: proteingym
+      dms_ids: ${constants.gym_val_assay_list}
+      seed: 42
+      max_mutated_sequences: null
+      mutant_bos_token: null
+      keep_gaps: false
+      use_filtered_msa: true
+      extra_tokens_per_document: 2
+      use_msa_pos: false
+      num_proc: null
+      max_tokens_per_example: 32_000
+      max_context_seqs: 0
