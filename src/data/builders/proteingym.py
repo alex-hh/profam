@@ -57,13 +57,11 @@ def tokenize_completions(
     tokenizer: ProFamTokenizer,
     bos_token="sep",
     has_context=True,  # True if using MSA false if evaluating single sequence model
-    document_token="[RAW]",
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
         residue_positions=sample["completion_residue_positions"],
         bos_token=get_token_from_name(bos_token, tokenizer),
-        document_token=document_token,
         has_context=has_context,
     )
     sample["completion_ids"] = tokenized.input_ids
@@ -79,18 +77,28 @@ def tokenize(
     document_token="[RAW]",
 ):
     has_context = "MSA" in sample and sample["MSA"] is not None
-    if has_context:
-        sample = tokenize_msa(
-            sample,
-            tokenizer,
-            document_token=document_token,
-        )
+    if not has_context:
+        sample["MSA"] = [""]
+        sample["seq_pos"] = []
+
+    sample = tokenize_msa(
+        sample,
+        tokenizer,
+        document_token=document_token,
+    )
+    # else:
+    #     sample["input_ids"] = torch.tensor(
+    #         [[tokenizer.bos_token_id, ]],
+    #         device=sample["completion_ids"].device,
+    #         dtype=sample["completion_ids"].dtype,
+    #     )
+    #     if tokenizer.embed_residue_index:
+    #         sample["residue_index"] = torch.zeros_like(sample["completion_ids"])
     sample = tokenize_completions(
         sample,
         tokenizer,
         bos_token=mutant_bos_token,
         has_context=has_context,
-        document_token=document_token,
     )
     return sample
 
@@ -147,7 +155,6 @@ def load_msa_for_row(
     )
     if max_context_seqs is not None:
         proteins = proteins[:max_context_seqs]
-
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     row["MSA"] = proteins.sequences
@@ -286,28 +293,28 @@ class ProteinGymDataset(BaseProteinDataset):
         n.b. we just ignore pack_to_max_tokens here.
         """
         remove_columns = [
-                "DMS_id",
-                "completion_seqs",
-                "DMS_filename",
-                "MSA_filename",
-            ]
+            "DMS_id",
+            "completion_seqs",
+            "DMS_filename",
+            "MSA_filename",
+        ]
         if self.max_context_seqs is None or self.max_context_seqs > 0:
             remove_columns.append("MSA")
             dataset = dataset.map(
                 functools.partial(
-                load_msa_for_row,
-                tokenizer=tokenizer,
-                seed=self.seed,  # For what?
-                max_tokens=self.max_tokens_per_example,
-                keep_gaps=self.keep_gaps,
-                use_filtered_msa=self.use_filtered_msa,
-                extra_tokens_per_document=self.extra_tokens_per_document,
-                use_msa_pos=self.use_msa_pos,
-                max_context_seqs=self.max_context_seqs,
-            ),
-            batched=False,
-            num_proc=self.num_proc,
-        )
+                    load_msa_for_row,
+                    tokenizer=tokenizer,
+                    seed=self.seed,  # For what?
+                    max_tokens=self.max_tokens_per_example,
+                    keep_gaps=self.keep_gaps,
+                    use_filtered_msa=self.use_filtered_msa,
+                    extra_tokens_per_document=self.extra_tokens_per_document,
+                    use_msa_pos=self.use_msa_pos,
+                    max_context_seqs=self.max_context_seqs,
+                ),
+                batched=False,
+                num_proc=self.num_proc,
+            )
         dataset = dataset.map(
             functools.partial(
                 load_comp_seq_dms_for_row,
@@ -332,13 +339,10 @@ class ProteinGymDataset(BaseProteinDataset):
             num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-        columns =  ["completion_ids", "DMS_scores", "ds_name"]
-        if self.max_context_seqs is None or self.max_context_seqs > 0:
-            columns.append("input_ids")
-            if tokenizer.embed_residue_index:
-                columns.append("residue_index")
+        columns = ["completion_ids", "DMS_scores", "ds_name", "input_ids"]
+
         if tokenizer.embed_residue_index:
-            columns.append("completion_residue_index")
+            columns += ["residue_index", "completion_residue_index"]
 
         # TODO: what is right here?
         dataset.set_format(

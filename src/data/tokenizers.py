@@ -63,7 +63,8 @@ def get_residue_index_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = flat_indices
+    if len(flat_indices) > 0:
+        seq_pos[:pad_start] = flat_indices
     return seq_pos
 
 
@@ -340,13 +341,12 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         bos_token="[SEP]",
         eos_token="[SEP]",
         has_context=True,
-        document_token="[RAW]",
     ):
         assert isinstance(sequences, list)
         if has_context:
             sequences = [bos_token + seq + eos_token for seq in sequences]
         else:
-            sequences = [self.bos_token + document_token + seq + eos_token for seq in sequences]
+            sequences = [seq + eos_token for seq in sequences]
         tokenized = self(
             sequences,
             return_tensors="np",
