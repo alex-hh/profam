@@ -332,7 +332,7 @@ class ProteinGymDataset(BaseProteinDataset):
             num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-        columns = ["completion_ids", "DMS_scores", "ds_name", "input_ids"]
+        columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
 
         if tokenizer.embed_residue_index:
             columns += ["residue_index", "completion_residue_index"]
