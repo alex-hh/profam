@@ -86,14 +86,7 @@ def tokenize(
         tokenizer,
         document_token=document_token,
     )
-    # else:
-    #     sample["input_ids"] = torch.tensor(
-    #         [[tokenizer.bos_token_id, ]],
-    #         device=sample["completion_ids"].device,
-    #         dtype=sample["completion_ids"].dtype,
-    #     )
-    #     if tokenizer.embed_residue_index:
-    #         sample["residue_index"] = torch.zeros_like(sample["completion_ids"])
+
     sample = tokenize_completions(
         sample,
         tokenizer,
