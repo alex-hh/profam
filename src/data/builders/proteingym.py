@@ -282,9 +282,6 @@ class ProteinGymDataset(BaseProteinDataset):
     ):
         """mutant_bos_token should almost always be sep.
 
-        when using a BaseSingleSequenceLitModule, however, we want it
-        to be bos, since no context sequences are passed during scoring.
-
         n.b. we just ignore pack_to_max_tokens here.
         """
         remove_columns = [
