@@ -339,10 +339,16 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         residue_positions: Optional[List[int]] = None,
         bos_token="[SEP]",
         eos_token="[SEP]",
+        has_context=True,
+        document_token="[RAW]",
     ):
         assert isinstance(sequences, list)
+        if has_context:
+            sequences = [bos_token + seq + eos_token for seq in sequences]
+        else:
+            sequences = [self.bos_token + document_token + seq + eos_token for seq in sequences]
         tokenized = self(
-            [bos_token + seq + eos_token for seq in sequences],
+            sequences,
             return_tensors="np",
             padding="longest",
             truncation=False,

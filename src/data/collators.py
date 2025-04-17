@@ -291,14 +291,15 @@ class DocumentBatchCollator:
             print(string_data)
             # print(non_string_data)
             raise e
-        labels = batch["input_ids"].clone()
-        if self.tokenizer.pad_token_id is not None:
-            labels[labels == self.tokenizer.pad_token_id] = -100
-        if self.ignore_gaps:
-            labels[labels == self.tokenizer.convert_tokens_to_ids("-")] = -100
-        # dont predict mask tokens.
-        labels[labels == self.tokenizer.mask_token_id] = -100
-        batch["labels"] = labels
+        if "input_ids" in batch:
+            labels = batch["input_ids"].clone()
+            if self.tokenizer.pad_token_id is not None:
+                labels[labels == self.tokenizer.pad_token_id] = -100
+            if self.ignore_gaps:
+                labels[labels == self.tokenizer.convert_tokens_to_ids("-")] = -100
+            # dont predict mask tokens.
+            labels[labels == self.tokenizer.mask_token_id] = -100
+            batch["labels"] = labels
         # n.b. padding tokens should already be -100 due to base collator.
         for str_key in string_data_keys:
             str_vals = [obs.get(str_key, "") for obs in string_data]

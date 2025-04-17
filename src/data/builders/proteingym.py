@@ -56,11 +56,15 @@ def tokenize_completions(
     sample,
     tokenizer: ProFamTokenizer,
     bos_token="sep",
+    has_context=True,  # True if using MSA false if evaluating single sequence model
+    document_token="[RAW]",
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
         residue_positions=sample["completion_residue_positions"],
         bos_token=get_token_from_name(bos_token, tokenizer),
+        document_token=document_token,
+        has_context=has_context,
     )
     sample["completion_ids"] = tokenized.input_ids
     if tokenizer.embed_residue_index:
@@ -74,7 +78,8 @@ def tokenize(
     mutant_bos_token="sep",
     document_token="[RAW]",
 ):
-    if "MSA" in sample and sample["MSA"] is not None:
+    has_context = "MSA" in sample and sample["MSA"] is not None
+    if has_context:
         sample = tokenize_msa(
             sample,
             tokenizer,
@@ -84,6 +89,8 @@ def tokenize(
         sample,
         tokenizer,
         bos_token=mutant_bos_token,
+        has_context=has_context,
+        document_token=document_token,
     )
     return sample
 
@@ -251,7 +258,9 @@ class ProteinGymDataset(BaseProteinDataset):
         self.max_tokens_per_example = max_tokens_per_example
         self.max_context_seqs = max_context_seqs
         if max_context_seqs == 0:
-            assert mutant_bos_token == ""
+            assert (
+                mutant_bos_token is None or mutant_bos_token == ""
+            ), "mutant_bos_token should be None or empty if max_context_seqs is 0"
 
     @property
     def document_token(self):
@@ -276,7 +285,14 @@ class ProteinGymDataset(BaseProteinDataset):
 
         n.b. we just ignore pack_to_max_tokens here.
         """
+        remove_columns = [
+                "DMS_id",
+                "completion_seqs",
+                "DMS_filename",
+                "MSA_filename",
+            ]
         if self.max_context_seqs is None or self.max_context_seqs > 0:
+            remove_columns.append("MSA")
             dataset = dataset.map(
                 functools.partial(
                 load_msa_for_row,
@@ -312,19 +328,17 @@ class ProteinGymDataset(BaseProteinDataset):
                 document_token=self.document_token,
             ),
             batched=False,
-            remove_columns=[
-                "DMS_id",
-                "MSA",
-                "completion_seqs",
-                "DMS_filename",
-                "MSA_filename",
-            ],
+            remove_columns=remove_columns,
             num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-        columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
+        columns =  ["completion_ids", "DMS_scores", "ds_name"]
+        if self.max_context_seqs is None or self.max_context_seqs > 0:
+            columns.append("input_ids")
+            if tokenizer.embed_residue_index:
+                columns.append("residue_index")
         if tokenizer.embed_residue_index:
-            columns += ["residue_index", "completion_residue_index"]
+            columns.append("completion_residue_index")
 
         # TODO: what is right here?
         dataset.set_format(
