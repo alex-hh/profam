@@ -756,7 +756,7 @@ class BaseFamilyLitModule(BaseLitModule):
         assert (
             input_ids.ndim == 2 and completion_ids.ndim == 3
         ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
-        if use_cache and input_ids is not None:
+        if use_cache:
             return self._score_seqs_kv_cache(
                 input_ids,
                 completion_ids,
@@ -952,7 +952,7 @@ class BaseFamilyLitModule(BaseLitModule):
         """
         assert batch["DMS_scores"].ndim == 2  # b, n
         L = batch["completion_ids"].shape[-1]
-        L_prompt = batch["input_ids"].shape[-1] if "input_ids" in batch else 0
+        L_prompt = batch["input_ids"].shape[-1]
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
