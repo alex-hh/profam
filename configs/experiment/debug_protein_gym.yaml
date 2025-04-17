@@ -51,19 +51,19 @@ data:
       dms_ids: ${constants.gym_val_assay_list}
       seed: 42
       max_mutated_sequences: null
-      mutant_bos_token: null
+      mutant_bos_token: sep
       keep_gaps: false
       use_filtered_msa: true
       extra_tokens_per_document: 2
       use_msa_pos: false
       num_proc: null
       max_tokens_per_example: 32_000
-      max_context_seqs: 0
+      max_context_seqs: null
 
   _target_: src.data.datamodule.ProteinDataMixture
   total_num_train_samples: 2_000_000
   data_weights:
-    funfams_s50: 1
+    openfold_clustered_raw: 1
   batch_size: 1
   data_dir: ${paths.data_dir}
   num_workers: 12

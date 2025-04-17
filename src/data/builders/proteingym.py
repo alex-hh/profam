@@ -233,7 +233,9 @@ class ProteinGymDataset(BaseProteinDataset):
         num_proc: Optional[int] = None,
         gym_data_dir: Optional[str] = None,
         max_tokens_per_example: Optional[int] = None,
-        max_context_seqs: Optional[int] = None,
+        max_context_seqs: Optional[
+            int
+        ] = None,  # 0 means no family context, None means use all
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
