@@ -1,7 +1,7 @@
 # @package _global_
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
-  - override /data: afdb_s50_single
+  - override /data: uniref90_single
   - override /model: llama_32_1b
   - override /callbacks: default_with_shuffle
   - override /trainer: gpus_ddp
@@ -9,7 +9,7 @@ defaults:
   - _self_
 
 
-experiment_group: "train_single_seq"
+experiment_group: "train_single_seq_ur90_1bn"
 tags: ["llama_500m", "${experiment_group}"]
 
 seed: 12345
