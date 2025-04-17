@@ -29,6 +29,8 @@ data/val_test/overlap_counts/
 data/cath_chain_topology_class.pickle
 */.ipynb_checkpoints/
 .ipynb_checkpoints/
+src/tools/foldtoken/model_zoom/
+data/val_test/ted_esmif_accessions_split.json
 .env
 .bash_history
 .cache
@@ -40,3 +42,7 @@ data/cath_chain_topology_class.pickle
 .gnupg
 .ssh
 .vscode-server
+src/tools/foldtoken/
+results/
+data/all_heldout_sequences.csv
+data/val_test_heldout_representative_sequences.fasta
