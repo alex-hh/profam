@@ -25,11 +25,9 @@ export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
 experiment=train_single_seq_ur90 \
 experiment_group=train_single_seq_ur90_1bn \
-data=uniref90_single \
 data.num_workers=16 \
 trainer.val_check_interval=5000 \
 trainer.max_epochs=1000 \
-ckpt_path=null \
 trainer.target_tokens_per_batch=2000000 \
 +model.override_optimizer_on_load=true \
 model.lr=1e-3 \
