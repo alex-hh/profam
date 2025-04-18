@@ -268,6 +268,45 @@ def limit_number_of_prompt_sequences(
     return batch
 
 
+# -------------------------------------------------------------
+# Utility for capturing metrics logged inside `validation_step_proteingym`
+# -------------------------------------------------------------
+# The ProteinGym validation step inside the LightningModule logs metrics via
+# `self.log` but does not return them.  Here we monkey‑patch the module's
+# `log` method for the duration of the call so that we can intercept the
+# values of interest (mean log‑likelihood and Spearman correlation) without
+# modifying the original library code.
+
+
+def capture_gym_metrics(model: "LlamaLitModule", batch: Dict[str, torch.Tensor]):
+    captured_metrics: Dict[str, float] = {}
+    original_log_fn = model.log
+
+    def patched_log(name, value, *args, **kwargs):  # type: ignore[override]
+        # Intercept the metrics we need
+        if name in {"gym/spearman", "gym/log_likelihood"}:
+            # Convert tensors to Python scalars for easier serialization
+            if torch.is_tensor(value):
+                value = value.detach().cpu().item()
+            captured_metrics[name] = float(value)
+        if callable(original_log_fn):
+            original_log_fn(name, value, *args, **kwargs)
+
+    try:
+        # Patch
+        model.log = patched_log  # type: ignore[assignment]
+        # Run the validation step – it will now call our patched logger
+        model.validation_step_proteingym(batch)
+    finally:
+        # Always restore the original logger
+        model.log = original_log_fn  # type: ignore[assignment]
+
+    spearman = captured_metrics.get("gym/spearman")
+    log_likelihood = captured_metrics.get("gym/log_likelihood")
+
+    return spearman, log_likelihood
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -355,8 +394,8 @@ if __name__ == "__main__":
                     batch_for_model, model.tokenizer.sep_token_id, args.limit_n_seqs
                 )
 
-            # Get model performance metrics
-            spearman, log_likelihood = model.validation_step_proteingym(batch_for_model)
+            # Get model performance metrics using the custom metric catcher
+            spearman, log_likelihood = capture_gym_metrics(model, batch_for_model)
 
             # Write results to CSV
             row_data = {
@@ -367,12 +406,8 @@ if __name__ == "__main__":
                 "mean_alignment_coverage": alignment_stats["mean_alignment_coverage"],
                 "n_completion_sequences": alignment_stats["n_completion_sequences"],
                 "n_completion_tokens": alignment_stats["n_completion_tokens"],
-                "log_likelihood": log_likelihood.item()
-                if isinstance(log_likelihood, torch.Tensor)
-                else log_likelihood,
-                "spearman_correlation": spearman.item()
-                if isinstance(spearman, torch.Tensor)
-                else spearman,
+                "log_likelihood": log_likelihood,
+                "spearman_correlation": spearman,
             }
             writer.writerow(row_data)
             results.append(row_data)

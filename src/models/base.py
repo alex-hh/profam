@@ -548,6 +548,14 @@ class BaseSingleSequenceLitModule(BaseLitModule):
             sync_dist=True,
         )
 
+        self.log(
+            "gym/log_likelihood",
+            lls.mean(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+
 
 class BaseFamilyLitModule(BaseLitModule):
     def __init__(
