@@ -200,7 +200,8 @@ def load_comp_seq_dms_for_row(
 def build_gym_df(dms_ids, gym_data_dir: str):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
-    df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
+    if dms_ids is not None:
+        df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     df["MSA_filename"] = df["MSA_filename"].apply(
         lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
     )

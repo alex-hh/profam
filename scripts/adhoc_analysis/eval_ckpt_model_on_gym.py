@@ -1,0 +1,383 @@
+"""
+Created by Jude Wells 2025-04-02
+Takes a model checkpoint and evaluates it on the ProteinGym dataset.
+
+"""
+
+import argparse
+import csv
+import os
+import random
+from datetime import datetime
+from typing import Dict
+
+import numpy as np
+import torch
+from Bio import pairwise2
+from Bio.pairwise2 import format_alignment
+from omegaconf import DictConfig
+from torch.utils.data import DataLoader
+
+from src.data.builders.proteingym import ProteinGymDataset
+from src.models.llama import LlamaLitModule
+from src.utils import rich_utils
+from src.utils.utils import get_config_from_cpt_path
+
+
+def get_alignment_metrics(query_seq, input_seq):
+    """
+    Calculate alignment metrics between query sequence and input sequence.
+
+    Args:
+        query_seq (str): The query sequence to align
+        input_seq (str): The input sequence to align against
+
+    Returns:
+        dict: Dictionary containing:
+            - sequence_identity: Percentage of identical residues in the alignment
+            - completion_coverage: Percentage of query sequence covered by the alignment
+            - alignment_coverage: Percentage of input sequence covered by the alignment
+    """
+    # Perform global alignment
+    alignments = pairwise2.align.globalxx(query_seq, input_seq)
+    if not alignments:
+        return {
+            "sequence_identity": 0.0,
+            "completion_coverage": 0.0,
+            "alignment_coverage": 0.0,
+        }
+
+    # Get the best alignment
+    alignment = alignments[0]
+    aligned_query, aligned_input = alignment[0], alignment[1]
+
+    # Calculate sequence identity (percentage of identical residues)
+    matches = sum(1 for a, b in zip(aligned_query, aligned_input) if a == b)
+    total_aligned = len(aligned_query)
+    sequence_identity = matches / total_aligned if total_aligned > 0 else 0.0
+
+    # Calculate completion coverage (percentage of query sequence covered)
+    query_gaps = aligned_query.count("-")
+    completion_coverage = (
+        (len(query_seq) - query_gaps) / len(query_seq) if len(query_seq) > 0 else 0.0
+    )
+
+    # Calculate alignment coverage (percentage of input sequence covered)
+    input_gaps = aligned_input.count("-")
+    alignment_coverage = (
+        (len(input_seq) - input_gaps) / len(input_seq) if len(input_seq) > 0 else 0.0
+    )
+
+    return {
+        "sequence_identity": sequence_identity,
+        "completion_coverage": completion_coverage,
+        "alignment_coverage": alignment_coverage,
+    }
+
+
+def get_alignment_statistics(
+    tokenizer, input_ids, completion_ids, n_comparisons: int = 100
+):
+    """
+    Calculate alignment statistics between completion sequences and input sequences.
+
+    Args:
+        tokenizer: The tokenizer used to decode sequences
+        input_ids: Input sequence IDs
+        completion_ids: Completion sequence IDs
+        n_comparisons: Number of random comparisons to make
+
+    Returns:
+        dict: Dictionary containing alignment statistics
+    """
+    remove_tokens = ["[start-of-document]", "[RAW]", "[MSA]", "[RAW-WITH-MSA-POS]"]
+    input_msa = tokenizer.decode(input_ids[0])
+    completion_sequences = [
+        tokenizer.decode(completion_ids[0, i]) for i in range(completion_ids.shape[1])
+    ]
+    completion_sequences = [
+        seq.replace("[SEP]", "").replace(" ", "") for seq in completion_sequences
+    ]
+
+    for tok in remove_tokens:
+        input_msa = input_msa.replace(tok, "")
+    input_msa = input_msa.replace(" ", "")
+    input_sequences = input_msa.split("[SEP]")
+
+    # shuffle the input sequences
+    random.shuffle(input_sequences)
+    random.shuffle(completion_sequences)
+
+    alignment_metrics = []
+    for i in range(n_comparisons):
+        query_seq = completion_sequences[i % len(completion_sequences)]
+        alignment_metrics.append(
+            get_alignment_metrics(query_seq, input_sequences[i % len(input_sequences)])
+        )
+
+    # Calculate means of each metric
+    mean_sequence_identity = np.mean(
+        [m["sequence_identity"] for m in alignment_metrics]
+    )
+    mean_completion_coverage = np.mean(
+        [m["completion_coverage"] for m in alignment_metrics]
+    )
+    mean_alignment_coverage = np.mean(
+        [m["alignment_coverage"] for m in alignment_metrics]
+    )
+
+    # Print means of each computed metric
+    print(f"Mean sequence identity: {mean_sequence_identity}")
+    print(f"Mean completion coverage: {mean_completion_coverage}")
+    print(f"Mean alignment coverage: {mean_alignment_coverage}")
+
+    return {
+        "mean_sequence_identity": mean_sequence_identity,
+        "mean_completion_coverage": mean_completion_coverage,
+        "mean_alignment_coverage": mean_alignment_coverage,
+        "n_completion_sequences": len(completion_sequences),
+        "n_completion_tokens": sum(len(seq) for seq in completion_sequences),
+    }
+
+
+def sample_from_model(model: LlamaLitModule, n_tokens: int = 1000):
+    """
+    Samples n_tokens from the model with no conditioning or context.
+
+    Args:
+        model: The loaded LlamaLitModule model
+        n_tokens: Number of tokens to generate
+
+    Returns:
+        The generated text as a string
+    """
+    for i in range(20):
+        try:
+            # Create a minimal input with just the beginning of document token
+            input_ids = torch.tensor(
+                [[model.tokenizer.bos_token_id]], device=model.device
+            )
+
+            # Create a minimal residue index tensor (required by the model)
+            # The model expects residue_index to be present and start at position 2
+            residue_index = torch.tensor([[2]], device=model.device)
+
+            # Set up generation parameters
+            generation_kwargs = {
+                "max_new_tokens": n_tokens,
+                "do_sample": True,
+                "temperature": 0.5,
+                "pad_token_id": model.tokenizer.pad_token_id,
+                "eos_token_id": None,  # Don't stop at any particular token
+            }
+
+            # Generate unconditionally
+            with torch.no_grad():
+                # Use the model's generate method directly
+                outputs = model.model.generate(input_ids=input_ids, **generation_kwargs)
+
+            # Decode the generated tokens
+            generated_text = model.tokenizer.decode(
+                outputs[0], skip_special_tokens=False
+            )
+
+            # Print the first 100 characters of the generated text
+            print(f"\n\n\n{generated_text}\n\n\n")
+
+        except Exception as e:
+            print(f"Error during sampling: {e}")
+            raise
+
+
+def build_protein_gym_dataloader(config: DictConfig) -> DataLoader:
+    dataset_builder = ProteinGymDataset(
+        name="protein_gym",
+        dms_ids=config.constants.gym_val_assay_list,
+        seed=42,
+        max_mutated_sequences=None,
+        mutant_bos_token="sep",
+        keep_gaps=False,
+        use_filtered_msa=True,
+        extra_tokens_per_document=2,
+        use_msa_pos=False,
+        num_proc=None,
+        max_tokens_per_example=16_000,
+    )
+    dataset = dataset_builder.load(
+        data_dir=config.paths.data_dir,
+        world_size=1,
+        verbose=False,
+    )
+    dataset = dataset_builder.process(
+        dataset,
+        tokenizer=model.tokenizer,
+        feature_names=config.data.feature_names,
+        pack_to_max_tokens=16_000,
+    )
+    return DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False)
+
+
+def modify_batch_for_single_seq_scoring(
+    batch: Dict[str, torch.Tensor]
+) -> Dict[str, torch.Tensor]:
+    start_toks = batch["input_ids"][:, :2]
+    new_batch = {}
+    if "ds_name" in batch:
+        new_batch["ds_name"] = batch["ds_name"]
+    if "DMS_scores" in batch:
+        new_batch["DMS_scores"] = batch["DMS_scores"]
+    if "completion_residue_index" in batch:
+        new_batch["completion_residue_index"] = batch["completion_residue_index"]
+    new_completion_ids = batch["completion_ids"][:, :, 1:]  # remove the sep token
+
+    # Check dimensions and reshape if needed
+    if len(start_toks.shape) != len(new_completion_ids.shape):
+        # If new_completion_ids is 3D and start_toks is 2D, we need to reshape start_toks
+        if len(new_completion_ids.shape) == 3 and len(start_toks.shape) == 2:
+            start_toks = start_toks.expand(
+                1, new_completion_ids.shape[1], start_toks.shape[-1]
+            )
+
+    new_batch["completion_ids"] = torch.cat([start_toks, new_completion_ids], dim=-1)
+    new_batch["input_ids"] = None
+    return new_batch
+
+
+def apply_shuffle_in_batch(batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    permutation = torch.randperm(batch["completion_ids"].shape[1])
+    batch["completion_ids"] = batch["completion_ids"][:, permutation]
+    batch["DMS_scores"] = batch["DMS_scores"][:, permutation]
+    if "input_ids" in batch and batch["input_ids"] is not None:
+
+        batch["input_ids"] = batch["input_ids"][:, permutation]
+    return batch
+
+
+def limit_number_of_prompt_sequences(
+    batch: Dict[str, torch.Tensor], sep_tok_id: int, n_seqs: int = 1
+) -> Dict[str, torch.Tensor]:
+
+    assert batch["input_ids"].shape[0] == 1, "Batch size must be 1"
+    _, sequence_ends = torch.where(batch["input_ids"] == sep_tok_id)
+    n_seqs = min(n_seqs, sequence_ends.shape[0])
+    cut_off_index = sequence_ends[n_seqs - 1]
+    batch["input_ids"] = batch["input_ids"][:, :cut_off_index]
+    assert all(batch["input_ids"][:, -1] < 20), "Last token should be a residue"
+    if "residue_index" in batch:
+        batch["residue_index"] = batch["residue_index"][:, :cut_off_index]
+    return batch
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--ckpt_path",
+        type=str,
+        default="logs/train_openfold_raw/runs/no_start_of_doc_2025_04_13/checkpoints/last.ckpt"
+        # default="logs/train_single_seq_ur90_1bn/runs/bubba_2025-04-02/checkpoints/last.ckpt"
+    )
+    parser.add_argument("--is_family_model", action="store_true", default=False)
+    parser.add_argument(
+        "--shuffle",
+        action="store_true",
+        default=False,
+        help="Enable shuffling of the ProteinGym dataset",
+    )
+    parser.add_argument(
+        "--limit_n_seqs",
+        type=int,
+        default=None,
+        help="Number of prompt sequences to evaluate on",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="results",
+        help="Directory to save the CSV file",
+    )
+    args = parser.parse_args()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config = get_config_from_cpt_path(args.ckpt_path)
+    model = LlamaLitModule.load_from_checkpoint(args.ckpt_path)
+    model.scoring_max_tokens = 1
+    model.use_kv_cache_for_scoring = False
+    model.eval()
+    dtype = torch.bfloat16
+    model.to(device, dtype=dtype)
+    # sample_from_model(model)
+    dataloader = build_protein_gym_dataloader(config)
+    # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
+    print(config)
+
+    # Create output directory if it doesn't exist
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # Create CSV file with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_filename = os.path.join(args.output_dir, f"gym_evaluation_{timestamp}.csv")
+
+    # Define CSV headers
+    csv_headers = [
+        "batch_idx",
+        "dataset_name",
+        "mean_sequence_identity",
+        "mean_completion_coverage",
+        "mean_alignment_coverage",
+        "n_completion_sequences",
+        "n_completion_tokens",
+        "log_likelihood",
+        "spearman_correlation",
+    ]
+    results = []
+    # Open CSV file for writing
+    with open(csv_filename, "w", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=csv_headers)
+        writer.writeheader()
+
+        for batch_idx, batch in enumerate(dataloader):
+            print(f"\n\nProcessing batch {batch_idx}")
+
+            # Get alignment statistics
+            alignment_stats = get_alignment_statistics(
+                model.tokenizer, batch["input_ids"], batch["completion_ids"]
+            )
+
+            # Prepare batch for model evaluation
+            batch_for_model = {
+                k: v.to(device) for k, v in batch.items() if k != "ds_name"
+            }
+            if not args.is_family_model:
+                batch_for_model = modify_batch_for_single_seq_scoring(batch_for_model)
+            if args.shuffle:
+                batch_for_model = apply_shuffle_in_batch(batch_for_model)
+            if args.limit_n_seqs is not None:
+                batch_for_model = limit_number_of_prompt_sequences(
+                    batch_for_model, model.tokenizer.sep_token_id, args.limit_n_seqs
+                )
+
+            # Get model performance metrics
+            spearman, log_likelihood = model.validation_step_proteingym(batch_for_model)
+
+            # Write results to CSV
+            row_data = {
+                "batch_idx": batch_idx,
+                "dataset_name": batch.get("ds_name", "unknown"),
+                "mean_sequence_identity": alignment_stats["mean_sequence_identity"],
+                "mean_completion_coverage": alignment_stats["mean_completion_coverage"],
+                "mean_alignment_coverage": alignment_stats["mean_alignment_coverage"],
+                "n_completion_sequences": alignment_stats["n_completion_sequences"],
+                "n_completion_tokens": alignment_stats["n_completion_tokens"],
+                "log_likelihood": log_likelihood.item()
+                if isinstance(log_likelihood, torch.Tensor)
+                else log_likelihood,
+                "spearman_correlation": spearman.item()
+                if isinstance(spearman, torch.Tensor)
+                else spearman,
+            }
+            writer.writerow(row_data)
+            results.append(row_data)
+            print(
+                f"Batch {batch_idx} - Log Likelihood: {row_data['log_likelihood']:.4f}, Spearman: {row_data['spearman_correlation']:.4f}"
+            )
+
+    print(f"\nEvaluation complete. Results saved to {csv_filename}")

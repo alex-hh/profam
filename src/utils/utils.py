@@ -1,8 +1,10 @@
+import os
 import warnings
 from importlib.util import find_spec
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
+import yaml
 from omegaconf import DictConfig
 
 from src.utils import pylogger, rich_utils
@@ -160,3 +162,11 @@ def nested_getattr(obj, attr_path, default=None):
         return obj
     except AttributeError:
         return default
+
+
+def get_config_from_cpt_path(cpt_path: str) -> DictConfig:
+    cpt_dir = os.path.dirname(cpt_path)
+    config_path = os.path.join(cpt_dir, "../.hydra/config.yaml")
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    return DictConfig(config)
