@@ -344,11 +344,11 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     ):
         assert isinstance(sequences, list)
         if has_context:
-            sequences = [bos_token + seq + eos_token for seq in sequences]
+            sequences_w_sp_tokens = [bos_token + seq + eos_token for seq in sequences]
         else:
-            sequences = [seq + eos_token for seq in sequences]
+            sequences_w_sp_tokens = [seq + eos_token for seq in sequences]
         tokenized = self(
-            sequences,
+            sequences_w_sp_tokens,
             return_tensors="np",
             padding="longest",
             truncation=False,
