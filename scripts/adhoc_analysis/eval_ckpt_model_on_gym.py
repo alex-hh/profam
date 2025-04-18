@@ -9,7 +9,7 @@ import csv
 import os
 import random
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -189,10 +189,12 @@ def sample_from_model(model: LlamaLitModule, n_tokens: int = 1000):
             raise
 
 
-def build_protein_gym_dataloader(config: DictConfig) -> DataLoader:
+def build_protein_gym_dataloader(
+    config: DictConfig, dms_ids: Optional[List[str]] = None
+) -> DataLoader:
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
-        dms_ids=config.constants.gym_val_assay_list,
+        dms_ids=dms_ids,
         seed=42,
         max_mutated_sequences=None,
         mutant_bos_token="sep",
@@ -315,7 +317,12 @@ if __name__ == "__main__":
         default="logs/train_openfold_raw/runs/no_start_of_doc_2025_04_13/checkpoints/last.ckpt"
         # default="logs/train_single_seq_ur90_1bn/runs/bubba_2025-04-02/checkpoints/last.ckpt"
     )
-    parser.add_argument("--is_family_model", action="store_true", default=False)
+    parser.add_argument(
+        "--is_family_model",
+        action="store_true",
+        default=False,
+        help="Whether the model is a family model",
+    )
     parser.add_argument(
         "--shuffle",
         action="store_true",
@@ -327,6 +334,12 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="Number of prompt sequences to evaluate on",
+    )
+    parser.add_argument(
+        "--use_dms_ids",
+        action="store_true",
+        default=False,
+        help="Whether to use config list of DMS IDs",
     )
     parser.add_argument(
         "--output_dir",
@@ -344,7 +357,11 @@ if __name__ == "__main__":
     dtype = torch.bfloat16
     model.to(device, dtype=dtype)
     # sample_from_model(model)
-    dataloader = build_protein_gym_dataloader(config)
+    if args.use_dms_ids:
+        dms_ids = config.constants.gym_val_assay_list
+    else:
+        dms_ids = None
+    dataloader = build_protein_gym_dataloader(config, dms_ids)
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
@@ -394,10 +411,7 @@ if __name__ == "__main__":
                     batch_for_model, model.tokenizer.sep_token_id, args.limit_n_seqs
                 )
 
-            # Get model performance metrics using the custom metric catcher
             spearman, log_likelihood = capture_gym_metrics(model, batch_for_model)
-
-            # Write results to CSV
             row_data = {
                 "batch_idx": batch_idx,
                 "dataset_name": batch.get("ds_name", "unknown"),
