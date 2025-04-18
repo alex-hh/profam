@@ -22,5 +22,5 @@ cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/scripts/adhoc_analysis/eval_ckpt_model_on_gym.py \
 --ckpt_path "${ROOT_DIR}/logs/train_single_seq_ur90_1bn/runs/2025-04-14_19-51-54-868135/checkpoints/last.ckpt" \
---output_dir "${ROOT_DIR}/results/train_single_seq_ur90_1bn_2025-04-14_19-51-54-868135" 
+--output_dir "${ROOT_DIR}/results/train_single_seq_ur90_1bn_2025-04-14_19-51-54-868135"
 date
