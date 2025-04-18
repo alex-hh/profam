@@ -38,5 +38,5 @@ feature_names: ${constants.sequence_features}
 
 val_dataset_batch_sizes:
   uniref90_val: 1 # greater than 1 breaks map datasets if using seq packing
-  proteingym: 1 
+  proteingym: 1
 pack_to_max_tokens: 32_000
