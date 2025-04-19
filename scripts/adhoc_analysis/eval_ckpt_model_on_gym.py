@@ -190,7 +190,9 @@ def sample_from_model(model: LlamaLitModule, n_tokens: int = 1000):
 
 
 def build_protein_gym_dataloader(
-    config: DictConfig, dms_ids: Optional[List[str]] = None
+    config: DictConfig,
+    dms_ids: Optional[List[str]] = None,
+    max_context_seqs: Optional[int] = None,
 ) -> DataLoader:
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
@@ -204,6 +206,7 @@ def build_protein_gym_dataloader(
         use_msa_pos=False,
         num_proc=None,
         max_tokens_per_example=16_000,
+        max_context_seqs=max_context_seqs,
     )
     dataset = dataset_builder.load(
         data_dir=config.paths.data_dir,
@@ -347,6 +350,12 @@ if __name__ == "__main__":
         default="results",
         help="Directory to save the CSV file",
     )
+    parser.add_argument(
+        "--max_context_seqs",
+        type=int,
+        default=None,
+        help="Maximum number of context sequences to use",
+    )
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = get_config_from_cpt_path(args.ckpt_path)
@@ -361,7 +370,7 @@ if __name__ == "__main__":
         dms_ids = config.constants.gym_val_assay_list
     else:
         dms_ids = None
-    dataloader = build_protein_gym_dataloader(config, dms_ids)
+    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs)
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
@@ -402,8 +411,8 @@ if __name__ == "__main__":
             batch_for_model = {
                 k: v.to(device) for k, v in batch.items() if k != "ds_name"
             }
-            if not args.is_family_model:
-                batch_for_model = modify_batch_for_single_seq_scoring(batch_for_model)
+            # if not args.is_family_model:
+            #     batch_for_model = modify_batch_for_single_seq_scoring(batch_for_model)
             if args.shuffle:
                 batch_for_model = apply_shuffle_in_batch(batch_for_model)
             if args.limit_n_seqs is not None:
