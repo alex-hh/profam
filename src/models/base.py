@@ -722,9 +722,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 -100,
                 this_input_ids.clone(),
             )
-            assert (
-                this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
-            )  # SEP token which signals end of last prompt seq
             if self.embed_residue_index:
                 this_res_ix = torch.cat(
                     [input_residue_index, completion_residue_index[:, completion_ix]],

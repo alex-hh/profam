@@ -199,7 +199,7 @@ def build_protein_gym_dataloader(
         dms_ids=dms_ids,
         seed=42,
         max_mutated_sequences=None,
-        mutant_bos_token="sep",
+        mutant_bos_token="sep" if max_context_seqs != 0 else None,
         keep_gaps=False,
         use_filtered_msa=True,
         extra_tokens_per_document=2,
@@ -217,7 +217,7 @@ def build_protein_gym_dataloader(
         dataset,
         tokenizer=model.tokenizer,
         feature_names=config.data.feature_names,
-        pack_to_max_tokens=16_000,
+        pack_to_max_tokens=8_000,
     )
     return DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False)
 
@@ -356,6 +356,12 @@ if __name__ == "__main__":
         default=None,
         help="Maximum number of context sequences to use",
     )
+    parser.add_argument(
+        "--max_completion_length",
+        type=int,
+        default=None,
+        help="Maximum length of completion sequences to use",
+    )
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = get_config_from_cpt_path(args.ckpt_path)
@@ -401,7 +407,12 @@ if __name__ == "__main__":
 
         for batch_idx, batch in enumerate(dataloader):
             print(f"\n\nProcessing batch {batch_idx}")
-
+            if args.max_completion_length is not None:
+                if batch["completion_ids"].shape[-1] > args.max_completion_length:
+                    print(
+                        f"Skipping batch {batch_idx} because completion length is too long"
+                    )
+                    continue
             # Get alignment statistics
             alignment_stats = get_alignment_statistics(
                 model.tokenizer, batch["input_ids"], batch["completion_ids"]
