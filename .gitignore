@@ -23,6 +23,8 @@ data/val_test/overlap_counts/
 data/val_test/pfam/test/random_split_fastas/
 data/val_test/pfam/val/random_split_fastas/
 data/all_heldout_sequences.csv
+data/val_test_heldout_representative_sequences.fasta
+data/val_test/ted_esmif_accessions_split.json
 src/models/tranception
 data/val_test/overlap_counts/
 src/models/tranception
@@ -41,5 +43,5 @@ data/cath_chain_topology_class.pickle
 .gnupg
 .ssh
 .vscode-server
-data/val_test_heldout_representative_sequences.fasta
-
+src/tools/foldtoken/
+results/
