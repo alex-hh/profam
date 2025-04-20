@@ -1,6 +1,7 @@
 import functools
 import os
 import re
+import warnings
 from typing import List, Optional
 
 import pandas as pd
@@ -269,7 +270,7 @@ class ProteinGymDataset(BaseProteinDataset):
         self.max_context_seqs = max_context_seqs
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
-                Warning(
+                warnings.warn(
                     "Setting self.mutant_bos_token to self.document_token because max_context_seqs is 0"
                 )
                 self.mutant_bos_token = self.document_token
