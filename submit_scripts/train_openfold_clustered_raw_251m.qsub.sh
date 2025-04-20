@@ -25,6 +25,6 @@ export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
 experiment=train_openfold_clustered_raw \
 model=llama_251m.yaml \
-data.pack_to_max_tokens=40000 \
+data.pack_to_max_tokens=32000 \
 experiment_group=train_openfold_clustered_raw_251m
 date

@@ -195,7 +195,7 @@ def build_protein_gym_dataloader(
     dms_ids: Optional[List[str]] = None,
     max_context_seqs: Optional[int] = None,
     use_wt_only_as_context: bool = False,
-    context: int = 8_000,
+    context: int = 16_000,
 ) -> DataLoader:
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
