@@ -1,16 +1,16 @@
 #!/bin/bash
 
-#$ -l tmem=7.9G
-#$ -l h_vmem=7.9G
-#$ -l h_rt=91:55:30
+#$ -l tmem=15.9G
+#$ -l h_vmem=15.9G
+#$ -l h_rt=47:55:30
 #$ -S /bin/bash
 #$ -l tscratch=10G
 # hostname does not contain larry* or arbuckle* or abner*
 #$ -l hostname=!(larry*|arbuckle*|abner*)
-#$ -N mmseqs_split
-#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
+#$ -N mmseqs_splitV2
+#$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/mmseqs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -t 1-7
+#$ -t 1-335
 #$ -j y
 
 date

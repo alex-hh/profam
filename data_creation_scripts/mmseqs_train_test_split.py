@@ -8,6 +8,18 @@ Pick 50 FunFams minimum size 5 maximum size 1000
 Use the selected Pfam families that were already selected
 Hold out all experimentally confirmed PETase sequences
 
+Note that at this stage we create intermediate train / val / test parquets 
+which are located here:
+data/{dataset_name}/train_test_split_v2/{train/val/test}/*.parquet
+where val and test will consist of a single parquet file with the heldout families
+and train will consist of multiple parquets with the remaining families.
+These are not the final train parquets because we still need to do the MMSEQS filtering
+of all the combined heldout sequences from all the datasets.
+
+The filtering step generates new parquet files here:
+data/{dataset_name}/train_test_split_v2/{train/val/test}_filtered/*.parquet
+
+
 Compile all the sequences from all of the above familes
 Creats a mmseqs database of all these sequences.
 Create a mmseqs database of all other datasets.
@@ -54,6 +66,7 @@ import numpy as np
 import subprocess
 import uuid
 import argparse
+import math
 
 
 np.random.seed(42)
@@ -64,42 +77,44 @@ datasets_to_filter = [
     {
         "name": "FunFamsS100",
         "parquet_pattern": "../data/funfams/s100_noali_parquets/train_test_split_v2/train/*.parquet",
-        "output_dir": "../data/funfams/s100_noali_parquets/train_test_split_v2"
+        "output_dir": "../data/funfams/s100_noali_parquets/train_test_split_v2",
+        "task_indices": list(range(0,11))
     },
-
     {
         "name": "Foldseek_s100",
         "parquet_pattern": "../data/foldseek/foldseek_s100_raw/train_test_split_v2/train/*.parquet",
-        "output_dir": "../data/foldseek/foldseek_s100_raw/train_test_split_v2"
+        "output_dir": "../data/foldseek/foldseek_s100_raw/train_test_split_v2",
+        "task_indices": list(range(11,112))
     },
     {
         "name": "TEDS100",
         "parquet_pattern": "../data/ted/s100_parquets/train_val_test_split_hq/train_val_test_split/*/clustered/*.parquet",
-        "output_dir": "../data/ted/s100_parquets/train_test_split_v2"
+        "output_dir": "../data/ted/s100_parquets/train_test_split_v2",
+        "task_indices": list(range(112, 150))
     },
     {
         "name": "Pfam",
         "parquet_pattern": "../data/pfam/train_test_split_parquets/train/*.parquet",
-        "output_dir": "../data/pfam/train_test_split_parquets/train_test_split_v2"
+        "output_dir": "../data/pfam/train_test_split_parquets/train_test_split_v2",
+        "task_indices": list(range(150, 200))
     },
     {
         "name": "OpenFold_clustered",
-        "parquet_pattern": "../data/openfold/uniclust30_clustered/*.parquet",
-        "output_dir": "../data/openfold/uniclust30_clustered/train_test_split_v2"
+        "parquet_pattern": "../data/openfold/uniclust30_clustered_shuffled_final/*.parquet",
+        "output_dir": "../data/openfold/uniclust30_clustered_shuffled_final/train_test_split_v2",
+        "task_indices": list(range(200, 260))
     },
-
-
-
     {
         "name": "Uniref90",
         "parquet_pattern": "../data/uniref/uniref90_parquets_shuffled/train/*.parquet",
-        "output_dir": "../data/uniref/uniref90_parquets_shuffled/train_test_split_v2"
+        "output_dir": "../data/uniref/uniref90_parquets_shuffled/train_test_split_v2",
+        "task_indices": list(range(260, 310))
     },
-
     {
         "name": "afdb_s50_single",
         "parquet_pattern": "../data/afdb_s50_single/*.parquet",
-        "output_dir": "../data/afdb/afdb_s50_single_parquets/train_test_split_v2"
+        "output_dir": "../data/afdb/afdb_s50_single_parquets/train_test_split_v2",
+        "task_indices": list(range(310, 335))
     },
 ]
 
@@ -425,20 +440,20 @@ def select_heldout_families(rep_fasta_path):
     print(f"Representatives saved to {rep_fasta_path}")
 
 
-def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter):
-    # Create MMSeqs database for the representative held-out sequences
+def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter, task_index=None):
     global SCRATCH_DIR
-    if SCRATCH_DIR:
-        tmp_base_dir = os.path.join(SCRATCH_DIR, "tmp")
-    else:
-        tmp_base_dir = "data/tmp"
+
+    # Create worker‑local base tmp dir (isolated for this task / PID)
+    unique_suffix = f"task_{task_index}" if task_index is not None else f"pid_{os.getpid()}"
+    base_tmp_root = SCRATCH_DIR if SCRATCH_DIR else "data/tmp"
+    tmp_base_dir = os.path.join(base_tmp_root, unique_suffix)
     os.makedirs(tmp_base_dir, exist_ok=True)
+
+    # Build an MMSeqs DB for the representative held‑out sequences in this local tmp dir
     rep_db_path = os.path.join(tmp_base_dir, "heldout_rep_seqs")
-    
-    # Create MMSeqs database for the representative held-out sequences
     subprocess.run([
-        "mmseqs", "createdb", 
-        rep_fasta_path, 
+        "mmseqs", "createdb",
+        rep_fasta_path,
         rep_db_path,
         "-v", "1",  # 0=silent, 1=errors, 2=warnings
     ], check=True)
@@ -450,13 +465,31 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter):
         os.makedirs(os.path.join(dataset["output_dir"], "val_filtered"), exist_ok=True)
         os.makedirs(os.path.join(dataset["output_dir"], "test_filtered"), exist_ok=True)
         
-        parquet_files = glob.glob(dataset["parquet_pattern"])
+        parquet_files = sorted(glob.glob(dataset["parquet_pattern"]))
         print(f"Found {len(parquet_files)} parquet files for {dataset['name']}")
+        if task_index is not None:
+            # select batch of files corresponding to the task index
+            batch_index = dataset["task_indices"].index(task_index)
+            batch_size = len(parquet_files) // len(dataset["task_indices"]) + 1
+            parquet_files = parquet_files[batch_index * batch_size:(batch_index + 1) * batch_size]
+            print(
+                f"Processing batch {batch_index} of {len(dataset['task_indices'])} with {len(parquet_files)} files in this batch"
+                )
+            
         removed_from_train = []
         for parquet_file in tqdm.tqdm(parquet_files):
             print(f"Processing file: {os.path.basename(parquet_file)}")
-            df = pd.read_parquet(parquet_file)
             train_output_path = os.path.join(dataset["output_dir"], "train_filtered", f"train_{os.path.basename(parquet_file)}")
+            if os.path.exists(train_output_path):
+                try:
+                    pd.read_parquet(train_output_path)
+                    print(f"Skipping {os.path.basename(parquet_file)} because it already exists")
+                    continue
+                except:
+                    print(f"Removing {train_output_path} because it is corrupted")
+                    os.remove(train_output_path)
+            df = pd.read_parquet(parquet_file)
+            
             
             # Create a temporary directory for this file
             if SCRATCH_DIR:
@@ -597,22 +630,26 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter):
                     print(f"Saved test data to {test_output_path} ({len(test_df)} rows)")
                 
             finally:
-                # Clean up temporary files
-                shutil.rmtree(tmp_dir)
-        with open(f"{dataset['output_dir']}/removed_from_train.csv", "w") as f:
+                # Clean up worker-local temporary files
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+        removed_csv_path = os.path.join(
+            dataset["output_dir"],
+            f"removed_from_train_{unique_suffix}.csv"
+        )
+        with open(removed_csv_path, "w") as f:
             for header, split in removed_from_train:
                 f.write(f"{header},{split}\n")
         print(f"Completed processing dataset: {dataset['name']}")
         print(f"Removed {len(removed_from_train)} sequences from training set")
     
-    # Clean up temporary files
-    shutil.rmtree(tmp_base_dir)
+    # Clean up worker-local temporary files
+    shutil.rmtree(tmp_base_dir, ignore_errors=True)
     print("Completed removing similar sequences from training sets")
 
 
 def main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Create train/test split using BLAST filtering")
+    parser = argparse.ArgumentParser(description="Create train/test split using MMSEQS filtering")
     parser.add_argument("--task_index", type=int, help="Index of the dataset to process (from datasets_to_filter list)", required=False)
     parser.add_argument("--scratch_dir", type=str, help="Directory to use for temporary MMSeqs files and databases", required=False)
     args = parser.parse_args()
@@ -634,12 +671,13 @@ def main():
     # Remove sequences similar to held-out sequences from training sets
     if args.task_index is not None:
         # Process only the specified dataset
-        if args.task_index == -1:
-            return
-        elif 0 <= args.task_index < len(datasets_to_filter):
-            dataset = datasets_to_filter[args.task_index]
+        if 0 <= args.task_index <= max(max(ds['task_indices']) for ds in datasets_to_filter):
+            for ds in datasets_to_filter:
+                if args.task_index in ds['task_indices']:
+                    dataset = ds
+                    break
             print(f"Processing only dataset at index {args.task_index}: {dataset['name']}")
-            remove_similar_sequences_from_train_set(rep_fasta_path, [dataset])
+            remove_similar_sequences_from_train_set(rep_fasta_path, [dataset], task_index=args.task_index)
         else:
             print(f"Error: task_index {args.task_index} is out of range. Valid range: 0-{len(datasets_to_filter)-1}")
             print(f"Available datasets:")
