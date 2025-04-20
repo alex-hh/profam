@@ -367,7 +367,9 @@ if __name__ == "__main__":
     config = get_config_from_cpt_path(args.ckpt_path)
     model = LlamaLitModule.load_from_checkpoint(args.ckpt_path)
     model.scoring_max_tokens = 1
-    model.use_kv_cache_for_scoring = False
+    model.use_kv_cache_for_scoring = (
+        False  # seems to be a memory leak issue with kv cache
+    )
     model.eval()
     dtype = torch.bfloat16
     model.to(device, dtype=dtype)
