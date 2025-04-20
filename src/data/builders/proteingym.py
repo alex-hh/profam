@@ -116,16 +116,20 @@ def load_msa_for_row(
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
     use_msa_pos: bool = True,
+    use_wt_only_as_context: bool = False,
 ):
-    msa_file = row["MSA_filename"]
-    if use_filtered_msa:
-        msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
-    _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
-        msa_file,
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=True if use_msa_pos else keep_gaps,
-    )
+    if use_wt_only_as_context:
+        seqs = [row["target_seq"]]
+    else:
+        msa_file = row["MSA_filename"]
+        if use_filtered_msa:
+            msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
+        _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
+            msa_file,
+            keep_insertions=True,
+            to_upper=True,
+            keep_gaps=True if use_msa_pos else keep_gaps,
+        )
     proteins = ProteinDocument(
         sequences=seqs,
         accessions=None,
@@ -217,14 +221,7 @@ def build_gym_df(dms_ids, gym_data_dir: str):
         lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
     )
     df["ds_name"] = "gym"
-    return df[
-        [
-            "DMS_id",
-            "MSA_filename",
-            "DMS_filename",
-            "ds_name",
-        ]
-    ]
+    return df[["DMS_id", "MSA_filename", "DMS_filename", "ds_name", "target_seq" ""]]
 
 
 class ProteinGymDataset(BaseProteinDataset):
@@ -245,6 +242,7 @@ class ProteinGymDataset(BaseProteinDataset):
         max_context_seqs: Optional[
             int
         ] = None,  # 0 means no family context, None means use all
+        use_wt_only_as_context: bool = False,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -268,6 +266,11 @@ class ProteinGymDataset(BaseProteinDataset):
         self.gym_data_dir = gym_data_dir
         self.max_tokens_per_example = max_tokens_per_example
         self.max_context_seqs = max_context_seqs
+        self.use_wt_only_as_context = use_wt_only_as_context
+        if use_wt_only_as_context:
+            assert (
+                max_context_seqs == 1
+            ), "use_wt_only_as_context requires max_context_seqs == 1"
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
                 warnings.warn(
@@ -319,6 +322,7 @@ class ProteinGymDataset(BaseProteinDataset):
                     extra_tokens_per_document=self.extra_tokens_per_document,
                     use_msa_pos=self.use_msa_pos,
                     max_context_seqs=self.max_context_seqs,
+                    use_wt_only_as_context=self.use_wt_only_as_context,
                 ),
                 batched=False,
                 num_proc=self.num_proc,

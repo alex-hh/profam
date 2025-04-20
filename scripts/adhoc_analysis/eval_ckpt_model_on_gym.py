@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 import torch
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
@@ -193,6 +194,7 @@ def build_protein_gym_dataloader(
     config: DictConfig,
     dms_ids: Optional[List[str]] = None,
     max_context_seqs: Optional[int] = None,
+    use_wt_only_as_context: bool = False,
 ) -> DataLoader:
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
@@ -207,6 +209,7 @@ def build_protein_gym_dataloader(
         num_proc=None,
         max_tokens_per_example=16_000,
         max_context_seqs=max_context_seqs,
+        use_wt_only_as_context=use_wt_only_as_context,
     )
     dataset = dataset_builder.load(
         data_dir=config.paths.data_dir,
@@ -225,6 +228,7 @@ def build_protein_gym_dataloader(
 def modify_batch_for_single_seq_scoring(
     batch: Dict[str, torch.Tensor]
 ) -> Dict[str, torch.Tensor]:
+    raise NotImplementedError("This function is for debugging only")
     start_toks = batch["input_ids"][:, :2]
     new_batch = {}
     if "ds_name" in batch:
@@ -255,21 +259,6 @@ def apply_shuffle_in_batch(batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Te
     if "input_ids" in batch and batch["input_ids"] is not None:
 
         batch["input_ids"] = batch["input_ids"][:, permutation]
-    return batch
-
-
-def limit_number_of_prompt_sequences(
-    batch: Dict[str, torch.Tensor], sep_tok_id: int, n_seqs: int = 1
-) -> Dict[str, torch.Tensor]:
-
-    assert batch["input_ids"].shape[0] == 1, "Batch size must be 1"
-    _, sequence_ends = torch.where(batch["input_ids"] == sep_tok_id)
-    n_seqs = min(n_seqs, sequence_ends.shape[0])
-    cut_off_index = sequence_ends[n_seqs - 1]
-    batch["input_ids"] = batch["input_ids"][:, :cut_off_index]
-    assert all(batch["input_ids"][:, -1] < 20), "Last token should be a residue"
-    if "residue_index" in batch:
-        batch["residue_index"] = batch["residue_index"][:, :cut_off_index]
     return batch
 
 
@@ -320,24 +309,14 @@ if __name__ == "__main__":
         default="logs/train_openfold_raw/runs/no_start_of_doc_2025_04_13/checkpoints/last.ckpt"
         # default="logs/train_single_seq_ur90_1bn/runs/bubba_2025-04-02/checkpoints/last.ckpt"
     )
-    parser.add_argument(
-        "--is_family_model",
-        action="store_true",
-        default=False,
-        help="Whether the model is a family model",
-    )
+
     parser.add_argument(
         "--shuffle",
         action="store_true",
         default=False,
         help="Enable shuffling of the ProteinGym dataset",
     )
-    parser.add_argument(
-        "--limit_n_seqs",
-        type=int,
-        default=None,
-        help="Number of prompt sequences to evaluate on",
-    )
+
     parser.add_argument(
         "--use_dms_ids",
         action="store_true",
@@ -362,6 +341,12 @@ if __name__ == "__main__":
         default=None,
         help="Maximum length of completion sequences to use",
     )
+    parser.add_argument(
+        "--use_wt_only_as_context",
+        action="store_true",
+        default=False,
+        help="Whether to use WT only as context",
+    )
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = get_config_from_cpt_path(args.ckpt_path)
@@ -378,7 +363,12 @@ if __name__ == "__main__":
         dms_ids = config.constants.gym_val_assay_list
     else:
         dms_ids = None
-    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs)
+    dataloader = build_protein_gym_dataloader(
+        config,
+        dms_ids,
+        max_context_seqs=args.max_context_seqs,
+        use_wt_only_as_context=args.use_wt_only_as_context,
+    )
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
@@ -424,14 +414,8 @@ if __name__ == "__main__":
             batch_for_model = {
                 k: v.to(device) for k, v in batch.items() if k != "ds_name"
             }
-            # if not args.is_family_model:
-            #     batch_for_model = modify_batch_for_single_seq_scoring(batch_for_model)
             if args.shuffle:
                 batch_for_model = apply_shuffle_in_batch(batch_for_model)
-            if args.limit_n_seqs is not None:
-                batch_for_model = limit_number_of_prompt_sequences(
-                    batch_for_model, model.tokenizer.sep_token_id, args.limit_n_seqs
-                )
 
             spearman, log_likelihood = capture_gym_metrics(model, batch_for_model)
             row_data = {
@@ -450,5 +434,13 @@ if __name__ == "__main__":
             print(
                 f"Batch {batch_idx} - Log Likelihood: {row_data['log_likelihood']:.4f}, Spearman: {row_data['spearman_correlation']:.4f}"
             )
-
+    results_df = pd.DataFrame(results)
+    print(f"Generated predictions for {len(results_df)} ProteinGym assays")
+    print(
+        f"Average spearman correltion {round(results_df['spearman_correlation'].mean(), 3)}"
+    )
+    print(f"Average log likelihood {round(results_df['log_likelihood'].mean(), 3)}")
+    print(
+        f"Correlation between log likelihood and spearman correlation: {round(results_df['spearman_correlation'].corr(results_df['log_likelihood']), 3)}"
+    )
     print(f"\nEvaluation complete. Results saved to {csv_filename}")
