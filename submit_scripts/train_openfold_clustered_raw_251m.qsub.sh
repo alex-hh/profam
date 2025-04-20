@@ -7,7 +7,7 @@
 #$ -l gpu_type=(a40|a100|a100_80)
 #$ -l h_rt=119:55:30
 #$ -S /bin/bash
-#$ -N OpFolRaw302m
+#$ -N OpFolRaw251m
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -P cath
@@ -24,6 +24,6 @@ export WANDB__SERVICE_WAIT=300
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
 experiment=train_openfold_clustered_raw \
-model=llama_302m.yaml \
-experiment_group=train_openfold_clustered_raw_302m
+model=llama_251m.yaml \
+experiment_group=train_openfold_clustered_raw_251m
 date

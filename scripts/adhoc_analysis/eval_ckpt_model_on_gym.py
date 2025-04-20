@@ -207,7 +207,7 @@ def build_protein_gym_dataloader(
         extra_tokens_per_document=2,
         use_msa_pos=False,
         num_proc=None,
-        max_tokens_per_example=16_000,
+        max_tokens_per_example=8_000,
         max_context_seqs=max_context_seqs,
         use_wt_only_as_context=use_wt_only_as_context,
     )
