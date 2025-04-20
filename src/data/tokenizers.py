@@ -194,7 +194,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             max_length=max_length,
             return_token_type_ids=False,
         )
-        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        tokenized.data = {k: v.squeeze(0) for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
 
         if not allow_unk:
@@ -340,13 +340,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         residue_positions: Optional[List[int]] = None,
         bos_token="[SEP]",
         eos_token="[SEP]",
-        has_context=True,
     ):
         assert isinstance(sequences, list)
-        if has_context:
-            sequences_w_sp_tokens = [bos_token + seq + eos_token for seq in sequences]
-        else:
-            sequences_w_sp_tokens = [seq + eos_token for seq in sequences]
+        sequences_w_sp_tokens = [bos_token + seq + eos_token for seq in sequences]
         tokenized = self(
             sequences_w_sp_tokens,
             return_tensors="np",

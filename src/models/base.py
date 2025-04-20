@@ -548,6 +548,14 @@ class BaseSingleSequenceLitModule(BaseLitModule):
             sync_dist=True,
         )
 
+        self.log(
+            "gym/log_likelihood",
+            lls.mean(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+        )
+
 
 class BaseFamilyLitModule(BaseLitModule):
     def __init__(
@@ -715,8 +723,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids.clone(),
             )
             assert (
-                this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
-            )  # SEP token which signals end of last prompt seq
+                this_input_ids[..., likelihood_start_ix] not in self.tokenizer.aa_tokens
+            ), "Likelihood start ix is an AA token - likelihood cannot be computed for this position"
             if self.embed_residue_index:
                 this_res_ix = torch.cat(
                     [input_residue_index, completion_residue_index[:, completion_ix]],
