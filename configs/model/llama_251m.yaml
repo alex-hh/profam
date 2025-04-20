@@ -36,4 +36,3 @@ config:
     low_freq_factor: 1.0
     original_max_position_embeddings: 32000 # indicates max seq len model initially trained with
     rope_type: "llama3"
-

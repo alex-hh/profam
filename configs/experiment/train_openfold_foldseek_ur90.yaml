@@ -9,13 +9,13 @@ defaults:
   - /data/dataset@data.dataset_builders.uniref90: uniref90_single_raw
   - /data/dataset@data.dataset_builders.foldseek_s50_raw: foldseek_s50_raw
   - override /data: null
-  - override /model: llama_106m.yaml
+  - override /model: llama_251m.yaml
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - override /logger: wandb
   - _self_
 
-experiment_group: "train_openfold_foldseek_ur90_106m"
+experiment_group: "train_openfold_foldseek_ur90_251m"
 tags: ["${experiment_group}"]
 
 seed: 12345
@@ -90,4 +90,4 @@ data:
   val_dataset_batch_sizes:
     openfold_clustered_raw_val: 1
     proteingym: 1
-  pack_to_max_tokens: 60_000
+  pack_to_max_tokens: 40_000
