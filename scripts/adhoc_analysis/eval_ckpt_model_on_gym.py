@@ -195,6 +195,7 @@ def build_protein_gym_dataloader(
     dms_ids: Optional[List[str]] = None,
     max_context_seqs: Optional[int] = None,
     use_wt_only_as_context: bool = False,
+    context: int = 8_000,
 ) -> DataLoader:
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
@@ -207,7 +208,7 @@ def build_protein_gym_dataloader(
         extra_tokens_per_document=2,
         use_msa_pos=False,
         num_proc=None,
-        max_tokens_per_example=8_000,
+        max_tokens_per_example=context,
         max_context_seqs=max_context_seqs,
         use_wt_only_as_context=use_wt_only_as_context,
     )
@@ -220,7 +221,7 @@ def build_protein_gym_dataloader(
         dataset,
         tokenizer=model.tokenizer,
         feature_names=config.data.feature_names,
-        pack_to_max_tokens=8_000,
+        pack_to_max_tokens=context,
     )
     return DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False)
 
