@@ -1,6 +1,7 @@
 import functools
 import os
 import re
+import warnings
 from typing import List, Optional
 
 import pandas as pd
@@ -48,21 +49,21 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
         return tokenizer.bos_token
     elif name == "sep":
         return tokenizer.sep_token
+    elif name in tokenizer.vocab:
+        return name
     else:
-        pass
+        raise ValueError(f"Token {name} not found in tokenizer vocabulary")
 
 
 def tokenize_completions(
     sample,
     tokenizer: ProFamTokenizer,
     bos_token="sep",
-    has_context=True,  # True if using MSA false if evaluating single sequence model
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
         residue_positions=sample["completion_residue_positions"],
         bos_token=get_token_from_name(bos_token, tokenizer),
-        has_context=has_context,
     )
     sample["completion_ids"] = tokenized.input_ids
     if tokenizer.embed_residue_index:
@@ -80,7 +81,12 @@ def tokenize(
     if not has_context:
         sample["MSA"] = [""]
         sample["seq_pos"] = []
-        msa_document_token = None
+        msa_document_token = (
+            ""  # document token will be added to start of completions instead
+        )
+        assert (
+            mutant_bos_token == document_token
+        )  # completions must start with non AA token
     else:
         msa_document_token = document_token
 
@@ -94,7 +100,6 @@ def tokenize(
         sample,
         tokenizer,
         bos_token=mutant_bos_token,
-        has_context=has_context,
     )
     return sample
 
@@ -203,7 +208,8 @@ def load_comp_seq_dms_for_row(
 def build_gym_df(dms_ids, gym_data_dir: str):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
-    df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
+    if dms_ids is not None:
+        df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     df["MSA_filename"] = df["MSA_filename"].apply(
         lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
     )
@@ -264,7 +270,7 @@ class ProteinGymDataset(BaseProteinDataset):
         self.max_context_seqs = max_context_seqs
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
-                raise Warning(
+                warnings.warn(
                     "Setting self.mutant_bos_token to self.document_token because max_context_seqs is 0"
                 )
                 self.mutant_bos_token = self.document_token
