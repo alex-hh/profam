@@ -400,3 +400,4 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         if all(len(seq) == 1 for seq in decoded_sequences):
             decoded_sequences = [seq[0] for seq in decoded_sequences]
         return decoded_sequences
+

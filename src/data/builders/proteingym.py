@@ -80,11 +80,14 @@ def tokenize(
     if not has_context:
         sample["MSA"] = [""]
         sample["seq_pos"] = []
+        msa_document_token = None
+    else:
+        msa_document_token = document_token
 
     sample = tokenize_msa(
         sample,
         tokenizer,
-        document_token=document_token,
+        document_token=msa_document_token,
     )
 
     sample = tokenize_completions(
@@ -260,9 +263,13 @@ class ProteinGymDataset(BaseProteinDataset):
         self.max_tokens_per_example = max_tokens_per_example
         self.max_context_seqs = max_context_seqs
         if max_context_seqs == 0:
-            assert (
-                mutant_bos_token is None or mutant_bos_token == ""
-            ), "mutant_bos_token should be None or empty if max_context_seqs is 0"
+            if mutant_bos_token != self.document_token:
+                raise Warning(
+                    "Setting self.mutant_bos_token to self.document_token because max_context_seqs is 0"
+                )
+                self.mutant_bos_token = self.document_token
+            # this is necessary because the first completion sequence token cannot be
+            # and AA otherwise we can't extract the likelihood for the first AA
 
     @property
     def document_token(self):
