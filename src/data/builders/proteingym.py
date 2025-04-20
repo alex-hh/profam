@@ -48,21 +48,21 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
         return tokenizer.bos_token
     elif name == "sep":
         return tokenizer.sep_token
+    elif name in tokenizer.vocab:
+        return name
     else:
-        pass
+        raise ValueError(f"Token {name} not found in tokenizer vocabulary")
 
 
 def tokenize_completions(
     sample,
     tokenizer: ProFamTokenizer,
     bos_token="sep",
-    has_context=True,  # True if using MSA false if evaluating single sequence model
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
         residue_positions=sample["completion_residue_positions"],
         bos_token=get_token_from_name(bos_token, tokenizer),
-        has_context=has_context,
     )
     sample["completion_ids"] = tokenized.input_ids
     if tokenizer.embed_residue_index:
@@ -80,18 +80,25 @@ def tokenize(
     if not has_context:
         sample["MSA"] = [""]
         sample["seq_pos"] = []
+        msa_document_token = (
+            ""  # document token will be added to start of completions instead
+        )
+        assert (
+            mutant_bos_token == document_token
+        )  # completions must start with non AA token
+    else:
+        msa_document_token = document_token
 
     sample = tokenize_msa(
         sample,
         tokenizer,
-        document_token=document_token,
+        document_token=msa_document_token,
     )
 
     sample = tokenize_completions(
         sample,
         tokenizer,
         bos_token=mutant_bos_token,
-        has_context=has_context,
     )
     return sample
 
@@ -261,9 +268,13 @@ class ProteinGymDataset(BaseProteinDataset):
         self.max_tokens_per_example = max_tokens_per_example
         self.max_context_seqs = max_context_seqs
         if max_context_seqs == 0:
-            assert (
-                mutant_bos_token is None or mutant_bos_token == ""
-            ), "mutant_bos_token should be None or empty if max_context_seqs is 0"
+            if mutant_bos_token != self.document_token:
+                Warning(
+                    "Setting self.mutant_bos_token to self.document_token because max_context_seqs is 0"
+                )
+                self.mutant_bos_token = self.document_token
+            # this is necessary because the first completion sequence token cannot be
+            # and AA otherwise we can't extract the likelihood for the first AA
 
     @property
     def document_token(self):

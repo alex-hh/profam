@@ -722,6 +722,9 @@ class BaseFamilyLitModule(BaseLitModule):
                 -100,
                 this_input_ids.clone(),
             )
+            assert (
+                this_input_ids[..., likelihood_start_ix] not in self.tokenizer.aa_tokens
+            ), "Likelihood start ix is an AA token - likelihood cannot be computed for this position"
             if self.embed_residue_index:
                 this_res_ix = torch.cat(
                     [input_residue_index, completion_residue_index[:, completion_ix]],
