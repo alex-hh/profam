@@ -141,6 +141,37 @@ class BaseLitModule(LightningModule):
             }
         return optim_dict
 
+    # def compute_consumed_samples(self, steps_since_resume=0):
+    #     app_state = AppState()
+
+    #     if self.cfg.get('rampup_batch_size', None):
+    #         current_global_batch_size = get_current_global_batch_size() if get_current_global_batch_size() else 1
+    #         consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
+    #     else:
+    #         consumed_samples = (
+    #             self.init_consumed_samples
+    #             + steps_since_resume
+    #             * app_state.data_parallel_size
+    #             * self.cfg.micro_batch_size
+    #             * get_num_microbatches()
+    #         )
+    #     return int(consumed_samples)
+
+    # def _compute_consumed_samples_after_training_step(self):
+    #     # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
+    #     if not hasattr(self, 'init_global_step'):
+    #         self.init_global_step = 0  # in case this method is called before training starts.
+    #     return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
+
+    # def _extract_consumed_samples_from_ckpt(self, ckpt_path):
+    #     try:
+    #         init_consumed_samples = int(float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", ckpt_path)[0]))
+    #     except (ValueError, TypeError, IndexError):
+    #         logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
+    #         init_consumed_samples = 0
+
+    #     return init_consumed_samples
+
     def get_forward_kwargs(self, batch):
         return {}
 
