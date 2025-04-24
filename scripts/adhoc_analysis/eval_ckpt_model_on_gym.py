@@ -197,6 +197,7 @@ def build_protein_gym_dataloader(
     use_wt_only_as_context: bool = False,
     context: int = 16_000,
 ) -> DataLoader:
+    print(f"Building ProteinGym with max_context_seqs={str(max_context_seqs)} and context tokens={context}")
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
         dms_ids=dms_ids,
@@ -407,6 +408,8 @@ if __name__ == "__main__":
                     )
                     continue
             # Get alignment statistics
+            print(f"Batch input_ids shape: {batch['input_ids'].shape}")
+            print(f"Batch completion_ids shape: {batch['completion_ids'].shape}")
             alignment_stats = get_alignment_statistics(
                 model.tokenizer, batch["input_ids"], batch["completion_ids"]
             )
