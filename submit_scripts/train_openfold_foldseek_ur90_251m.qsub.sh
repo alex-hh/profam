@@ -7,7 +7,7 @@
 #$ -l gpu_type=(a40|a100|a100_80)
 #$ -l h_rt=119:55:30
 #$ -S /bin/bash
-#$ -N OfFsUr90_251m
+#$ -N OfFs100Ur90_251m
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -P cath
@@ -23,5 +23,5 @@ cd $ROOT_DIR
 export WANDB__SERVICE_WAIT=300
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
-experiment=train_openfold_foldseek_ur90
+experiment=train_openfold_foldseeks100_ur90
 date
