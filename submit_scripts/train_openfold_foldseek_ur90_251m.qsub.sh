@@ -23,5 +23,5 @@ cd $ROOT_DIR
 export WANDB__SERVICE_WAIT=300
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
-experiment=train_openfold_foldseeks100_ur90
+experiment=train_openfold_foldseekS100_ur90
 date
