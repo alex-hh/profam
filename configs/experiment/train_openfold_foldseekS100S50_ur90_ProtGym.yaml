@@ -8,6 +8,8 @@ defaults:
   - /data/dataset@data.dataset_builders.openfold_clustered_raw_val: openfold_clustered_raw
   - /data/dataset@data.dataset_builders.uniref90: uniref90_single_raw
   - /data/dataset@data.dataset_builders.foldseek_s100_raw: foldseek_s100_raw
+  - /data/dataset@data.dataset_builders.foldseek_s50_raw: foldseek_s50_raw
+  - /data/dataset@data.dataset_builders.gym_msas_raw: gym_msas_raw
   - override /data: null
   - override /model: llama_251m.yaml
   - override /callbacks: default_with_shuffle
@@ -82,6 +84,8 @@ data:
     openfold_clustered_raw: 1
     uniref90: 1
     foldseek_s100_raw: 1
+    foldseek_s50_raw: 1
+    gym_msas_raw: 1
   batch_size: 1
   data_dir: ${paths.data_dir}
   num_workers: 24
