@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 import torch
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
@@ -23,6 +24,34 @@ from src.models.llama import LlamaLitModule
 from src.utils import rich_utils
 from src.utils.utils import get_config_from_cpt_path
 
+foldseek_dms_ids = [
+    "A0A1I9GEU1_NEIME_Kennouche_2019",
+    "ADRB2_HUMAN_Jones_2020",
+    "AMFR_HUMAN_Tsuboyama_2023_4G3O",
+    "BBC1_YEAST_Tsuboyama_2023_1TG0",
+    "CASP7_HUMAN_Roychowdhury_2020",
+    "CD19_HUMAN_Klesmith_2019_FMC_singles",
+    "DLG4_RAT_McLaughlin_2012",
+    "GCN4_YEAST_Staller_2018",
+    "KCNE1_HUMAN_Muhammad_2023_expression",
+    "KCNE1_HUMAN_Muhammad_2023_function",
+    "MBD11_ARATH_Tsuboyama_2023_6ACV",
+    "ODP2_GEOSE_Tsuboyama_2023_1W4G",
+    "PABP_YEAST_Melamed_2013",
+    "PHOT_CHLRE_Chen_2023",
+    "PRKN_HUMAN_Clausen_2023",
+    "RD23A_HUMAN_Tsuboyama_2023_1IFY",
+    "SCN5A_HUMAN_Glazer_2019",
+    "SPG2_STRSG_Tsuboyama_2023_5UBS",
+    "SQSTM_MOUSE_Tsuboyama_2023_2RRU",
+    "SRBS1_HUMAN_Tsuboyama_2023_2O2W",
+    "THO1_YEAST_Tsuboyama_2023_2WQG",
+    "TRPC_THEMA_Chan_2017",
+    "VKOR1_HUMAN_Chiasson_2020_abundance",
+    "VKOR1_HUMAN_Chiasson_2020_activity",
+    "YAP1_HUMAN_Araya_2012",
+    "YNZC_BACSU_Tsuboyama_2023_2JVD",
+]
 
 def get_alignment_metrics(query_seq, input_seq):
     """
@@ -193,6 +222,7 @@ def build_protein_gym_dataloader(
     config: DictConfig,
     dms_ids: Optional[List[str]] = None,
     max_context_seqs: Optional[int] = None,
+    max_context_tokens: int = 16_000,
 ) -> DataLoader:
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
@@ -201,11 +231,11 @@ def build_protein_gym_dataloader(
         max_mutated_sequences=None,
         mutant_bos_token="sep" if max_context_seqs != 0 else None,
         keep_gaps=False,
-        use_filtered_msa=True,
+        use_filtered_msa=False,
         extra_tokens_per_document=2,
         use_msa_pos=False,
         num_proc=None,
-        max_tokens_per_example=16_000,
+        max_tokens_per_example=max_context_tokens,
         max_context_seqs=max_context_seqs,
     )
     dataset = dataset_builder.load(
@@ -217,7 +247,7 @@ def build_protein_gym_dataloader(
         dataset,
         tokenizer=model.tokenizer,
         feature_names=config.data.feature_names,
-        pack_to_max_tokens=8_000,
+        pack_to_max_tokens=max_context_tokens,
     )
     return DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False)
 
@@ -375,10 +405,11 @@ if __name__ == "__main__":
     model.to(device, dtype=dtype)
     # sample_from_model(model)
     if args.use_dms_ids:
-        dms_ids = config.constants.gym_val_assay_list
+        dms_ids = foldseek_dms_ids #config.constants.gym_val_assay_list
     else:
         dms_ids = None
-    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs)
+    
+    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs, max_context_tokens=4000)
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
@@ -450,5 +481,8 @@ if __name__ == "__main__":
             print(
                 f"Batch {batch_idx} - Log Likelihood: {row_data['log_likelihood']:.4f}, Spearman: {row_data['spearman_correlation']:.4f}"
             )
-
+            df = pd.DataFrame(results)
+            df.to_csv(os.path.join(args.output_dir, f"gym_evaluation.csv"), index=False)
+            print(f"Mean spearman: {df['spearman_correlation'].mean()}")
+            print(f"Mean log likelihood: {df['log_likelihood'].mean()}")
     print(f"\nEvaluation complete. Results saved to {csv_filename}")
