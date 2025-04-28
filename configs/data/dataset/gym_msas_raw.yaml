@@ -1,4 +1,4 @@
-_target_: src.data.builders.SequenceDocumentIterableDataset
+_target_: src.data.builders.fasta.FastaProteinIterableDataset
 name: gym_msas_raw
 defaults:
   - /preprocessor: raw_from_msa
@@ -11,3 +11,4 @@ cfg:
   identifier_col: null
   file_type: text
   minimum_sequences: null
+  max_sequences_per_document: 10000
