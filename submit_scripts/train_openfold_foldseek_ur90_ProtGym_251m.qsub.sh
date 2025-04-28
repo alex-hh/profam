@@ -23,6 +23,6 @@ cd $ROOT_DIR
 export WANDB__SERVICE_WAIT=300
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/src/train.py \
-experiment=train_openfold_foldseekS100S50_ur90_ProtGym \ 
+experiment=train_openfold_foldseekS100S50_ur90_ProtGym \
 ckpt_path="logs/train_openfold_clustered_raw_251m/runs/2025-04-20_21-42-36-235228/checkpoints/last.ckpt"
 date

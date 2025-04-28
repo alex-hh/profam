@@ -197,7 +197,9 @@ def build_protein_gym_dataloader(
     use_wt_only_as_context: bool = False,
     context: int = 16_000,
 ) -> DataLoader:
-    print(f"Building ProteinGym with max_context_seqs={str(max_context_seqs)} and context tokens={context}")
+    print(
+        f"Building ProteinGym with max_context_seqs={str(max_context_seqs)} and context tokens={context}"
+    )
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
         dms_ids=dms_ids,
