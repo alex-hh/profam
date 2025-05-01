@@ -243,6 +243,8 @@ class ProteinGymDataset(BaseProteinDataset):
             int
         ] = None,  # 0 means no family context, None means use all
         use_wt_only_as_context: bool = False,
+        keep_wt=True,
+        drop_wt=False
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -267,6 +269,9 @@ class ProteinGymDataset(BaseProteinDataset):
         self.max_tokens_per_example = max_tokens_per_example
         self.max_context_seqs = max_context_seqs
         self.use_wt_only_as_context = use_wt_only_as_context
+        assert not (keep_wt and drop_wt)
+        self.keep_wt = keep_wt
+        self.drop_wt = drop_wt
         if use_wt_only_as_context:
             assert (
                 max_context_seqs == 1
@@ -323,6 +328,8 @@ class ProteinGymDataset(BaseProteinDataset):
                     use_msa_pos=self.use_msa_pos,
                     max_context_seqs=self.max_context_seqs,
                     use_wt_only_as_context=self.use_wt_only_as_context,
+                    keep_wt=self.keep_wt,
+                    drop_wt=self.drop_wt,
                 ),
                 batched=False,
                 num_proc=self.num_proc,
