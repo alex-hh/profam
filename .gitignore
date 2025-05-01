@@ -45,3 +45,4 @@ data/cath_chain_topology_class.pickle
 .vscode-server
 src/tools/foldtoken/
 results/
+out/

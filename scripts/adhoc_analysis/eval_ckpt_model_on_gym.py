@@ -53,6 +53,7 @@ foldseek_dms_ids = [
     "YNZC_BACSU_Tsuboyama_2023_2JVD",
 ]
 
+
 def get_alignment_metrics(query_seq, input_seq):
     """
     Calculate alignment metrics between query sequence and input sequence.
@@ -405,11 +406,13 @@ if __name__ == "__main__":
     model.to(device, dtype=dtype)
     # sample_from_model(model)
     if args.use_dms_ids:
-        dms_ids = foldseek_dms_ids #config.constants.gym_val_assay_list
+        dms_ids = foldseek_dms_ids  # config.constants.gym_val_assay_list
     else:
         dms_ids = None
-    
-    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs, max_context_tokens=4000)
+
+    dataloader = build_protein_gym_dataloader(
+        config, dms_ids, args.max_context_seqs, max_context_tokens=4000
+    )
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
