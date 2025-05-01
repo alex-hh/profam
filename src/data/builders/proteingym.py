@@ -244,7 +244,7 @@ class ProteinGymDataset(BaseProteinDataset):
         ] = None,  # 0 means no family context, None means use all
         use_wt_only_as_context: bool = False,
         keep_wt=True,
-        drop_wt=False
+        drop_wt=False,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
