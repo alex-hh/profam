@@ -67,33 +67,22 @@ data:
       keep_wt: false
       drop_wt: true
 
-    openfold_clustered_raw_val:
-      _target_: src.data.builders.SequenceDocumentMapDataset
-      name: openfold_clustered_raw_val
-      cfg:
-        data_path_pattern: openfold/uniclust30_clustered_shuffled_final/recombinant_0_chunk0.parquet
-    openfold_clustered_raw:
-      cfg:
-        holdout_data_files: openfold/uniclust30_clustered_shuffled_final/recombinant_0_chunk0.parquet
-
-
     foldseek_s50_raw_val:
       _target_: src.data.builders.SequenceDocumentMapDataset
       name: foldseek_s50_raw_val
       cfg:
-        data_path_pattern: foldseek/
+        data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/val
 
     uniref90_val:
       _target_: src.data.builders.SequenceDocumentMapDataset
       name: uniref90_val
       cfg:
-        data_path_pattern: uniref/
+        data_path_pattern: uniref/uniref90_parquets_shuffled/val/recombinant_0.parquet
 
 
   _target_: src.data.datamodule.ProteinDataMixture
   total_num_train_samples: 2_000_000
   data_weights:
-    openfold_clustered_raw: 1
     uniref90: 1
     foldseek_s50_raw: 1
   batch_size: 1
