@@ -9,8 +9,8 @@ from src.sequence.fasta import read_fasta_sequences
 
 from .hf_datasets import (
     HFProteinDatasetConfig,
-    MemoryMappedHFProteinDataset,
     IterableHFProteinDataset,
+    MemoryMappedHFProteinDataset,
 )
 
 
