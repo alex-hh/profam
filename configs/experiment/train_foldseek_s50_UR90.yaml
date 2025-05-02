@@ -71,7 +71,7 @@ data:
       _target_: src.data.builders.SequenceDocumentMapDataset
       name: foldseek_s50_raw_val
       cfg:
-        data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/val
+        data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/val/val_0_460_000.parquet
 
     uniref90_val:
       _target_: src.data.builders.SequenceDocumentMapDataset
