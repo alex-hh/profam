@@ -87,9 +87,15 @@ def build_splits_json(filtered_parquet_dir):
                         "val": [],
                         "test": []
                     }
-                splits_json[fam_id][split].extend(accessions)
+                splits_json[fam_id][split].extend([a.replace("_ted.fasta", "") for a in accessions])
     return splits_json
 
+def dataset_has_structure(dataset_info):
+    path = glob.glob(os.path.join(dataset_info["filtered_parquet_dir"], "*/*.parquet"))[0]
+    df = pd.read_parquet(path)
+    if "C" in df.columns or "CA" in df.columns:
+        return True
+    return False
 
 def filter_dataset(dataset_info):
     split_json = build_splits_json(dataset_info["filtered_parquet_dir"])
@@ -98,10 +104,11 @@ def filter_dataset(dataset_info):
     os.makedirs(os.path.join(output_dir, "train"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "val"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "test"), exist_ok=True)
+    mem_limit = 50 if dataset_has_structure(dataset_info) else 250
     parquet_writers = {
-        "train": ParquetBufferWriter(os.path.join(output_dir, "train_filtered"), name="train", mem_limit=250),
-        "val": ParquetBufferWriter(os.path.join(output_dir, "val_filtered"), name="val", mem_limit=250),
-        "test": ParquetBufferWriter(os.path.join(output_dir, "test_filtered"), name="test", mem_limit=250),
+        "train": ParquetBufferWriter(os.path.join(output_dir, "train_filtered"), name="train", mem_limit=mem_limit),
+        "val": ParquetBufferWriter(os.path.join(output_dir, "val_filtered"), name="val", mem_limit=mem_limit),
+        "test": ParquetBufferWriter(os.path.join(output_dir, "test_filtered"), name="test", mem_limit=mem_limit),
     }
 
     parquet_files = glob.glob(dataset_info["parquet_pattern"])
