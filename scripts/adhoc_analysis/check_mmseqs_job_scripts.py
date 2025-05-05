@@ -1,4 +1,5 @@
 import glob
+
 """
 check that end of all job script files looks something like this:
 
@@ -24,7 +25,9 @@ for job_script in job_scripts:
         print(f"\n\nJob script {job_script} does not end with the expected message:")
         for line in lines:
             print(line.strip())
-    elif not lines[2].startswith("Completed removing similar sequences from training sets"):
+    elif not lines[2].startswith(
+        "Completed removing similar sequences from training sets"
+    ):
         print(f"\n\nJob script {job_script} does not end with the expected message:")
         for line in lines:
             print(line.strip())

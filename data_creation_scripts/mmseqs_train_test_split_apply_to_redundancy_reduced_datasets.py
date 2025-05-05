@@ -117,7 +117,7 @@ def filter_dataset(dataset_info):
 
 def process_row(row, split_json, parquet_writers):
     """Process a single parquet row, routing sub-rows to the correct writer."""
-    fam_id = row["fam_id"]
+    fam_id = row["fam_id"].replace("_rep_seq", "")
     accessions_list = row["accessions"]
 
     if fam_id not in split_json:
@@ -166,7 +166,6 @@ def process_row(row, split_json, parquet_writers):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # add task_index
     parser.add_argument("--task_index", type=int, default=-1)
     args = parser.parse_args()
     if args.task_index != -1:
