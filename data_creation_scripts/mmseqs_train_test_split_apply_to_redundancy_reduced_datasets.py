@@ -75,8 +75,8 @@ datasets_to_filter = [
 
 def build_splits_json(filtered_parquet_dir):
     splits_json = {}
-    for split in ["train_filtered", "val_filtered", "test_filtered"]:
-        for parquet in glob.glob(os.path.join(filtered_parquet_dir, f"{split}/*.parquet")):
+    for split in ["train", "val", "test"]:
+        for parquet in glob.glob(os.path.join(filtered_parquet_dir, f"{split}_filtered/*.parquet")):
             df = pd.read_parquet(parquet)
             for _, row in df.iterrows():
                 fam_id = row["fam_id"]
