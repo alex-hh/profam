@@ -101,9 +101,9 @@ def filter_dataset(dataset_info):
     split_json = build_splits_json(dataset_info["filtered_parquet_dir"])
     output_dir = dataset_info["output_dir"]
     # Prepare output directories and writers
-    os.makedirs(os.path.join(output_dir, "train"), exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "val"), exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "test"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "train_filtered"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "val_filtered"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "test_filtered"), exist_ok=True)
     mem_limit = 50 if dataset_has_structure(dataset_info) else 250
     parquet_writers = {
         "train": ParquetBufferWriter(os.path.join(output_dir, "train_filtered"), name="train", mem_limit=mem_limit),
