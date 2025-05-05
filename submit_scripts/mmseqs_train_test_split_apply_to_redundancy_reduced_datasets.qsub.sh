@@ -6,7 +6,7 @@
 #$ -S /bin/bash
 # hostname does not contain larry* or arbuckle* or abner*
 #$ -l hostname=!(larry*|arbuckle*|abner*)
-#$ -N RedRedSplit
+#$ -N RedRedSplitV2
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/mmseqs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -t 1-6
