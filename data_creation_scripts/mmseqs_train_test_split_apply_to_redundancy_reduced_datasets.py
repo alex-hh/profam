@@ -99,9 +99,9 @@ def filter_dataset(dataset_info):
     os.makedirs(os.path.join(output_dir, "val"), exist_ok=True)
     os.makedirs(os.path.join(output_dir, "test"), exist_ok=True)
     parquet_writers = {
-        "train": ParquetBufferWriter(os.path.join(output_dir, "train"), name="train", mem_limit=250),
-        "val": ParquetBufferWriter(os.path.join(output_dir, "val"), name="val", mem_limit=250),
-        "test": ParquetBufferWriter(os.path.join(output_dir, "test"), name="test", mem_limit=250),
+        "train": ParquetBufferWriter(os.path.join(output_dir, "train_filtered"), name="train", mem_limit=250),
+        "val": ParquetBufferWriter(os.path.join(output_dir, "val_filtered"), name="val", mem_limit=250),
+        "test": ParquetBufferWriter(os.path.join(output_dir, "test_filtered"), name="test", mem_limit=250),
     }
 
     parquet_files = glob.glob(dataset_info["parquet_pattern"])
@@ -121,7 +121,8 @@ def process_row(row, split_json, parquet_writers):
     accessions_list = row["accessions"]
 
     if fam_id not in split_json:
-        print(f"Fam {fam_id} not in split_json")
+        print(f"Fam {fam_id} not in split_json, keys in split_json: {len(split_json.keys())}")
+        print(f"Sample of keys in split_json: {random.sample(list(split_json.keys()), 10)}")
         return
 
     # Otherwise split by accession membership
