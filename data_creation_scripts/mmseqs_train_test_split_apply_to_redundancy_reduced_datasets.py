@@ -43,7 +43,7 @@ datasets_to_filter = [
     },
     {
         "name": "foldseek_s50_struct",
-        "parquet_pattern": "../data/foldseek/foldseek_s50_struct/train_val_test_split/*/*.parquet",
+        "parquet_pattern": "../data/foldseek/foldseek_s50_struct/*.parquet",
         "filtered_parquet_dir": "../data/foldseek/foldseek_s100_raw/train_test_split_v2",
         "output_dir": "../data/foldseek/foldseek_s50_struct/train_val_test_split_v2/"
     },
