@@ -79,7 +79,7 @@ def build_splits_json(filtered_parquet_dir):
         for parquet in glob.glob(os.path.join(filtered_parquet_dir, f"{split}_filtered/*.parquet")):
             df = pd.read_parquet(parquet)
             for _, row in df.iterrows():
-                fam_id = row["fam_id"]
+                fam_id = row["fam_id"].replace("_rep_seq", "").replace("_ted.fasta", "")
                 accessions = row["accessions"] if "accessions" in row else row.get("accession", [])
                 if fam_id not in splits_json:
                     splits_json[fam_id] = {
@@ -87,7 +87,7 @@ def build_splits_json(filtered_parquet_dir):
                         "val": [],
                         "test": []
                     }
-                splits_json[fam_id][split].extend([a.replace("_ted.fasta", "") for a in accessions])
+                splits_json[fam_id][split].extend(accessions)
     return splits_json
 
 def dataset_has_structure(dataset_info):
@@ -124,7 +124,7 @@ def filter_dataset(dataset_info):
 
 def process_row(row, split_json, parquet_writers):
     """Process a single parquet row, routing sub-rows to the correct writer."""
-    fam_id = row["fam_id"].replace("_rep_seq", "")
+    fam_id = row["fam_id"].replace("_rep_seq", "").replace("_ted.fasta", "")
     accessions_list = row["accessions"]
 
     if fam_id not in split_json:
