@@ -89,7 +89,7 @@ datasets_to_filter = [
     {
         "name": "TEDS100",
         "parquet_pattern": "../data/ted/s100_parquets/train_val_test_split_hq/train_val_test_split/*/clustered/*.parquet",
-        "output_dir": "../data/ted/s100_parquets/train_test_split_v2",
+        "output_dir": "../data/ted/s100_parquets/train_test_split_v3_debug",
         "task_indices": list(range(112, 150))
     },
     {
@@ -570,7 +570,7 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter, 
                     keep_accessions = []
                     
                     matched_splits = []
-                    
+                    train_keep_mask = []
                     for j, seq in enumerate(row['sequences']):
                         header = f"{os.path.basename(parquet_file)}|{fam_id}|{i}|{j}|{row['accessions'][j]}"
                         
@@ -582,16 +582,20 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter, 
                                 matched_split = split_matches[0]
                             matched_splits.append(matched_split)
                             removed_from_train.append((header, matched_split))
-                        
+                            train_keep_mask.append(False)
                         else:
                             keep_sequences.append(seq)
                             keep_accessions.append(row['accessions'][j])
-                    
+                            train_keep_mask.append(True)
                     # If there are sequences to keep, update the row
                     if len(keep_sequences) > 0:
-                        updated_row = row.copy()
-                        updated_row['sequences'] = keep_sequences
-                        updated_row['accessions'] = keep_accessions
+                        updated_row = {}
+                        for k,v in row.items():
+                            if isinstance(v, list) or isinstance(v, np.ndarray):
+                                assert len(v) == len(row['sequences']) or len(v) == 0
+                                updated_row[k] = np.array(v)[train_keep_mask]
+                            else:
+                                updated_row[k] = v
                         rows_to_keep.append(updated_row)
                     # If all sequences are filtered out, move the row to val or test
                     elif matched_splits and len(set(matched_splits)) == 1:
