@@ -593,7 +593,10 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter, 
                         for k,v in row.items():
                             if isinstance(v, list) or isinstance(v, np.ndarray):
                                 assert len(v) == len(row['sequences']) or len(v) == 0
-                                updated_row[k] = np.array(v)[train_keep_mask]
+                                if len(v) == 0:
+                                    updated_row[k] = v
+                                else:
+                                    updated_row[k] = np.array(v)[train_keep_mask]
                             else:
                                 updated_row[k] = v
                         rows_to_keep.append(updated_row)
