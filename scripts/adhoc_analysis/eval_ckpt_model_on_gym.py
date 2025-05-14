@@ -224,6 +224,7 @@ def build_protein_gym_dataloader(
     max_context_seqs: Optional[int] = None,
     max_context_tokens: int = 16_000,
 ) -> DataLoader:
+    print(f"Building ProteinGym dataloader with max_context_tokens={max_context_tokens} and max_context_seqs={max_context_seqs}")
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
         dms_ids=dms_ids,
@@ -350,12 +351,7 @@ if __name__ == "__main__":
         default="logs/train_openfold_raw/runs/no_start_of_doc_2025_04_13/checkpoints/last.ckpt"
         # default="logs/train_single_seq_ur90_1bn/runs/bubba_2025-04-02/checkpoints/last.ckpt"
     )
-    parser.add_argument(
-        "--is_family_model",
-        action="store_true",
-        default=False,
-        help="Whether the model is a family model",
-    )
+
     parser.add_argument(
         "--shuffle",
         action="store_true",
@@ -377,7 +373,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="results",
+        default="results/fseekS50_ur90_model_on_foldseek_s50_gym_context",
         help="Directory to save the CSV file",
     )
     parser.add_argument(
@@ -409,13 +405,15 @@ if __name__ == "__main__":
     else:
         dms_ids = None
     
-    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs, max_context_tokens=4000)
+    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs, max_context_tokens=7500)
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
     # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
 
+    with open(os.path.join(args.output_dir, f"model_checkpoint.txt"), "w") as f:
+        f.write(args.ckpt_path)
     # Create CSV file with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     csv_filename = os.path.join(args.output_dir, f"gym_evaluation_{timestamp}.csv")
@@ -433,56 +431,50 @@ if __name__ == "__main__":
         "spearman_correlation",
     ]
     results = []
-    # Open CSV file for writing
-    with open(csv_filename, "w", newline="") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=csv_headers)
-        writer.writeheader()
 
-        for batch_idx, batch in enumerate(dataloader):
-            print(f"\n\nProcessing batch {batch_idx}")
-            if args.max_completion_length is not None:
-                if batch["completion_ids"].shape[-1] > args.max_completion_length:
-                    print(
-                        f"Skipping batch {batch_idx} because completion length is too long"
-                    )
-                    continue
-            # Get alignment statistics
-            alignment_stats = get_alignment_statistics(
-                model.tokenizer, batch["input_ids"], batch["completion_ids"]
-            )
-
-            # Prepare batch for model evaluation
-            batch_for_model = {
-                k: v.to(device) for k, v in batch.items() if k != "ds_name"
-            }
-            # if not args.is_family_model:
-            #     batch_for_model = modify_batch_for_single_seq_scoring(batch_for_model)
-            if args.shuffle:
-                batch_for_model = apply_shuffle_in_batch(batch_for_model)
-            if args.limit_n_seqs is not None:
-                batch_for_model = limit_number_of_prompt_sequences(
-                    batch_for_model, model.tokenizer.sep_token_id, args.limit_n_seqs
+    for batch_idx, batch in enumerate(dataloader):
+        print(f"\n\nProcessing batch {batch_idx}")
+        if args.max_completion_length is not None:
+            if batch["completion_ids"].shape[-1] > args.max_completion_length:
+                print(
+                    f"Skipping batch {batch_idx} because completion length is too long"
                 )
+                continue
+        # Get alignment statistics
+        alignment_stats = get_alignment_statistics(
+            model.tokenizer, batch["input_ids"], batch["completion_ids"]
+        )
 
-            spearman, log_likelihood = capture_gym_metrics(model, batch_for_model)
-            row_data = {
-                "batch_idx": batch_idx,
-                "dataset_name": batch.get("ds_name", "unknown"),
-                "mean_sequence_identity": alignment_stats["mean_sequence_identity"],
-                "mean_completion_coverage": alignment_stats["mean_completion_coverage"],
-                "mean_alignment_coverage": alignment_stats["mean_alignment_coverage"],
-                "n_completion_sequences": alignment_stats["n_completion_sequences"],
-                "n_completion_tokens": alignment_stats["n_completion_tokens"],
-                "log_likelihood": log_likelihood,
-                "spearman_correlation": spearman,
-            }
-            writer.writerow(row_data)
-            results.append(row_data)
-            print(
-                f"Batch {batch_idx} - Log Likelihood: {row_data['log_likelihood']:.4f}, Spearman: {row_data['spearman_correlation']:.4f}"
+        # Prepare batch for model evaluation
+        batch_for_model = {
+            k: v.to(device) for k, v in batch.items() if k != "ds_name"
+        }
+        if args.shuffle:
+            batch_for_model = apply_shuffle_in_batch(batch_for_model)
+        if args.limit_n_seqs is not None:
+            batch_for_model = limit_number_of_prompt_sequences(
+                batch_for_model, model.tokenizer.sep_token_id, args.limit_n_seqs
             )
-            df = pd.DataFrame(results)
-            df.to_csv(os.path.join(args.output_dir, f"gym_evaluation.csv"), index=False)
-            print(f"Mean spearman: {df['spearman_correlation'].mean()}")
-            print(f"Mean log likelihood: {df['log_likelihood'].mean()}")
+
+        spearman, log_likelihood = capture_gym_metrics(model, batch_for_model)
+        row_data = {
+            "batch_idx": batch_idx,
+            "dataset_name": batch.get("ds_name", "unknown"),
+            "mean_sequence_identity": alignment_stats["mean_sequence_identity"],
+            "mean_completion_coverage": alignment_stats["mean_completion_coverage"],
+            "mean_alignment_coverage": alignment_stats["mean_alignment_coverage"],
+            "n_completion_sequences": alignment_stats["n_completion_sequences"],
+            "n_completion_tokens": alignment_stats["n_completion_tokens"],
+            "log_likelihood": log_likelihood,
+            "spearman_correlation": spearman,
+        }
+
+        results.append(row_data)
+        print(
+            f"Batch {batch_idx} - Log Likelihood: {row_data['log_likelihood']:.4f}, Spearman: {row_data['spearman_correlation']:.4f}"
+        )
+        df = pd.DataFrame(results)
+        df.to_csv(csv_filename, index=False)
+        print(f"Mean spearman: {df['spearman_correlation'].mean()}")
+        print(f"Mean log likelihood: {df['log_likelihood'].mean()}")
     print(f"\nEvaluation complete. Results saved to {csv_filename}")
