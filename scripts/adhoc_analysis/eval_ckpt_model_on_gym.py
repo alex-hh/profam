@@ -25,7 +25,7 @@ from src.utils import rich_utils
 from src.utils.utils import get_config_from_cpt_path
 
 foldseek_dms_ids = [
-    "A0A1I9GEU1_NEIME_Kennouche_2019",
+    # "A0A1I9GEU1_NEIME_Kennouche_2019",
     "ADRB2_HUMAN_Jones_2020",
     "AMFR_HUMAN_Tsuboyama_2023_4G3O",
     "BBC1_YEAST_Tsuboyama_2023_1TG0",
@@ -373,7 +373,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="results/fseekS50_ur90_model_on_foldseek_s50_gym_context",
+        default="results/fseekS50_ur90_model_on_normal_gym_context",
         help="Directory to save the CSV file",
     )
     parser.add_argument(

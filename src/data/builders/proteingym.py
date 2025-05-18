@@ -212,7 +212,8 @@ def build_gym_df(dms_ids, gym_data_dir: str):
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     df["MSA_filename"] = df["DMS_id"].apply(
-        lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x) + ".a2m"
+        # lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x) + ".a2m"
+        lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x) + ".a3m"
     )
     df["DMS_filename"] = df["DMS_filename"].apply(
         lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
