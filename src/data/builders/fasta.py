@@ -124,12 +124,11 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
 class FastaProteinIterableDataset(IterableHFProteinDataset):
     """Iterable (streaming) version of :class:`FastaProteinDataset`.
 
-    This class is equivalent in behaviour to ``FastaProteinDataset`` but
-    utilises the :class:`IterableHFProteinDataset` base so that the HuggingFace
-    ``datasets`` library streams the underlying FASTA text files instead of
-    memory-mapping them.  This is more memory-efficient for very large FASTA
-    corpora because it loads shards on-the-fly and supports approximate
-    shuffling.
+    equivalent in behaviour to ``FastaProteinDataset`` but utilises the
+    :class:`IterableHFProteinDataset` base so that the HuggingFace ``datasets``
+    library streams the underlying FASTA text files instead of memory-mapping
+    them. Necessary to add fasta dataset (such as Protein Gym MSAs)
+    to the combined interleaved training dataset.
     """
 
     # We reuse the static ``build_document`` implementation from the map style
