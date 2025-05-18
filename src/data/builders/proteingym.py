@@ -206,15 +206,19 @@ def load_comp_seq_dms_for_row(
     return row
 
 
-def build_gym_df(dms_ids, gym_data_dir: str):
+def build_gym_df(dms_ids, gym_data_dir: str, use_foldseek_msa: bool = False):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
-    df["MSA_filename"] = df["MSA_filename"].apply(
-        # lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x) + ".a2m"
-        lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
-    )
+    if use_foldseek_msa:
+        df["MSA_filename"] = df["MSA_filename"].apply(
+            lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)
+        )
+    else:
+        df["MSA_filename"] = df["MSA_filename"].apply(
+            lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
+        )
     assert all(os.path.exists(msa_file) for msa_file in df["MSA_filename"]), "MSA files do not exist"
     df["DMS_filename"] = df["DMS_filename"].apply(
         lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
@@ -245,6 +249,7 @@ class ProteinGymDataset(BaseProteinDataset):
         num_proc: Optional[int] = None,
         gym_data_dir: Optional[str] = None,
         max_tokens_per_example: Optional[int] = None,
+        use_foldseek_msa: bool = False,
         max_context_seqs: Optional[
             int
         ] = None,  # 0 means no family context, None means use all
@@ -275,6 +280,7 @@ class ProteinGymDataset(BaseProteinDataset):
         self.max_context_seqs = max_context_seqs
         self.keep_wt = keep_wt
         self.drop_wt = drop_wt
+        self.use_foldseek_msa = use_foldseek_msa
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
                 warnings.warn(
@@ -393,6 +399,7 @@ class ProteinGymDataset(BaseProteinDataset):
             gym_data_dir=os.path.join(data_dir, "ProteinGym")
             if self.gym_data_dir is None
             else self.gym_data_dir,
+            use_foldseek_msa=self.use_foldseek_msa,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)

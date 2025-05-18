@@ -359,6 +359,12 @@ if __name__ == "__main__":
         help="Enable shuffling of the ProteinGym dataset",
     )
     parser.add_argument(
+        "--use_foldseek_msa",
+        action="store_true",
+        default=False,
+        help="Whether to use foldseek MSA files",
+    )
+    parser.add_argument(
         "--limit_n_seqs",
         type=int,
         default=None,
