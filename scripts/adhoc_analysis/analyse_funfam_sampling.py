@@ -1,9 +1,10 @@
 import glob
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 from sklearn.metrics import r2_score
 
 csv_path = "/Users/judewells/Downloads/SING_RAND2/*.csv"
@@ -30,7 +31,10 @@ os.makedirs(out_dir, exist_ok=True)
 
 # Helper function to create scatter plot with R^2
 
-def create_scatter_with_r2(df, x_col, y_col, xlabel=None, ylabel=None, title=None, fname=None):
+
+def create_scatter_with_r2(
+    df, x_col, y_col, xlabel=None, ylabel=None, title=None, fname=None
+):
     """Generate a scatter (reg) plot with R^2 annotation and save it.
 
     Parameters
@@ -63,7 +67,9 @@ def create_scatter_with_r2(df, x_col, y_col, xlabel=None, ylabel=None, title=Non
 
     # Plot
     plt.figure(figsize=(6, 5))
-    sns.regplot(x=x, y=y, scatter_kws={"s": 10, "alpha": 0.1}, line_kws={"color": "red"})
+    sns.regplot(
+        x=x, y=y, scatter_kws={"s": 10, "alpha": 0.1}, line_kws={"color": "red"}
+    )
 
     xlabel = xlabel or x_col
     ylabel = ylabel or y_col
@@ -92,7 +98,10 @@ def create_scatter_with_r2(df, x_col, y_col, xlabel=None, ylabel=None, title=Non
 
 # NEW FUNCTION FOR PAIRED PLOTS
 
-def create_dual_scatter_with_r2(df, x_col, y_col, xlabel=None, ylabel=None, title=None, fname=None):
+
+def create_dual_scatter_with_r2(
+    df, x_col, y_col, xlabel=None, ylabel=None, title=None, fname=None
+):
     """Scatter+reg plots for ProFam and `mut_` data on the same axes.
 
     Two sets of points/lines are drawn in different colors and the R² for each
@@ -182,15 +191,33 @@ def create_dual_scatter_with_r2(df, x_col, y_col, xlabel=None, ylabel=None, titl
 
 # Define pairs to plot: (x_col, y_col, xlabel, ylabel, title, filename)
 plot_specs = [
-    ("max_sample_prompt_identity", "max_tm_score", "Max Sample–Prompt Identity", "Max TM-score", None, "max_identity_vs_max_tm.png"),
-    ("max_sample_prompt_identity", "sample_plddt", "Max Sample–Prompt Identity", "Sample pLDDT", None, "max_identity_vs_sample_plddt.png"),
-    ("prompt_plddt", "sample_plddt", "Prompt pLDDT", "Sample pLDDT", None, "prompt_plddt_vs_sample_plddt.png"),
+    (
+        "max_sample_prompt_identity",
+        "max_tm_score",
+        "Max Sample–Prompt Identity",
+        "Max TM-score",
+        None,
+        "max_identity_vs_max_tm.png",
+    ),
+    (
+        "max_sample_prompt_identity",
+        "sample_plddt",
+        "Max Sample–Prompt Identity",
+        "Sample pLDDT",
+        None,
+        "max_identity_vs_sample_plddt.png",
+    ),
+    (
+        "prompt_plddt",
+        "sample_plddt",
+        "Prompt pLDDT",
+        "Sample pLDDT",
+        None,
+        "prompt_plddt_vs_sample_plddt.png",
+    ),
 ]
 
 for x_col, y_col, xlabel, ylabel, title, fname in plot_specs:
     create_dual_scatter_with_r2(df, x_col, y_col, xlabel, ylabel, title, fname)
 
 print(f"Saved plots to {out_dir}")
-
-
-
