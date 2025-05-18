@@ -54,7 +54,6 @@ def convert_uniprot_ids_to_uniprot_accessions(uniprot_ids):
 
     def _looks_like_accession(uid: str) -> bool:
         """Heuristic check if *uid* already appears to be an accession."""
-        # Typical accessions have length 6 (e.g. P04637) or 10 (e.g. A0A023GPI8)
         return len(uid) in (6, 10) and uid[0].isalpha() and uid[-1].isdigit()
 
     if isinstance(uniprot_ids, (pd.Series, list, tuple, set, np.ndarray)):
@@ -66,7 +65,6 @@ def convert_uniprot_ids_to_uniprot_accessions(uniprot_ids):
     cache: Dict[str, Union[str, None]] = {}
 
     for uid in ids_iterable:
-        # Re-use previous look-ups to avoid redundant API calls
         if uid in cache:
             resolved_accessions.append(cache[uid])
             continue
@@ -84,9 +82,6 @@ def convert_uniprot_ids_to_uniprot_accessions(uniprot_ids):
                     accession = None
             except requests.RequestException:
                 accession = None
-
-            # Be gentle with the public UniProt server – small sleep to avoid
-            # triggering rate limits when large batches are processed.
             time.sleep(0.1)
 
         cache[uid] = accession
@@ -153,7 +148,6 @@ def align_foldseek_family_with_gym_target_sequence(foldseek_family_seq, gym_targ
 
     start_t = time.perf_counter()
 
-    # Ensure we work with a list of str ------------------------------------------------
     if isinstance(foldseek_family_seq, np.ndarray):
         queries = foldseek_family_seq.tolist()
     else:
@@ -164,7 +158,6 @@ def align_foldseek_family_with_gym_target_sequence(foldseek_family_seq, gym_targ
         subject_fa = os.path.join(tmpdir, "target.fa")
         blast_out = os.path.join(tmpdir, "blast.tsv")
 
-        # Write fasta files ----------------------------------------------------------
         with open(subject_fa, "w") as fh:
             fh.write(">target\n" + gym_target_seq + "\n")
 
@@ -172,9 +165,6 @@ def align_foldseek_family_with_gym_target_sequence(foldseek_family_seq, gym_targ
             for i, seq in enumerate(queries):
                 fh.write(f">seq_{i}\n{seq}\n")
 
-        # Build BLAST command ---------------------------------------------------------
-        # We ask for a custom tabular output (outfmt 6) that includes the fields
-        # we need:   qseqid nident length pident qlen slen qstart qend sstart send
         outfmt_cols = "6 qseqid nident length pident qlen slen qstart qend sstart send qseq sseq"
 
         cmd = [
@@ -191,10 +181,8 @@ def align_foldseek_family_with_gym_target_sequence(foldseek_family_seq, gym_targ
         with open(blast_out, "w") as bout:
             subprocess.run(cmd, check=True, stdout=bout)
 
-        # Parse BLAST tabular output --------------------------------------------------
         kept_sequences: List[str] = []  # ungapped, trimmed sequences
         aligned_strings: List[str] = []  # alignment strings (same length as target) using '.' for gaps
-        # Map query label -> original sequence for fast lookup
         label_to_seq = {f"seq_{i}": seq for i, seq in enumerate(queries)}
 
         with open(blast_out) as fh:
@@ -304,15 +292,11 @@ if __name__ == "__main__":
                             row.sequences, gym_row.target_seq, threads=8, measure_time=True
                         )
 
-                        # Store ungapped aligned sequences as context
                         new_row["context_sequences"] = aligned_foldseek_sequences
 
-                        # ------------------------------------------------------------------
-                        # Save MSA (.a2m) file comprising target + aligned sequences
-                        # ------------------------------------------------------------------
                         msa_dir = os.path.join("..", "data", "ProteinGym", "foldseek_s50_DMS_msa_files")
                         os.makedirs(msa_dir, exist_ok=True)
-                        msa_path = os.path.join(msa_dir, f"{gym_row.DMS_id}.a2m")
+                        msa_path = os.path.join(msa_dir, f"{gym_row.MSA_filename}")
 
                         with open(msa_path, "w") as msa_f:
                             # First write the target sequence (reference) – no gaps
