@@ -223,6 +223,7 @@ def build_protein_gym_dataloader(
     dms_ids: Optional[List[str]] = None,
     max_context_seqs: Optional[int] = None,
     max_context_tokens: int = 16_000,
+    use_foldseek_msa: bool = False,
 ) -> DataLoader:
     print(f"Building ProteinGym dataloader with max_context_tokens={max_context_tokens} and max_context_seqs={max_context_seqs}")
     dataset_builder = ProteinGymDataset(
@@ -238,6 +239,7 @@ def build_protein_gym_dataloader(
         num_proc=None,
         max_tokens_per_example=max_context_tokens,
         max_context_seqs=max_context_seqs,
+        use_foldseek_msa=use_foldseek_msa
     )
     dataset = dataset_builder.load(
         data_dir=config.paths.data_dir,
@@ -411,7 +413,13 @@ if __name__ == "__main__":
     else:
         dms_ids = None
     
-    dataloader = build_protein_gym_dataloader(config, dms_ids, args.max_context_seqs, max_context_tokens=7500)
+    dataloader = build_protein_gym_dataloader(
+        config, 
+        dms_ids, 
+        args.max_context_seqs, 
+        max_context_tokens=7500,
+        
+        )
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
