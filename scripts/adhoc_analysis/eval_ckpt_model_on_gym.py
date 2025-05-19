@@ -261,7 +261,6 @@ def build_protein_gym_dataloader(
 def modify_batch_for_single_seq_scoring(
     batch: Dict[str, torch.Tensor]
 ) -> Dict[str, torch.Tensor]:
-    raise NotImplementedError("This function is for debugging only")
     start_toks = batch["input_ids"][:, :2]
     new_batch = {}
     if "ds_name" in batch:
@@ -292,6 +291,21 @@ def apply_shuffle_in_batch(batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Te
     if "input_ids" in batch and batch["input_ids"] is not None:
 
         batch["input_ids"] = batch["input_ids"][:, permutation]
+    return batch
+
+
+def limit_number_of_prompt_sequences(
+    batch: Dict[str, torch.Tensor], sep_tok_id: int, n_seqs: int = 1
+) -> Dict[str, torch.Tensor]:
+
+    assert batch["input_ids"].shape[0] == 1, "Batch size must be 1"
+    _, sequence_ends = torch.where(batch["input_ids"] == sep_tok_id)
+    n_seqs = min(n_seqs, sequence_ends.shape[0])
+    cut_off_index = sequence_ends[n_seqs - 1]
+    batch["input_ids"] = batch["input_ids"][:, :cut_off_index]
+    assert all(batch["input_ids"][:, -1] < 20), "Last token should be a residue"
+    if "residue_index" in batch:
+        batch["residue_index"] = batch["residue_index"][:, :cut_off_index]
     return batch
 
 
@@ -384,12 +398,6 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help="Maximum length of completion sequences to use",
-    )
-    parser.add_argument(
-        "--use_wt_only_as_context",
-        action="store_true",
-        default=False,
-        help="Whether to use WT only as context",
     )
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
