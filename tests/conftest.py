@@ -128,6 +128,8 @@ def proteingym_batch(profam_tokenizer):
         seed=42,
         max_tokens_per_example=2048,
         num_proc=None,
+        keep_wt=True,
+        drop_wt=False,
     )
     data = builder.load(
         data_dir=os.path.join(BASEDIR, "data/example_data"),
