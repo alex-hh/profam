@@ -5,7 +5,7 @@
 #$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N evalGym
+#$ -N evalGymNormContext
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
@@ -21,8 +21,9 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/scripts/adhoc_analysis/eval_ckpt_model_on_gym.py \
---ckpt_path "${ROOT_DIR}/logs/train_single_seq_ur90_1bn/runs/2025-04-14_19-51-54-868135/checkpoints/last.ckpt" \
---output_dir "${ROOT_DIR}/results/train_single_seq_ur90_1bn_2025-04-14_19-51-54-868135" \
---max_context_seqs 0 \
+--ckpt_path "${ROOT_DIR}/logs/train_foldseekS50_UR90_251m/runs/2025-05-15_freeze/checkpoints/last.ckpt" \
+--output_dir "${ROOT_DIR}/results/fseekS50_ur90_model_on_normal_gym_context" \
+# --max_context_seqs 0 \
+--use_dms_ids \
 --max_completion_length 320
 date

@@ -24,6 +24,35 @@ from src.models.llama import LlamaLitModule
 from src.utils import rich_utils
 from src.utils.utils import get_config_from_cpt_path
 
+foldseek_dms_ids = [
+    "A0A1I9GEU1_NEIME_Kennouche_2019",
+    "ADRB2_HUMAN_Jones_2020",
+    "AMFR_HUMAN_Tsuboyama_2023_4G3O",
+    "BBC1_YEAST_Tsuboyama_2023_1TG0",
+    "CASP7_HUMAN_Roychowdhury_2020",
+    "CD19_HUMAN_Klesmith_2019_FMC_singles",
+    "DLG4_RAT_McLaughlin_2012",
+    "GCN4_YEAST_Staller_2018",
+    "KCNE1_HUMAN_Muhammad_2023_expression",
+    "KCNE1_HUMAN_Muhammad_2023_function",
+    "MBD11_ARATH_Tsuboyama_2023_6ACV",
+    "ODP2_GEOSE_Tsuboyama_2023_1W4G",
+    "PABP_YEAST_Melamed_2013",
+    "PHOT_CHLRE_Chen_2023",
+    "PRKN_HUMAN_Clausen_2023",
+    "RD23A_HUMAN_Tsuboyama_2023_1IFY",
+    "SCN5A_HUMAN_Glazer_2019",
+    "SPG2_STRSG_Tsuboyama_2023_5UBS",
+    "SQSTM_MOUSE_Tsuboyama_2023_2RRU",
+    "SRBS1_HUMAN_Tsuboyama_2023_2O2W",
+    "THO1_YEAST_Tsuboyama_2023_2WQG",
+    "TRPC_THEMA_Chan_2017",
+    "VKOR1_HUMAN_Chiasson_2020_abundance",
+    "VKOR1_HUMAN_Chiasson_2020_activity",
+    "YAP1_HUMAN_Araya_2012",
+    "YNZC_BACSU_Tsuboyama_2023_2JVD",
+]
+
 
 def get_alignment_metrics(query_seq, input_seq):
     """
@@ -194,11 +223,11 @@ def build_protein_gym_dataloader(
     config: DictConfig,
     dms_ids: Optional[List[str]] = None,
     max_context_seqs: Optional[int] = None,
-    use_wt_only_as_context: bool = False,
-    context: int = 16_000,
+    max_context_tokens: int = 16_000,
+    use_foldseek_msa: bool = False,
 ) -> DataLoader:
     print(
-        f"Building ProteinGym with max_context_seqs={str(max_context_seqs)} and context tokens={context}"
+        f"Building ProteinGym dataloader with max_context_tokens={max_context_tokens} and max_context_seqs={max_context_seqs}"
     )
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
@@ -207,13 +236,13 @@ def build_protein_gym_dataloader(
         max_mutated_sequences=None,
         mutant_bos_token="sep" if max_context_seqs != 0 else None,
         keep_gaps=False,
-        use_filtered_msa=True,
+        use_filtered_msa=False,
         extra_tokens_per_document=2,
         use_msa_pos=False,
         num_proc=None,
-        max_tokens_per_example=context,
+        max_tokens_per_example=max_context_tokens,
         max_context_seqs=max_context_seqs,
-        use_wt_only_as_context=use_wt_only_as_context,
+        use_foldseek_msa=use_foldseek_msa,
     )
     dataset = dataset_builder.load(
         data_dir=config.paths.data_dir,
@@ -224,7 +253,7 @@ def build_protein_gym_dataloader(
         dataset,
         tokenizer=model.tokenizer,
         feature_names=config.data.feature_names,
-        pack_to_max_tokens=context,
+        pack_to_max_tokens=max_context_tokens,
     )
     return DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False)
 
@@ -232,7 +261,6 @@ def build_protein_gym_dataloader(
 def modify_batch_for_single_seq_scoring(
     batch: Dict[str, torch.Tensor]
 ) -> Dict[str, torch.Tensor]:
-    raise NotImplementedError("This function is for debugging only")
     start_toks = batch["input_ids"][:, :2]
     new_batch = {}
     if "ds_name" in batch:
@@ -263,6 +291,21 @@ def apply_shuffle_in_batch(batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Te
     if "input_ids" in batch and batch["input_ids"] is not None:
 
         batch["input_ids"] = batch["input_ids"][:, permutation]
+    return batch
+
+
+def limit_number_of_prompt_sequences(
+    batch: Dict[str, torch.Tensor], sep_tok_id: int, n_seqs: int = 1
+) -> Dict[str, torch.Tensor]:
+
+    assert batch["input_ids"].shape[0] == 1, "Batch size must be 1"
+    _, sequence_ends = torch.where(batch["input_ids"] == sep_tok_id)
+    n_seqs = min(n_seqs, sequence_ends.shape[0])
+    cut_off_index = sequence_ends[n_seqs - 1]
+    batch["input_ids"] = batch["input_ids"][:, :cut_off_index]
+    assert all(batch["input_ids"][:, -1] < 20), "Last token should be a residue"
+    if "residue_index" in batch:
+        batch["residue_index"] = batch["residue_index"][:, :cut_off_index]
     return batch
 
 
@@ -320,7 +363,18 @@ if __name__ == "__main__":
         default=False,
         help="Enable shuffling of the ProteinGym dataset",
     )
-
+    parser.add_argument(
+        "--use_foldseek_msa",
+        action="store_true",
+        default=False,
+        help="Whether to use foldseek MSA files",
+    )
+    parser.add_argument(
+        "--limit_n_seqs",
+        type=int,
+        default=None,
+        help="Number of prompt sequences to evaluate on",
+    )
     parser.add_argument(
         "--use_dms_ids",
         action="store_true",
@@ -330,7 +384,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="results",
+        default="results/fseekS50_ur90_model_on_normal_gym_context",
         help="Directory to save the CSV file",
     )
     parser.add_argument(
@@ -345,12 +399,6 @@ if __name__ == "__main__":
         default=None,
         help="Maximum length of completion sequences to use",
     )
-    parser.add_argument(
-        "--use_wt_only_as_context",
-        action="store_true",
-        default=False,
-        help="Whether to use WT only as context",
-    )
     args = parser.parse_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = get_config_from_cpt_path(args.ckpt_path)
@@ -364,20 +412,25 @@ if __name__ == "__main__":
     model.to(device, dtype=dtype)
     # sample_from_model(model)
     if args.use_dms_ids:
-        dms_ids = config.constants.gym_val_assay_list
+        dms_ids = foldseek_dms_ids  # config.constants.gym_val_assay_list
     else:
         dms_ids = None
+
     dataloader = build_protein_gym_dataloader(
         config,
         dms_ids,
-        max_context_seqs=args.max_context_seqs,
-        use_wt_only_as_context=args.use_wt_only_as_context,
+        args.max_context_seqs,
+        max_context_tokens=7500,
+        use_foldseek_msa=args.use_foldseek_msa,
     )
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
     # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
+
+    with open(os.path.join(args.output_dir, f"model_checkpoint.txt"), "w") as f:
+        f.write(args.ckpt_path)
 
     # Create CSV file with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -396,57 +449,48 @@ if __name__ == "__main__":
         "spearman_correlation",
     ]
     results = []
-    # Open CSV file for writing
-    with open(csv_filename, "w", newline="") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=csv_headers)
-        writer.writeheader()
 
-        for batch_idx, batch in enumerate(dataloader):
-            print(f"\n\nProcessing batch {batch_idx}")
-            if args.max_completion_length is not None:
-                if batch["completion_ids"].shape[-1] > args.max_completion_length:
-                    print(
-                        f"Skipping batch {batch_idx} because completion length is too long"
-                    )
-                    continue
-            # Get alignment statistics
-            print(f"Batch input_ids shape: {batch['input_ids'].shape}")
-            print(f"Batch completion_ids shape: {batch['completion_ids'].shape}")
-            alignment_stats = get_alignment_statistics(
-                model.tokenizer, batch["input_ids"], batch["completion_ids"]
+    for batch_idx, batch in enumerate(dataloader):
+        print(f"\n\nProcessing batch {batch_idx}")
+        if args.max_completion_length is not None:
+            if batch["completion_ids"].shape[-1] > args.max_completion_length:
+                print(
+                    f"Skipping batch {batch_idx} because completion length is too long"
+                )
+                continue
+        # Get alignment statistics
+        alignment_stats = get_alignment_statistics(
+            model.tokenizer, batch["input_ids"], batch["completion_ids"]
+        )
+
+        # Prepare batch for model evaluation
+        batch_for_model = {k: v.to(device) for k, v in batch.items() if k != "ds_name"}
+        if args.shuffle:
+            batch_for_model = apply_shuffle_in_batch(batch_for_model)
+        if args.limit_n_seqs is not None:
+            batch_for_model = limit_number_of_prompt_sequences(
+                batch_for_model, model.tokenizer.sep_token_id, args.limit_n_seqs
             )
 
-            # Prepare batch for model evaluation
-            batch_for_model = {
-                k: v.to(device) for k, v in batch.items() if k != "ds_name"
-            }
-            if args.shuffle:
-                batch_for_model = apply_shuffle_in_batch(batch_for_model)
+        spearman, log_likelihood = capture_gym_metrics(model, batch_for_model)
+        row_data = {
+            "batch_idx": batch_idx,
+            "dataset_name": batch.get("ds_name", "unknown"),
+            "mean_sequence_identity": alignment_stats["mean_sequence_identity"],
+            "mean_completion_coverage": alignment_stats["mean_completion_coverage"],
+            "mean_alignment_coverage": alignment_stats["mean_alignment_coverage"],
+            "n_completion_sequences": alignment_stats["n_completion_sequences"],
+            "n_completion_tokens": alignment_stats["n_completion_tokens"],
+            "log_likelihood": log_likelihood,
+            "spearman_correlation": spearman,
+        }
 
-            spearman, log_likelihood = capture_gym_metrics(model, batch_for_model)
-            row_data = {
-                "batch_idx": batch_idx,
-                "dataset_name": batch.get("ds_name", "unknown"),
-                "mean_sequence_identity": alignment_stats["mean_sequence_identity"],
-                "mean_completion_coverage": alignment_stats["mean_completion_coverage"],
-                "mean_alignment_coverage": alignment_stats["mean_alignment_coverage"],
-                "n_completion_sequences": alignment_stats["n_completion_sequences"],
-                "n_completion_tokens": alignment_stats["n_completion_tokens"],
-                "log_likelihood": log_likelihood,
-                "spearman_correlation": spearman,
-            }
-            writer.writerow(row_data)
-            results.append(row_data)
-            print(
-                f"Batch {batch_idx} - Log Likelihood: {row_data['log_likelihood']:.4f}, Spearman: {row_data['spearman_correlation']:.4f}"
-            )
-    results_df = pd.DataFrame(results)
-    print(f"Generated predictions for {len(results_df)} ProteinGym assays")
-    print(
-        f"Average spearman correltion {round(results_df['spearman_correlation'].mean(), 3)}"
-    )
-    print(f"Average log likelihood {round(results_df['log_likelihood'].mean(), 3)}")
-    print(
-        f"Correlation between log likelihood and spearman correlation: {round(results_df['spearman_correlation'].corr(results_df['log_likelihood']), 3)}"
-    )
+        results.append(row_data)
+        print(
+            f"Batch {batch_idx} - Log Likelihood: {row_data['log_likelihood']:.4f}, Spearman: {row_data['spearman_correlation']:.4f}"
+        )
+        df = pd.DataFrame(results)
+        df.to_csv(csv_filename, index=False)
+        print(f"Mean spearman: {df['spearman_correlation'].mean()}")
+        print(f"Mean log likelihood: {df['log_likelihood'].mean()}")
     print(f"\nEvaluation complete. Results saved to {csv_filename}")

@@ -110,26 +110,23 @@ def load_msa_for_row(
     tokenizer,
     max_tokens,
     max_context_seqs: Optional[int] = None,
-    keep_wt=True,
-    drop_wt=False,
+    keep_wt=False,
+    drop_wt=True,
     keep_gaps=False,
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
     use_msa_pos: bool = True,
-    use_wt_only_as_context: bool = False,
 ):
-    if use_wt_only_as_context:
-        seqs = [row["target_seq"]]
-    else:
-        msa_file = row["MSA_filename"]
-        if use_filtered_msa:
-            msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
-        _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
-            msa_file,
-            keep_insertions=True,
-            to_upper=True,
-            keep_gaps=True if use_msa_pos else keep_gaps,
-        )
+    msa_file = row["MSA_filename"]
+    if use_filtered_msa:
+        msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
+    print(f"Loading MSA from {msa_file}")
+    _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
+        msa_file,
+        keep_insertions=True,
+        to_upper=True,
+        keep_gaps=True if use_msa_pos else keep_gaps,
+    )
     proteins = ProteinDocument(
         sequences=seqs,
         accessions=None,
@@ -209,19 +206,34 @@ def load_comp_seq_dms_for_row(
     return row
 
 
-def build_gym_df(dms_ids, gym_data_dir: str):
+def build_gym_df(dms_ids, gym_data_dir: str, use_foldseek_msa: bool = False):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
-    df["MSA_filename"] = df["MSA_filename"].apply(
-        lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
-    )
+    if use_foldseek_msa:
+        df["MSA_filename"] = df["MSA_filename"].apply(
+            lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)
+        )
+    else:
+        df["MSA_filename"] = df["MSA_filename"].apply(
+            lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
+        )
+    assert all(
+        os.path.exists(msa_file) for msa_file in df["MSA_filename"]
+    ), "MSA files do not exist"
     df["DMS_filename"] = df["DMS_filename"].apply(
         lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
     )
     df["ds_name"] = "gym"
-    return df[["DMS_id", "MSA_filename", "DMS_filename", "ds_name", "target_seq" ""]]
+    return df[
+        [
+            "DMS_id",
+            "MSA_filename",
+            "DMS_filename",
+            "ds_name",
+        ]
+    ]
 
 
 class ProteinGymDataset(BaseProteinDataset):
@@ -239,12 +251,12 @@ class ProteinGymDataset(BaseProteinDataset):
         num_proc: Optional[int] = None,
         gym_data_dir: Optional[str] = None,
         max_tokens_per_example: Optional[int] = None,
+        use_foldseek_msa: bool = False,
         max_context_seqs: Optional[
             int
         ] = None,  # 0 means no family context, None means use all
-        use_wt_only_as_context: bool = False,
-        keep_wt=True,
-        drop_wt=False,
+        keep_wt: bool = False,
+        drop_wt: bool = True,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -268,14 +280,9 @@ class ProteinGymDataset(BaseProteinDataset):
         self.gym_data_dir = gym_data_dir
         self.max_tokens_per_example = max_tokens_per_example
         self.max_context_seqs = max_context_seqs
-        self.use_wt_only_as_context = use_wt_only_as_context
-        assert not (keep_wt and drop_wt)
         self.keep_wt = keep_wt
         self.drop_wt = drop_wt
-        if use_wt_only_as_context:
-            assert (
-                max_context_seqs == 1
-            ), "use_wt_only_as_context requires max_context_seqs == 1"
+        self.use_foldseek_msa = use_foldseek_msa
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
                 warnings.warn(
@@ -284,6 +291,7 @@ class ProteinGymDataset(BaseProteinDataset):
                 self.mutant_bos_token = self.document_token
             # this is necessary because the first completion sequence token cannot be
             # and AA otherwise we can't extract the likelihood for the first AA
+        self.print_settings()
 
     @property
     def document_token(self):
@@ -294,6 +302,24 @@ class ProteinGymDataset(BaseProteinDataset):
         else:
             return "[RAW]"
 
+    def print_settings(self):
+        print(f"ProteinGymDataset settings:")
+        print(f"  max_context_seqs: {self.max_context_seqs}")
+        print(f"  max_tokens_per_example: {self.max_tokens_per_example}")
+        print(f"  max_mutated_sequences: {self.max_mutated_sequences}")
+        print(f"  keep_gaps: {self.keep_gaps}")
+        print(f"  use_filtered_msa: {self.use_filtered_msa}")
+        print(f"  keep_wt: {self.keep_wt}")
+        print(f"  drop_wt: {self.drop_wt}")
+        print(f"  mutant_bos_token: {self.mutant_bos_token}")
+        print(f"  document_token: {self.document_token}")
+        print(f"  gym_data_dir: {self.gym_data_dir}")
+        print(f"  num_proc: {self.num_proc}")
+        print(f"  seed: {self.seed}")
+        print(f"  extra_tokens_per_document: {self.extra_tokens_per_document}")
+        print(f"  use_msa_pos: {self.use_msa_pos}")
+        print(f"  dms_ids: {self.dms_ids}")
+
     def process(
         self,
         dataset: Dataset,
@@ -302,9 +328,6 @@ class ProteinGymDataset(BaseProteinDataset):
         **kwargs,
     ):
         """mutant_bos_token should almost always be sep.
-
-        when using a BaseSingleSequenceLitModule, however, we want it
-        to be bos, since no context sequences are passed during scoring.
 
         n.b. we just ignore pack_to_max_tokens here.
         """
@@ -327,7 +350,6 @@ class ProteinGymDataset(BaseProteinDataset):
                     extra_tokens_per_document=self.extra_tokens_per_document,
                     use_msa_pos=self.use_msa_pos,
                     max_context_seqs=self.max_context_seqs,
-                    use_wt_only_as_context=self.use_wt_only_as_context,
                     keep_wt=self.keep_wt,
                     drop_wt=self.drop_wt,
                 ),
@@ -376,6 +398,7 @@ class ProteinGymDataset(BaseProteinDataset):
             gym_data_dir=os.path.join(data_dir, "ProteinGym")
             if self.gym_data_dir is None
             else self.gym_data_dir,
+            use_foldseek_msa=self.use_foldseek_msa,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)
