@@ -116,7 +116,6 @@ def load_msa_for_row(
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
     use_msa_pos: bool = True,
-    use_wt_only_as_context: bool = False,
 ):
     msa_file = row["MSA_filename"]
     if use_filtered_msa:
@@ -227,7 +226,14 @@ def build_gym_df(dms_ids, gym_data_dir: str, use_foldseek_msa: bool = False):
         lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
     )
     df["ds_name"] = "gym"
-    return df[["DMS_id", "MSA_filename", "DMS_filename", "ds_name", "target_seq" ""]]
+    return df[
+        [
+            "DMS_id",
+            "MSA_filename",
+            "DMS_filename",
+            "ds_name",
+        ]
+    ]
 
 
 class ProteinGymDataset(BaseProteinDataset):
