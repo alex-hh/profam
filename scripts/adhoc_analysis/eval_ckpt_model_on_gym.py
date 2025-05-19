@@ -53,6 +53,7 @@ foldseek_dms_ids = [
     "YNZC_BACSU_Tsuboyama_2023_2JVD",
 ]
 
+
 def get_alignment_metrics(query_seq, input_seq):
     """
     Calculate alignment metrics between query sequence and input sequence.
@@ -225,7 +226,9 @@ def build_protein_gym_dataloader(
     max_context_tokens: int = 16_000,
     use_foldseek_msa: bool = False,
 ) -> DataLoader:
-    print(f"Building ProteinGym dataloader with max_context_tokens={max_context_tokens} and max_context_seqs={max_context_seqs}")
+    print(
+        f"Building ProteinGym dataloader with max_context_tokens={max_context_tokens} and max_context_seqs={max_context_seqs}"
+    )
     dataset_builder = ProteinGymDataset(
         name="protein_gym",
         dms_ids=dms_ids,
@@ -239,7 +242,7 @@ def build_protein_gym_dataloader(
         num_proc=None,
         max_tokens_per_example=max_context_tokens,
         max_context_seqs=max_context_seqs,
-        use_foldseek_msa=use_foldseek_msa
+        use_foldseek_msa=use_foldseek_msa,
     )
     dataset = dataset_builder.load(
         data_dir=config.paths.data_dir,
@@ -409,17 +412,17 @@ if __name__ == "__main__":
     model.to(device, dtype=dtype)
     # sample_from_model(model)
     if args.use_dms_ids:
-        dms_ids = foldseek_dms_ids #config.constants.gym_val_assay_list
+        dms_ids = foldseek_dms_ids  # config.constants.gym_val_assay_list
     else:
         dms_ids = None
-    
+
     dataloader = build_protein_gym_dataloader(
-        config, 
-        dms_ids, 
-        args.max_context_seqs, 
+        config,
+        dms_ids,
+        args.max_context_seqs,
         max_context_tokens=7500,
-        use_foldseek_msa=args.use_foldseek_msa
-        )
+        use_foldseek_msa=args.use_foldseek_msa,
+    )
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
 
@@ -461,9 +464,7 @@ if __name__ == "__main__":
         )
 
         # Prepare batch for model evaluation
-        batch_for_model = {
-            k: v.to(device) for k, v in batch.items() if k != "ds_name"
-        }
+        batch_for_model = {k: v.to(device) for k, v in batch.items() if k != "ds_name"}
         if args.shuffle:
             batch_for_model = apply_shuffle_in_batch(batch_for_model)
         if args.limit_n_seqs is not None:

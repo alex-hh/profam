@@ -219,7 +219,9 @@ def build_gym_df(dms_ids, gym_data_dir: str, use_foldseek_msa: bool = False):
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
         )
-    assert all(os.path.exists(msa_file) for msa_file in df["MSA_filename"]), "MSA files do not exist"
+    assert all(
+        os.path.exists(msa_file) for msa_file in df["MSA_filename"]
+    ), "MSA files do not exist"
     df["DMS_filename"] = df["DMS_filename"].apply(
         lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
     )
@@ -290,6 +292,7 @@ class ProteinGymDataset(BaseProteinDataset):
             # this is necessary because the first completion sequence token cannot be
             # and AA otherwise we can't extract the likelihood for the first AA
         self.print_settings()
+
     @property
     def document_token(self):
         if self.keep_gaps:
@@ -298,7 +301,7 @@ class ProteinGymDataset(BaseProteinDataset):
             return "[RAW-WITH-MSA-POS]"
         else:
             return "[RAW]"
-    
+
     def print_settings(self):
         print(f"ProteinGymDataset settings:")
         print(f"  max_context_seqs: {self.max_context_seqs}")
@@ -316,7 +319,6 @@ class ProteinGymDataset(BaseProteinDataset):
         print(f"  extra_tokens_per_document: {self.extra_tokens_per_document}")
         print(f"  use_msa_pos: {self.use_msa_pos}")
         print(f"  dms_ids: {self.dms_ids}")
-
 
     def process(
         self,
