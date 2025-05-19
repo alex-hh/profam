@@ -418,7 +418,7 @@ if __name__ == "__main__":
         dms_ids, 
         args.max_context_seqs, 
         max_context_tokens=7500,
-        
+        use_foldseek_msa=args.use_foldseek_msa
         )
     # rich_utils.print_config_tree(config, resolve=True, save_to_file=False)
     print(config)
