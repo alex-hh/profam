@@ -6,7 +6,9 @@ def check_config(cfg: DictConfig):
     max_train_doc_len = 0
     for dataset in cfg.data.dataset_builders:
         if dataset not in cfg.data.val_dataset_batch_sizes:
-            n_toks = cfg.data.dataset_builders[dataset].preprocessor.cfg.max_tokens_per_example
+            n_toks = cfg.data.dataset_builders[
+                dataset
+            ].preprocessor.cfg.max_tokens_per_example
             max_train_doc_len = max(max_train_doc_len, n_toks)
     if "proteingym" in cfg.data.dataset_builders:
         pg_max_tokens = cfg.data.dataset_builders.proteingym.max_tokens_per_example
