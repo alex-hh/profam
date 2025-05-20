@@ -1,12 +1,15 @@
 import time
-from typing import Any, Dict, Optional
+from typing import Dict, Any, Optional
 
+import lightning as L
 import torch
 from datasets import IterableDataset
 from lightning.fabric.utilities.throughput import get_available_flops
-from lightning.pytorch.callbacks import Callback, ThroughputMonitor
+from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.callbacks import ThroughputMonitor
 from lightning.pytorch.callbacks.throughput_monitor import _plugin_to_compute_dtype
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
+from lightning.pytorch.utilities import rank_zero_info
 from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
 from typing_extensions import override
 
@@ -214,3 +217,60 @@ class TokenThroughputMonitor(ThroughputMonitor):
             proteins=self._proteins[stage],
             flops=flops_per_batch,
         )
+
+
+class SampleCounter(Callback):
+    """
+    Tracks the total number of samples seen during training.
+    
+    This callback maintains a counter of samples processed across all dataloaders,
+    which persists through checkpoint saves and loads. The counter works with
+    distributed training across multiple devices and nodes.
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.samples_seen = 0
+    
+    def on_train_batch_end(self, trainer: L.Trainer, pl_module: L.LightningModule, 
+                          outputs: Dict[str, Any], batch: Any, batch_idx: int) -> None:
+        """Update the sample count after each batch is processed"""
+        # Get batch size - handle different batch formats
+        if isinstance(batch, dict) and "input_ids" in batch:
+            # Handle HF-style batch dict with input_ids
+            batch_size = batch["input_ids"].size(0)
+        elif isinstance(batch, (list, tuple)) and len(batch) > 0:
+            # Handle tuple/list batches - take first tensor
+            first_elem = batch[0]
+            if hasattr(first_elem, "size"):
+                batch_size = first_elem.size(0)
+            else:
+                batch_size = len(first_elem)
+        else:
+            # Fallback - try to determine batch size
+            try:
+                batch_size = len(batch)
+            except (TypeError, AttributeError):
+                batch_size = 1  # Default if we can't determine
+        
+        # In distributed setting, we need to sync the count
+        if trainer.world_size > 1:
+            # Create tensor with batch size and all-reduce
+            batch_size_tensor = torch.tensor(batch_size, device=pl_module.device)
+            torch.distributed.all_reduce(batch_size_tensor, op=torch.distributed.ReduceOp.SUM)
+            batch_size = batch_size_tensor.item()
+        
+        # Update counter
+        self.samples_seen += batch_size
+        
+        # Optionally log the count periodically
+        if batch_idx % 100 == 0:
+            rank_zero_info(f"Total samples seen: {self.samples_seen}")
+    
+    def state_dict(self) -> Dict[str, Any]:
+        """Save state for checkpointing"""
+        return {"samples_seen": self.samples_seen}
+    
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        """Load state from checkpoint"""
+        self.samples_seen = state_dict.get("samples_seen", 0) 

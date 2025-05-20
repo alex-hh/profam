@@ -5,6 +5,7 @@ defaults:
   - rich_progress_bar
   - timer
   - print
+  - sample_counter
   - _self_
 
 model_checkpoint:
