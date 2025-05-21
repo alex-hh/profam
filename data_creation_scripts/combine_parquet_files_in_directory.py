@@ -15,8 +15,7 @@ def combine_parquet_files_in_directory(parquet_path_list, max_residue_per_file=3
     combined_rows = []
     residue_count = 0
     parquet_index = 0
-    # shuffle the parquet files
-    parquet_path_list = random.shuffle(parquet_path_list)
+    random.shuffle(parquet_path_list)
     save_dir = os.path.dirname(parquet_path_list[0])
     original_row_counter = 0
     combined_row_counter = 0
@@ -54,7 +53,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--parquet_dir", 
         type=str, 
-        default="../data/uniref/uniref90_parquets_shuffled/train_test_split_v2/val_filtered/*.parquet"
+        default="../data/uniref/uniref90_parquets_shuffled/train_test_split_v2/val_filtered/"
     )
     parser.add_argument(
         "--max_residue_per_file", 
@@ -62,6 +61,9 @@ if __name__ == "__main__":
         default=3_000_000
     )
     args = parser.parse_args()
+    print(f"Combining parquet files in {args.parquet_dir}")
     parquet_path_pattern = os.path.join(args.parquet_dir, "*.parquet")
     parquet_path_list = glob.glob(parquet_path_pattern)
+    assert len(parquet_path_list) > 0, "No parquet files found"
+    print(f"Found {len(parquet_path_list)} parquet files")
     combine_parquet_files_in_directory(parquet_path_list, args.max_residue_per_file)

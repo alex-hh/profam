@@ -21,12 +21,11 @@ conda activate venvPF
 echo "Using python from $(which python)"
 export PYTHONPATH=$ROOT_DIR:$PYTHONPATH
 
-export DATA_DIR='/SAN/orengolab/cath_plm/ProFam/data'
 
 python data_creation_scripts/combine_parquet_files_in_directory.py \
-    --parquet_dir ${DATA_DIR}/uniref/uniref90_parquets_shuffled/train_test_split_v2/val_filtered \
+    --parquet_dir ../data/uniref/uniref90_parquets_shuffled/train_test_split_v2/val_filtered \
     --max_residue_per_file 3_000_000
 
 python data_creation_scripts/combine_parquet_files_in_directory.py \
-    --parquet_dir ${DATA_DIR}/uniref/uniref90_parquets_shuffled/train_test_split_v2/test_filtered \
+    --parquet_dir ../data/uniref/uniref90_parquets_shuffled/train_test_split_v2/test_filtered \
     --max_residue_per_file 3_000_000
