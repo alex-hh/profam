@@ -14,7 +14,7 @@ echo "#################### QSUB SCRIPT START ####################"
 cat "$0" # print the contents of this file to the log
 echo "####################  QSUB SCRIPT END  ####################"
 # export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
-export ROOT_DIR='/SAN/orengolab/plm_embeds/profam'
+export ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 export PROJECT_ROOT=$ROOT_DIR
 cd $ROOT_DIR
 conda activate venvPF
