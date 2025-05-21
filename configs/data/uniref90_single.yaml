@@ -9,7 +9,7 @@ dataset_builders:
     _target_: src.data.builders.SequenceDocumentMapDataset
     name: uniref90_val
     cfg:
-      data_path_pattern: uniref/uniref90_parquets_shuffled/val/recombinant_0.parquet
+      data_path_pattern: uniref/uniref90_parquets_shuffled/train_test_split_v2/val_filtered/recombinant_0.parquet
   proteingym:
     _target_: src.data.builders.proteingym.ProteinGymDataset
     name: proteingym
