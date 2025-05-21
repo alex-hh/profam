@@ -11,6 +11,7 @@ each file is a reasonable size.
 """
 
 def combine_parquet_files_in_directory(parquet_path_list, max_residue_per_file=3_000_000):
+    print(f"Combining {len(parquet_path_list)} parquet files")
     combined_rows = []
     residue_count = 0
     parquet_index = 0
@@ -32,6 +33,7 @@ def combine_parquet_files_in_directory(parquet_path_list, max_residue_per_file=3
                 combined_rows = []
                 residue_count = 0
                 parquet_index += 1
+                print(f"Combined {combined_row_counter} rows into {parquet_index} parquet files")
             combined_rows.append(row.to_dict())
             residue_count += row_residue_count
             combined_row_counter += 1
@@ -39,6 +41,7 @@ def combine_parquet_files_in_directory(parquet_path_list, max_residue_per_file=3
         combined_df = pd.DataFrame(combined_rows)
         combined_df = combined_df.sample(frac=1, replace=False).reset_index(drop=True)
         combined_df.to_parquet(f"{save_dir}/combined_parquet_{str(parquet_index).zfill(4)}.parquet", index=False)
+        print(f"Combined {combined_row_counter} rows into {parquet_index} parquet files")
     if original_row_counter != combined_row_counter:
         raise ValueError(f"Original row counter {original_row_counter} does not match combined row counter {combined_row_counter}")
     else:
