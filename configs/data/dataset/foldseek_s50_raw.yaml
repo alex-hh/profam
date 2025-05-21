@@ -1,0 +1,13 @@
+_target_: src.data.builders.SequenceDocumentIterableDataset
+name: foldseek_s50_raw
+defaults:
+  - /preprocessor: raw
+
+cfg:
+  _target_: src.data.builders.HFProteinDatasetConfig
+  data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/train/*.parquet
+  holdout_data_files: null
+  holdout_identifiers: null
+  identifier_col: fam_id
+  file_type: parquet
+  minimum_sequences: 1

@@ -7,7 +7,11 @@ from src.data.processors import ProteinDocumentPreprocessor
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence.fasta import read_fasta_sequences
 
-from .hf_datasets import HFProteinDatasetConfig, MemoryMappedHFProteinDataset
+from .hf_datasets import (
+    HFProteinDatasetConfig,
+    IterableHFProteinDataset,
+    MemoryMappedHFProteinDataset,
+)
 
 
 def subsample_fasta_lines(lines, n_lines, shuffle=True):
@@ -102,6 +106,71 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
             return self.build_document(
                 example,
             )
+        else:
+            return self.build_document(
+                example["text"],
+                max_sequences=self.cfg.max_sequences_per_document,
+                identifier=self.name + "/" + example[self.cfg.identifier_col]
+                if self.cfg.identifier_col is not None
+                else self.name + "/None",  # avoid Nones
+            )
+
+
+# -----------------------------------------------------------------------------
+# Iterable dataset version of FastaProteinDataset
+# -----------------------------------------------------------------------------
+
+
+class FastaProteinIterableDataset(IterableHFProteinDataset):
+    """Iterable (streaming) version of :class:`FastaProteinDataset`.
+
+    equivalent in behaviour to ``FastaProteinDataset`` but utilises the
+    :class:`IterableHFProteinDataset` base so that the HuggingFace ``datasets``
+    library streams the underlying FASTA text files instead of memory-mapping
+    them. Necessary to add fasta dataset (such as Protein Gym MSAs)
+    to the combined interleaved training dataset.
+    """
+
+    # We reuse the static ``build_document`` implementation from the map style
+    # dataset to avoid duplicating code.
+    build_document = staticmethod(FastaProteinDataset.build_document)
+
+    def __init__(
+        self,
+        name: str,
+        cfg: HFProteinDatasetConfig,
+        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
+    ):
+        # IterableHFProteinDataset expects ``required_keys`` to flag the columns
+        # that must be present in every example; for FASTA text files this is
+        # just the "text" column.
+        super().__init__(
+            name=name,
+            cfg=cfg,
+            preprocessor=preprocessor,
+            required_keys=["text"],
+        )
+
+    # Filtering logic is identical to the map-style dataset
+    def filter_fn(
+        self,
+        example,
+        tokenizer: ProFamTokenizer,
+    ):
+        super_filter = super().filter_fn(example, tokenizer=tokenizer)
+        if super_filter:
+            assert (
+                self.cfg.holdout_identifiers is None
+            ), "Holdout identifiers not supported for fasta"
+            filter_num_seqs = len(example["text"].split("\n")) // 2 >= (
+                self.cfg.minimum_sequences or 1
+            )
+            return filter_num_seqs
+        return False
+
+    def _build_document(self, example):
+        if isinstance(example, str):
+            return self.build_document(example)
         else:
             return self.build_document(
                 example["text"],
