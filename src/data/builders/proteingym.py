@@ -1,6 +1,7 @@
 import functools
 import os
 import re
+import warnings
 from typing import List, Optional
 
 import pandas as pd
@@ -48,8 +49,10 @@ def get_token_from_name(name: str, tokenizer: PreTrainedTokenizerFast):
         return tokenizer.bos_token
     elif name == "sep":
         return tokenizer.sep_token
+    elif name in tokenizer.vocab:
+        return name
     else:
-        pass
+        raise ValueError(f"Token {name} not found in tokenizer vocabulary")
 
 
 def tokenize_completions(
@@ -74,11 +77,25 @@ def tokenize(
     mutant_bos_token="sep",
     document_token="[RAW]",
 ):
+    has_context = "MSA" in sample and sample["MSA"] is not None
+    if not has_context:
+        sample["MSA"] = [""]
+        sample["seq_pos"] = []
+        msa_document_token = (
+            ""  # document token will be added to start of completions instead
+        )
+        assert (
+            mutant_bos_token == document_token
+        )  # completions must start with non AA token
+    else:
+        msa_document_token = document_token
+
     sample = tokenize_msa(
         sample,
         tokenizer,
-        document_token=document_token,
+        document_token=msa_document_token,
     )
+
     sample = tokenize_completions(
         sample,
         tokenizer,
@@ -92,8 +109,9 @@ def load_msa_for_row(
     seed,
     tokenizer,
     max_tokens,
-    keep_wt=True,
-    drop_wt=False,
+    max_context_seqs: Optional[int] = None,
+    keep_wt=False,
+    drop_wt=True,
     keep_gaps=False,
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
@@ -102,6 +120,7 @@ def load_msa_for_row(
     msa_file = row["MSA_filename"]
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
+    print(f"Loading MSA from {msa_file}")
     _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
         msa_file,
         keep_insertions=True,
@@ -136,6 +155,8 @@ def load_msa_for_row(
             keep_gaps=keep_gaps,
         ),
     )
+    if max_context_seqs is not None:
+        proteins = proteins[:max_context_seqs]
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     row["MSA"] = proteins.sequences
@@ -185,13 +206,24 @@ def load_comp_seq_dms_for_row(
     return row
 
 
-def build_gym_df(dms_ids, gym_data_dir: str):
+def build_gym_df(dms_ids, gym_data_dir: str, use_foldseek_msa: bool = False):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
-    df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
-    df["MSA_filename"] = df["MSA_filename"].apply(
-        lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
-    )
+    if dms_ids is not None:
+        df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
+    else:
+        print("dms_ids is None so evaluating on all ProteinGym assays")
+    if use_foldseek_msa:
+        df["MSA_filename"] = df["MSA_filename"].apply(
+            lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)
+        )
+    else:
+        df["MSA_filename"] = df["MSA_filename"].apply(
+            lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
+        )
+    assert all(
+        os.path.exists(msa_file) for msa_file in df["MSA_filename"]
+    ), "MSA files do not exist"
     df["DMS_filename"] = df["DMS_filename"].apply(
         lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
     )
@@ -221,6 +253,12 @@ class ProteinGymDataset(BaseProteinDataset):
         num_proc: Optional[int] = None,
         gym_data_dir: Optional[str] = None,
         max_tokens_per_example: Optional[int] = None,
+        use_foldseek_msa: bool = False,
+        max_context_seqs: Optional[
+            int
+        ] = None,  # 0 means no family context, None means use all
+        keep_wt: bool = False,
+        drop_wt: bool = True,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -243,6 +281,19 @@ class ProteinGymDataset(BaseProteinDataset):
         self.num_proc = num_proc
         self.gym_data_dir = gym_data_dir
         self.max_tokens_per_example = max_tokens_per_example
+        self.max_context_seqs = max_context_seqs
+        self.keep_wt = keep_wt
+        self.drop_wt = drop_wt
+        self.use_foldseek_msa = use_foldseek_msa
+        if max_context_seqs == 0:
+            if mutant_bos_token != self.document_token:
+                warnings.warn(
+                    "Setting self.mutant_bos_token to self.document_token because max_context_seqs is 0"
+                )
+                self.mutant_bos_token = self.document_token
+            # this is necessary because the first completion sequence token cannot be
+            # and AA otherwise we can't extract the likelihood for the first AA
+        self.print_settings()
 
     @property
     def document_token(self):
@@ -253,6 +304,24 @@ class ProteinGymDataset(BaseProteinDataset):
         else:
             return "[RAW]"
 
+    def print_settings(self):
+        print(f"ProteinGymDataset settings:")
+        print(f"  max_context_seqs: {self.max_context_seqs}")
+        print(f"  max_tokens_per_example: {self.max_tokens_per_example}")
+        print(f"  max_mutated_sequences: {self.max_mutated_sequences}")
+        print(f"  keep_gaps: {self.keep_gaps}")
+        print(f"  use_filtered_msa: {self.use_filtered_msa}")
+        print(f"  keep_wt: {self.keep_wt}")
+        print(f"  drop_wt: {self.drop_wt}")
+        print(f"  mutant_bos_token: {self.mutant_bos_token}")
+        print(f"  document_token: {self.document_token}")
+        print(f"  gym_data_dir: {self.gym_data_dir}")
+        print(f"  num_proc: {self.num_proc}")
+        print(f"  seed: {self.seed}")
+        print(f"  extra_tokens_per_document: {self.extra_tokens_per_document}")
+        print(f"  use_msa_pos: {self.use_msa_pos}")
+        print(f"  dms_ids: {self.dms_ids}")
+
     def process(
         self,
         dataset: Dataset,
@@ -262,25 +331,33 @@ class ProteinGymDataset(BaseProteinDataset):
     ):
         """mutant_bos_token should almost always be sep.
 
-        when using a BaseSingleSequenceLitModule, however, we want it
-        to be bos, since no context sequences are passed during scoring.
-
         n.b. we just ignore pack_to_max_tokens here.
         """
-        dataset = dataset.map(
-            functools.partial(
-                load_msa_for_row,
-                tokenizer=tokenizer,
-                seed=self.seed,  # For what?
-                max_tokens=self.max_tokens_per_example,
-                keep_gaps=self.keep_gaps,
-                use_filtered_msa=self.use_filtered_msa,
-                extra_tokens_per_document=self.extra_tokens_per_document,
-                use_msa_pos=self.use_msa_pos,
-            ),
-            batched=False,
-            num_proc=self.num_proc,
-        )
+        remove_columns = [
+            "DMS_id",
+            "completion_seqs",
+            "DMS_filename",
+            "MSA_filename",
+        ]
+        if self.max_context_seqs is None or self.max_context_seqs > 0:
+            remove_columns.append("MSA")
+            dataset = dataset.map(
+                functools.partial(
+                    load_msa_for_row,
+                    tokenizer=tokenizer,
+                    seed=self.seed,  # For what?
+                    max_tokens=self.max_tokens_per_example,
+                    keep_gaps=self.keep_gaps,
+                    use_filtered_msa=self.use_filtered_msa,
+                    extra_tokens_per_document=self.extra_tokens_per_document,
+                    use_msa_pos=self.use_msa_pos,
+                    max_context_seqs=self.max_context_seqs,
+                    keep_wt=self.keep_wt,
+                    drop_wt=self.drop_wt,
+                ),
+                batched=False,
+                num_proc=self.num_proc,
+            )
         dataset = dataset.map(
             functools.partial(
                 load_comp_seq_dms_for_row,
@@ -301,17 +378,12 @@ class ProteinGymDataset(BaseProteinDataset):
                 document_token=self.document_token,
             ),
             batched=False,
-            remove_columns=[
-                "DMS_id",
-                "MSA",
-                "completion_seqs",
-                "DMS_filename",
-                "MSA_filename",
-            ],
+            remove_columns=remove_columns,
             num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
         columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
+
         if tokenizer.embed_residue_index:
             columns += ["residue_index", "completion_residue_index"]
 
@@ -328,6 +400,7 @@ class ProteinGymDataset(BaseProteinDataset):
             gym_data_dir=os.path.join(data_dir, "ProteinGym")
             if self.gym_data_dir is None
             else self.gym_data_dir,
+            use_foldseek_msa=self.use_foldseek_msa,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)

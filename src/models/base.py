@@ -72,6 +72,7 @@ class BaseLitModule(LightningModule):
         scoring_max_tokens: int = 10240,
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
+        ignore_index: int = -100,
     ) -> None:
         super().__init__()
         self.model = model
@@ -85,6 +86,7 @@ class BaseLitModule(LightningModule):
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
+        self.ignore_index = ignore_index
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
@@ -194,7 +196,8 @@ class BaseLitModule(LightningModule):
             # BaseLitModule.model.forward()
             # in general we assume that if you call BaseLitModule.forward()
             # you are not using KV cache.
-
+        if labels is not None:
+            labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -225,12 +228,12 @@ class BaseLitModule(LightningModule):
         dataset_accuracies = metrics.accuracy_from_outputs(
             outputs,
             batch["labels"],
-            ignore_index=-100,
+            ignore_index=self.ignore_index,
             dataset_names=batch[
                 "ds_name"
             ].text,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-", "X", "x"]
+                ["-", "X", "x", "[start-of-document]"]
                 + [aa.lower() for aa in aa_letters]
                 + self.tokenizer.all_special_tokens
             ),
@@ -266,7 +269,7 @@ class BaseLitModule(LightningModule):
                 has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
                     outputs,
                     batch["labels"],
-                    ignore_index=-100,
+                    ignore_index=self.ignore_index,
                     dataset_names=batch[
                         "ds_name"
                     ].text,  # a list of dataset names (StringObject.text)
@@ -298,7 +301,7 @@ class BaseLitModule(LightningModule):
             dataset_accuracies_3di = metrics.accuracy_from_outputs(
                 outputs,
                 batch["labels"],
-                ignore_index=-100,
+                ignore_index=self.ignore_index,
                 dataset_names=batch["ds_name"].text,
                 ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                     ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
@@ -370,9 +373,6 @@ class BaseLitModule(LightningModule):
         seq_len_stats = metrics.sequence_lengths(
             batch["labels"], self.tokenizer.sep_token_id
         )
-        doc_len_stats = metrics.document_lengths(
-            batch["labels"], self.tokenizer.bos_token_id
-        )
         sep_tokens_in_batch = (
             (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
         )
@@ -383,15 +383,6 @@ class BaseLitModule(LightningModule):
             self.log(
                 name=f"{step_name}/token_stats/{reduce_fx}_seq_len_in_batch",
                 value=seq_len_stats[f"{reduce_fx}_seq_length"],
-                on_step=True,
-                on_epoch=False,
-                prog_bar=False,
-                reduce_fx=reduce_fx,
-                add_dataloader_idx=add_dataloader_idx,
-            )
-            self.log(
-                name=f"{step_name}/token_stats/{reduce_fx}_doc_len_in_batch",
-                value=doc_len_stats[f"{reduce_fx}_doc_length"],
                 on_step=True,
                 on_epoch=False,
                 prog_bar=False,
@@ -510,74 +501,6 @@ class BaseLitModule(LightningModule):
             # Set a flag to tell Lightning not to expect optimizer states
             checkpoint["optimizer_states"] = []
             checkpoint["lr_schedulers"] = []
-
-
-class BaseSingleSequenceLitModule(BaseLitModule):
-
-    # TODO: make this part of a mixin so that it can be reused across models
-    # c.f. GenerationsMixin
-    def score_seqs(
-        self,
-        input_ids,
-        completion_ids,
-        batch_size: int = 1,
-    ):
-        assert batch_size > 0
-        assert (
-            input_ids.shape[0] == 1
-        ), "Only batch size 1 is supported for mutant scoring; batch dim must be present"
-        assert (
-            input_ids.ndim == 2 and completion_ids.ndim == 3
-        ), f"input ids shape {input_ids.shape}, completion ids shape {completion_ids.shape}"  # b, L; b, n, L
-        L = completion_ids.shape[-1]
-        all_lls = []
-        for batch_start in range(0, completion_ids.shape[1], batch_size):
-            # TODO: for batch_size > 1, we need to expand out the cache - c.f. generate
-            # fmt: off
-            input_ids = completion_ids[
-                :, batch_start: batch_start + batch_size
-            ].reshape(-1, L)  # b_mut, L
-            # fmt: on
-            outputs = self.model(input_ids=input_ids)
-            labels = torch.where(
-                input_ids == self.tokenizer.pad_token_id, -100, input_ids.clone()
-            )
-            log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
-            all_lls.append(log_likelihood.mean(-1))  # b_mut
-
-        lls = torch.cat(all_lls).cpu().numpy()
-        return lls
-
-    def validation_step_proteingym(
-        self, batch: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
-        """Assumes that batch contains the following:
-
-        input_ids: the prompt (i.e. MSA)
-        completion_ids: the completions (i.e. mutated sequences)
-
-        on caching: it seems like, if we modify what is passed to attention forward, existing cache
-        might just work. currently model/sampling loop probably passes just the next token.
-        """
-        assert batch["DMS_scores"].ndim == 2  # b, n
-        L = batch["completion_ids"].shape[-1]
-        batch_size = max(1, self.scoring_max_tokens // L)
-        lls = self.score_seqs(
-            batch["input_ids"],
-            batch["completion_ids"],
-            batch_size=batch_size,
-        )
-        spearman_corr, _ = spearmanr(lls, batch["DMS_scores"][0].cpu().numpy())
-        # TODO: log the specific landscape name
-        self.log(
-            "gym/spearman",
-            spearman_corr,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            add_dataloader_idx=False,
-            sync_dist=True,
-        )
 
 
 class BaseFamilyLitModule(BaseLitModule):
@@ -746,8 +669,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 this_input_ids.clone(),
             )
             assert (
-                this_input_ids[..., likelihood_start_ix] == self.tokenizer.sep_token_id
-            )  # SEP token which signals end of last prompt seq
+                this_input_ids[..., likelihood_start_ix] not in self.tokenizer.aa_tokens
+            ), "Likelihood start ix is an AA token - likelihood cannot be computed for this position"
             if self.embed_residue_index:
                 this_res_ix = torch.cat(
                     [input_residue_index, completion_residue_index[:, completion_ix]],
@@ -994,14 +917,25 @@ class BaseFamilyLitModule(BaseLitModule):
             if self.use_kv_cache_for_scoring
             else 1,
         )
-        spearman_corr, _ = spearmanr(
-            lls.astype(np.float32),
-            batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
-        )
+        if lls.min() == lls.max():
+            spearman_corr = 0
+        else:
+            spearman_corr, _ = spearmanr(
+                lls.astype(np.float32),
+                batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
+            )
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman",
             spearman_corr,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
+        self.log(
+            "gym/log_likelihood",
+            lls.mean(),
             on_step=False,
             on_epoch=True,
             prog_bar=False,
@@ -1200,31 +1134,9 @@ class BaseFamilyLitModule(BaseLitModule):
             prog_bar=True,
             on_epoch=False,
         )
-        self.log_ds_sample_counts(batch)
         return loss
-
-    def on_train_start(self):
-        self.dataset_sample_counts = {}
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
         log.info("Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
-    def log_ds_sample_counts(self, batch):
-        """Log statistics about dataset usage.
-
-        N.B. in distributed setting, these will be device-specific.
-        """
-        ds_name = batch["ds_name"].text
-        for ds in ds_name:
-            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
-
-        self.log_dict(
-            {
-                f"train/{k}_times_sampled": v
-                for k, v in self.dataset_sample_counts.items()
-            },
-            on_step=True,
-            on_epoch=False,
-        )

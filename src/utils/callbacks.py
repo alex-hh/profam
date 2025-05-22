@@ -1,12 +1,14 @@
 import time
 from typing import Any, Dict, Optional
 
+import lightning as L
 import torch
 from datasets import IterableDataset
 from lightning.fabric.utilities.throughput import get_available_flops
 from lightning.pytorch.callbacks import Callback, ThroughputMonitor
 from lightning.pytorch.callbacks.throughput_monitor import _plugin_to_compute_dtype
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
+from lightning.pytorch.utilities import rank_zero_info
 from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
 from typing_extensions import override
 
@@ -214,3 +216,86 @@ class TokenThroughputMonitor(ThroughputMonitor):
             proteins=self._proteins[stage],
             flops=flops_per_batch,
         )
+
+
+class SampleCounter(Callback):
+    """
+    Tracks the total number of samples seen during training.
+
+    This callback maintains a counter of samples processed across all dataloaders,
+    which persists through checkpoint saves and loads. The counter works with
+    distributed training across multiple devices and nodes.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.samples_seen = 0
+        self.dataset_sample_counts = {}
+
+    def on_train_batch_end(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        outputs: Dict[str, Any],
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        """Update the sample count after each batch is processed"""
+        if isinstance(batch["batch_size"], torch.Tensor):
+            batch_size = batch["batch_size"].item()
+        else:
+            batch_size = batch["batch_size"]
+
+        # In distributed setting, we need to sync the count
+        if trainer.world_size > 1:
+            # Create tensor with batch size and all-reduce
+            batch_size_tensor = torch.tensor(batch_size, device=pl_module.device)
+            torch.distributed.all_reduce(
+                batch_size_tensor, op=torch.distributed.ReduceOp.SUM
+            )
+            batch_size = batch_size_tensor.item()
+
+        self.samples_seen += batch_size
+
+        pl_module.samples_seen = self.samples_seen
+
+        # Log dataset sample counts
+        ds_name = batch["ds_name"].text
+        for ds in ds_name:
+            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
+
+        pl_module.log(
+            "train/total_samples_seen",
+            self.samples_seen,
+            on_step=True,
+            on_epoch=False,
+            sync_dist=True,  # This ensures the value is synchronized across all devices
+            rank_zero_only=False,  # Allow all ranks to log to ensure proper aggregation
+        )
+        # rank_zero_info(f"Total samples seen: {self.samples_seen}")
+
+        # Log dataset sample counts
+        pl_module.log_dict(
+            {
+                f"train/{k}_times_sampled": v
+                for k, v in self.dataset_sample_counts.items()
+            },
+            on_step=True,
+            on_epoch=False,
+            sync_dist=True,  # Ensure counts are synchronized across devices
+            rank_zero_only=False,  # Allow all ranks to log
+        )
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {
+            "samples_seen": self.samples_seen,
+            "dataset_sample_counts": self.dataset_sample_counts,
+        }
+
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        self.samples_seen = state_dict.get("samples_seen", 0)
+        self.dataset_sample_counts = state_dict.get("dataset_sample_counts", {})
+
+    def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
+        super().on_fit_start(trainer, pl_module)
+        trainer.samples_seen = self.samples_seen

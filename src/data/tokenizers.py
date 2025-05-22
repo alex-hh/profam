@@ -63,7 +63,8 @@ def get_residue_index_from_positions(
         pad_start = pad_any.min()
     else:
         pad_start = input_ids.shape[0]
-    seq_pos[:pad_start] = flat_indices
+    if len(flat_indices) > 0:
+        seq_pos[:pad_start] = flat_indices
     return seq_pos
 
 
@@ -193,7 +194,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             max_length=max_length,
             return_token_type_ids=False,
         )
-        tokenized.data = {k: v.squeeze() for k, v in tokenized.data.items()}
+        tokenized.data = {k: v.squeeze(0) for k, v in tokenized.data.items()}
         assert tokenized.input_ids.ndim == 1
 
         if not allow_unk:
@@ -341,8 +342,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         eos_token="[SEP]",
     ):
         assert isinstance(sequences, list)
+        sequences_w_sp_tokens = [bos_token + seq + eos_token for seq in sequences]
         tokenized = self(
-            [bos_token + seq + eos_token for seq in sequences],
+            sequences_w_sp_tokens,
             return_tensors="np",
             padding="longest",
             truncation=False,

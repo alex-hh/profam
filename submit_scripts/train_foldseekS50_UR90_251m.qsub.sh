@@ -2,16 +2,15 @@
 
 # Train ProFam
 
-#$ -l tmem=64G
-#$ -l h_vmem=64G
+#$ -l tmem=127G
 #$ -l gpu=true
-#$ -l gpu_type=(rtx3090|rtx4090|a6000|a40|a100|a100_80)
-#$ -l h_rt=23:55:30
+#$ -l gpu_type=(a40|a100|a100_80)
+#$ -l h_rt=119:55:30
 #$ -S /bin/bash
-#$ -N trainAF50
-#$ -t 1
+#$ -N FS50_UR90
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
+#$ -P cath
 #$ -j y
 date
 hostname
@@ -21,5 +20,8 @@ echo "####################  QSUB SCRIPT END  ####################"
 conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
-python ${ROOT_DIR}/src/train.py data=af50_single_seq trainer=gpu logger=wandb
+export WANDB__SERVICE_WAIT=300
+export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
+python ${ROOT_DIR}/src/train.py \
+experiment=train_foldseek_s50_UR90
 date
