@@ -1,18 +1,22 @@
 # @package _global_
+# trains a family model on combined dataset combining:
+# foldseek uniref90 single sequence and openfold_clustered_raw
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - /extra_callbacks@extra_callbacks.funfam_sampling_callback: sampling_callback
-  - /data/dataset@data.dataset_builders.openfold_clustered_msa_pos: openfold_clustered_msa_pos
-  - /data/dataset@data.dataset_builders.openfold_clustered_msa_pos_val: openfold_clustered_msa_pos
+  - /data/dataset@data.dataset_builders.openfold_clustered_raw: openfold_clustered_raw
+  - /data/dataset@data.dataset_builders.openfold_clustered_raw_val: openfold_clustered_raw
+  - /data/dataset@data.dataset_builders.uniref90: uniref90_single_raw
+  - /data/dataset@data.dataset_builders.foldseek_s50_raw: foldseek_s50_raw
   - override /data: null
-  - override /model: llama_106m.yaml
+  - override /model: llama_251m.yaml
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   - override /logger: wandb
   - _self_
 
-experiment_group: "train_openfold_aligned"
-tags: ["debug", "${experiment_group}"]
+experiment_group: "train_openfold_foldseek_ur90_251m"
+tags: ["${experiment_group}"]
 
 seed: 12345
 
@@ -42,7 +46,7 @@ model:
   num_training_steps: 9000000000
   lr: 1e-3
   embed_sequence_index: false
-  embed_residue_index: true
+  embed_residue_index: false
 
 data:
   dataset_builders:
@@ -57,27 +61,33 @@ data:
       keep_gaps: false
       use_filtered_msa: true
       extra_tokens_per_document: 2
-      use_msa_pos: true
+      use_msa_pos: false
       num_proc: null
-      max_tokens_per_example: 7500
+      max_tokens_per_example: 16_000
+      max_context_seqs: null
 
-
-    openfold_clustered_msa_pos_val:
+    openfold_clustered_raw_val:
       _target_: src.data.builders.SequenceDocumentMapDataset
-      name: openfold_clustered_msa_pos_val
+      name: openfold_clustered_raw_val
       cfg:
-        data_path_pattern: openfold/uniclust30_clustered/0.parquet_fragments_0.parquet
+        data_path_pattern: openfold/uniclust30_clustered_shuffled_final/recombinant_0_chunk0.parquet
+    openfold_clustered_raw:
+      cfg:
+        holdout_data_files: openfold/uniclust30_clustered_shuffled_final/recombinant_0_chunk0.parquet
+
 
   _target_: src.data.datamodule.ProteinDataMixture
   total_num_train_samples: 2_000_000
   data_weights:
-    openfold_clustered_msa_pos: 1
+    openfold_clustered_raw: 1
+    uniref90: 1
+    foldseek_s50_raw: 1
   batch_size: 1
   data_dir: ${paths.data_dir}
   num_workers: 24
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
   val_dataset_batch_sizes:
-    openfold_clustered_msa_pos_val: 1
+    openfold_clustered_raw_val: 1
     proteingym: 1
-  pack_to_max_tokens: 60_000
+  pack_to_max_tokens: 32_000
