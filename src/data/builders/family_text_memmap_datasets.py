@@ -7,6 +7,8 @@ from src.data.tokenizers import ProFamTokenizer
 from .base import BaseProteinDataset
 from ..text_memmap_datasets import TextMemMapDataset
 import glob
+import os
+from torch.utils.data import Dataset
 
 class MappingProteinFamilyMemmapDataset(TextMemMapDataset):
     """
@@ -93,7 +95,13 @@ class SequencesProteinFamilyMemmapDataset(TextMemMapDataset):
             index_mapping_dir=index_mapping_dir,
         )
         
-        self._data_sep = "\n"        
+        self._data_sep = "\n"
+        
+        # build mapping from file name to base index to support relative indices for each sequences file
+        self._file_to_base_idx = {}
+        for base_idx, fn_path in zip([0] + list(self.midx_bins), self._files_list):
+            fn = os.path.basename(fn_path)
+            self._file_to_base_idx[fn] = base_idx
 
     def _build_data_from_text(self, text):
         """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
@@ -109,9 +117,65 @@ class SequencesProteinFamilyMemmapDataset(TextMemMapDataset):
         }
 
         return data
+    
+    def get_absolute_indices(self, fn, indices):
+        """
+        Get the relative index of the sequence in the dataset.
+        """
+        # get the base index for the file
+        base_idx = self._file_to_base_idx[fn]
+        # return the absolues index
+        return [idx + base_idx for idx in indices]
+
+class ProteinFamilyMemmapDataset(Dataset):
+    def __init__(
+        self,
+        name: str,
+        dataset_root: str,
+        tokenizer: Optional[ProFamTokenizer] = None,
+        **kwargs,
+    ):
+        """
+        Args:
+            name: name of the dataset
+            dataset_root: point to the root directory of the dataset (i.e., train, val, test)
+            tokenizer: tokenizer to use to convert sequences to tokens.
+            kwargs: additional arguments to pass to the dataset
+        """
+        super().__init__()
+        self.name = name
+        
+        self.mapping_ds = MappingProteinFamilyMemmapDataset(
+            dataset_root=dataset_root,
+            **kwargs,
+        )
+        self.sequences_ds = SequencesProteinFamilyMemmapDataset(
+            dataset_root=dataset_root,
+            # only sequence dataset requires a tokenizer
+            tokenizer=tokenizer,
+            **kwargs,
+        )
+        
+    def __len__(self):
+        return len(self.mapping_ds)
+
+    def __getitem__(self, idx):
+        mapping_data = self.mapping_ds[idx]
+        sequences_data = []
+        # collect samples from all files
+        for fn, indices in mapping_data["sample_indices"].items():
+            # project each relative index to absolute index
+            sequence_indices = self.sequences_ds.get_absolute_indices(fn, indices)
+            sequences_data.extend([self.sequences_ds[i] for i in sequence_indices])
+        
+        return ProteinDocument(
+            sequences=[sd["sequence"] for sd in sequences_data],
+            identifier=mapping_data["fam_id"],
+            accessions=[sd["accession"] for sd in sequences_data],
+        )
 
 
-class ProteinFamilyMemmapDataset(BaseProteinDataset):
+class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
     def __init__(
         self,
         name: str,
@@ -201,16 +265,3 @@ class ProteinFamilyMemmapDataset(BaseProteinDataset):
             identifier=identifier,
         )  # upper bound estimate of number of sequences
 
-    def _build_document(self, example):
-        if isinstance(example, str):
-            return self.build_document(
-                example,
-            )
-        else:
-            return self.build_document(
-                example["text"],
-                max_sequences=self.cfg.max_sequences_per_document,
-                identifier=self.name + "/" + example[self.cfg.identifier_col]
-                if self.cfg.identifier_col is not None
-                else self.name + "/None",  # avoid Nones
-            )

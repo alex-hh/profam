@@ -137,6 +137,10 @@ class ProteinDataMixture(LightningDataModule):
                 #     split="train",
                 #     seed=42,
                 # )
+                # print(
+                #     "Interleaved train dataset example types",
+                #     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
+                # )
                 self.train_dataset = WeightedConcatOnlineDataset(
                     datasets=train_datasets,
                     num_samples=self.total_num_train_samples,
@@ -145,7 +149,7 @@ class ProteinDataMixture(LightningDataModule):
                     shuffle=True,
                 )
                 print(
-                    "Interleaved train dataset example types",
+                    "Interleaved train dataset example types (WeightedConcatOnlineDataset)",
                     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
                 )
             else:
