@@ -40,6 +40,7 @@ def combine_parquet_files_in_directory(parquet_path_list, max_residue_per_file=3
         combined_df = pd.DataFrame(combined_rows)
         combined_df = combined_df.sample(frac=1, replace=False).reset_index(drop=True)
         combined_df.to_parquet(f"{save_dir}/combined_parquet_{str(parquet_index).zfill(4)}.parquet", index=False)
+        parquet_index += 1
         print(f"Combined {combined_row_counter} rows into {parquet_index} parquet files")
     if original_row_counter != combined_row_counter:
         raise ValueError(f"Original row counter {original_row_counter} does not match combined row counter {combined_row_counter}")
