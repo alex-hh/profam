@@ -260,7 +260,7 @@ class SampleCounter(Callback):
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
 
         # Log to Weights & Biases every 100 batches
-        if batch_idx % 100 == 0:
+        if batch_idx % 10 == 0:
             pl_module.log(
                 "train/total_samples_seen",
                 self.samples_seen,
