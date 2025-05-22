@@ -549,3 +549,48 @@ class WeightedConcatOnlineDataset(torch.utils.data.Dataset):
 
     def __len__(self) -> int:
         return self.num_samples
+
+class OffsetOnlineDataset(torch.utils.data.Dataset):
+    """
+    A dataset that can offset the samples from a given dataset, effectively reducing the dataset size, and starting from a given offset.
+    """
+
+    def __init__(
+        self,
+        dataset: torch.utils.data.Dataset,
+        offset: int = 0,
+    ) -> None:
+        self.dataset = dataset
+        self.offset = offset
+        
+        if offset < 0:
+            raise ValueError("Offset must be positive. " f"Got {offset} offset.")
+        if offset >= len(dataset):
+            raise ValueError(
+                "Offset must be smaller than the dataset size. "
+                f"Got {offset} offset and {len(dataset)} dataset size."
+            )
+    
+    def __str__(self) -> str:
+        return (
+            f"OffsetOnlineDataset("
+            f"dataset_size={len(self.dataset)}, "
+            f"offset={self.offset}"
+            f")"
+        )
+
+    def __getitem__(self, idx: int) -> Any:
+        if isinstance(idx, slice):
+            start, stop, step = (
+                idx.start or 0,
+                idx.stop or len(self.dataset),
+                idx.step or 1,
+            )
+            return [self[i] for i in range(start, stop, step)]
+
+        # add offset to the index
+        sample_idx = handle_index(idx, len(self)) + self.offset
+        return self.dataset[sample_idx]
+    
+    def __len__(self) -> int:
+        return len(self.dataset) - self.offset
