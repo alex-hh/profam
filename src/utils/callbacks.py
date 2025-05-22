@@ -241,7 +241,10 @@ class SampleCounter(Callback):
         batch_idx: int,
     ) -> None:
         """Update the sample count after each batch is processed"""
-        batch_size = batch["batch_size"].item()
+        if isinstance(batch['batch_size'], torch.Tensor):
+            batch_size = batch['batch_size'].item()
+        else:
+            batch_size = batch['batch_size']
 
         # In distributed setting, we need to sync the count
         if trainer.world_size > 1:
@@ -269,7 +272,7 @@ class SampleCounter(Callback):
             sync_dist=True,  # This ensures the value is synchronized across all devices
             rank_zero_only=False,  # Allow all ranks to log to ensure proper aggregation
         )
-        rank_zero_info(f"Total samples seen: {self.samples_seen}")
+        # rank_zero_info(f"Total samples seen: {self.samples_seen}")
 
         # Log dataset sample counts
         pl_module.log_dict(
