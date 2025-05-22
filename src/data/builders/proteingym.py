@@ -211,6 +211,8 @@ def build_gym_df(dms_ids, gym_data_dir: str, use_foldseek_msa: bool = False):
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
+    else:
+        print("dms_ids is None so evaluating on all ProteinGym assays")
     if use_foldseek_msa:
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)

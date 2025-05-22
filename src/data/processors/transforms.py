@@ -241,7 +241,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     extra_tokens_per_document = tokenizer.num_start_tokens
 
     rnd = np.random if rng is None else rng
-    if drop_first:
+    if drop_first and len(proteins) > 1:
         proteins = proteins[1:]
 
     if shuffle:
