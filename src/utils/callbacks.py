@@ -241,10 +241,10 @@ class SampleCounter(Callback):
         batch_idx: int,
     ) -> None:
         """Update the sample count after each batch is processed"""
-        if isinstance(batch['batch_size'], torch.Tensor):
-            batch_size = batch['batch_size'].item()
+        if isinstance(batch["batch_size"], torch.Tensor):
+            batch_size = batch["batch_size"].item()
         else:
-            batch_size = batch['batch_size']
+            batch_size = batch["batch_size"]
 
         # In distributed setting, we need to sync the count
         if trainer.world_size > 1:
