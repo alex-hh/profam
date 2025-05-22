@@ -254,6 +254,8 @@ class SampleCounter(Callback):
 
         self.samples_seen += batch_size
 
+        pl_module.samples_seen = self.samples_seen
+
         # Log dataset sample counts
         ds_name = batch["ds_name"].text
         for ds in ds_name:
@@ -280,6 +282,14 @@ class SampleCounter(Callback):
             sync_dist=True,  # Ensure counts are synchronized across devices
             rank_zero_only=False,  # Allow all ranks to log
         )
+
+    def setup(
+        self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str
+    ) -> None:
+        """Called when the trainer is ready and the model is available"""
+        super().setup(trainer, pl_module, stage)
+        # Update the model's samples_seen property with our current count
+        pl_module.samples_seen = self.samples_seen
 
     def state_dict(self) -> Dict[str, Any]:
         """Save state for checkpointing"""

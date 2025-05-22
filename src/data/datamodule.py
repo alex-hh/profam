@@ -90,6 +90,12 @@ class ProteinDataMixture(LightningDataModule):
             train_dataset_names = []
             world_size = self.trainer.world_size if self.trainer is not None else 1
             print("World size", world_size)
+
+            samples_seen = 0
+            if self.trainer is not None and self.trainer.model is not None:
+                samples_seen = self.trainer.model.samples_seen
+                print(f"{samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED")
+
             for data_key, dataset_builder in self.dataset_builders.items():
                 assert (
                     dataset_builder.name == data_key
