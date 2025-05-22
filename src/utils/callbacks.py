@@ -259,54 +259,26 @@ class SampleCounter(Callback):
         for ds in ds_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
 
-        # Log to Weights & Biases every 100 batches
-        if batch_idx % 10 == 0:
-            pl_module.log(
-                "train/total_samples_seen",
-                self.samples_seen,
-                on_step=True,
-                on_epoch=False,
-                sync_dist=True,  # This ensures the value is synchronized across all devices
-                rank_zero_only=False,  # Allow all ranks to log to ensure proper aggregation
-            )
-            rank_zero_info(f"Total samples seen: {self.samples_seen}")
-
-            # Log dataset sample counts
-            pl_module.log_dict(
-                {
-                    f"train/{k}_times_sampled": v
-                    for k, v in self.dataset_sample_counts.items()
-                },
-                on_step=True,
-                on_epoch=False,
-                sync_dist=True,  # Ensure counts are synchronized across devices
-                rank_zero_only=False,  # Allow all ranks to log
-            )
-
-    def on_train_epoch_end(
-        self, trainer: L.Trainer, pl_module: L.LightningModule
-    ) -> None:
-        """Log final sample counts at the end of each epoch"""
-        # Log total samples seen at epoch end
         pl_module.log(
-            "train/total_samples_seen_epoch",
+            "train/total_samples_seen",
             self.samples_seen,
-            on_step=False,
-            on_epoch=True,
-            sync_dist=True,
-            rank_zero_only=False,
+            on_step=True,
+            on_epoch=False,
+            sync_dist=True,  # This ensures the value is synchronized across all devices
+            rank_zero_only=False,  # Allow all ranks to log to ensure proper aggregation
         )
+        rank_zero_info(f"Total samples seen: {self.samples_seen}")
 
-        # Log dataset sample counts at epoch end
+        # Log dataset sample counts
         pl_module.log_dict(
             {
-                f"train/{k}_times_sampled_epoch": v
+                f"train/{k}_times_sampled": v
                 for k, v in self.dataset_sample_counts.items()
             },
-            on_step=False,
-            on_epoch=True,
-            sync_dist=True,
-            rank_zero_only=False,
+            on_step=True,
+            on_epoch=False,
+            sync_dist=True,  # Ensure counts are synchronized across devices
+            rank_zero_only=False,  # Allow all ranks to log
         )
 
     def state_dict(self) -> Dict[str, Any]:
