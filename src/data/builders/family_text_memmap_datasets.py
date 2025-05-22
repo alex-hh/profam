@@ -168,6 +168,7 @@ class ProteinFamilyMemmapDataset(Dataset):
             sequence_indices = self.sequences_ds.get_absolute_indices(fn, indices)
             sequences_data.extend([self.sequences_ds[i] for i in sequence_indices])
         
+        # TODO: add sampling of sequences from a family here
         return ProteinDocument(
             sequences=[sd["sequence"] for sd in sequences_data],
             identifier=mapping_data["fam_id"],
