@@ -87,16 +87,6 @@ class BaseLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
-        self._samples_seen = 0
-
-    @property
-    def samples_seen(self) -> int:
-        """Total number of samples seen during training."""
-        return self._samples_seen
-
-    @samples_seen.setter
-    def samples_seen(self, value: int):
-        self._samples_seen = value
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
@@ -1114,9 +1104,6 @@ class BaseFamilyLitModule(BaseLitModule):
             on_epoch=False,
         )
         return loss
-
-    def on_train_start(self):
-        pass
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP

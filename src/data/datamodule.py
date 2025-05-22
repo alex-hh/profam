@@ -250,10 +250,14 @@ class ProteinDataMixture(LightningDataModule):
 
     def train_dataloader(self) -> DataLoader:
         # Get samples_seen from trainer if available
-        samples_seen = getattr(self.trainer, 'samples_seen', 0) if self.trainer is not None else 0
+        samples_seen = (
+            getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
+        )
         if samples_seen > 0:
-            print(f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED")
-            
+            print(
+                f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED"
+            )
+
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,

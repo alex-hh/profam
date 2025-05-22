@@ -284,21 +284,15 @@ class SampleCounter(Callback):
         )
 
     def state_dict(self) -> Dict[str, Any]:
-        """Save state for checkpointing"""
         return {
             "samples_seen": self.samples_seen,
             "dataset_sample_counts": self.dataset_sample_counts,
         }
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
-        """Load state from checkpoint"""
         self.samples_seen = state_dict.get("samples_seen", 0)
         self.dataset_sample_counts = state_dict.get("dataset_sample_counts", {})
-    
+
     def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
-        """Called when fit begins"""
-        super().on_fit_start(trainer, pl_module)  # Call parent class's on_fit_start
-        pl_module.samples_seen = self.samples_seen
+        super().on_fit_start(trainer, pl_module)
         trainer.samples_seen = self.samples_seen
-    
-    
