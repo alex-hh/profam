@@ -5,7 +5,7 @@ defaults:
 
 cfg:
   _target_: src.data.builders.HFProteinDatasetConfig
-  data_path_pattern: ted/s50_parquets/train_val_test_split/train/*.parquet
+  data_path_pattern: ted/s50_parquets/train_test_split_v2/train_filtered/*.parquet
   holdout_data_files: null
   holdout_identifiers: null
   identifier_col: "fam_id"

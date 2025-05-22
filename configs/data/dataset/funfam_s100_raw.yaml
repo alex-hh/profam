@@ -5,7 +5,7 @@ defaults:
 
 cfg:
   _target_: src.data.builders.HFProteinDatasetConfig
-  data_path_pattern: funfams/s100_noali_parquets/*.parquet
+  data_path_pattern: funfams/s100_noali_parquets/train_test_split_v2/train_filtered
   holdout_data_files: null
   holdout_identifiers: null
   identifier_col: "fam_id"
