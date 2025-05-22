@@ -241,7 +241,7 @@ class SampleCounter(Callback):
         batch_idx: int,
     ) -> None:
         """Update the sample count after each batch is processed"""
-        batch_size = batch["batch_size"]
+        batch_size = batch["batch_size"].item()
 
         # In distributed setting, we need to sync the count
         if trainer.world_size > 1:
@@ -283,14 +283,6 @@ class SampleCounter(Callback):
             rank_zero_only=False,  # Allow all ranks to log
         )
 
-    def setup(
-        self, trainer: L.Trainer, pl_module: L.LightningModule, stage: str
-    ) -> None:
-        """Called when the trainer is ready and the model is available"""
-        super().setup(trainer, pl_module, stage)
-        # Update the model's samples_seen property with our current count
-        pl_module.samples_seen = self.samples_seen
-
     def state_dict(self) -> Dict[str, Any]:
         """Save state for checkpointing"""
         return {
@@ -302,3 +294,11 @@ class SampleCounter(Callback):
         """Load state from checkpoint"""
         self.samples_seen = state_dict.get("samples_seen", 0)
         self.dataset_sample_counts = state_dict.get("dataset_sample_counts", {})
+    
+    def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
+        """Called when fit begins"""
+        super().on_fit_start(trainer, pl_module)  # Call parent class's on_fit_start
+        pl_module.samples_seen = self.samples_seen
+        trainer.samples_seen = self.samples_seen
+    
+    

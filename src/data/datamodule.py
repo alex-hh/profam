@@ -91,11 +91,6 @@ class ProteinDataMixture(LightningDataModule):
             world_size = self.trainer.world_size if self.trainer is not None else 1
             print("World size", world_size)
 
-            samples_seen = 0
-            if self.trainer is not None and self.trainer.model is not None:
-                samples_seen = self.trainer.model.samples_seen
-                print(f"{samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED")
-
             for data_key, dataset_builder in self.dataset_builders.items():
                 assert (
                     dataset_builder.name == data_key
@@ -254,6 +249,11 @@ class ProteinDataMixture(LightningDataModule):
             self._is_setup = True
 
     def train_dataloader(self) -> DataLoader:
+        # Get samples_seen from trainer if available
+        samples_seen = getattr(self.trainer, 'samples_seen', 0) if self.trainer is not None else 0
+        if samples_seen > 0:
+            print(f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED")
+            
         return DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
