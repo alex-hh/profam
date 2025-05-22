@@ -7,6 +7,60 @@ from src.data.processors import ProteinDocumentPreprocessor
 from src.data.tokenizers import ProFamTokenizer
 
 from .hf_datasets import HFProteinDatasetConfig, MemoryMappedHFProteinDataset
+from ..text_memmap_datasets import TextMemMapDataset
+
+class MappingFamilyMemmapDataset(TextMemMapDataset):
+    """
+    A *.mapping FASTA dataset.
+    """
+    def __init__(
+        self,
+        dataset_paths,
+        workers=None,
+        tokenizer=None,
+        sort_dataset_paths=True,
+        index_mapping_dir=None,
+    ):
+        """
+        Args:
+            dataset_paths: list of paths to text files
+            workers: number of workers to use for parallel data indexing (on first run)
+            tokenizer: tokenizer to use for tokenization
+            sort_dataset_paths: whether to sort dataset paths by name
+            index_mapping_dir: directory to store index mapping cached files
+        """
+        super().__init__(
+            dataset_paths=dataset_paths,
+            newline_int=ord(">"),
+            header_lines=1,  # skip first line since it is not an empty sequence
+            workers=workers,
+            tokenizer=tokenizer,
+            sort_dataset_paths=sort_dataset_paths,
+            index_mapping_dir=index_mapping_dir,
+        )
+        
+        self._data_sep = "\n"        
+
+    def _build_data_from_text(self, text):
+        """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
+        # tokenize sequences
+        _build_data_from_text = super()._build_data_from_text
+        # extract id and sequence and tokenize (if needed)
+        text_fields = text.split(self._data_sep)
+
+        fam_id = text_fields[0]
+        sample_indices = {}
+        for line in text_fields[1:]:
+            seq_fname, seq_ind = line.trim().split(":")
+            seq_ind = [int(i) for i in seq_ind.split(",")]
+            sample_indices[seq_fname] = seq_ind
+            
+        data = {
+            "fam_id": fam_id,
+            "sample_indices": sample_indices,
+        }
+
+        return data
 
 
 class FastaProteinDataset(MemoryMappedHFProteinDataset):

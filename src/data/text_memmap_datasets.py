@@ -32,7 +32,7 @@ from src.utils import (
 logger = RankedLogger(__name__, rank_zero_only=True)
 
 
-__all__ = ["TextMemMapDataset", "CSVMemMapDataset", "build_index_files"]
+__all__ = ["TextMemMapDataset", "CSVMemMapDataset",  "CSVFieldsMemmapDataset", "JSONLMemMapDataset", "FASTAFieldsMemmapDataset", "build_index_files"]
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
 
@@ -456,6 +456,58 @@ class JSONLMemMapDataset(TextMemMapDataset):
             logger.error(f"datapoint: {text}")
             raise e
         return record
+
+class FASTAFieldsMemmapDataset(TextMemMapDataset):
+    """
+    Allow per-line lazy access to multiple text files using numpy memmap.
+    """
+
+    def __init__(
+        self,
+        dataset_paths,
+        workers=None,
+        tokenizer=None,
+        sort_dataset_paths=True,
+        data_sep='\n',
+        data_fields={"data": 0},
+        index_mapping_dir=None,
+    ):
+        """
+        Args:
+            dataset_paths: list of paths to text files
+            workers: number of workers to use for parallel data indexing (on first run)
+            tokenizer: tokenizer to use for tokenization
+            sort_dataset_paths: whether to sort dataset paths by name
+            data_sep: separator between data fields (within a sample)
+            data_fields: dictionary of field names and their indices
+            index_mapping_dir: directory to store index mapping cached files
+        """
+        super().__init__(
+            dataset_paths=dataset_paths,
+            newline_int=ord(">"),
+            header_lines=1,  # skip first line since it is not an empty sequence
+            workers=workers,
+            tokenizer=tokenizer,
+            sort_dataset_paths=sort_dataset_paths,
+            index_mapping_dir=index_mapping_dir,
+        )
+
+        self._data_fields = data_fields
+        self._data_sep = data_sep
+
+    def _build_data_from_text(self, text):
+        """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
+        # convert text into data
+        _build_data_from_text = super()._build_data_from_text
+        # extract id and sequence and tokenize (if needed)
+        data = {}
+        text_fields = text.split(self._data_sep)
+
+        # map text fields to data fields by index
+        for field_name, field_idx in self._data_fields.items():
+            data[field_name] = _build_data_from_text(text_fields[field_idx])
+
+        return data
 
 
 def _index_file_exists(idx_fn):
