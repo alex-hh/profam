@@ -1,7 +1,6 @@
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-import torch
 import lightning as L
+import torch
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities import rank_zero_info
-
