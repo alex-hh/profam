@@ -19,9 +19,7 @@ from typing import Any, List, Optional, Tuple
 import numpy as np
 import torch
 
-from src.utils import (
-    RankedLogger,
-)
+from src.utils import RankedLogger
 
 logger = RankedLogger(__name__, rank_zero_only=True)
 
@@ -550,6 +548,7 @@ class WeightedConcatOnlineDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return self.num_samples
 
+
 class OffsetOnlineDataset(torch.utils.data.Dataset):
     """
     A dataset that can offset the samples from a given dataset, effectively reducing the dataset size, and starting from a given offset.
@@ -562,7 +561,7 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
     ) -> None:
         self.dataset = dataset
         self.offset = offset
-        
+
         if offset < 0:
             raise ValueError("Offset must be positive. " f"Got {offset} offset.")
         if offset >= len(dataset):
@@ -570,7 +569,7 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
                 "Offset must be smaller than the dataset size. "
                 f"Got {offset} offset and {len(dataset)} dataset size."
             )
-    
+
     def __str__(self) -> str:
         return (
             f"OffsetOnlineDataset("
@@ -591,6 +590,6 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
         # add offset to the index
         sample_idx = handle_index(idx, len(self)) + self.offset
         return self.dataset[sample_idx]
-    
+
     def __len__(self) -> int:
         return len(self.dataset) - self.offset

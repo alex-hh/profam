@@ -1,19 +1,22 @@
-from typing import List, Optional, Any
+import glob
+import os
+from typing import Any, List, Optional
+
+from torch.utils.data import Dataset
 
 from src.data.objects import ProteinDocument
 from src.data.processors import ProteinDocumentPreprocessor
 from src.data.tokenizers import ProFamTokenizer
 
-from .base import BaseProteinDataset
 from ..text_memmap_datasets import TextMemMapDataset
-import glob
-import os
-from torch.utils.data import Dataset
+from .base import BaseProteinDataset
+
 
 class MappingProteinFamilyMemmapDataset(TextMemMapDataset):
     """
     A *.mapping FASTA dataset, holding family id and mapping of sequences files and corresponding indices (per file), for each family.
     """
+
     def __init__(
         self,
         dataset_root: str,
@@ -37,8 +40,8 @@ class MappingProteinFamilyMemmapDataset(TextMemMapDataset):
             sort_dataset_paths=sort_dataset_paths,
             index_mapping_dir=index_mapping_dir,
         )
-        
-        self._data_sep = "\n"        
+
+        self._data_sep = "\n"
 
     def _build_data_from_text(self, text):
         """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
@@ -56,7 +59,7 @@ class MappingProteinFamilyMemmapDataset(TextMemMapDataset):
             seq_fname, seq_ind = line.split(":")
             seq_ind = [int(i) for i in seq_ind.split(",")]
             sample_indices[seq_fname] = seq_ind
-            
+
         data = {
             "fam_id": fam_id,
             "sample_indices": sample_indices,
@@ -64,10 +67,12 @@ class MappingProteinFamilyMemmapDataset(TextMemMapDataset):
 
         return data
 
+
 class SequencesProteinFamilyMemmapDataset(TextMemMapDataset):
     """
     A *.sequences FASTA dataset, holding accession and sequence for all families.
     """
+
     def __init__(
         self,
         dataset_root: str,
@@ -94,9 +99,9 @@ class SequencesProteinFamilyMemmapDataset(TextMemMapDataset):
             sort_dataset_paths=sort_dataset_paths,
             index_mapping_dir=index_mapping_dir,
         )
-        
+
         self._data_sep = "\n"
-        
+
         # build mapping from file name to base index to support relative indices for each sequences file
         self._file_to_base_idx = {}
         for base_idx, fn_path in zip([0] + list(self.midx_bins), self._files_list):
@@ -117,7 +122,7 @@ class SequencesProteinFamilyMemmapDataset(TextMemMapDataset):
         }
 
         return data
-    
+
     def get_absolute_indices(self, fn, indices):
         """
         Get the relative index of the sequence in the dataset.
@@ -126,6 +131,7 @@ class SequencesProteinFamilyMemmapDataset(TextMemMapDataset):
         base_idx = self._file_to_base_idx[fn]
         # return the absolues index
         return [idx + base_idx for idx in indices]
+
 
 class ProteinFamilyMemmapDataset(Dataset):
     def __init__(
@@ -144,7 +150,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         """
         super().__init__()
         self.name = name
-        
+
         self.mapping_ds = MappingProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
             **kwargs,
@@ -155,7 +161,7 @@ class ProteinFamilyMemmapDataset(Dataset):
             tokenizer=tokenizer,
             **kwargs,
         )
-        
+
     def __len__(self):
         return len(self.mapping_ds)
 
@@ -167,13 +173,14 @@ class ProteinFamilyMemmapDataset(Dataset):
             # project each relative index to absolute index
             sequence_indices = self.sequences_ds.get_absolute_indices(fn, indices)
             sequences_data.extend([self.sequences_ds[i] for i in sequence_indices])
-        
+
         # TODO: add sampling of sequences from a family here
         return ProteinDocument(
             sequences=[sd["sequence"] for sd in sequences_data],
             identifier=mapping_data["fam_id"],
             accessions=[sd["accession"] for sd in sequences_data],
         )
+
 
 # FIXME: need to finish implementing the dataset builder
 class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
@@ -197,7 +204,7 @@ class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
             name=name,
             preprocessor=preprocessor,
         )
-        
+
         self.protein_family_ds = ProteinFamilyMemmapDataset(
             name=name,
             dataset_root=dataset_root,

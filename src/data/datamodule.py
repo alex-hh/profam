@@ -12,12 +12,15 @@ from src.data.builders import (
     BaseProteinDataset,
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
-    ProteinGymDataset,
     ProteinFamilyMemmapDataset,
+    ProteinGymDataset,
 )
 from src.data.collators import DocumentBatchCollator
+from src.data.online_sample_mapping import (
+    OffsetOnlineDataset,
+    WeightedConcatOnlineDataset,
+)
 from src.data.tokenizers import ProFamTokenizer
-from src.data.online_sample_mapping import WeightedConcatOnlineDataset
 
 
 class ProteinDataModule(LightningDataModule):
@@ -141,6 +144,7 @@ class ProteinDataMixture(LightningDataModule):
                 #     "Interleaved train dataset example types",
                 #     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
                 # )
+                # FIXME: pass here number of samples seen and wrap train_dataset in OffsetOnlineDataset
                 self.train_dataset = WeightedConcatOnlineDataset(
                     datasets=train_datasets,
                     num_samples=self.total_num_train_samples,
@@ -229,7 +233,12 @@ class ProteinDataMixture(LightningDataModule):
                 # because of repeating samples to ensure even number of samples per device
                 # TODO: ProteinGymDataset should inherit from MemoryMappedHFProteinDataset
                 assert isinstance(
-                    dataset_builder, (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset)
+                    dataset_builder,
+                    (
+                        MemoryMappedHFProteinDataset,
+                        ProteinGymDataset,
+                        ProteinFamilyMemmapDataset,
+                    ),
                 ), f"Only (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset) supported for val: {v_ds_name} {type(dataset_builder)}"
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,

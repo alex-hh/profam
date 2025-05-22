@@ -25,14 +25,19 @@ from typing import Callable, List, Optional, Type
 import numpy as np
 import torch
 
-from src.utils import (
-    RankedLogger,
-)
+from src.utils import RankedLogger
 
 logger = RankedLogger(__name__, rank_zero_only=True)
 
 
-__all__ = ["TextMemMapDataset", "CSVMemMapDataset",  "CSVFieldsMemmapDataset", "JSONLMemMapDataset", "FASTAFieldsMemmapDataset", "build_index_files"]
+__all__ = [
+    "TextMemMapDataset",
+    "CSVMemMapDataset",
+    "CSVFieldsMemmapDataset",
+    "JSONLMemMapDataset",
+    "FASTAFieldsMemmapDataset",
+    "build_index_files",
+]
 __idx_version__ = "0.2"  # index file version
 __idx_suffix__ = "idx"  # index file suffix
 
@@ -457,6 +462,7 @@ class JSONLMemMapDataset(TextMemMapDataset):
             raise e
         return record
 
+
 class FASTAFieldsMemmapDataset(TextMemMapDataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
@@ -468,7 +474,7 @@ class FASTAFieldsMemmapDataset(TextMemMapDataset):
         workers=None,
         tokenizer=None,
         sort_dataset_paths=True,
-        data_sep='\n',
+        data_sep="\n",
         data_fields={"data": 0},
         index_mapping_dir=None,
     ):
