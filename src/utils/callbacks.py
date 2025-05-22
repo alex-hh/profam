@@ -283,6 +283,32 @@ class SampleCounter(Callback):
                 rank_zero_only=False,  # Allow all ranks to log
             )
 
+    def on_train_epoch_end(
+        self, trainer: L.Trainer, pl_module: L.LightningModule
+    ) -> None:
+        """Log final sample counts at the end of each epoch"""
+        # Log total samples seen at epoch end
+        pl_module.log(
+            "train/total_samples_seen_epoch",
+            self.samples_seen,
+            on_step=False,
+            on_epoch=True,
+            sync_dist=True,
+            rank_zero_only=False,
+        )
+
+        # Log dataset sample counts at epoch end
+        pl_module.log_dict(
+            {
+                f"train/{k}_times_sampled_epoch": v
+                for k, v in self.dataset_sample_counts.items()
+            },
+            on_step=False,
+            on_epoch=True,
+            sync_dist=True,
+            rank_zero_only=False,
+        )
+
     def state_dict(self) -> Dict[str, Any]:
         """Save state for checkpointing"""
         return {
