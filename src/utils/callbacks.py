@@ -235,23 +235,7 @@ class SampleCounter(Callback):
     def on_train_batch_end(self, trainer: L.Trainer, pl_module: L.LightningModule, 
                           outputs: Dict[str, Any], batch: Any, batch_idx: int) -> None:
         """Update the sample count after each batch is processed"""
-        # Get batch size - handle different batch formats
-        if isinstance(batch, dict) and "input_ids" in batch:
-            # Handle HF-style batch dict with input_ids
-            batch_size = batch["input_ids"].size(0)
-        elif isinstance(batch, (list, tuple)) and len(batch) > 0:
-            # Handle tuple/list batches - take first tensor
-            first_elem = batch[0]
-            if hasattr(first_elem, "size"):
-                batch_size = first_elem.size(0)
-            else:
-                batch_size = len(first_elem)
-        else:
-            # Fallback - try to determine batch size
-            try:
-                batch_size = len(batch)
-            except (TypeError, AttributeError):
-                batch_size = 1  # Default if we can't determine
+        batch_size = batch["batch_size"]
         
         # In distributed setting, we need to sync the count
         if trainer.world_size > 1:
@@ -260,11 +244,18 @@ class SampleCounter(Callback):
             torch.distributed.all_reduce(batch_size_tensor, op=torch.distributed.ReduceOp.SUM)
             batch_size = batch_size_tensor.item()
         
-        # Update counter
         self.samples_seen += batch_size
         
-        # Optionally log the count periodically
+        # Log to Weights & Biases every 100 batches
         if batch_idx % 100 == 0:
+            pl_module.log(
+                "train/total_samples_seen",
+                self.samples_seen,
+                on_step=True,
+                on_epoch=False,
+                sync_dist=True,  # This ensures the value is synchronized across all devices
+                rank_zero_only=False,  # Allow all ranks to log to ensure proper aggregation
+            )
             rank_zero_info(f"Total samples seen: {self.samples_seen}")
     
     def state_dict(self) -> Dict[str, Any]:
