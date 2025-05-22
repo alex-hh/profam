@@ -174,7 +174,7 @@ class ProteinFamilyMemmapDataset(Dataset):
             accessions=[sd["accession"] for sd in sequences_data],
         )
 
-
+# FIXME: need to finish implementing the dataset builder
 class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
     def __init__(
         self,
@@ -197,13 +197,9 @@ class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
             preprocessor=preprocessor,
         )
         
-        self.mapping_ds = MappingProteinFamilyMemmapDataset(
+        self.protein_family_ds = ProteinFamilyMemmapDataset(
+            name=name,
             dataset_root=dataset_root,
-            **kwargs,
-        )
-        self.sequences_ds = SequencesProteinFamilyMemmapDataset(
-            dataset_root=dataset_root,
-            # only sequence dataset requires a tokenizer
             tokenizer=tokenizer,
             **kwargs,
         )
@@ -227,41 +223,3 @@ class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
             original_size=len(lines) // 2,
             identifier=identifier,
         )  # upper bound estimate of number of sequences
-
-    @staticmethod
-    def build_document(
-        text,
-        max_sequences: Optional[int] = None,
-        identifier: Optional[str] = None,
-    ):
-        lines = text.split("\n")
-        if not len(lines[-1]):
-            lines = lines[:-1]
-        # rough upper bound: min 2 lines per seq, assume at least 10 tks per line
-        max_fasta_lines_to_preprocess = (
-            max_sequences * 50 if max_sequences is not None else len(lines)
-        )
-        if len(lines) > max_fasta_lines_to_preprocess:
-            lines = subsample_fasta_lines(
-                lines,
-                max_fasta_lines_to_preprocess,
-                shuffle=False,
-            )
-
-        sequences = [
-            seq
-            for seq in read_fasta_sequences(
-                lines,
-                # preserve original sequences before further preprocessing
-                keep_gaps=True,
-                keep_insertions=True,
-                to_upper=False,
-            )
-        ]
-
-        return ProteinDocument(
-            sequences=sequences,
-            original_size=len(lines) // 2,
-            identifier=identifier,
-        )  # upper bound estimate of number of sequences
-
