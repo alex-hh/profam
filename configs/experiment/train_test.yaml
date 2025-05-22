@@ -19,3 +19,4 @@ data:
 dataset_builders:
   proteingym:
     gym_data_dir: "../tiny_data/ProteinGym"
+    max_context_seqs: 2
