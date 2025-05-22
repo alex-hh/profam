@@ -13,9 +13,11 @@ from src.data.builders import (
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
     ProteinGymDataset,
+    ProteinFamilyMemmapDataset,
 )
 from src.data.collators import DocumentBatchCollator
 from src.data.tokenizers import ProFamTokenizer
+from src.data.online_sample_mapping import WeightedConcatOnlineDataset
 
 
 class ProteinDataModule(LightningDataModule):
@@ -127,12 +129,20 @@ class ProteinDataMixture(LightningDataModule):
 
             assert len(train_datasets) > 0
             if len(train_datasets) > 1:
-                self.train_dataset = interleave_datasets(
-                    train_datasets,
-                    probabilities=train_data_weights,
-                    stopping_strategy="all_exhausted",
-                    split="train",
+                # TODO: using the new WeightedConcatOnlineDataset
+                # self.train_dataset = interleave_datasets(
+                #     train_datasets,
+                #     probabilities=train_data_weights,
+                #     stopping_strategy="all_exhausted",
+                #     split="train",
+                #     seed=42,
+                # )
+                self.train_dataset = WeightedConcatOnlineDataset(
+                    datasets=train_datasets,
+                    num_samples=self.total_num_train_samples,
+                    weights=train_data_weights,
                     seed=42,
+                    shuffle=True,
                 )
                 print(
                     "Interleaved train dataset example types",
@@ -215,8 +225,8 @@ class ProteinDataMixture(LightningDataModule):
                 # because of repeating samples to ensure even number of samples per device
                 # TODO: ProteinGymDataset should inherit from MemoryMappedHFProteinDataset
                 assert isinstance(
-                    dataset_builder, (MemoryMappedHFProteinDataset, ProteinGymDataset)
-                ), f"Only MemoryMappedHFProteinDataset supported for val: {v_ds_name} {type(dataset_builder)}"
+                    dataset_builder, (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset)
+                ), f"Only (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset) supported for val: {v_ds_name} {type(dataset_builder)}"
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,
                     world_size=world_size,

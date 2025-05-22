@@ -11,3 +11,4 @@ from .hf_datasets import (
     StructureDocumentMapDataset,
 )
 from .proteingym import ProteinGymDataset
+from .family_text_memmap_datasets import ProteinFamilyMemmapDataset
