@@ -1103,31 +1103,9 @@ class BaseFamilyLitModule(BaseLitModule):
             prog_bar=True,
             on_epoch=False,
         )
-        self.log_ds_sample_counts(batch)
         return loss
-
-    def on_train_start(self):
-        self.dataset_sample_counts = {}
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
         log.info("Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
-    def log_ds_sample_counts(self, batch):
-        """Log statistics about dataset usage.
-
-        N.B. in distributed setting, these will be device-specific.
-        """
-        ds_name = batch["ds_name"].text
-        for ds in ds_name:
-            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
-
-        self.log_dict(
-            {
-                f"train/{k}_times_sampled": v
-                for k, v in self.dataset_sample_counts.items()
-            },
-            on_step=True,
-            on_epoch=False,
-        )

@@ -30,6 +30,7 @@ dataset_builders:
     dms_ids: ["BLAT_ECOLX_Jacquier_2013", "DLG4_RAT_McLaughlin_2012"]
     max_tokens_per_example: 2048
     max_mutated_sequences: 10
+    max_context_seqs: 2
 
 batch_size: 2
 data_dir: data/example_data # example data is in repo main dir
