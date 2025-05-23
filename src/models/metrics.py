@@ -14,7 +14,7 @@ try:
     num_gpus = pynvml.nvmlDeviceGetCount()
 
     # Identify local rank and hostname
-    local_rank = get_local_rank()
+    # local_rank = get_local_rank()
     hostname = socket.gethostname()
 
     print(

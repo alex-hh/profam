@@ -3,9 +3,9 @@ from .family_text_memmap_datasets import ProteinFamilyMemmapDataset
 from .fasta import FastaProteinDataset
 from .hf_datasets import (
     FileBasedHFProteinDataset,
-    HFProteinDatasetConfig,
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
+    ProteinDatasetConfig,
     SequenceDocumentIterableDataset,
     SequenceDocumentMapDataset,
     StructureDocumentIterableDataset,

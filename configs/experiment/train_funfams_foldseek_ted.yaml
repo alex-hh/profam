@@ -78,7 +78,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: funfams_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: funfams/s50_parquets/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -102,7 +102,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: funfams_s100
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: funfams/s100_noali_parquets/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -126,7 +126,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: ted_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: ted/s50_parquets/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -150,7 +150,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_reps_single
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_reps_single/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -174,7 +174,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_s100
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_s100_raw/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -197,7 +197,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/train/*.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -220,7 +220,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: val_ted_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: ted/s50_parquets/train_val_test_split/val/val_000.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -243,7 +243,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: val_foldseek_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/val/val_1840_2300_003.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -271,7 +271,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: val_funfams_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: funfams/s50_parquets/train_val_test_split/val/*.parquet
         holdout_data_files: null
         holdout_identifiers: null

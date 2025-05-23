@@ -38,7 +38,7 @@ from src.constants import (
     TOKENIZED_FEATURE_TYPES,
 )
 from src.data.builders.hf_datasets import (
-    HFProteinDatasetConfig,
+    ProteinDatasetConfig,
     StructureDocumentIterableDataset,
 )
 from src.data.collators import DocumentBatchCollator
@@ -72,7 +72,7 @@ def main(
         f"Loading files matching glob: {os.path.join(PROFAM_DATA_DIR, f'{data_folder}/*.parquet')}"
     )
     # can we set batch_size for loader? is it useful?
-    cfg = HFProteinDatasetConfig(
+    cfg = ProteinDatasetConfig(
         data_path_pattern=f"{data_folder}/*.parquet",
         force_batched_map=True if map_batch_size is not None else False,
         map_batch_size=map_batch_size,

@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from src.constants import ALL_FEATURE_NAMES, BASEDIR
-from src.data.builders import HFProteinDatasetConfig, StructureDocumentIterableDataset
+from src.data.builders import ProteinDatasetConfig, StructureDocumentIterableDataset
 from src.data.collators import DocumentBatchCollator
 from src.data.processors import preprocessing, transforms
 from src.structure.pdb import get_atom_coords_residuewise, load_structure
@@ -75,7 +75,7 @@ def foldseek_interleaved_structure_sequence_batch_and_datapoint(
         interleave_structure_sequence=True,
     )
     # TODO: test with structure tokens
-    cfg = HFProteinDatasetConfig(
+    cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         infer_representative_from_identifier=True,
         file_type="parquet",
@@ -223,7 +223,7 @@ def test_foldseek_plddt_masking(profam_tokenizer):
             transforms.interleave_structure_sequence,
         ],
     )
-    cfg = HFProteinDatasetConfig(
+    cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_struct/0.parquet",
         file_type="parquet",
         structure_tokens_col="msta_3di",
@@ -277,7 +277,7 @@ def test_foldseek_representative_concatenation(profam_tokenizer):
         cfg=preprocessing_cfg,
         interleave_structure_sequence=False,  # n.b. interleaving transform automatically computes max_tokens
     )
-    cfg = HFProteinDatasetConfig(
+    cfg = ProteinDatasetConfig(
         data_path_pattern="foldseek_representatives/0.parquet",
         file_type="parquet",
         structure_tokens_col=None,

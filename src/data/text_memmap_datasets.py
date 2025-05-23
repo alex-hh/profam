@@ -253,14 +253,14 @@ class TextMemMapDataset(torch.utils.data.Dataset):
         return text
 
     def _build_data_from_text(self, text):
-        """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
-        # tokenize text if tokenizer is given
-        if self.tokenizer is not None:
-            data = self.tokenizer.text_to_ids(text)
-        else:
-            data = text
+        # """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
+        # # tokenize text if tokenizer is given
+        # if self.tokenizer is not None:
+        #     data = self.tokenizer.text_to_ids(text)
+        # else:
+        #     data = text
 
-        return data
+        return text
 
     def load_file(self, fn, index_mapping_dir: Optional[str] = None):
         """

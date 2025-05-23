@@ -138,7 +138,8 @@ class ProteinFamilyMemmapDataset(Dataset):
         self,
         name: str,
         dataset_root: str,
-        tokenizer: Optional[ProFamTokenizer] = None,
+        preprocessor: ProteinDocumentPreprocessor,
+        tokenizer: ProFamTokenizer,
         **kwargs,
     ):
         """
@@ -150,7 +151,8 @@ class ProteinFamilyMemmapDataset(Dataset):
         """
         super().__init__()
         self.name = name
-
+        self.preprocessor = preprocessor
+        self.tokenizer = tokenizer
         self.mapping_ds = MappingProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
             **kwargs,
@@ -175,11 +177,17 @@ class ProteinFamilyMemmapDataset(Dataset):
             sequences_data.extend([self.sequences_ds[i] for i in sequence_indices])
 
         # TODO: add sampling of sequences from a family here
-        return ProteinDocument(
+        protein_doc = ProteinDocument(
             sequences=[sd["sequence"] for sd in sequences_data],
             identifier=mapping_data["fam_id"],
             accessions=[sd["accession"] for sd in sequences_data],
         )
+        processed = self.preprocessor.preprocess_protein_data(
+            protein_doc,
+            tokenizer=self.tokenizer,
+        )
+        processed["ds_name"] = self.name
+        return processed
 
 
 # FIXME: need to finish implementing the dataset builder
@@ -208,7 +216,7 @@ class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
         self.protein_family_ds = ProteinFamilyMemmapDataset(
             name=name,
             dataset_root=dataset_root,
-            tokenizer=tokenizer,
+            # tokenizer=tokenizer,
             **kwargs,
         )
 

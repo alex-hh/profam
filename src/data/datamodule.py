@@ -5,7 +5,7 @@ from datasets import interleave_datasets
 from datasets.distributed import split_dataset_by_node
 from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.builders import (
@@ -21,12 +21,6 @@ from src.data.online_sample_mapping import (
     WeightedConcatOnlineDataset,
 )
 from src.data.tokenizers import ProFamTokenizer
-
-
-class ProteinDataModule(LightningDataModule):
-    """Data module for single dataset training."""
-
-    pass
 
 
 class ProteinDataMixture(LightningDataModule):
@@ -57,6 +51,7 @@ class ProteinDataMixture(LightningDataModule):
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         prefetch_factor: Optional[int] = None,
+        train_datasets: Optional[List[Dataset]] = [],
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -86,6 +81,7 @@ class ProteinDataMixture(LightningDataModule):
         )
         self._is_setup = False
         self.total_num_train_samples = total_num_train_samples
+        self.train_datasets = train_datasets
 
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
@@ -299,6 +295,106 @@ class ProteinDataMixture(LightningDataModule):
             DataLoader(
                 val_ds,
                 batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
+                collate_fn=self.val_collator,
+                shuffle=False,
+                num_workers=self.num_workers // 2,
+                persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
+            )
+            for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
+        ]
+        return loaders
+
+    def test_dataloader(self) -> List[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.val_collator,
+                shuffle=False,
+                num_workers=self.num_workers // 2,
+                persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
+            )
+        ]
+        return loaders
+
+
+class ProteinMemmapDataModule(LightningDataModule):
+    """Data module for training on text memmap datasets."""
+
+    def __init__(
+        self,
+        train_dataset: Dataset,
+        val_dataset: Dataset,
+        data_dir: str,
+        val_dataset_batch_sizes: Dict[str, int],
+        batch_size: int = 8,
+        num_workers: Optional[int] = None,
+        ignore_gaps: bool = False,
+        total_num_train_samples: Optional[int] = None,
+        feature_names: Optional[List[str]] = None,
+        pack_to_max_tokens: Optional[int] = None,
+        prefetch_factor: Optional[int] = None,
+        test_dataset: Optional[Dataset] = None,
+        tokenizer: Optional[ProFamTokenizer] = None,
+    ):
+        super().__init__()
+        self.train_dataset = train_dataset
+        self.val_dataset = val_dataset
+        self.test_dataset = test_dataset
+        self.tokenizer = tokenizer
+        self.data_dir = data_dir
+        self.val_dataset_batch_sizes = val_dataset_batch_sizes
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.prefetch_factor = prefetch_factor
+        self.feature_names = feature_names
+        self.pack_to_max_tokens = pack_to_max_tokens
+        self.ignore_gaps = ignore_gaps
+        self.total_num_train_samples = total_num_train_samples
+        self.tokenizer = tokenizer
+        self.train_collator = DocumentBatchCollator(
+            self.tokenizer,
+            ignore_gaps=ignore_gaps,
+            feature_names=self.feature_names,
+        )
+        self.val_collator = DocumentBatchCollator(
+            self.tokenizer,
+            ignore_gaps=ignore_gaps,
+            feature_names=None,
+        )
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        self.val_datasets = [self.val_dataset]
+        self.val_dataset_names = ["val"]
+
+    def train_dataloader(self) -> DataLoader:
+        # Get samples_seen from trainer if available
+        samples_seen = (
+            getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
+        )
+        if samples_seen > 0:
+            print(
+                f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED"
+            )
+
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            collate_fn=self.train_collator,
+            num_workers=self.num_workers,
+            persistent_workers=self.num_workers
+            > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
+            prefetch_factor=self.prefetch_factor,
+        )
+
+    def val_dataloader(self) -> List[DataLoader]:
+        loaders = [
+            DataLoader(
+                val_ds,
+                batch_size=1,
+                # batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
                 collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers // 2,
