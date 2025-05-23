@@ -144,7 +144,6 @@ class ProteinDataMixture(LightningDataModule):
                 #     "Interleaved train dataset example types",
                 #     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
                 # )
-                # FIXME: pass here number of samples seen and wrap train_dataset in OffsetOnlineDataset
                 self.train_dataset = WeightedConcatOnlineDataset(
                     datasets=train_datasets,
                     num_samples=self.total_num_train_samples,
@@ -159,6 +158,9 @@ class ProteinDataMixture(LightningDataModule):
             else:
                 print("Using single dataset", flush=True)
                 self.train_dataset = train_datasets[0]
+
+            # we wrap with OffsetOnlineDataset to support resuming from correct sample
+            self.train_dataset = OffsetOnlineDataset(self.train_dataset)
 
             if isinstance(self.train_dataset, IterableDataset):
                 # c.f. iterable dataset examples...
@@ -279,10 +281,16 @@ class ProteinDataMixture(LightningDataModule):
         samples_seen = (
             getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
         )
+        # If resuming from checkpoint, skip already seen samples on iterable datasets
         if samples_seen > 0:
-            print(
-                f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED"
-            )
+            if isinstance(self.train_dataset, OffsetOnlineDataset):
+                # Skip the number of samples already seen
+                self.train_dataset = self.train_dataset.skip(samples_seen)
+                print(f"Skipped first {samples_seen} samples to resume training dataset correctly")
+            else:
+                print(
+                    f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT TAKING EFFECT"
+                )
 
         return DataLoader(
             self.train_dataset,

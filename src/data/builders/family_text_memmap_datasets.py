@@ -167,14 +167,14 @@ class ProteinFamilyMemmapDataset(Dataset):
 
     def __getitem__(self, idx):
         mapping_data = self.mapping_ds[idx]
-        sequences_data = []
+        sequence_indices = []
         # collect samples from all files
         for fn, indices in mapping_data["sample_indices"].items():
             # project each relative index to absolute index
-            sequence_indices = self.sequences_ds.get_absolute_indices(fn, indices)
-            sequences_data.extend([self.sequences_ds[i] for i in sequence_indices])
+            sequence_indices.extend(self.sequences_ds.get_absolute_indices(fn, indices))
 
         # TODO: add sampling of sequences from a family here
+        sequences_data = [self.sequences_ds[i] for i in sequence_indices]
         return ProteinDocument(
             sequences=[sd["sequence"] for sd in sequences_data],
             identifier=mapping_data["fam_id"],
