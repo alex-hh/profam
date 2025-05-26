@@ -1,5 +1,8 @@
 from .base import BaseProteinDataset
-from .family_text_memmap_datasets import ProteinFamilyMemmapDataset
+from .family_text_memmap_datasets import (
+    ProteinFamilyMemmapDataset,
+    ProteinFamilyMemmapDatasetBuilder,
+)
 from .fasta import FastaProteinDataset
 from .hf_datasets import (
     FileBasedHFProteinDataset,

@@ -13,6 +13,7 @@ from src.data.builders import (
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
     ProteinFamilyMemmapDataset,
+    ProteinFamilyMemmapDatasetBuilder,
     ProteinGymDataset,
 )
 from src.data.collators import DocumentBatchCollator
@@ -234,8 +235,9 @@ class ProteinDataMixture(LightningDataModule):
                         MemoryMappedHFProteinDataset,
                         ProteinGymDataset,
                         ProteinFamilyMemmapDataset,
+                        ProteinFamilyMemmapDatasetBuilder,
                     ),
-                ), f"Only (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset) supported for val: {v_ds_name} {type(dataset_builder)}"
+                ), f"Only (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset, ProteinFamilyMemmapDatasetBuilder) supported for val: {v_ds_name} {type(dataset_builder)}"
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,
                     world_size=world_size,
