@@ -342,6 +342,7 @@ class ProteinMemmapDataModule(LightningDataModule):
         tokenizer: Optional[ProFamTokenizer] = None,
     ):
         super().__init__()
+        print("\n\n\n\n THIS CLASS SHOULD BE USED FOR DEBUGGING ONLY \n\n\n\n\n")
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
