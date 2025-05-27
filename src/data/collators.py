@@ -266,12 +266,14 @@ class DocumentBatchCollator:
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         allow_split_packed_documents: bool = False,
+        max_buffer_size: int = 64,
     ):
         self.tokenizer = tokenizer
         self.ignore_gaps = ignore_gaps
         self.feature_names = feature_names
         self.pack_to_max_tokens = pack_to_max_tokens
         self.allow_split_packed_documents = allow_split_packed_documents
+        self.max_buffer_size = max_buffer_size
         self._ring_buffer: List[Dict[str, Any]] = []
 
     def __call__(self, examples):
@@ -282,7 +284,10 @@ class DocumentBatchCollator:
 
         # Merge ring buffer with incoming batch
         original_combined_examples = self._ring_buffer + examples
-
+        if 'train' in examples[0]['ds_name']:
+            print('train collate_buffer_len:', len(self._ring_buffer))
+        elif 'val' in examples[0]['ds_name']:
+            print('val collate_buffer_len:', len(self._ring_buffer))
         # If packing enabled, greedily fill up to pack_to_max_tokens
         if self.pack_to_max_tokens is not None:
             chosen, remainder = [], []
@@ -298,6 +303,8 @@ class DocumentBatchCollator:
                 else:
                     remainder.append(ex)
             self._ring_buffer = remainder  # carry over to next call
+            # Apply max_buffer_size constraint
+            self._ring_buffer = self._ring_buffer[max(0, len(self._ring_buffer) - self.max_buffer_size):]
 
             combined_examples = chosen
         else:
