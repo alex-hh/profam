@@ -74,11 +74,13 @@ class ProteinDataMixture(LightningDataModule):
             self.tokenizer,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
+            pack_to_max_tokens=self.pack_to_max_tokens,
         )
         self.val_collator = DocumentBatchCollator(
             self.tokenizer,
             ignore_gaps=ignore_gaps,
             feature_names=None,
+            pack_to_max_tokens=self.pack_to_max_tokens,
         )
         self._is_setup = False
         self.total_num_train_samples = total_num_train_samples
@@ -361,11 +363,13 @@ class ProteinMemmapDataModule(LightningDataModule):
             self.tokenizer,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
+            pack_to_max_tokens=self.pack_to_max_tokens,
         )
         self.val_collator = DocumentBatchCollator(
             self.tokenizer,
             ignore_gaps=ignore_gaps,
             feature_names=None,
+            pack_to_max_tokens=self.pack_to_max_tokens,
         )
 
     def setup(self, stage: Optional[str] = None) -> None:

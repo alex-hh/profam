@@ -268,6 +268,7 @@ class ProteinFamilyMemmapDatasetBuilder(ProteinFamilyMemmapDataset, BaseProteinD
         The method exists purely to satisfy the builder interface.
         """
 
+        # No dataset-level packing; packing handled in collator ring buffer
         return dataset  # already tokenised on access
 
     # We never call _build_document for this builder.

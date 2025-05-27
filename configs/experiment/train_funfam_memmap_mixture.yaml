@@ -92,12 +92,12 @@ data:
   val_dataset_batch_sizes:
     funfams_s50_val: 1
 
-  batch_size: 1
+  batch_size: 10
   data_dir: ${paths.data_dir}
   num_workers: 0
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 5000
+  pack_to_max_tokens: 8192
   prefetch_factor: null
   shuffle: true
-  total_num_train_samples: 2000000 
+  total_num_train_samples: 2000000
