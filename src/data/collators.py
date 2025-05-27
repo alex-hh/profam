@@ -284,10 +284,6 @@ class DocumentBatchCollator:
 
         # Merge ring buffer with incoming batch
         original_combined_examples = self._ring_buffer + examples
-        if 'train' in examples[0]['ds_name']:
-            print('train collate_buffer_len:', len(self._ring_buffer))
-        elif 'val' in examples[0]['ds_name']:
-            print('val collate_buffer_len:', len(self._ring_buffer))
         # If packing enabled, greedily fill up to pack_to_max_tokens
         if self.pack_to_max_tokens is not None:
             chosen, remainder = [], []
@@ -390,5 +386,8 @@ class DocumentBatchCollator:
 
         if "batch_size" not in batch:
             batch["batch_size"] = len(combined_examples)
-
+        if 'train' in examples[0]['ds_name']:
+            print('train collate_buffer_len:', len(self._ring_buffer), batch['input_ids'].shape)
+        elif 'val' in examples[0]['ds_name']:
+            print('val collate_buffer_len:', len(self._ring_buffer))
         return batch
