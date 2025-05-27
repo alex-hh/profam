@@ -107,7 +107,8 @@ data:
       preprocessor: ${data.dataset_builders.funfams_s50_train.preprocessor}
   # -----------------------------------------------------------
   data_weights:
-    funfams_s50_train: 1.0
+    funfams_s50_train: 0.1
+    uniref90_train: 0.9
 
   val_dataset_batch_sizes:
     funfams_s50_val: 1

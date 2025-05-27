@@ -131,28 +131,28 @@ class ProteinDataMixture(LightningDataModule):
 
             assert len(train_datasets) > 0
             if len(train_datasets) > 1:
-                # TODO: using the new WeightedConcatOnlineDataset
-                # self.train_dataset = interleave_datasets(
-                #     train_datasets,
-                #     probabilities=train_data_weights,
-                #     stopping_strategy="all_exhausted",
-                #     split="train",
-                #     seed=42,
-                # )
-                # print(
-                #     "Interleaved train dataset example types",
-                #     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
-                # )
-                # FIXME: pass here number of samples seen and wrap train_dataset in OffsetOnlineDataset
-                self.train_dataset = WeightedConcatOnlineDataset(
-                    datasets=train_datasets,
-                    num_samples=self.total_num_train_samples,
-                    weights=train_data_weights,
-                    seed=42,
-                    shuffle=True,
-                )
+                assert (
+                    len(set([type(ds) for ds in train_datasets])) == 1
+                ), "All train datasets must be same type"
+                if isinstance(train_datasets[0], IterableDataset):
+                    self.train_dataset = interleave_datasets(
+                        train_datasets,
+                        probabilities=train_data_weights,
+                        stopping_strategy="all_exhausted",
+                        split="train",
+                        seed=42,
+                    )
+                else:
+                    # FIXME: pass here number of samples seen and wrap train_dataset in OffsetOnlineDataset
+                    self.train_dataset = WeightedConcatOnlineDataset(
+                        datasets=train_datasets,
+                        num_samples=self.total_num_train_samples,
+                        weights=train_data_weights,
+                        seed=42,
+                        shuffle=True,
+                    )
                 print(
-                    "Interleaved train dataset example types (WeightedConcatOnlineDataset)",
+                    "Interleaved train dataset example types",
                     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
                 )
             else:

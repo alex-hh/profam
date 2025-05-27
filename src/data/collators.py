@@ -300,7 +300,9 @@ class DocumentBatchCollator:
                     remainder.append(ex)
             self._ring_buffer = remainder  # carry over to next call
             # Apply max_buffer_size constraint
-            self._ring_buffer = self._ring_buffer[max(0, len(self._ring_buffer) - self.max_buffer_size):]
+            self._ring_buffer = self._ring_buffer[
+                max(0, len(self._ring_buffer) - self.max_buffer_size) :
+            ]
 
             combined_examples = chosen
         else:
@@ -386,8 +388,10 @@ class DocumentBatchCollator:
 
         if "batch_size" not in batch:
             batch["batch_size"] = len(combined_examples)
-        if 'train' in examples[0]['ds_name']:
-            print('train collate_buffer_len:', len(self._ring_buffer), batch['input_ids'].shape)
-        elif 'val' in examples[0]['ds_name']:
-            print('val collate_buffer_len:', len(self._ring_buffer))
+        # if 'train' in examples[0]['ds_name']:
+        #     proportion_uniref_90 = sum(1 for ex in combined_examples if 'uniref90' in ex['ds_name']) / len(combined_examples)
+        #     proportion_funfam_50 = sum(1 for ex in combined_examples if 'funfam' in ex['ds_name']) / len(combined_examples)
+        #     print('buffer_len:', len(self._ring_buffer), batch['input_ids'].shape, 'uniref:', proportion_uniref_90, 'funfam:', proportion_funfam_50)
+        # elif 'val' in examples[0]['ds_name']:
+        #     print('val collate_buffer_len:', len(self._ring_buffer))
         return batch
