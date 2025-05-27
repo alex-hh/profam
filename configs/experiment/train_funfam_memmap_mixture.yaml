@@ -78,6 +78,28 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
+    
+    openfold_train:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: openfold_train
+      dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 800
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
+    
     uniref90_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: uniref90_train
@@ -109,7 +131,7 @@ data:
   data_weights:
     funfams_s50_train: 0.5
     uniref90_train: 0.5
-
+    openfold_train: 0.5
   val_dataset_batch_sizes:
     funfams_s50_val: 1
 
