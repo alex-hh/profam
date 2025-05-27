@@ -274,7 +274,10 @@ class DocumentBatchCollator:
         self.pack_to_max_tokens = pack_to_max_tokens
         self.allow_split_packed_documents = allow_split_packed_documents
         self.max_buffer_size = max_buffer_size
-        self._ring_buffer: List[Dict[str, Any]] = []
+        if max_buffer_size > 0:
+            self._ring_buffer: List[Dict[str, Any]] = []
+        else:
+            self._ring_buffer = None
 
     def __call__(self, examples):
         # TODO: maybe I have an issue with blending data with different keys?
@@ -283,7 +286,10 @@ class DocumentBatchCollator:
             return self.feature_names is None or feature_name in self.feature_names
 
         # Merge ring buffer with incoming batch
-        original_combined_examples = self._ring_buffer + examples
+        if self._ring_buffer is not None:
+            original_combined_examples = self._ring_buffer + examples
+        else:
+            original_combined_examples = examples
         # If packing enabled, greedily fill up to pack_to_max_tokens
         if self.pack_to_max_tokens is not None:
             chosen, remainder = [], []
@@ -296,18 +302,17 @@ class DocumentBatchCollator:
                 ):
                     chosen.append(ex)
                     current_tokens += n_tokens
-                else:
+                elif self._ring_buffer is not None:
                     remainder.append(ex)
-            self._ring_buffer = remainder  # carry over to next call
-            # Apply max_buffer_size constraint
-            self._ring_buffer = self._ring_buffer[
-                max(0, len(self._ring_buffer) - self.max_buffer_size) :
-            ]
+            if self._ring_buffer is not None:
+                self._ring_buffer = remainder  # carry over to next call
+                # Apply max_buffer_size constraint
+                self._ring_buffer = self._ring_buffer[
+                    max(0, len(self._ring_buffer) - self.max_buffer_size) :
+                ]
 
             combined_examples = chosen
         else:
-            # No packing; clear buffer
-            self._ring_buffer = []
             combined_examples = original_combined_examples
 
         non_string_data = [
