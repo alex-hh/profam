@@ -390,13 +390,13 @@ class DocumentBatchCollator:
             str_obj = StringObject()
             str_obj.text = str_vals
             batch[str_key] = str_obj
-
+        ring_buffer_len = len(self._ring_buffer) if self._ring_buffer is not None else 0
         if "batch_size" not in batch:
             batch["batch_size"] = len(combined_examples)
         if 'train' in examples[0]['ds_name']:
             proportion_uniref_90 = sum(1 for ex in combined_examples if 'uniref90' in ex['ds_name']) / len(combined_examples)
             proportion_funfam_50 = sum(1 for ex in combined_examples if 'funfam' in ex['ds_name']) / len(combined_examples)
-            print('buffer_len:', len(self._ring_buffer), batch['input_ids'].shape, 'uniref:', proportion_uniref_90, 'funfam:', proportion_funfam_50)
+            print('buffer_len:', ring_buffer_len, batch['input_ids'].shape, 'uniref:', proportion_uniref_90, 'funfam:', proportion_funfam_50)
         elif 'val' in examples[0]['ds_name']:
-            print('val collate_buffer_len:', len(self._ring_buffer))
+            print('val collate_buffer_len:', ring_buffer_len)
         return batch
