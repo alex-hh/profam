@@ -13,7 +13,7 @@ defaults:
   - override /model: llama_251m.yaml
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
-  - override /logger: null
+  - override /logger: wandb
   - _self_
 
 experiment_group: "train_funfam_memmap_mixture"
