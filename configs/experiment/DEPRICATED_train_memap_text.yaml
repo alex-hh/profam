@@ -8,7 +8,7 @@ defaults:
   # - /data/dataset@data.dataset_builders.foldseek_s50_raw_val: foldseek_s50_raw
   # - /data/dataset@data.dataset_builders.uniref90_val: uniref90_single_raw
   - override /data: null
-  - override /model: llama_251m.yaml
+  - override /model: llama_nano.yaml
   - override /callbacks: default_with_shuffle
   - override /trainer: gpu
   # - override /logger: wandb
@@ -24,7 +24,7 @@ trainer:
   devices: auto
   check_val_every_n_epoch: 1
   target_tokens_per_batch: 256000
-  tokens_per_document: 30000
+  tokens_per_document: 8192
   min_epochs: 1000
   max_epochs: 100000
   val_check_interval: 3000
@@ -47,17 +47,19 @@ model:
   lr: 1e-3
   embed_sequence_index: false
   embed_residue_index: false
+  config:
+    attn_implementation: flash_attention_2
 
 data:
   _target_: src.data.datamodule.ProteinMemmapDataModule
   val_dataset_batch_sizes: null
   batch_size: 1
   data_dir: ${paths.data_dir}
-  num_workers: 0
+  num_workers: 64
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 5000
-  prefetch_factor: null
+  pack_to_max_tokens: 32768
+  prefetch_factor: 4
   val_dataset: ${data.train_dataset}
   test_dataset: null
   train_dataset:

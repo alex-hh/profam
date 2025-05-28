@@ -266,7 +266,7 @@ class DocumentBatchCollator:
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         allow_split_packed_documents: bool = False,
-        max_buffer_size: int = 0,
+        max_buffer_size: int = 64,
     ):
         self.tokenizer = tokenizer
         self.ignore_gaps = ignore_gaps
