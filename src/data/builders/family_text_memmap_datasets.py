@@ -230,7 +230,7 @@ class ProteinFamilyMemmapDatasetBuilder(ProteinFamilyMemmapDataset, BaseProteinD
     # ------------------------------------------------------------------
     # The following methods implement the *builder* API expected by
     # ProteinDataMixture.  Because the dataset is already constructed in
-    # __init__, these mostly act as no-ops / simple wrappers.
+    # __init__, these mostly do nothing or are simple wrappers.
     # ------------------------------------------------------------------
 
     def load(self, data_dir: str = "data", world_size: int = 1, verbose: bool = False):
