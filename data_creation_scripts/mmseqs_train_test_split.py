@@ -565,6 +565,12 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter, 
                 test_rows = []
                 
                 for i, row in tqdm.tqdm(df.iterrows(), total=len(df), desc=f"Processing {os.path.basename(parquet_file)}"):
+                    if os.path.basename(parquet_file) == "train_096.parquet" and dataset['name'] == "TEDS100" and i ==31:
+                        print("skipping bad row")
+                        continue
+                    if os.path.basename(parquet_file) == "train_funfams_s100_noali_data_00_009.parquet" and i ==820:
+                        print("skipping bad row")
+                        continue
                     fam_id = row.get('fam_id', f"fam_{i}")
                     keep_sequences = []
                     keep_accessions = []
