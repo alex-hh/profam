@@ -76,7 +76,11 @@ datasets_to_filter = [
 def build_splits_json(filtered_parquet_dir):
     splits_json = {}
     for split in ["train", "val", "test"]:
-        for parquet in glob.glob(os.path.join(filtered_parquet_dir, f"{split}_filtered/*.parquet")):
+        split_dir = os.path.join(filtered_parquet_dir, f"{split}_filtered")
+        if not os.path.exists(split_dir):
+            raise ValueError(f"Split {split} does not exist in {filtered_parquet_dir}")
+            
+        for parquet in glob.glob(os.path.join(split_dir, "*.parquet")):
             df = pd.read_parquet(parquet)
             for _, row in df.iterrows():
                 fam_id = row["fam_id"].replace("_rep_seq", "").replace("_ted.fasta", "")
@@ -145,31 +149,47 @@ def process_row(row, split_json, parquet_writers):
         for split in splits_masks:
             splits_masks[split].append(s == split)
     for split, mask in splits_masks.items():
-        mask = np.array(mask, dtype=bool)
-        if mask.any():
+        mask_np = np.array(mask, dtype=bool)  # Use mask_np to avoid conflict
+        if mask_np.any():
             new_row = {}
-            for k, v in row.items():
-                if isinstance(v, (np.ndarray, list)):
-                    new_row[k] = np.array(v)[mask]
-                else:
-                    new_row[k] = v
-            parquet_writers[split].update_buffer(pd.DataFrame([new_row]))
+            for k, v_original in row.items(): # Renamed v to v_original for clarity
+                if isinstance(v_original, (np.ndarray, list)):
+                    # Ensure proper handling of lists vs ndarrays and apply mask
+                    v_as_array = np.array(v_original, copy=False) # Use copy=False if already ndarray and type is fine
+                    
+                    masked_data = v_as_array[mask_np]
 
-    # # Optional assign residual families to train
-    # # Handle any remaining accessions not assigned to val / test (default to train)
-    # if fam_id not in split_json:
-    #     parquet_writers["train"].update_buffer(pd.DataFrame([row]))
-    # else:
-    #     all_assigned = set(split_json[fam_id]["train"]) | set(split_json[fam_id]["val"]) | set(split_json[fam_id]["test"])
-    #     residual_mask = np.array([acc not in all_assigned for acc in accessions_list])
-    #     if residual_mask.any():
-    #         residual_row = {}
-    #         for k, v in row.items():
-    #             if isinstance(v, (np.ndarray, list)):
-    #                 residual_row[k] = np.array(v)[residual_mask]
-    #             else:
-    #                 residual_row[k] = v
-    #         parquet_writers["train"].update_buffer(pd.DataFrame([residual_row]))
+                    # Standardize to np.float32 for specific coordinate/numerical columns
+                    # to prevent errors from mixed float types (e.g., float16 and float32)
+                    # which can lead to object arrays that pyarrow cannot convert directly.
+                    if k in ['N', 'CA', 'C', 'O'] and masked_data.size > 0:
+                        if masked_data.dtype == np.object_ or np.issubdtype(masked_data.dtype, np.floating):
+                            try:
+                                masked_data = masked_data.astype(np.float16)
+                            except ValueError:
+                                # This might occur if an object array contains non-numeric data.
+                                # The original error suggests a mix of floats, so this is a safeguard.
+                                print(f"Warning: Could not cast column '{k}' to np.float16 for fam_id {fam_id} in split {split}. Original dtype: {masked_data.dtype}. Skipping row.")
+                                return
+                    
+                    new_row[k] = masked_data
+                else:
+                    new_row[k] = v_original # Assign scalars or other non-array types directly
+            
+            try:
+                # Create DataFrame from the processed row
+                df_to_add_to_buffer = pd.DataFrame([new_row])
+                parquet_writers[split].update_buffer(df_to_add_to_buffer)
+            except Exception as e_buffer:
+                print(f"Error creating DataFrame or updating buffer for fam_id {fam_id}, split {split}. Error: {e_buffer}")
+                # Detailed logging for problematic row structure
+                print(f"Problematic new_row details for fam_id {fam_id}, split {split}:")
+                for item_k, item_v in new_row.items():
+                    if isinstance(item_v, np.ndarray):
+                        print(f"  Item '{item_k}': type={type(item_v)}, dtype={item_v.dtype}, shape={item_v.shape}")
+                    else:
+                        print(f"  Item '{item_k}': type={type(item_v)}, value (sample if long): {str(item_v)[:100]}")
+                # Optionally, re-raise or implement more specific error handling if needed
 
 
 if __name__ == "__main__":
