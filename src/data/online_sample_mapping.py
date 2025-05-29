@@ -587,7 +587,7 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.dataset) - self.offset
 
-    def set_offest(self, offset: int) -> None:
+    def set_offest(self, offset: int) -> "OffsetOnlineDataset":
         """
         Set the offset for the dataset.
 
@@ -595,10 +595,10 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
             offset (int): Offset to set.
         """
         if offset < 0:
-            raise ValueError("Offset must be positive. " f"Got {offset} offset.")
+            raise ValueError(f"Offset must be positive. Got {offset} offset.")
         if offset >= len(self.dataset):
             raise ValueError(
-                "Offset must be smaller than the dataset size. "
-                f"Got {offset} offset and {len(self.dataset)} dataset size."
+                f"Offset must be smaller than the dataset size. Got {offset} offset and {len(self.dataset)} dataset size."
             )
         self.offset = offset
+        return self
