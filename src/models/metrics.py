@@ -9,17 +9,15 @@ try:
     # attempt to collect NVIDIA GPU information
     import pynvml
 
-    # Init
-    pynvml.nvmlInit()
-    num_gpus = pynvml.nvmlDeviceGetCount()
-
-    # Identify local rank and hostname
-    local_rank = get_local_rank()
-    hostname = socket.gethostname()
-
-    print(
-        f"Logging GPU metrics to wandb: num gpus={num_gpus}, local rank={local_rank}, hostname={hostname}"
-    )
+    # # Init
+    # pynvml.nvmlInit()
+    # num_gpus = pynvml.nvmlDeviceGetCount()
+    # # Identify local rank and hostname
+    # # local_rank = get_local_rank()
+    # hostname = socket.gethostname()
+    # print(
+    #     f"Logging GPU metrics to wandb: num gpus={num_gpus}, local rank={local_rank}, hostname={hostname}"
+    # )
 except Exception as e:
     pynvml = None
     print(f"pynvml not installed, GPU metrics will not be logged. Error: {e}")

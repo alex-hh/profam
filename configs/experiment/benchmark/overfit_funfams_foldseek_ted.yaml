@@ -53,7 +53,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: funfams_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: mini_datasets/funfams_s50_mini.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -78,7 +78,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: ted_s100
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: mini_datasets/ted_s100_mini.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -103,7 +103,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: ted_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: mini_datasets/ted_s50_mini.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -128,7 +128,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_reps_single
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: mini_datasets/foldseek_reps_single_mini.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -153,7 +153,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: mini_datasets/foldseek_s50_struct_mini.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -178,7 +178,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: foldseek_s100
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: mini_datasets/foldseek_s100_struct_mini.parquet
         holdout_data_files: null
         holdout_identifiers: null
@@ -203,7 +203,7 @@ data:
         _target_: src.data.processors.ProteinDocumentPreprocessor
       name: val_foldseek_s50
       cfg:
-        _target_: src.data.builders.HFProteinDatasetConfig
+        _target_: src.data.builders.ProteinDatasetConfig
         data_path_pattern: foldseek/foldseek_s50_struct/train_val_test_split/val/val_0_460_000.parquet
         holdout_data_files: null
         holdout_identifiers: null

@@ -77,7 +77,7 @@ data:
       _target_: src.data.builders.SequenceDocumentMapDataset
       name: uniref90_val
       cfg:
-        data_path_pattern: uniref/uniref90_parquets_shuffled/val/recombinant_0.parquet
+        data_path_pattern: uniref/uniref90_parquets_shuffled/train_test_split_v2/val_filtered/combined_parquet_0000.parquet
 
 
   _target_: src.data.datamodule.ProteinDataMixture

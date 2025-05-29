@@ -17,7 +17,7 @@ preprocessor:
       _partial_: true
 name: seq_is_random_res_pos
 cfg:
-  _target_: src.data.builders.HFProteinDatasetConfig
+  _target_: src.data.builders.ProteinDatasetConfig
   data_path_pattern: ted/s50_parquets/*.parquet
   holdout_data_files: null
   holdout_identifiers: null

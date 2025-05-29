@@ -119,7 +119,8 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
     """
     extra_tokens_per_protein = 1  # separator token
     extra_tokens_per_document = tokenizer.num_start_tokens
-
+    # if len(proteins.sequences[0]) > max_tokens:
+    #     bp=1
     rnd = np.random if rng is None else rng
     if drop_first:
         proteins = proteins[1:]

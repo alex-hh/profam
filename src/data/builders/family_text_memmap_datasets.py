@@ -138,7 +138,8 @@ class ProteinFamilyMemmapDataset(Dataset):
         self,
         name: str,
         dataset_root: str,
-        tokenizer: Optional[ProFamTokenizer] = None,
+        preprocessor: ProteinDocumentPreprocessor,
+        tokenizer: ProFamTokenizer,
         **kwargs,
     ):
         """
@@ -148,9 +149,10 @@ class ProteinFamilyMemmapDataset(Dataset):
             tokenizer: tokenizer to use to convert sequences to tokens.
             kwargs: additional arguments to pass to the dataset
         """
-        super().__init__()
+        super().__init__(name=name)
         self.name = name
-
+        self.preprocessor = preprocessor
+        self.tokenizer = tokenizer
         self.mapping_ds = MappingProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
             **kwargs,
@@ -175,59 +177,102 @@ class ProteinFamilyMemmapDataset(Dataset):
 
         # TODO: add sampling of sequences from a family here
         sequences_data = [self.sequences_ds[i] for i in sequence_indices]
-        return ProteinDocument(
+        protein_doc = ProteinDocument(
             sequences=[sd["sequence"] for sd in sequences_data],
             identifier=mapping_data["fam_id"],
             accessions=[sd["accession"] for sd in sequences_data],
         )
+        processed = self.preprocessor.preprocess_protein_data(
+            protein_doc,
+            tokenizer=self.tokenizer,
+        )
+        processed["ds_name"] = self.name
+        return processed
 
 
-# FIXME: need to finish implementing the dataset builder
-class ProteinFamilyMemmapDatasetBuilder(BaseProteinDataset):
+class ProteinFamilyMemmapDatasetBuilder(ProteinFamilyMemmapDataset, BaseProteinDataset):
+    """A builder that wraps :class:`ProteinFamilyMemmapDataset` so it can be used
+    interchangeably with existing HF-style dataset builders inside
+    :class:`ProteinDataMixture`.  The builder inherits from both
+    ``ProteinFamilyMemmapDataset`` (so it *is* a PyTorch dataset) and
+    ``BaseProteinDataset`` (so it exposes the ``load``/``process`` interface
+    expected by the trainer).
+
+    No additional preprocessing is required because the underlying
+    ``ProteinFamilyMemmapDataset`` already performs tokenisation on-the-fly via
+    the supplied ``ProteinDocumentPreprocessor``.
+    """
+
     def __init__(
         self,
         name: str,
         dataset_root: str,
-        preprocessor: Optional[ProteinDocumentPreprocessor] = None,
-        tokenizer: Optional[ProFamTokenizer] = None,
+        preprocessor: ProteinDocumentPreprocessor,
+        tokenizer: ProFamTokenizer,
         **kwargs,
     ):
-        """
-        Args:
-            name: name of the dataset
-            dataset_root: point to the root directory of the dataset (i.e., train, val, test)
-            preprocessor: preprocessor to use for tokenization
-            tokenizer: tokenizer to use to convert sequences to tokens.
-            kwargs: additional arguments to pass to the dataset
-        """
-        super().__init__(
-            name=name,
-            preprocessor=preprocessor,
-        )
+        # Initialise BaseProteinDataset first (sets attributes used elsewhere)
+        BaseProteinDataset.__init__(self, name=name, preprocessor=preprocessor)
 
-        self.protein_family_ds = ProteinFamilyMemmapDataset(
+        # Now initialise the actual mem-mapped dataset
+        ProteinFamilyMemmapDataset.__init__(
+            self,
             name=name,
             dataset_root=dataset_root,
+            preprocessor=preprocessor,
             tokenizer=tokenizer,
             **kwargs,
         )
+
+        # Keep a reference to root for relative path resolution in load()
+        self._dataset_root = dataset_root
+
+    # ------------------------------------------------------------------
+    # The following methods implement the *builder* API expected by
+    # ProteinDataMixture.  Because the dataset is already constructed in
+    # __init__, these mostly do nothing or are simple wrappers.
+    # ------------------------------------------------------------------
+
+    def load(self, data_dir: str = "data", world_size: int = 1, verbose: bool = False):
+        """Return the constructed dataset.  If ``dataset_root`` was given as a
+        relative path we resolve it with respect to ``data_dir`` the first
+        time ``load`` is called.  This mirrors the behaviour of the HF
+        builders which resolve file patterns relative to *data_dir*.
+        """
+
+        # Resolve the path only once (important when called on every GPU)
+        if not os.path.isabs(self._dataset_root):
+            abs_root = os.path.join(data_dir, self._dataset_root)
+            # If the resolved path is different, rebuild the internal dataset
+            if abs_root != self._dataset_root:
+                self._dataset_root = abs_root
+                ProteinFamilyMemmapDataset.__init__(
+                    self,
+                    name=self.name,
+                    dataset_root=self._dataset_root,
+                    preprocessor=self.preprocessor,
+                    tokenizer=self.tokenizer,
+                )
+
+        return self  # the dataset itself
 
     def process(
         self,
         dataset: Any,
         tokenizer: ProFamTokenizer,
+        feature_names: Optional[List[str]] = None,
+        pack_to_max_tokens: Optional[int] = None,
     ):
-        # nothing to do here since tokenization is done on-the-fly
-        return dataset
+        """No offline processing necessary – everything happens on-the-fly.
 
-    def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
-        # Nothing to do here since loading is very fast
-        return self
+        The method exists purely to satisfy the builder interface.
+        """
 
-    def _build_document(self, example):
-        # private method has fixed signature; static methods can have variable signature
-        return ProteinDocument(
-            sequences=sequences,
-            original_size=len(lines) // 2,
-            identifier=identifier,
-        )  # upper bound estimate of number of sequences
+        # No dataset-level packing; packing handled in collator ring buffer
+        return dataset  # already tokenised on access
+
+    # We never call _build_document for this builder.
+    def _build_document(self, example):  # pragma: no cover – defensive only
+        raise NotImplementedError(
+            "ProteinFamilyMemmapDatasetBuilder performs preprocessing internally and does not use _build_document()."
+        )

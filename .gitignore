@@ -47,3 +47,4 @@ data/cath_chain_topology_class.pickle
 src/tools/foldtoken/
 results/
 out/
+.lesshst

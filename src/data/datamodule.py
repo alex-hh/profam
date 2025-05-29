@@ -5,7 +5,7 @@ from datasets import interleave_datasets
 from datasets.distributed import split_dataset_by_node
 from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.builders import (
@@ -13,20 +13,16 @@ from src.data.builders import (
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
     ProteinFamilyMemmapDataset,
+    ProteinFamilyMemmapDatasetBuilder,
     ProteinGymDataset,
 )
 from src.data.collators import DocumentBatchCollator
 from src.data.online_sample_mapping import (
     OffsetOnlineDataset,
     WeightedConcatOnlineDataset,
+    OnlineSampleMappingDataset,
 )
 from src.data.tokenizers import ProFamTokenizer
-
-
-class ProteinDataModule(LightningDataModule):
-    """Data module for single dataset training."""
-
-    pass
 
 
 class ProteinDataMixture(LightningDataModule):
@@ -52,11 +48,13 @@ class ProteinDataMixture(LightningDataModule):
         batch_size: int = 8,
         num_workers: Optional[int] = None,
         shuffle: bool = True,
+        interleaved: bool = True,
         ignore_gaps: bool = False,
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         prefetch_factor: Optional[int] = None,
+        train_datasets: Optional[List[Dataset]] = [],
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -68,6 +66,7 @@ class ProteinDataMixture(LightningDataModule):
         print("Val dataset batch sizes", self.val_dataset_batch_sizes)
         self.num_workers = num_workers
         self.shuffle = shuffle
+        self.interleaved = interleaved
         self.tokenizer = tokenizer
         self.pack_to_max_tokens = pack_to_max_tokens
         # N.B. feature names only needs to be applied for training
@@ -78,14 +77,17 @@ class ProteinDataMixture(LightningDataModule):
             self.tokenizer,
             ignore_gaps=ignore_gaps,
             feature_names=self.feature_names,
+            pack_to_max_tokens=self.pack_to_max_tokens,
         )
         self.val_collator = DocumentBatchCollator(
             self.tokenizer,
             ignore_gaps=ignore_gaps,
             feature_names=None,
+            pack_to_max_tokens=self.pack_to_max_tokens,
         )
         self._is_setup = False
         self.total_num_train_samples = total_num_train_samples
+        self.train_datasets = train_datasets
 
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
@@ -101,6 +103,13 @@ class ProteinDataMixture(LightningDataModule):
                     dataset_builder.name == data_key
                 ), f"Dataset builder name {dataset_builder.name} must match data key {data_key}"
                 if data_key not in self.val_dataset_batch_sizes:
+                    dataset_weight = self.data_weights.get(data_key, 0)
+                    if dataset_weight <= 0:
+                        print(
+                            f"Skipping dataset {data_key} with weight {dataset_weight}"
+                        )
+                        continue
+
                     dataset = dataset_builder.load(
                         data_dir=self.data_dir,
                         world_size=world_size,
@@ -124,7 +133,7 @@ class ProteinDataMixture(LightningDataModule):
                     train_datasets.append(dataset)
                     # TODO: we could also shuffle individual datasets here - is there a reason we might want to?
                     # https://github.com/huggingface/datasets/issues/6623#issuecomment-2367769573 c.f. currently wont aßffect interleave anyways
-                    train_data_weights.append(self.data_weights[data_key])
+                    train_data_weights.append(dataset_weight)
                     train_dataset_names.append(data_key)
             train_data_weights = [
                 w / sum(train_data_weights) for w in train_data_weights
@@ -132,32 +141,46 @@ class ProteinDataMixture(LightningDataModule):
 
             assert len(train_datasets) > 0
             if len(train_datasets) > 1:
-                # TODO: using the new WeightedConcatOnlineDataset
-                # self.train_dataset = interleave_datasets(
-                #     train_datasets,
-                #     probabilities=train_data_weights,
-                #     stopping_strategy="all_exhausted",
-                #     split="train",
-                #     seed=42,
-                # )
-                # print(
-                #     "Interleaved train dataset example types",
-                #     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
-                # )
-                self.train_dataset = WeightedConcatOnlineDataset(
-                    datasets=train_datasets,
-                    num_samples=self.total_num_train_samples,
-                    weights=train_data_weights,
-                    seed=42,
-                    shuffle=True,
-                )
+                assert (
+                    len(set([type(ds) for ds in train_datasets])) == 1
+                ), "All train datasets must be same type"
+                if isinstance(train_datasets[0], IterableDataset):
+                    self.train_dataset = interleave_datasets(
+                        train_datasets,
+                        probabilities=train_data_weights,
+                        stopping_strategy="all_exhausted",
+                        split="train",
+                        seed=42,
+                    )
+                else:
+                    # FIXME: pass here number of samples seen and wrap train_dataset in OffsetOnlineDataset
+                    print(f"Using interleaved train dataset with {len(train_datasets)} datasets, shuffle = {self.shuffle}, interleaved = {self.interleaved}")
+                    print(f"num_samples = {self.total_num_train_samples}")
+                    print(f"train_dataset_names = {train_dataset_names}")
+                    print(f"train_data_weights = {train_data_weights}")
+                    self.train_dataset = WeightedConcatOnlineDataset(
+                        datasets=train_datasets,
+                        num_samples=self.total_num_train_samples,
+                        weights=train_data_weights,
+                        seed=42,
+                        shuffle=self.shuffle,
+                        interleaved= self.interleaved,
+                    )
                 print(
-                    "Interleaved train dataset example types (WeightedConcatOnlineDataset)",
+                    "Interleaved train dataset example types",
                     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
                 )
             else:
                 print("Using single dataset", flush=True)
-                self.train_dataset = train_datasets[0]
+                print(f"Using sampled mapped train dataset, shuffle = {self.shuffle}")
+                print(f"num_samples = {self.total_num_train_samples}")
+                print(f"train_dataset_names = {train_dataset_names}")
+                self.train_dataset = OnlineSampleMappingDataset(
+                    dataset=train_datasets[0],
+                    num_samples=self.total_num_train_samples,
+                    seed=42,
+                    shuffle=self.shuffle,
+                )
 
             # we wrap with OffsetOnlineDataset to support resuming from correct sample
             self.train_dataset = OffsetOnlineDataset(self.train_dataset)
@@ -212,13 +235,13 @@ class ProteinDataMixture(LightningDataModule):
                     )
             else:
                 if self.num_workers is None:
-                    self.num_workers = os.cpu_count()
+                    self.num_workers = int(os.cpu_count() *3 // 4)
                 # unnecessary and could slow down in memory datasets
                 # self.train_dataset = self.train_dataset.shuffle(seed=42)
-                if self.total_num_train_samples is not None:
-                    print(
-                        "Warning: total_num_train_samples not needed for non iterable datasets and will be ignored"
-                    )
+                # if self.total_num_train_samples is not None:
+                #     print(
+                #         "Warning: total_num_train_samples not needed for non iterable datasets and will be ignored"
+                #     )
 
             self.val_datasets = []
             self.val_dataset_names = []
@@ -240,8 +263,9 @@ class ProteinDataMixture(LightningDataModule):
                         MemoryMappedHFProteinDataset,
                         ProteinGymDataset,
                         ProteinFamilyMemmapDataset,
+                        ProteinFamilyMemmapDatasetBuilder,
                     ),
-                ), f"Only (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset) supported for val: {v_ds_name} {type(dataset_builder)}"
+                ), f"Only (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset, ProteinFamilyMemmapDatasetBuilder) supported for val: {v_ds_name} {type(dataset_builder)}"
                 dataset = dataset_builder.load(
                     data_dir=self.data_dir,
                     world_size=world_size,
@@ -307,6 +331,109 @@ class ProteinDataMixture(LightningDataModule):
             DataLoader(
                 val_ds,
                 batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
+                collate_fn=self.val_collator,
+                shuffle=False,
+                num_workers=self.num_workers // 2,
+                persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
+            )
+            for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
+        ]
+        return loaders
+
+    def test_dataloader(self) -> List[DataLoader]:
+        loaders = [
+            DataLoader(
+                self.test_dataset,
+                batch_size=self.batch_size,
+                collate_fn=self.val_collator,
+                shuffle=False,
+                num_workers=self.num_workers // 2,
+                persistent_workers=self.num_workers > 1,
+                prefetch_factor=self.prefetch_factor,
+            )
+        ]
+        return loaders
+
+
+class ProteinMemmapDataModule(LightningDataModule):
+    """Data module for training on text memmap datasets."""
+
+    def __init__(
+        self,
+        train_dataset: Dataset,
+        val_dataset: Dataset,
+        data_dir: str,
+        val_dataset_batch_sizes: Dict[str, int],
+        batch_size: int = 8,
+        num_workers: Optional[int] = None,
+        ignore_gaps: bool = False,
+        total_num_train_samples: Optional[int] = None,
+        feature_names: Optional[List[str]] = None,
+        pack_to_max_tokens: Optional[int] = None,
+        prefetch_factor: Optional[int] = None,
+        test_dataset: Optional[Dataset] = None,
+        tokenizer: Optional[ProFamTokenizer] = None,
+    ):
+        super().__init__()
+        print("\n\n\n\n THIS CLASS SHOULD BE USED FOR DEBUGGING ONLY \n\n\n\n\n")
+        self.train_dataset = train_dataset
+        self.val_dataset = val_dataset
+        self.test_dataset = test_dataset
+        self.tokenizer = tokenizer
+        self.data_dir = data_dir
+        self.val_dataset_batch_sizes = val_dataset_batch_sizes
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.prefetch_factor = prefetch_factor
+        self.feature_names = feature_names
+        self.pack_to_max_tokens = pack_to_max_tokens
+        self.ignore_gaps = ignore_gaps
+        self.total_num_train_samples = total_num_train_samples
+        self.tokenizer = tokenizer
+        self.train_collator = DocumentBatchCollator(
+            self.tokenizer,
+            ignore_gaps=ignore_gaps,
+            feature_names=self.feature_names,
+            pack_to_max_tokens=self.pack_to_max_tokens,
+        )
+        self.val_collator = DocumentBatchCollator(
+            self.tokenizer,
+            ignore_gaps=ignore_gaps,
+            feature_names=None,
+            pack_to_max_tokens=self.pack_to_max_tokens,
+        )
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        self.val_datasets = [self.val_dataset]
+        self.val_dataset_names = ["val"]
+
+    def train_dataloader(self) -> DataLoader:
+        # Get samples_seen from trainer if available
+        samples_seen = (
+            getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
+        )
+        if samples_seen > 0:
+            print(
+                f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED"
+            )
+
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.batch_size,
+            collate_fn=self.train_collator,
+            num_workers=self.num_workers,
+            persistent_workers=self.num_workers
+            > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
+            prefetch_factor=self.prefetch_factor,
+        )
+
+    def val_dataloader(self) -> List[DataLoader]:
+        loaders = [
+            DataLoader(
+                val_ds,
+                batch_size=1,
+                # batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
                 collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers // 2,

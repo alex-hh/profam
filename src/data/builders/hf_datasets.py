@@ -65,7 +65,7 @@ from .utils import filter_on_length, uniformly_sample_clusters
 
 
 @dataclass
-class HFProteinDatasetConfig:
+class ProteinDatasetConfig:
     # construction from files
     data_path_pattern: Optional[str] = None
     holdout_data_files: Optional[str] = None
@@ -107,14 +107,14 @@ def random_subsample(arr, n, seed: Optional[int] = None):
 
 def prepare_data_files(
     data_dir: str,
-    cfg: HFProteinDatasetConfig,
+    cfg: ProteinDatasetConfig,
 ) -> List[str]:
     """
     Prepare and filter data files based on configuration.
 
     Args:
         data_dir (str): Directory containing data files.
-        cfg (HFProteinDatasetConfig): Configuration object.
+        cfg (ProteinDatasetConfig): Configuration object.
         world_size (int): Number of parallel processes.
         stream (bool): Whether to stream the data.
 
@@ -168,7 +168,7 @@ class FileBasedHFProteinDataset(BaseProteinDataset):
     def __init__(
         self,
         name: str,
-        cfg: HFProteinDatasetConfig,
+        cfg: ProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
         streaming: bool = True,
@@ -282,7 +282,7 @@ class MemoryMappedHFProteinDataset(FileBasedHFProteinDataset):
     def __init__(
         self,
         name: str,
-        cfg: HFProteinDatasetConfig,
+        cfg: ProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
     ):
@@ -367,7 +367,7 @@ class IterableHFProteinDataset(FileBasedHFProteinDataset):
     def __init__(
         self,
         name: str,
-        cfg: HFProteinDatasetConfig,
+        cfg: ProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
         required_keys: Optional[List[str]] = None,
     ):
@@ -493,7 +493,7 @@ class StructureDocumentMixin:
     def __init__(
         self,
         name: str,
-        cfg: HFProteinDatasetConfig,
+        cfg: ProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
     ):
         super().__init__(

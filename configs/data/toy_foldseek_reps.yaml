@@ -20,7 +20,7 @@ dataset_builders:
         _partial_: true
         fill_value: 0.0
     cfg:
-      _target_: src.data.builders.HFProteinDatasetConfig
+      _target_: src.data.builders.ProteinDatasetConfig
       data_path_pattern: example_data/foldseek_representatives/0.parquet
       holdout_data_files: null
       holdout_identifiers: null
@@ -46,7 +46,7 @@ dataset_builders:
         _partial_: true
         fill_value: 0.0
     cfg:
-      _target_: src.data.builders.HFProteinDatasetConfig
+      _target_: src.data.builders.ProteinDatasetConfig
       data_path_pattern: example_data/foldseek_representatives/0.parquet
       holdout_data_files: null
       holdout_identifiers: null

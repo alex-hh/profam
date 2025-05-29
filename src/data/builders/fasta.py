@@ -8,9 +8,9 @@ from src.data.tokenizers import ProFamTokenizer
 from src.sequence.fasta import read_fasta_sequences
 
 from .hf_datasets import (
-    HFProteinDatasetConfig,
     IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
+    ProteinDatasetConfig,
 )
 
 
@@ -38,7 +38,7 @@ class FastaProteinDataset(MemoryMappedHFProteinDataset):
     def __init__(
         self,
         name: str,
-        cfg: HFProteinDatasetConfig,
+        cfg: ProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
     ):
         super().__init__(
@@ -138,7 +138,7 @@ class FastaProteinIterableDataset(IterableHFProteinDataset):
     def __init__(
         self,
         name: str,
-        cfg: HFProteinDatasetConfig,
+        cfg: ProteinDatasetConfig,
         preprocessor: Optional[ProteinDocumentPreprocessor] = None,
     ):
         # IterableHFProteinDataset expects ``required_keys`` to flag the columns
