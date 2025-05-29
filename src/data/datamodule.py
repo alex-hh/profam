@@ -309,7 +309,7 @@ class ProteinDataMixture(LightningDataModule):
         if samples_seen > 0:
             if isinstance(self.train_dataset, OffsetOnlineDataset):
                 # Skip the number of samples already seen
-                self.train_dataset = self.train_dataset.skip(samples_seen)
+                self.train_dataset = self.train_dataset.set_offest(samples_seen)
                 print(f"Skipped first {samples_seen} samples to resume training dataset correctly")
             else:
                 print(

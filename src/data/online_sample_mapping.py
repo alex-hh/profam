@@ -53,7 +53,7 @@ def handle_index(ds_size: int, idx: int) -> int:
     if idx < 0 and idx > -ds_size - 1:
         idx = ds_size + idx
     elif idx < 0:
-        raise IndexError(f"Index out of range: {idx}")
+        raise IndexError(f"Index {idx} out of range")
     return idx
 
 
@@ -175,14 +175,14 @@ class OnlineSampleMapping:
         else:
             # If the index is out of range, raise IndexError
             if idx >= self.num_samples:
-                raise IndexError("Index out of range")
+                raise IndexError(f"Index {idx} out of range")
 
             # support negative indices
             if idx < 0:
                 idx += self.num_samples
 
                 if idx < 0:
-                    raise IndexError("Index out of range")
+                    raise IndexError(f"Index {idx} out of range")
 
             # fetch the block sample index
             if self.use_digitize:
@@ -346,11 +346,11 @@ class _InterleavedDatasetIndexer:
             )
             step = idx.step or 1
             if stop > self.num_samples:
-                raise IndexError("Index out of range")
+                raise IndexError(f"Index stop = {stop} out of range")
             return [self.map_index(i) for i in range(start, stop, step)]
         idx = handle_index(self.num_samples, idx)
         if idx >= self.num_samples:
-            raise IndexError("Index out of range")
+            raise IndexError(f"Index {idx} out of range")
         return self.map_index(idx)
 
     def __str__(self) -> str:
@@ -581,7 +581,7 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
             return [self[i] for i in range(start, stop, step)]
 
         # add offset to the index
-        sample_idx = handle_index(idx, len(self)) + self.offset
+        sample_idx = handle_index(len(self), idx) + self.offset
         return self.dataset[sample_idx]
 
     def __len__(self) -> int:

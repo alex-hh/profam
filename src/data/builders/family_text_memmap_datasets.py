@@ -240,19 +240,19 @@ class ProteinFamilyMemmapDatasetBuilder(ProteinFamilyMemmapDataset, BaseProteinD
         builders which resolve file patterns relative to *data_dir*.
         """
 
-        # Resolve the path only once (important when called on every GPU)
-        if not os.path.isabs(self._dataset_root):
-            abs_root = os.path.join(data_dir, self._dataset_root)
-            # If the resolved path is different, rebuild the internal dataset
-            if abs_root != self._dataset_root:
-                self._dataset_root = abs_root
-                ProteinFamilyMemmapDataset.__init__(
-                    self,
-                    name=self.name,
-                    dataset_root=self._dataset_root,
-                    preprocessor=self.preprocessor,
-                    tokenizer=self.tokenizer,
-                )
+        # # Resolve the path only once (important when called on every GPU)
+        # if not os.path.isabs(self._dataset_root):
+        #     abs_root = os.path.join(data_dir, self._dataset_root)
+        #     # If the resolved path is different, rebuild the internal dataset
+        #     if abs_root != self._dataset_root:
+        #         self._dataset_root = abs_root
+        #         ProteinFamilyMemmapDataset.__init__(
+        #             self,
+        #             name=self.name,
+        #             dataset_root=self._dataset_root,
+        #             preprocessor=self.preprocessor,
+        #             tokenizer=self.tokenizer,
+        #         )
 
         return self  # the dataset itself
 

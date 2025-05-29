@@ -610,7 +610,7 @@ def build_index_files(
     logger.info(f"Processing {len(dataset_paths)} data files using {workers} workers")
     # load all files into memmap
     start_time = time.time()
-    ctx = mp.get_context("fork")
+    ctx = mp.get_context("spawn")
     with ctx.Pool(workers) as p:
         build_status = p.map(
             partial(
