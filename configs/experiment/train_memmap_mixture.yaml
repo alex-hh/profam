@@ -190,4 +190,5 @@ data:
   pack_to_max_tokens: 32768
   prefetch_factor: 4
   shuffle: true
+  interleaved: true
   total_num_train_samples: 2000000
