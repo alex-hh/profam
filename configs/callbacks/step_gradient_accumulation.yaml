@@ -7,6 +7,18 @@ step_gradient_accumulation:
   # Scheduling dictionary: {step: accumulation_factor}
   # Example: Start with factor 2, increase to 4 at step 1000, then to 8 at step 5000
   scheduling:
-    0: 1      # From step 0-999: accumulate 2 batches
-    10: 4   # From step 1000-4999: accumulate 4 batches
-    20: 8   # From step 5000 onwards: accumulate 8 batches
+    0: 1      # From step 0-49999: accumulate no accumulation
+    50000: 2   # From step 50000-99999: accumulate 2 batches
+    100000: 3  # From step 100000-149999: accumulate 3 batches
+    150000: 4  # From step 150000-199999: accumulate 4 batches
+    200000: 5  # From step 200000-249999: accumulate 5 batches
+    250000: 6  # From step 250000-299999: accumulate 6 batches
+    300000: 7  # From step 300000-349999: accumulate 7 batches
+    350000: 8  # From step 350000-399999: accumulate 8 batches
+    400000: 9  # From step 400000-449999: accumulate 9 batches
+    450000: 10  # From step 450000-499999: accumulate 10 batches
+    500000: 11  # From step 500000-549999: accumulate 11 batches
+    550000: 12  # From step 550000-599999: accumulate 12 batches
+    600000: 13  # From step 600000-649999: accumulate 13 batches
+    650000: 14  # From step 650000-699999: accumulate 14 batches
+    700000: 15  # From step 700000-749999: accumulate 15 batches
