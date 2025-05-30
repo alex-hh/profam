@@ -28,16 +28,17 @@ trainer:
   min_epochs: 1000
   max_epochs: 100000
   val_check_interval: 6000
+  target_tokens_per_batch: null
 
 # Custom step gradient accumulation scheduling
 # Override the default scheduling from the callback config
-callbacks:
-  step_gradient_accumulation:
-    scheduling:
-      0: 2      # Start with accumulating 2 batches
-      10: 3   # At step 1000, increase to 4 batches
-      30: 4   # At step 3000, increase to 6 batches
-      50: 8   # At step 5000, increase to 8 batches
+# callbacks:
+#   step_gradient_accumulation:
+#     scheduling:
+#       0: 2      # Start with accumulating 2 batches
+#       10: 3   # At step 1000, increase to 4 batches
+#       30: 4   # At step 3000, increase to 6 batches
+#       50: 8   # At step 5000, increase to 8 batches
 
 logger:
   wandb:
