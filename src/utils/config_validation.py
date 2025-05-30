@@ -23,6 +23,8 @@ def check_config(cfg: DictConfig):
         assert cfg.model.config.max_position_embeddings >= max_train_doc_len
         if "proteingym" in cfg.data.dataset_builders:
             assert cfg.model.config.max_position_embeddings >= pg_max_tokens
+
+    if "pack_to_max_tokens" in cfg.data and cfg.data.pack_to_max_tokens:
         assert (
             cfg.data.batch_size == 1
         ), "batch_size must be 1 when packing to max tokens"
