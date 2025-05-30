@@ -46,14 +46,14 @@ def check_config(cfg: DictConfig):
             if (
                 abs(
                     cfg.trainer.tokens_per_document
-                    - cfg.data.dataset_builders.proteingym.max_tokens_per_example
+                    - cfg.data.pack_to_max_tokens
                 )
                 > 1000
             ):
                 print(
                     f"Warning: tokens_per_document ({cfg.trainer.tokens_per_document})"
-                    f"is significantly different from the maximum tokens per example"
-                    f"({cfg.data.dataset_builders.proteingym.max_tokens_per_example})."
+                    f"is significantly different from cfg.data.pack_to_max_tokens"
+                    f"({cfg.data.pack_to_max_tokens})."
                     f"This may cause incorrect calculation of accumulate_grad_batches."
                 )
 
