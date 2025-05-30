@@ -26,7 +26,7 @@ trainer:
   max_epochs: 100000
   val_check_interval: 6000
   target_tokens_per_batch: 256000
-  accumulate_grad_batches: null
+  # accumulate_grad_batches: 2
   tokens_per_document: 32_000
 
 logger:

@@ -86,7 +86,10 @@ class ProFamTrainer(Trainer):
         elif (
             target_tokens_per_batch is not None
         ):  # Original logic if scheduler is NOT active
-            if "accumulate_grad_batches" in kwargs:
+            if (
+                "accumulate_grad_batches" in kwargs
+                and kwargs["accumulate_grad_batches"] is not None
+            ):
                 raise ValueError(
                     "Both `target_tokens_per_batch` and `accumulate_grad_batches` were specified. Please choose one."
                 )
