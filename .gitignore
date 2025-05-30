@@ -48,3 +48,5 @@ src/tools/foldtoken/
 results/
 out/
 .lesshst
+.zshrc
+.zcompdump

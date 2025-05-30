@@ -81,7 +81,7 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
-    
+
     # openfold_train:
     #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
     #   name: openfold_train
@@ -102,7 +102,7 @@ data:
     #       - _target_: src.data.processors.transforms.replace_nans_in_coords
     #         _partial_: true
     #         fill_value: 0.0
-    
+
     # uniref90_train:
     #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
     #   name: uniref90_train

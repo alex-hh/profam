@@ -126,7 +126,7 @@ data:
     # #       - _target_: src.data.processors.transforms.replace_nans_in_coords
     # #         _partial_: true
     # #         fill_value: 0.0
-    
+
     # uniref90_train:
     #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
     #   name: uniref90_train
@@ -185,11 +185,13 @@ data:
   batch_size: 100
   data_dir: ${paths.data_dir}
   # num_workers: 12
+  # FIXME: REMOVE ME
   num_workers: 0
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
   pack_to_max_tokens: 32768
   # prefetch_factor: 4
+  # FIXME: REMOVE ME
   prefetch_factor: null
   shuffle: true
   interleaved: true

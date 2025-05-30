@@ -19,8 +19,8 @@ from src.data.builders import (
 from src.data.collators import DocumentBatchCollator
 from src.data.online_sample_mapping import (
     OffsetOnlineDataset,
-    WeightedConcatOnlineDataset,
     OnlineSampleMappingDataset,
+    WeightedConcatOnlineDataset,
 )
 from src.data.tokenizers import ProFamTokenizer
 
@@ -153,8 +153,9 @@ class ProteinDataMixture(LightningDataModule):
                         seed=42,
                     )
                 else:
-                    # FIXME: pass here number of samples seen and wrap train_dataset in OffsetOnlineDataset
-                    print(f"Using interleaved train dataset with {len(train_datasets)} datasets, shuffle = {self.shuffle}, interleaved = {self.interleaved}")
+                    print(
+                        f"Using interleaved train dataset with {len(train_datasets)} datasets, shuffle = {self.shuffle}, interleaved = {self.interleaved}"
+                    )
                     print(f"num_samples = {self.total_num_train_samples}")
                     print(f"train_dataset_names = {train_dataset_names}")
                     print(f"train_data_weights = {train_data_weights}")
@@ -164,7 +165,7 @@ class ProteinDataMixture(LightningDataModule):
                         weights=train_data_weights,
                         seed=42,
                         shuffle=self.shuffle,
-                        interleaved= self.interleaved,
+                        interleaved=self.interleaved,
                     )
                 print(
                     "Interleaved train dataset example types",
@@ -200,8 +201,10 @@ class ProteinDataMixture(LightningDataModule):
                 )
                 print("Num shards", self.train_dataset.n_shards)
                 if self.num_workers is None:
-                    # Force a minimum of 11 workers to improve performance
-                    self.num_workers = max(11, min(os.cpu_count() * 3 // 4, self.train_dataset.n_shards))
+                    # number of workers should be less than available GPUs to prevent a computation bottleneck
+                    self.num_workers = min(
+                        os.cpu_count() * 3 // 4, self.train_dataset.n_shards
+                    )
                     print(f"Using {self.num_workers} workers for data loading")
                 # TODO: verify that non-iterable datasets are split automatically (e.g. by lightning...)
                 if world_size > 1:
@@ -233,7 +236,7 @@ class ProteinDataMixture(LightningDataModule):
                     )
             else:
                 if self.num_workers is None:
-                    self.num_workers = int(os.cpu_count() *3 // 4)
+                    self.num_workers = int(os.cpu_count() * 3 // 4)
                 # unnecessary and could slow down in memory datasets
                 # self.train_dataset = self.train_dataset.shuffle(seed=42)
                 # if self.total_num_train_samples is not None:
@@ -307,8 +310,10 @@ class ProteinDataMixture(LightningDataModule):
         if samples_seen > 0:
             if isinstance(self.train_dataset, OffsetOnlineDataset):
                 # Skip the number of samples already seen
-                self.train_dataset = self.train_dataset.set_offest(samples_seen)
-                print(f"Skipped first {samples_seen} samples to resume training dataset correctly")
+                self.train_dataset = self.train_dataset.set_offset(samples_seen)
+                print(
+                    f"Skipped first {samples_seen} samples to resume training dataset correctly"
+                )
             else:
                 print(
                     f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT TAKING EFFECT"

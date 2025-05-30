@@ -561,8 +561,8 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
     ) -> None:
         self.dataset = dataset
 
-        self.set_offest(offset)
-        
+        self.set_offset(offset)
+
     def __str__(self) -> str:
         return (
             f"OffsetOnlineDataset("
@@ -587,7 +587,7 @@ class OffsetOnlineDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self.dataset) - self.offset
 
-    def set_offest(self, offset: int) -> "OffsetOnlineDataset":
+    def set_offset(self, offset: int) -> "OffsetOnlineDataset":
         """
         Set the offset for the dataset.
 

@@ -3,11 +3,11 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 import numpy as np
-import wandb
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from omegaconf import DictConfig
 
+import wandb
 from src.evaluators.base import SamplingEvaluator
 from src.models.inference import ProFamSampler, PromptBuilder
 from src.pipelines.pipeline import GenerationsEvaluatorPipeline
