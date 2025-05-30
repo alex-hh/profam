@@ -9,7 +9,7 @@ defaults:
   - /data/dataset@data.dataset_builders.uniref90_val: uniref90_single_raw
   - override /data: null
   - override /model: llama_251m.yaml
-  - override /callbacks: default_with_shuffle
+  - override /callbacks: default_with_shuffle_and_step_grad_accum
   - override /trainer: gpu
   - override /logger: wandb
   - _self_
@@ -22,11 +22,22 @@ seed: 12345
 trainer:
   devices: auto
   check_val_every_n_epoch: 1
-  target_tokens_per_batch: 256000
-  tokens_per_document: 30000
+  # Removed target_tokens_per_batch and tokens_per_document since we're using step gradient accumulation
+  # target_tokens_per_batch: 256000
+  # tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 100000
   val_check_interval: 3000
+
+# Custom step gradient accumulation scheduling
+# Override the default scheduling from the callback config
+callbacks:
+  step_gradient_accumulation:
+    scheduling:
+      0: 2      # Start with accumulating 2 batches
+      10: 3   # At step 1000, increase to 4 batches
+      30: 4   # At step 3000, increase to 6 batches
+      50: 8   # At step 5000, increase to 8 batches
 
 logger:
   wandb:

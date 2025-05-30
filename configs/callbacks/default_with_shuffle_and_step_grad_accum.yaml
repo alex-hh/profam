@@ -1,0 +1,16 @@
+# @package _global_
+# Default callbacks configuration with shuffle and step gradient accumulation
+# Inherits from default callbacks and adds shuffle and step gradient accumulation
+
+defaults:
+  - model_checkpoint
+  - model_summary
+  - throughput
+  - rich_progress_bar
+  - timer
+  - print
+  - shuffle
+  - step_gradient_accumulation
+
+# The step gradient accumulation callback will be included with default settings
+# Override the scheduling in the experiment config if needed 
