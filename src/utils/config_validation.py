@@ -44,10 +44,7 @@ def check_config(cfg: DictConfig):
             and cfg.trainer.tokens_per_document is not None
         ):
             if (
-                abs(
-                    cfg.trainer.tokens_per_document
-                    - cfg.data.pack_to_max_tokens
-                )
+                abs(cfg.trainer.tokens_per_document - cfg.data.pack_to_max_tokens)
                 > 1000
             ):
                 print(
