@@ -12,7 +12,7 @@ defaults:
   - override /data: null          # we supply a custom data config below
   - override /model: llama_nano
   - override /callbacks: default_with_shuffle
-  - override /trainer: gpu
+  - override /trainer: gpus_ddp
   - override /logger: wandb
   - _self_
 
@@ -29,6 +29,7 @@ trainer:
   min_epochs: 1000
   max_epochs: 10000
   val_check_interval: null
+  use_distributed_sampler: False # required  when we use our custom Sampler
 
 logger:
   wandb:
@@ -184,15 +185,12 @@ data:
 
   batch_size: 100
   data_dir: ${paths.data_dir}
-  # num_workers: 12
-  # FIXME: REMOVE ME
-  num_workers: 0
+  num_workers: 12
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
   pack_to_max_tokens: 32768
-  # prefetch_factor: 4
-  # FIXME: REMOVE ME
-  prefetch_factor: null
+  prefetch_factor: 4
   shuffle: true
   interleaved: true
   total_num_train_samples: 2000000
+

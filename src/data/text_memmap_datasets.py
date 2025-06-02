@@ -124,6 +124,7 @@ class TextMemMapDataset(torch.utils.data.Dataset):
         self._worker = workers
         self.tokenizer = tokenizer
         self._sort_dataset_paths = sort_dataset_paths
+        self._index_mapping_dir = index_mapping_dir
 
         if sort_dataset_paths:
             self._files_list = sorted(self._files_list)
@@ -171,11 +172,14 @@ class TextMemMapDataset(torch.utils.data.Dataset):
 
         if is_distributed and not _lightning_prepare_data():
             torch.distributed.barrier()
+        
+        self._prepare_data()
 
+    def _prepare_data(self):
         logger.info(f"Loading data files")
         start_time = time.time()
         mdata_midx_list = [
-            self.load_file(fn, index_mapping_dir) for fn in self._files_list
+            self.load_file(fn, self._index_mapping_dir) for fn in self._files_list
         ]
         logger.info(
             f"Time loading {len(mdata_midx_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}"
@@ -183,7 +187,7 @@ class TextMemMapDataset(torch.utils.data.Dataset):
 
         logger.info("Computing global indices")
         midx_bins = np.cumsum(
-            [(len(midx) - header_lines) for _, midx in mdata_midx_list]
+            [(len(midx) - self._header_lines) for _, midx in mdata_midx_list]
         )
 
         self.midx_bins = midx_bins
@@ -309,6 +313,16 @@ class TextMemMapDataset(torch.utils.data.Dataset):
             )
 
         return (mdata, midx)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove non-picklable memmap objects, they will be reinitialized
+        state["mdata_midx_list"] = []
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._prepare_data()
 
 
 class CSVMemMapDataset(TextMemMapDataset):
@@ -610,7 +624,7 @@ def build_index_files(
     logger.info(f"Processing {len(dataset_paths)} data files using {workers} workers")
     # load all files into memmap
     start_time = time.time()
-    ctx = mp.get_context("spawn")
+    ctx = mp.get_context("fork")
     with ctx.Pool(workers) as p:
         build_status = p.map(
             partial(

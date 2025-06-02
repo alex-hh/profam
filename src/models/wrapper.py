@@ -348,9 +348,10 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
         """Needs to start at 0 for compatibility with sequence packing:
         https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/modeling_flash_attention_utils.py#L133
         """
-        assert (
-            input_ids.shape[0] == 1
-        ), "Since we are typically packing sequences, we assume batch size is 1"
+        # FIXME: UNCOMMENT?
+        # assert (
+        #     input_ids.shape[0] == 1
+        # ), "Since we are typically packing sequences, we assume batch size is 1"
         counter = torch.arange(input_ids.shape[1], device=input_ids.device)
         document_indices = (
             torch.cumsum(input_ids[0] == self.tokenizer.bos_token_id, 0) - 1

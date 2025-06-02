@@ -28,6 +28,7 @@ class ProFamTrainer(Trainer):
             assert torch.cuda.is_available()
             devices = torch.cuda.device_count()
             print("Setting CUDA devices to", devices)
+        # FIXME: make sure the computed values below aare correct with dynamic batching
         if target_tokens_per_batch is not None:
             assert (
                 "accumulate_grad_batches" not in kwargs

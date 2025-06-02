@@ -5,7 +5,7 @@ from datasets import interleave_datasets
 from datasets.distributed import split_dataset_by_node
 from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, BatchSampler
 
 from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.builders import (
@@ -24,7 +24,75 @@ from src.data.online_sample_mapping import (
 )
 from src.data.tokenizers import ProFamTokenizer
 
+import random
+from torch.utils.data import BatchSampler, DistributedSampler
+from typing import List
 
+class GlobalRandomBatchSampler(BatchSampler):
+    """
+    Splits the ENTIRE dataset into random‐sized batches, then shards those
+    batches round‐robin across DDP ranks. Now with a correct __len__ that
+    exactly matches how many batches each rank will see.
+    """
+
+    def __init__(
+        self,
+        dataset_len: int,
+        fbatch_size: int,
+        world_size: int,
+        rank: int,
+        shuffle: bool = False,
+        drop_last: bool = True,
+        seed: int = 0,
+    ):
+        """
+        Args:
+          dataset_len: total number of samples (int)
+          fbatch_size: nominal batch size; actual size = fbatch_size + randint(-5,1)
+          world_size: total number of DDP processes
+          rank:     this process’s rank (0..world_size-1)
+          shuffle:  whether to shuffle the global index list each epoch
+          drop_last: if True, drop the final partial batches to make
+                     total_batches % world_size == 0
+          seed:     random seed for shuffling and for drawing “extra ∈ [−5,1]”
+        """
+        super().__init__(sampler=None, batch_size=fbatch_size, drop_last=drop_last)
+        self.dataset_len = dataset_len
+        self.fbatch_size = fbatch_size
+        self.world_size = world_size
+        self.rank = rank
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.seed = seed
+
+        # Build the global index list (0..N-1)
+        self.base_indices = list(range(dataset_len))
+        if self.shuffle:
+            random.seed(self.seed)
+            random.shuffle(self.base_indices)
+
+        # No need to cache batch count; __len__ returns fbatch_size
+
+    def __iter__(self):
+        # Reset RNG using the seed so each rank sees the same sequence
+        random.seed(self.seed)
+        global_batch_idx = 0
+        yielded = 0
+        # Continue generating until this rank has yielded fbatch_size batches
+        while yielded < self.fbatch_size:
+            extra = random.randint(-5, 1)
+            curr_size = max(1, self.fbatch_size + extra)
+            # Sample indices with replacement
+            batch = [random.randrange(0, self.dataset_len) for _ in range(curr_size)]
+            # Only yield batches assigned to this rank
+            if (global_batch_idx % self.world_size) == self.rank:
+                yield batch
+                yielded += 1
+            global_batch_idx += 1
+
+    def __len__(self):
+        return self.fbatch_size
+                    
 class ProteinDataMixture(LightningDataModule):
     """Data module for training on mixture of datasets.
 
@@ -302,32 +370,70 @@ class ProteinDataMixture(LightningDataModule):
             self._is_setup = True
 
     def train_dataloader(self) -> DataLoader:
-        # Get samples_seen from trainer if available
-        samples_seen = (
-            getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
+        dataset    = self.train_dataset
+        world_size = self.trainer.world_size
+        rank       = self.trainer.global_rank
+
+        # sampler = DistributedSampler(
+        #     dataset,
+        #     num_replicas=world_size,
+        #     rank=rank,
+        #     shuffle=False,
+        #     drop_last=True,  # must be True to ensure all ranks see the same number of batches
+        # )
+        # sampler.set_epoch(0)
+        # batch_sampler = BatchSampler(
+        #     sampler=sampler,
+        #     batch_size=self.batch_size,
+        #     drop_last=True,  # must be True to ensure all ranks see the same number of batches
+        #     )
+        batch_sampler = GlobalRandomBatchSampler(
+            dataset_len=len(dataset),
+            fbatch_size=self.batch_size,
+            world_size=world_size,
+            rank=rank,
+            shuffle=self.shuffle,
+            drop_last=True,
+            seed=42,     # must match between __iter__ and __len__
         )
-        # If resuming from checkpoint, skip already seen samples on iterable datasets
-        if samples_seen > 0:
-            if isinstance(self.train_dataset, OffsetOnlineDataset):
-                # Skip the number of samples already seen
-                self.train_dataset = self.train_dataset.set_offset(samples_seen)
-                print(
-                    f"Skipped first {samples_seen} samples to resume training dataset correctly"
-                )
-            else:
-                print(
-                    f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT TAKING EFFECT"
-                )
 
         return DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
+            dataset,
+            batch_sampler=batch_sampler,   # ← no sampler=, no batch_size=
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
-            persistent_workers=self.num_workers
-            > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
+            persistent_workers=(self.num_workers > 0),
             prefetch_factor=self.prefetch_factor,
         )
+                        
+    # def train_dataloader(self) -> DataLoader:
+    #     # Get samples_seen from trainer if available
+    #     samples_seen = (
+    #         getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
+    #     )
+    #     # If resuming from checkpoint, skip already seen samples on iterable datasets
+    #     if samples_seen > 0:
+    #         if isinstance(self.train_dataset, OffsetOnlineDataset):
+    #             # Skip the number of samples already seen
+    #             self.train_dataset = self.train_dataset.set_offset(samples_seen)
+    #             print(
+    #                 f"Skipped first {samples_seen} samples to resume training dataset correctly"
+    #             )
+    #         else:
+    #             print(
+    #                 f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT TAKING EFFECT"
+    #             )
+
+    #     return DataLoader(
+    #         self.train_dataset,
+    #         # batch_size=self.batch_size,
+    #         batch_sampler=DynamicBatchSampler(range(len(self.train_dataset)), self.train_dataset, max_tokens_per_batch=32768),
+    #         collate_fn=self.train_collator,
+    #         num_workers=self.num_workers,
+    #         persistent_workers=self.num_workers
+    #         > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
+    #         prefetch_factor=self.prefetch_factor,
+    #     )
 
     def val_dataloader(self) -> List[DataLoader]:
         loaders = [

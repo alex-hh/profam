@@ -25,6 +25,10 @@ class ShuffleCallback(Callback):
         # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
         if isinstance(trainer.train_dataloader.dataset, IterableDataset):
             trainer.train_dataloader.dataset.set_epoch(trainer.current_epoch)
+        # Also set epoch on the sampler if it supports shuffling per epoch
+        sampler = trainer.train_dataloader.sampler
+        if hasattr(sampler, "set_epoch"):
+            sampler.set_epoch(trainer.current_epoch)
 
 
 class EpochTimerCallback(Callback):
@@ -59,7 +63,7 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=False,
         )
 
 
@@ -246,13 +250,11 @@ class SampleCounter(Callback):
         else:
             batch_size = batch["batch_size"]
 
-        # In distributed setting, we need to sync the count
+        # In distributed setting, use Lightning’s strategy to reduce across all ranks
         if trainer.world_size > 1:
-            # Create tensor with batch size and all-reduce
             batch_size_tensor = torch.tensor(batch_size, device=pl_module.device)
-            torch.distributed.all_reduce(
-                batch_size_tensor, op=torch.distributed.ReduceOp.SUM
-            )
+            # Use the trainer strategy’s reduce method to sum across ranks
+            batch_size_tensor = trainer.strategy.reduce(batch_size_tensor, reduce_op="SUM")
             batch_size = batch_size_tensor.item()
 
         self.samples_seen += batch_size
@@ -269,8 +271,8 @@ class SampleCounter(Callback):
             self.samples_seen,
             on_step=True,
             on_epoch=False,
-            sync_dist=True,  # This ensures the value is synchronized across all devices
-            rank_zero_only=False,  # Allow all ranks to log to ensure proper aggregation
+            sync_dist=False,  
+            rank_zero_only=True, 
         )
         # rank_zero_info(f"Total samples seen: {self.samples_seen}")
 
@@ -282,8 +284,8 @@ class SampleCounter(Callback):
             },
             on_step=True,
             on_epoch=False,
-            sync_dist=True,  # Ensure counts are synchronized across devices
-            rank_zero_only=False,  # Allow all ranks to log
+            sync_dist=False,  # Ensure counts are synchronized across devices
+            rank_zero_only=True,  # Allow all ranks to log
         )
 
     def state_dict(self) -> Dict[str, Any]:

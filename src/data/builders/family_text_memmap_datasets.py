@@ -155,12 +155,16 @@ class ProteinFamilyMemmapDataset(Dataset):
         self.tokenizer = tokenizer
         self.mapping_ds = MappingProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
+            # make sure order of files is deterministic
+            sort_dataset_paths=True,
             **kwargs,
         )
         self.sequences_ds = SequencesProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
             # only sequence dataset requires a tokenizer
             tokenizer=tokenizer,
+            # make sure order of files is deterministic
+            sort_dataset_paths=True,
             **kwargs,
         )
 
