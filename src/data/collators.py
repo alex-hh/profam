@@ -372,12 +372,19 @@ class DocumentBatchCollator:
             string_data = []
 
         string_data_keys = set(k for obs in string_data for k in obs.keys())
-        
+
         # Pad for specified keys to handle variable lengths ofr batch_size > 1
         if len(non_string_data) > 1:
             keys_to_pad = [
-                'input_ids', 'attention_mask', 'residue_index', 'coords',
-                'coords_mask', 'interleaved_coords_mask', 'aa_mask', 'structure_mask', 'plddts'
+                "input_ids",
+                "attention_mask",
+                "residue_index",
+                "coords",
+                "coords_mask",
+                "interleaved_coords_mask",
+                "aa_mask",
+                "structure_mask",
+                "plddts",
             ]
             for key in keys_to_pad:
                 existing = [d for d in non_string_data if key in d]
@@ -389,13 +396,13 @@ class DocumentBatchCollator:
                             if isinstance(val, list):
                                 curr_len = len(val)
                                 if curr_len < max_len:
-                                    d[key] = val + [0]*(max_len - curr_len)
+                                    d[key] = val + [0] * (max_len - curr_len)
                             elif isinstance(val, np.ndarray):
                                 curr_len = val.shape[0]
                                 if curr_len < max_len:
                                     pad_width = [(0, max_len - curr_len)]
                                     pad_width += [(0, 0)] * (val.ndim - 1)
-                                    d[key] = np.pad(val, pad_width, mode='constant')
+                                    d[key] = np.pad(val, pad_width, mode="constant")
         try:
             batch = default_collate(non_string_data)
         except Exception as e:

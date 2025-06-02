@@ -172,7 +172,7 @@ class TextMemMapDataset(torch.utils.data.Dataset):
 
         if is_distributed and not _lightning_prepare_data():
             torch.distributed.barrier()
-        
+
         self._prepare_data()
 
     def _prepare_data(self):

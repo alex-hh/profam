@@ -254,7 +254,9 @@ class SampleCounter(Callback):
         if trainer.world_size > 1:
             batch_size_tensor = torch.tensor(batch_size, device=pl_module.device)
             # Use the trainer strategy’s reduce method to sum across ranks
-            batch_size_tensor = trainer.strategy.reduce(batch_size_tensor, reduce_op="SUM")
+            batch_size_tensor = trainer.strategy.reduce(
+                batch_size_tensor, reduce_op="SUM"
+            )
             batch_size = batch_size_tensor.item()
 
         self.samples_seen += batch_size
@@ -271,8 +273,8 @@ class SampleCounter(Callback):
             self.samples_seen,
             on_step=True,
             on_epoch=False,
-            sync_dist=False,  
-            rank_zero_only=True, 
+            sync_dist=False,
+            rank_zero_only=True,
         )
         # rank_zero_info(f"Total samples seen: {self.samples_seen}")
 
