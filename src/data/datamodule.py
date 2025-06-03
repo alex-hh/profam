@@ -324,21 +324,6 @@ class ProteinDataMixture(LightningDataModule):
         world_size = self.trainer.world_size
         rank = self.trainer.global_rank
 
-        # sampler = DistributedSampler(
-        #     dataset,
-        #     num_replicas=world_size,
-        #     rank=rank,
-        #     shuffle=False,
-        #     drop_last=True,  # must be True to ensure all ranks see the same number of batches
-        # )
-        # sampler.set_epoch(0)
-        # batch_sampler = BatchSampler(
-        #     sampler=sampler,
-        #     batch_size=self.batch_size,
-        #     drop_last=True,  # must be True to ensure all ranks see the same number of batches
-        #     )
-        max_tokens: int = (None,)
-        batch_size: int = (None,)
         batch_sampler = MaxTokensDynamicBatchSampler(
             dataset=dataset,
             size_fn=lambda x: len(x["input_ids"]) if "input_ids" in x else 0,
@@ -350,41 +335,12 @@ class ProteinDataMixture(LightningDataModule):
 
         return DataLoader(
             dataset,
-            batch_sampler=batch_sampler,  # <== no sampler, no batch_size
+            batch_sampler=batch_sampler,  # <== requires: no sampler, no batch_size
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
             persistent_workers=(self.num_workers > 0),
             prefetch_factor=self.prefetch_factor,
         )
-
-    # def train_dataloader(self) -> DataLoader:
-    #     # Get samples_seen from trainer if available
-    #     samples_seen = (
-    #         getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
-    #     )
-    #     # If resuming from checkpoint, skip already seen samples on iterable datasets
-    #     if samples_seen > 0:
-    #         if isinstance(self.train_dataset, OffsetOnlineDataset):
-    #             # Skip the number of samples already seen
-    #             self.train_dataset = self.train_dataset.set_offset(samples_seen)
-    #             print(
-    #                 f"Skipped first {samples_seen} samples to resume training dataset correctly"
-    #             )
-    #         else:
-    #             print(
-    #                 f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT TAKING EFFECT"
-    #             )
-
-    #     return DataLoader(
-    #         self.train_dataset,
-    #         # batch_size=self.batch_size,
-    #         batch_sampler=DynamicBatchSampler(range(len(self.train_dataset)), self.train_dataset, max_tokens_per_batch=32768),
-    #         collate_fn=self.train_collator,
-    #         num_workers=self.num_workers,
-    #         persistent_workers=self.num_workers
-    #         > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
-    #         prefetch_factor=self.prefetch_factor,
-    #     )
 
     def val_dataloader(self) -> List[DataLoader]:
         loaders = [
