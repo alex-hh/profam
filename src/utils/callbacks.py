@@ -287,7 +287,6 @@ class SampleCounter(Callback):
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         self.samples_seen = state_dict.get("samples_seen", 0)
-        self.dataset_sample_counts = state_dict.get("dataset_sample_counts", {})
 
     def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
         super().on_fit_start(trainer, pl_module)
