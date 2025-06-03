@@ -268,7 +268,7 @@ class DocumentBatchCollator:
         allow_split_packed_documents: bool = False,
         max_buffer_size: int = 128,
     ):
-        # FIXME: we force max_buffer_size, remove support in ring_buffer
+        # FIXME: we force max_buffer_size = 0, need to remove support in ring_buffer
         max_buffer_size = 0
 
         self.tokenizer = tokenizer

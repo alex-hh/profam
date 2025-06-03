@@ -57,8 +57,3 @@ class ProFamTrainer(Trainer):
             kwargs["val_check_interval"] = val_check_interval // devices
             print("Setting val_check_interval to", kwargs["val_check_interval"])
         super().__init__(*args, **kwargs)
-
-    # FIXME: REMOVE ME
-    def log(self, *args, **kwargs):
-        # override log to avoid logging the trainer itself
-        pass

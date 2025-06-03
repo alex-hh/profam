@@ -4,7 +4,7 @@ from typing import Any, Callable, List
 from torch.utils.data import BatchSampler, Dataset
 
 
-# FIXME: this will freeze at the end of the epoch if not all ranks will have the same number of batches. Need to make sure that number of training samples will be large enough such that training steps will not reach end of dataset.
+# FIXME: Not sure how best to fix the issue. This sampler will freeze at the end of the epoch unless all ranks will have the same number of batches. Need to make sure that number of training samples will be large enough such that training steps will never reach end of dataset.
 class MaxTokensDynamicBatchSampler(BatchSampler):
     """
     Splits the dataset into dynamic batches based on token lengths so that each
