@@ -248,14 +248,14 @@ class SampleCounter(Callback):
             batch_size = batch["batch_size"].item()
         else:
             batch_size = batch["batch_size"]
-        
+
         batch_size = batch_size * trainer.world_size
 
         self.samples_seen += batch_size
         # ds_name = batch["ds_name"].text
         # for ds in ds_name:
         #     self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
-        
+
         if batch_idx % 250 == 0:
             pl_module.log(
                 "train/total_samples_seen",
