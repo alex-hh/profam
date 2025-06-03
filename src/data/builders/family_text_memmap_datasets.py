@@ -184,6 +184,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         max_tokens_per_family: Optional[int] = None,
         shuffle_family_sequences: bool = True,
         sample_cache_size: int = 1000,
+        seed: Optional[int] = 1,
         **kwargs,
     ):
         """
@@ -200,6 +201,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         self.max_tokens_per_family = max_tokens_per_family
         self.shuffle_family_sequences = shuffle_family_sequences
         self.sample_cache_size = sample_cache_size
+        self.seed = seed
         self.mapping_ds = MappingProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
             # make sure order of files is deterministic
@@ -212,6 +214,9 @@ class ProteinFamilyMemmapDataset(Dataset):
             sort_dataset_paths=True,
             **kwargs,
         )
+
+        self.local_rng = np.random.RandomState(seed=self.seed)
+                    
 
         # NOTE: MAKE __getitem__ A CACHED FUNCTION!!!
         # We need it since sampler will also load samples from the dataset to compute samples size.
@@ -239,7 +244,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         # randomize order of sequences within a family
         if self.shuffle_family_sequences:
             family_idx = list(range(len(sequence_indices)))
-            np.random.shuffle(family_idx)
+            self.local_rng.shuffle(family_idx)
 
         # Limit tokens per family if specified
         if self.max_tokens_per_family is not None:

@@ -62,6 +62,7 @@ data:
       name: funfams_s50_train
       dataset_root: ${paths.data_dir}/funfams/s50_text/train_test_split_v2/train_filtered
       tokenizer: ${tokenizer}
+      seed: ${seed}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor
         cfg:
@@ -87,6 +88,7 @@ data:
       name: foldseek_s50_train
       dataset_root: ${paths.data_dir}/foldseek/foldseek_s50_seq_only_text/train_test_split_v2/train_filtered
       tokenizer: ${tokenizer}
+      seed: ${seed}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor
         cfg:
