@@ -337,14 +337,15 @@ class ProteinDataMixture(LightningDataModule):
         #     batch_size=self.batch_size,
         #     drop_last=True,  # must be True to ensure all ranks see the same number of batches
         #     )
+        max_tokens: int = (None,)
+        batch_size: int = (None,)
         batch_sampler = MaxTokensDynamicBatchSampler(
-            dataset_len=len(dataset),
-            fbatch_size=self.batch_size,
+            dataset=dataset,
+            size_fn=lambda x: len(x["input_ids"]) if "input_ids" in x else 0,
             world_size=world_size,
             rank=rank,
-            shuffle=self.shuffle,
-            drop_last=True,
-            seed=42,
+            max_tokens=self.pack_to_max_tokens if self.pack_to_max_tokens else None,
+            batch_size=self.batch_size if not self.pack_to_max_tokens else None,
         )
 
         return DataLoader(

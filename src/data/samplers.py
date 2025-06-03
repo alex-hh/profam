@@ -1,9 +1,10 @@
 import random
-from typing import List
+from typing import Any, Callable, List
 
-from torch.utils.data import BatchSampler
+from torch.utils.data import BatchSampler, Dataset
 
 
+# FIXME: this will freeze at the end of the epoch if not all ranks will have the same number of batches. Need to make sure that number of training samples will be large enough such that training steps will not reach end of dataset.
 class MaxTokensDynamicBatchSampler(BatchSampler):
     """
     Splits the dataset into dynamic batches based on token lengths so that each
@@ -13,82 +14,75 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
 
     def __init__(
         self,
-        token_lens: List[int],
-        max_tokens: int,
+        dataset: Dataset,
+        size_fn: Callable[[Any], int],  # added type hint for size_fn
         world_size: int,
         rank: int,
-        shuffle: bool = False,
-        seed: int = 0,
-        drop_last: bool = False,
+        max_tokens: int = None,
+        batch_size: int = None,
     ):
         """
         Args:
-            token_lens (List[int]): List containing token lengths for each sample.
-            max_tokens (int): Maximum number of tokens allowed per batch.
+            dataset (Dataset): The dataset to sample from.
+            size_fn (Callable[[Any], int]): Function to compute the size (number of tokens)
+                of a given sample.
             world_size (int): Total number of distributed processes.
             rank (int): Rank of the current process.
-            shuffle (bool, optional): Whether to shuffle the data before batching. Defaults to False.
-            seed (int, optional): Random seed used for shuffling. Defaults to 0.
-            drop_last (bool, optional): If True, drop the final partial batch if it doesn't meet criteria. Defaults to False.
+            max_tokens (int, optional): Maximum number of tokens allowed per batch.
+            batch_size (int, optional): Number of samples per batch.
+
+        Note:
+            Exactly one of max_tokens or batch_size must be specified.
         """
-        # TODO: this is not efficient for massive datasets, as it computes batches. An online version would be better.
-        self.token_lens = token_lens
-        self.max_tokens = max_tokens
+        self.dataset = dataset
+        self.size_fn = size_fn  # now using the provided size_fn function
         self.world_size = world_size
         self.rank = rank
-        self.shuffle = shuffle
-        self.seed = seed
-        self.drop_last = drop_last
-        self.num_samples = len(token_lens)
+        self.max_tokens = max_tokens
+        self.batch_size = batch_size
 
-        # compute the batches based on token lengths
-        batches = self._compute_batches(list(range(self.num_samples)))
-        # make sure all ranks see the same number of batches if needed
-        if self.drop_last:
-            N = len(batches)
-            batches = batches[: N - (N % self.world_size)]
-        # filter batches for the current rank
-        self.batches = batches[self.rank :: self.world_size]
-
-    def _compute_batches(self, indices):
-        """
-        Computes batches based on the cumulative token lengths, ensuring that
-        the total tokens in each batch do not exceed max_tokens.
-
-        Args:
-            indices (List[int]): List of sample indices to compute batches from.
-
-        Returns:
-            List[List[int]]: A list of batches, where each batch is a list of sample indices.
-        """
-        batches = []
-        current_batch = []
-        current_tokens = 0
-        for idx in indices:
-            token_count = self.token_lens[idx]
-            if current_batch and (current_tokens + token_count > self.max_tokens):
-                batches.append(current_batch)
-                current_batch = [idx]
-                current_tokens = token_count
-            else:
-                current_batch.append(idx)
-                current_tokens += token_count
-        if current_batch:
-            if not self.drop_last or (current_tokens >= self.max_tokens):
-                batches.append(current_batch)
-        return batches
+        if self.max_tokens is None and self.batch_size is None:
+            raise ValueError("Either max_tokens or batch_size must be specified.")
+        if self.max_tokens is not None and self.batch_size is not None:
+            raise ValueError(
+                "Only one of max_tokens or batch_size should be specified."
+            )
 
     def __iter__(self):
         """
         Yields:
             List[int]: Next batch of sample indices assigned to this process.
         """
-        for batch in self.batches:
-            yield batch
+        if self.max_tokens is not None:
+            # If max_tokens is specified, yield batches based on token counts
+            batch = []
+            current_tokens = 0
+            for idx in range(0, len(self.dataset), self.world_size):
+                tokens = self.size_fn(self.dataset[idx])  # compute tokens on-the-fly
+                # Start a new batch if adding the current sample exceeds max_tokens
+                if batch and (current_tokens + tokens > self.max_tokens):
+                    yield batch
+                    batch = [idx]
+                    current_tokens = tokens
+                else:
+                    batch.append(idx)
+                    current_tokens += tokens
+            # Yield the last batch if it exists
+            if batch:
+                yield batch
+        else:
+            # If batch_size is specified, yield batches of that size
+            for idx in range(0, len(self.dataset), self.world_size):
+                batch.append(idx)
+                if len(batch) >= self.batch_size:
+                    yield batch
+                    batch = []
+                if batch:
+                    yield batch
 
     def __len__(self):
         """
         Returns:
             int: Number of batches that will be yielded for this process.
         """
-        return len(self.batches)
+        raise TypeError(f"object of type '{type(self).__name__}' has no len()")

@@ -1,5 +1,6 @@
 import glob
 import os
+from functools import lru_cache
 from typing import Any, List, Optional
 
 import numpy as np
@@ -155,11 +156,11 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
         This function uses numpy.diff to efficiently compute the difference between newline positions,
         subtracting one to exclude newline characters. If a list of indices is provided, the sizes for
         those specific sequences are returned. Otherwise, sizes for all sequences are computed.
-        
+
         Args:
             fn (str): The file name to compute sizes for.
             local_indices (Optional[List[int]]): Specific sequence indices to compute sizes for. Defaults to None.
-        
+
         Returns:
             List[int]: A list containing the token counts for each sequence.
         """
@@ -168,7 +169,7 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
         _, midx = self.lines_ds.mdata_midx_list[file_dx]
         # return sizes for the given indices
         for idx in local_indices:
-            sizes.append(midx[idx*2+1] - midx[idx*2] - 1)
+            sizes.append(midx[idx * 2 + 1] - midx[idx * 2] - 1)
 
         return sizes
 
@@ -181,6 +182,8 @@ class ProteinFamilyMemmapDataset(Dataset):
         preprocessor: ProteinDocumentPreprocessor,
         tokenizer: ProFamTokenizer,
         max_tokens_per_family: Optional[int] = None,
+        shuffle_family_sequences: bool = True,
+        sample_cache_size: int = 1000,
         **kwargs,
     ):
         """
@@ -195,6 +198,8 @@ class ProteinFamilyMemmapDataset(Dataset):
         self.preprocessor = preprocessor
         self.tokenizer = tokenizer
         self.max_tokens_per_family = max_tokens_per_family
+        self.shuffle_family_sequences = shuffle_family_sequences
+        self.sample_cache_size = sample_cache_size
         self.mapping_ds = MappingProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
             # make sure order of files is deterministic
@@ -208,6 +213,13 @@ class ProteinFamilyMemmapDataset(Dataset):
             **kwargs,
         )
 
+        # NOTE: MAKE __getitem__ A CACHED FUNCTION!!!
+        # We need it since sampler will also load samples from the dataset to compute samples size.
+        if self.sample_cache_size is not None and self.sample_cache_size > 0:
+            self.__getitem__ = lru_cache(maxsize=self.sample_cache_size, typed=False)(
+                self.__getitem__
+            )
+
     def __len__(self):
         return len(self.mapping_ds)
 
@@ -220,12 +232,15 @@ class ProteinFamilyMemmapDataset(Dataset):
             # get size of each sequenece in the file
             sequence_sizes.extend(self.sequences_ds.get_sequence_sizes(fn, indices))
             # project each relative index to absolute index
-            sequence_indices.extend(self.sequences_ds.get_global_sequence_indices(fn, indices))
+            sequence_indices.extend(
+                self.sequences_ds.get_global_sequence_indices(fn, indices)
+            )
 
         # randomize order of sequences within a family
-        family_idx = list(range(len(sequence_indices)))
-        np.random.shuffle(family_idx)
-        
+        if self.shuffle_family_sequences:
+            family_idx = list(range(len(sequence_indices)))
+            np.random.shuffle(family_idx)
+
         # Limit tokens per family if specified
         if self.max_tokens_per_family is not None:
             cur_tokens = 0
@@ -234,7 +249,7 @@ class ProteinFamilyMemmapDataset(Dataset):
                 if cur_tokens > self.max_tokens_per_family:
                     family_idx = family_idx[:cur_family_i]
                     break
-        
+
         # reorder and subset the family sequences
         sequence_indices = [sequence_indices[i] for i in family_idx]
         # get the actual sequence data for the selected indices
