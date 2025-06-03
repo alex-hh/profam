@@ -38,9 +38,13 @@ class EpochTimerCallback(Callback):
     # https://github.com/Lightning-AI/pytorch-lightning/blob/1551a16b94f5234a4a78801098f64d0732ef5cb5/src/lightning/pytorch/loops/fit_loop.py#L375
     """
 
+    @override
+    @rank_zero_only
     def on_train_epoch_start(self, trainer, pl_module):
         self._t0_epoch = time.time()
 
+    @override
+    @rank_zero_only
     def on_train_epoch_end(self, trainer, pl_module):
         self._t1_epoch = time.time()
         pl_module.log(
@@ -49,12 +53,17 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=False,
+            rank_zero_only=True,
         )
 
+    @override
+    @rank_zero_only
     def on_validation_epoch_start(self, trainer, pl_module):
         self._val_t0_epoch = time.time()
 
+    @override
+    @rank_zero_only
     def on_validation_epoch_end(self, trainer, pl_module):
         self._val_t1_epoch = time.time()
         pl_module.log(
@@ -64,6 +73,7 @@ class EpochTimerCallback(Callback):
             on_epoch=True,
             prog_bar=True,
             sync_dist=False,
+            rank_zero_only=True,
         )
 
 
@@ -234,7 +244,6 @@ class SampleCounter(Callback):
     def __init__(self):
         super().__init__()
         self.samples_seen = 0
-        self.dataset_sample_counts = {}
 
     def on_train_batch_end(
         self,
@@ -250,50 +259,30 @@ class SampleCounter(Callback):
         else:
             batch_size = batch["batch_size"]
 
-        # In distributed setting, use Lightning’s strategy to reduce across all ranks
         if trainer.world_size > 1:
+            # Create tensor with batch size and all-reduce
             batch_size_tensor = torch.tensor(batch_size, device=pl_module.device)
-            # Use the trainer strategy’s reduce method to sum across ranks
-            batch_size_tensor = trainer.strategy.reduce(
-                batch_size_tensor, reduce_op="SUM"
+            torch.distributed.all_reduce(
+                batch_size_tensor, op=torch.distributed.ReduceOp.SUM
             )
             batch_size = batch_size_tensor.item()
 
         self.samples_seen += batch_size
-
         pl_module.samples_seen = self.samples_seen
 
-        # Log dataset sample counts
-        ds_name = batch["ds_name"].text
-        for ds in ds_name:
-            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
-
-        pl_module.log(
-            "train/total_samples_seen",
-            self.samples_seen,
-            on_step=True,
-            on_epoch=False,
-            sync_dist=False,
-            rank_zero_only=True,
-        )
-        # rank_zero_info(f"Total samples seen: {self.samples_seen}")
-
-        # Log dataset sample counts
-        pl_module.log_dict(
-            {
-                f"train/{k}_times_sampled": v
-                for k, v in self.dataset_sample_counts.items()
-            },
-            on_step=True,
-            on_epoch=False,
-            sync_dist=False,  # Ensure counts are synchronized across devices
-            rank_zero_only=True,  # Allow all ranks to log
-        )
+        if batch_idx % 250 == 0:
+            pl_module.log(
+                "train/total_samples_seen",
+                self.samples_seen,
+                on_step=True,
+                on_epoch=False,
+                sync_dist=False,
+                rank_zero_only=True,
+            )
 
     def state_dict(self) -> Dict[str, Any]:
         return {
             "samples_seen": self.samples_seen,
-            "dataset_sample_counts": self.dataset_sample_counts,
         }
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
