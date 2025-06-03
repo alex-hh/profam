@@ -216,7 +216,6 @@ class ProteinFamilyMemmapDataset(Dataset):
         )
 
         self.local_rng = np.random.RandomState(seed=self.seed)
-                    
 
         # NOTE: MAKE __getitem__ A CACHED FUNCTION!!!
         # We need it since sampler will also load samples from the dataset to compute samples size.
