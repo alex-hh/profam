@@ -232,7 +232,6 @@ class SampleCounter(Callback):
     def __init__(self):
         super().__init__()
         self.samples_seen = 0
-        self.dataset_sample_counts = {}
 
     def on_train_batch_end(
         self,
@@ -242,74 +241,34 @@ class SampleCounter(Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        if not trainer.is_global_zero:
+            return
         """Update the sample count after each batch is processed"""
         if isinstance(batch["batch_size"], torch.Tensor):
             batch_size = batch["batch_size"].item()
         else:
             batch_size = batch["batch_size"]
+        
+        batch_size = batch_size * trainer.world_size
 
         self.samples_seen += batch_size
-        ds_name = batch["ds_name"].text
-        for ds in ds_name:
-            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
+        # ds_name = batch["ds_name"].text
+        # for ds in ds_name:
+        #     self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
         
-        # Only sync and log periodically to reduce overhead
         if batch_idx % 250 == 0:
-            # Create a copy of the counts to avoid modifying during sync
-            samples_tensor = torch.tensor(self.samples_seen, device=pl_module.device)
-            
-            # Synchronize across all processes
-            if trainer.world_size > 1:
-                torch.distributed.all_reduce(
-                    samples_tensor,
-                    op=torch.distributed.ReduceOp.SUM
-                )
-                
-                # Update the local value with the synchronized total
-                if trainer.is_global_zero:
-                    self.samples_seen = samples_tensor.item()
-                    
-                    # Only synchronize dataset counts on rank 0
-                    dataset_counts_synced = {}
-                    for k in self.dataset_sample_counts:
-                        count_tensor = torch.tensor(self.dataset_sample_counts[k], device=pl_module.device)
-                        torch.distributed.all_reduce(
-                            count_tensor,
-                            op=torch.distributed.ReduceOp.SUM
-                        )
-                        dataset_counts_synced[k] = count_tensor.item()
-                    
-                    self.dataset_sample_counts = dataset_counts_synced
-            
-            # Update the module's sample count
-            if trainer.is_global_zero:
-                pl_module.samples_seen = self.samples_seen
-                
-                # Log metrics only from rank 0
-                pl_module.log(
-                    "train/total_samples_seen",
-                    self.samples_seen,
-                    on_step=True,
-                    on_epoch=False,
-                    sync_dist=False,
-                    rank_zero_only=True,
-                )
-
-                pl_module.log_dict(
-                    {
-                        f"train/{k}_times_sampled": v
-                        for k, v in self.dataset_sample_counts.items()
-                    },
-                    on_step=True,
-                    on_epoch=False,
-                    sync_dist=False,
-                    rank_zero_only=True, 
-                )
+            pl_module.log(
+                "train/total_samples_seen",
+                self.samples_seen,
+                on_step=True,
+                on_epoch=False,
+                sync_dist=False,
+                rank_zero_only=True,
+            )
 
     def state_dict(self) -> Dict[str, Any]:
         return {
             "samples_seen": self.samples_seen,
-            "dataset_sample_counts": self.dataset_sample_counts,
         }
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
