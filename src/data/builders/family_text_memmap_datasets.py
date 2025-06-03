@@ -163,24 +163,12 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
         Returns:
             List[int]: A list containing the token counts for each sequence.
         """
-
-        # # return sizes for the given indices
-        # for idx in indices:
-        #     # each sequence is represented by 2 lines (accession and sequence)
-        #     midx = self.lines_ds.mdata_midx_list[idx // 2][1]
-        #     # diff minus one to exclude newline char
-        #     sizes.append(int(np.diff(midx)[1] - 1))
-
         sizes = []
         file_dx = self._file_to_file_idx[fn]
         _, midx = self.lines_ds.mdata_midx_list[file_dx]
         # return sizes for the given indices
         for idx in local_indices:
-            if idx > 0:
-                sizes.append(midx[idx*2] - midx[(idx - 1)*2] - 1)
-            elif idx == 0:
-                # first sequence in the file, no previous index
-                sizes.append(midx[0] - 1)
+            sizes.append(midx[idx*2+1] - midx[idx*2] - 1)
 
         return sizes
 
@@ -219,7 +207,6 @@ class ProteinFamilyMemmapDataset(Dataset):
             sort_dataset_paths=True,
             **kwargs,
         )
-        pass
 
     def __len__(self):
         return len(self.mapping_ds)
@@ -237,15 +224,15 @@ class ProteinFamilyMemmapDataset(Dataset):
 
         # randomize order of sequences within a family
         family_idx = list(range(len(sequence_indices)))
-        np.shuffle(family_idx)
+        np.random.shuffle(family_idx)
         
         # Limit tokens per family if specified
         if self.max_tokens_per_family is not None:
             cur_tokens = 0
-            for i in family_idx:
-                cur_tokens += sequence_sizes[i]
+            for cur_family_i, cur_family_idx in enumerate(family_idx):
+                cur_tokens += sequence_sizes[cur_family_idx]
                 if cur_tokens > self.max_tokens_per_family:
-                    family_idx = family_idx[:i]
+                    family_idx = family_idx[:cur_family_i]
                     break
         
         # reorder and subset the family sequences
