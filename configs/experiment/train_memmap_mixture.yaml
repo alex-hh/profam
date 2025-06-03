@@ -185,10 +185,10 @@ data:
 
   batch_size: 100
   data_dir: ${paths.data_dir}
-  num_workers: 12
+  num_workers: 20
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 32768
+  pack_to_max_tokens: 327680
   prefetch_factor: 4
   shuffle: true
   interleaved: true

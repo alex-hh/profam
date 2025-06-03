@@ -187,6 +187,16 @@ class ProteinDataMixture(LightningDataModule):
             # we wrap with OffsetOnlineDataset to support resuming from correct sample
             self.train_dataset = OffsetOnlineDataset(self.train_dataset)
 
+            # # test speed of loading 1000 samples
+            # N = 10000
+            # import time
+            # print(f"=======> Loading {N} samples from train dataset to test speed...")
+            # start = time.time()
+            # for _ in range(N):
+            #     sample = next(iter(self.train_dataset))
+            # end = time.time()
+            # print(f"=======> Loaded {N} samples in {end - start:.2f} seconds, {N / (end - start):.2f} samples/sec")
+
             if isinstance(self.train_dataset, IterableDataset):
                 # c.f. iterable dataset examples...
                 # will shuffle the shards order and use a shuffle buffer when you start iterating
