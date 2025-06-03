@@ -114,6 +114,12 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
             fn = os.path.basename(fn_path)
             self._file_to_base_idx[fn] = base_idx
 
+        # build mapping from file name to file index to support fast access to each sequences file
+        self._file_to_file_idx = {}
+        for file_idx, fn_path in enumerate(self.lines_ds._files_list):
+            fn = os.path.basename(fn_path)
+            self._file_to_file_idx[fn] = file_idx
+
     def __len__(self):
         """Return the number of sequences in the dataset."""
         # Each sequence is represented by 2 lines (accession and sequence)
@@ -134,27 +140,48 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
 
         return data
 
-    def get_absolute_indices(self, fn, indices):
+    def get_global_sequence_indices(self, fn, local_indices):
         """
         Get the absolute index of the sequence in the dataset given relative index and file name.
         """
         # get the base index for the file
         base_idx = self._file_to_base_idx[fn]
         # return the absolues index
-        return [idx + (base_idx // 2) for idx in indices]
+        return [idx + (base_idx // 2) for idx in local_indices]
 
-    def get_sequence_sizes(self):
+    def get_sequence_sizes(self, fn: str, local_indices: list):
         """
-        Compute and return the number of tokens in each sequence without loading sample data.
-        Uses np.diff for efficient computation.
-
+        Compute and return the number of tokens in each sequence without reading the full sequence data.
+        This function uses numpy.diff to efficiently compute the difference between newline positions,
+        subtracting one to exclude newline characters. If a list of indices is provided, the sizes for
+        those specific sequences are returned. Otherwise, sizes for all sequences are computed.
+        
+        Args:
+            fn (str): The file name to compute sizes for.
+            local_indices (Optional[List[int]]): Specific sequence indices to compute sizes for. Defaults to None.
+        
         Returns:
-            List[int]: A list with the number of tokens for each sequence.
+            List[int]: A list containing the token counts for each sequence.
         """
+
+        # # return sizes for the given indices
+        # for idx in indices:
+        #     # each sequence is represented by 2 lines (accession and sequence)
+        #     midx = self.lines_ds.mdata_midx_list[idx // 2][1]
+        #     # diff minus one to exclude newline char
+        #     sizes.append(int(np.diff(midx)[1] - 1))
+
         sizes = []
-        for _, midx in self.lines_ds.mdata_midx_list:
-            # diff minus one to exclude newline char
-            sizes.extend(map(int, np.diff(midx)[::2] - 1))
+        file_dx = self._file_to_file_idx[fn]
+        _, midx = self.lines_ds.mdata_midx_list[file_dx]
+        # return sizes for the given indices
+        for idx in local_indices:
+            if idx > 0:
+                sizes.append(midx[idx*2] - midx[(idx - 1)*2] - 1)
+            elif idx == 0:
+                # first sequence in the file, no previous index
+                sizes.append(midx[0] - 1)
+
         return sizes
 
 
@@ -165,6 +192,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         dataset_root: str,
         preprocessor: ProteinDocumentPreprocessor,
         tokenizer: ProFamTokenizer,
+        max_tokens_per_family: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -178,6 +206,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         self.name = name
         self.preprocessor = preprocessor
         self.tokenizer = tokenizer
+        self.max_tokens_per_family = max_tokens_per_family
         self.mapping_ds = MappingProteinFamilyMemmapDataset(
             dataset_root=dataset_root,
             # make sure order of files is deterministic
@@ -198,12 +227,30 @@ class ProteinFamilyMemmapDataset(Dataset):
     def __getitem__(self, idx):
         mapping_data = self.mapping_ds[idx]
         sequence_indices = []
+        sequence_sizes = []
         # collect samples from all files
         for fn, indices in mapping_data["sample_indices"].items():
+            # get size of each sequenece in the file
+            sequence_sizes.extend(self.sequences_ds.get_sequence_sizes(fn, indices))
             # project each relative index to absolute index
-            sequence_indices.extend(self.sequences_ds.get_absolute_indices(fn, indices))
+            sequence_indices.extend(self.sequences_ds.get_global_sequence_indices(fn, indices))
 
-        # TODO: add sampling of sequences from a family here
+        # randomize order of sequences within a family
+        family_idx = list(range(len(sequence_indices)))
+        np.shuffle(family_idx)
+        
+        # Limit tokens per family if specified
+        if self.max_tokens_per_family is not None:
+            cur_tokens = 0
+            for i in family_idx:
+                cur_tokens += sequence_sizes[i]
+                if cur_tokens > self.max_tokens_per_family:
+                    family_idx = family_idx[:i]
+                    break
+        
+        # reorder and subset the family sequences
+        sequence_indices = [sequence_indices[i] for i in family_idx]
+        # get the actual sequence data for the selected indices
         sequences_data = [self.sequences_ds[i] for i in sequence_indices]
         protein_doc = ProteinDocument(
             sequences=[sd["sequence"] for sd in sequences_data],
