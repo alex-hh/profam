@@ -1,6 +1,8 @@
 import random
-from torch.utils.data import BatchSampler
 from typing import List
+
+from torch.utils.data import BatchSampler
+
 
 class MaxTokensDynamicBatchSampler(BatchSampler):
     """
@@ -8,7 +10,17 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
     batch contains approximately max_tokens tokens. The batches are then sharded
     across distributed processes using round-robin assignment.
     """
-    def __init__(self, token_lens: List[int], max_tokens: int, world_size: int, rank: int, shuffle: bool = False, seed: int = 0, drop_last: bool = False):
+
+    def __init__(
+        self,
+        token_lens: List[int],
+        max_tokens: int,
+        world_size: int,
+        rank: int,
+        shuffle: bool = False,
+        seed: int = 0,
+        drop_last: bool = False,
+    ):
         """
         Args:
             token_lens (List[int]): List containing token lengths for each sample.
@@ -28,15 +40,15 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
         self.seed = seed
         self.drop_last = drop_last
         self.num_samples = len(token_lens)
-        
+
         # compute the batches based on token lengths
         batches = self._compute_batches(list(range(self.num_samples)))
         # make sure all ranks see the same number of batches if needed
         if self.drop_last:
-            N = len(batches) 
-            batches = batches[:N - (N % self.world_size)]
+            N = len(batches)
+            batches = batches[: N - (N % self.world_size)]
         # filter batches for the current rank
-        self.batches = batches[self.rank::self.world_size]
+        self.batches = batches[self.rank :: self.world_size]
 
     def _compute_batches(self, indices):
         """
@@ -45,7 +57,7 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
 
         Args:
             indices (List[int]): List of sample indices to compute batches from.
-        
+
         Returns:
             List[List[int]]: A list of batches, where each batch is a list of sample indices.
         """

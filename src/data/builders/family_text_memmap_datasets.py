@@ -100,7 +100,7 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
             sort_dataset_paths=sort_dataset_paths,
             index_mapping_dir=index_mapping_dir,
         )
-        
+
         if len(self.lines_ds) % 2 != 0:
             raise ValueError(
                 "The number of lines in the sequences files must be even (each sequence has an accession and a sequence line)."
@@ -108,16 +108,17 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
 
         # build mapping from file name to base index to support relative indices for each sequences file
         self._file_to_base_idx = {}
-        for base_idx, fn_path in zip([0] + list(self.lines_ds.midx_bins), self.lines_ds._files_list):
+        for base_idx, fn_path in zip(
+            [0] + list(self.lines_ds.midx_bins), self.lines_ds._files_list
+        ):
             fn = os.path.basename(fn_path)
             self._file_to_base_idx[fn] = base_idx
-
 
     def __len__(self):
         """Return the number of sequences in the dataset."""
         # Each sequence is represented by 2 lines (accession and sequence)
         return len(self.lines_ds) // 2
-    
+
     def __getitem__(self, idx):
         """Return the sequence and its accession for the given index."""
         # Get the text lines for the accession and sequence
@@ -146,7 +147,7 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
         """
         Compute and return the number of tokens in each sequence without loading sample data.
         Uses np.diff for efficient computation.
-        
+
         Returns:
             List[int]: A list with the number of tokens for each sequence.
         """
@@ -215,6 +216,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         )
         processed["ds_name"] = self.name
         return processed
+
 
 class ProteinFamilyMemmapDatasetBuilder(ProteinFamilyMemmapDataset, BaseProteinDataset):
     """A builder that wraps :class:`ProteinFamilyMemmapDataset` so it can be used

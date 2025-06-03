@@ -344,7 +344,7 @@ class ProteinDataMixture(LightningDataModule):
             rank=rank,
             shuffle=self.shuffle,
             drop_last=True,
-            seed=42,  
+            seed=42,
         )
 
         return DataLoader(
