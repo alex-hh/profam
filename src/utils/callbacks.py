@@ -45,7 +45,8 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=False,
+            rank_zero_only=True,
         )
 
     def on_validation_epoch_start(self, trainer, pl_module):
@@ -59,7 +60,8 @@ class EpochTimerCallback(Callback):
             on_step=False,
             on_epoch=True,
             prog_bar=True,
-            sync_dist=True,
+            sync_dist=False,
+            rank_zero_only=True,
         )
 
 
@@ -246,45 +248,45 @@ class SampleCounter(Callback):
         else:
             batch_size = batch["batch_size"]
 
-        # In distributed setting, we need to sync the count
-        if trainer.world_size > 1:
-            # Create tensor with batch size and all-reduce
-            batch_size_tensor = torch.tensor(batch_size, device=pl_module.device)
-            torch.distributed.all_reduce(
-                batch_size_tensor, op=torch.distributed.ReduceOp.SUM
-            )
-            batch_size = batch_size_tensor.item()
-
         self.samples_seen += batch_size
-
-        pl_module.samples_seen = self.samples_seen
-
-        # Log dataset sample counts
         ds_name = batch["ds_name"].text
         for ds in ds_name:
             self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
 
-        pl_module.log(
-            "train/total_samples_seen",
-            self.samples_seen,
-            on_step=True,
-            on_epoch=False,
-            sync_dist=True,  # This ensures the value is synchronized across all devices
-            rank_zero_only=False,  # Allow all ranks to log to ensure proper aggregation
-        )
-        # rank_zero_info(f"Total samples seen: {self.samples_seen}")
+        if (batch_idx + 1) % 250 == 0:
+            if trainer.world_size > 1:
+                torch.distributed.all_reduce(
+                    torch.tensor(self.samples_seen, device=pl_module.device),
+                    op=torch.distributed.ReduceOp.SUM,
+                )
+                for k in self.dataset_sample_counts:
+                    torch.distributed.all_reduce(
+                        torch.tensor(
+                            self.dataset_sample_counts[k], device=pl_module.device
+                        ),
+                        op=torch.distributed.ReduceOp.SUM,
+                    )
+                    self.dataset_sample_counts[k] = self.dataset_sample_counts[k].item()
+            pl_module.samples_seen = self.samples_seen
+            pl_module.log(
+                "train/total_samples_seen",
+                self.samples_seen,
+                on_step=True,
+                on_epoch=False,
+                sync_dist=False,
+                rank_zero_only=True,
+            )
 
-        # Log dataset sample counts
-        pl_module.log_dict(
-            {
-                f"train/{k}_times_sampled": v
-                for k, v in self.dataset_sample_counts.items()
-            },
-            on_step=True,
-            on_epoch=False,
-            sync_dist=True,  # Ensure counts are synchronized across devices
-            rank_zero_only=False,  # Allow all ranks to log
-        )
+            pl_module.log_dict(
+                {
+                    f"train/{k}_times_sampled": v
+                    for k, v in self.dataset_sample_counts.items()
+                },
+                on_step=True,
+                on_epoch=False,
+                sync_dist=False,
+                rank_zero_only=True,
+            )
 
     def state_dict(self) -> Dict[str, Any]:
         return {
