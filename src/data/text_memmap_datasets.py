@@ -19,7 +19,7 @@ import os
 import pickle
 import time
 from bisect import bisect_right
-from functools import lru_cache, partial
+from functools import partial
 from typing import Callable, List, Optional, Type
 
 import numpy as np

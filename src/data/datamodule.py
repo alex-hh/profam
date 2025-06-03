@@ -22,7 +22,7 @@ from src.data.online_sample_mapping import (
     OnlineSampleMappingDataset,
     WeightedConcatOnlineDataset,
 )
-from src.data.samplers import GlobalRandomBatchSampler
+from src.data.samplers import MaxTokensDynamicBatchSampler
 from src.data.tokenizers import ProFamTokenizer
 
 
@@ -303,6 +303,23 @@ class ProteinDataMixture(LightningDataModule):
             self._is_setup = True
 
     def train_dataloader(self) -> DataLoader:
+        # Get samples_seen from trainer if available
+        samples_seen = (
+            getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
+        )
+        # If resuming from checkpoint, skip already seen samples on iterable datasets
+        if samples_seen > 0:
+            if isinstance(self.train_dataset, OffsetOnlineDataset):
+                # Skip the number of samples already seen
+                self.train_dataset = self.train_dataset.set_offset(samples_seen)
+                print(
+                    f"Skipped first {samples_seen} samples to resume training dataset correctly"
+                )
+            else:
+                print(
+                    f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT TAKING EFFECT"
+                )
+
         dataset = self.train_dataset
         world_size = self.trainer.world_size
         rank = self.trainer.global_rank
@@ -320,19 +337,19 @@ class ProteinDataMixture(LightningDataModule):
         #     batch_size=self.batch_size,
         #     drop_last=True,  # must be True to ensure all ranks see the same number of batches
         #     )
-        batch_sampler = GlobalRandomBatchSampler(
+        batch_sampler = MaxTokensDynamicBatchSampler(
             dataset_len=len(dataset),
             fbatch_size=self.batch_size,
             world_size=world_size,
             rank=rank,
             shuffle=self.shuffle,
             drop_last=True,
-            seed=42,  # must match between __iter__ and __len__
+            seed=42,  
         )
 
         return DataLoader(
             dataset,
-            batch_sampler=batch_sampler,  # ← no sampler=, no batch_size=
+            batch_sampler=batch_sampler,  # <== no sampler, no batch_size
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
             persistent_workers=(self.num_workers > 0),
