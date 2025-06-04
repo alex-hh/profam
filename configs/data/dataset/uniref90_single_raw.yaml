@@ -15,6 +15,6 @@ cfg:
 
 preprocessor:
   cfg:
-    max_tokens_per_example: 320
+    max_tokens_per_example: 550
     padding: do_not_pad
     shuffle_proteins_in_document: false

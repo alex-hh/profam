@@ -14,7 +14,10 @@ def check_config(cfg: DictConfig):
     if "proteingym" in cfg.data.dataset_builders:
         pg_max_tokens = cfg.data.dataset_builders.proteingym.max_tokens_per_example
         assert cfg.trainer.tokens_per_document >= pg_max_tokens
-        if cfg.data.dataset_builders.proteingym.max_context_seqs > 0:
+        if (
+            cfg.data.dataset_builders.proteingym.max_context_seqs is None
+            or cfg.data.dataset_builders.proteingym.max_context_seqs > 0
+        ):
             assert max_train_doc_len >= pg_max_tokens
     if "max_position_embeddings" in cfg.model.config:
         assert cfg.model.config.max_position_embeddings >= max_train_doc_len
