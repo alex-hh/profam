@@ -187,13 +187,14 @@ class ProteinDataMixture(LightningDataModule):
             # we wrap with OffsetOnlineDataset to support resuming from correct sample
             self.train_dataset = OffsetOnlineDataset(self.train_dataset)
 
-            # # test speed of loading 1000 samples
+            # # test speed of loading 1000 samples (uncomment to activate)
             # N = 10000
             # import time
             # print(f"=======> Loading {N} samples from train dataset to test speed...")
+            # it = iter(self.train_dataset)
             # start = time.time()
             # for _ in range(N):
-            #     sample = next(iter(self.train_dataset))
+            #     sample = next(it)
             # end = time.time()
             # print(f"=======> Loaded {N} samples in {end - start:.2f} seconds, {N / (end - start):.2f} samples/sec")
 
