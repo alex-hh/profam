@@ -229,9 +229,7 @@ class BaseLitModule(LightningModule):
             outputs,
             batch["labels"],
             ignore_index=self.ignore_index,
-            dataset_names=batch[
-                "ds_name"
-            ].text,  # a list of dataset names (StringObject.text)
+            dataset_names=None,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                 ["-", "X", "x", "[start-of-document]"]
                 + [aa.lower() for aa in aa_letters]
@@ -334,6 +332,8 @@ class BaseLitModule(LightningModule):
 
         is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
         for ds_name in set(batch["ds_name"].text):
+            if ds_name not in dataset_accuracies:
+                continue
             ds_metrics = {
                 f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name],
                 f"{step_name}/{ds_name}/aa_accuracy_first_sequence": dataset_accuracies[

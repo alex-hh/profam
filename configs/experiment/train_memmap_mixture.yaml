@@ -194,4 +194,5 @@ data:
   prefetch_factor: 4
   shuffle: true
   interleaved: true
+  interleaved_block_size: 1000 # number of samples to interleave all datasets. large values will be slower with better weight accuracy. 1000 should be fine
   total_num_train_samples: 2000000

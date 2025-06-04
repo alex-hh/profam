@@ -50,6 +50,7 @@ class ProteinDataMixture(LightningDataModule):
         num_workers: Optional[int] = None,
         shuffle: bool = True,
         interleaved: bool = True,
+        interleaved_block_size: int = 1000,
         ignore_gaps: bool = False,
         total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
@@ -68,6 +69,7 @@ class ProteinDataMixture(LightningDataModule):
         self.num_workers = num_workers
         self.shuffle = shuffle
         self.interleaved = interleaved
+        self.interleaved_block_size = interleaved_block_size
         self.tokenizer = tokenizer
         self.pack_to_max_tokens = pack_to_max_tokens
         # N.B. feature names only needs to be applied for training
@@ -167,6 +169,7 @@ class ProteinDataMixture(LightningDataModule):
                         seed=42,
                         shuffle=self.shuffle,
                         interleaved=self.interleaved,
+                        interleaved_block_size=self.interleaved_block_size,
                     )
                 print(
                     "Interleaved train dataset example types",
