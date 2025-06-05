@@ -266,21 +266,13 @@ class DocumentBatchCollator:
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         allow_split_packed_documents: bool = False,
-        max_buffer_size: int = 128,
     ):
-        # FIXME: we force max_buffer_size = 0, need to remove support in ring_buffer
-        max_buffer_size = 0
 
         self.tokenizer = tokenizer
         self.ignore_gaps = ignore_gaps
         self.feature_names = feature_names
         self.pack_to_max_tokens = pack_to_max_tokens
         self.allow_split_packed_documents = allow_split_packed_documents
-        self.max_buffer_size = max_buffer_size
-        if max_buffer_size > 0:
-            self._ring_buffer: List[Dict[str, Any]] = []
-        else:
-            self._ring_buffer = None
 
     def __call__(self, examples):
         # TODO: maybe I have an issue with blending data with different keys?
@@ -288,16 +280,12 @@ class DocumentBatchCollator:
         def keep_feature(feature_name):
             return self.feature_names is None or feature_name in self.feature_names
 
-        # Merge ring buffer with incoming batch
-        if self._ring_buffer is not None:
-            original_combined_examples = self._ring_buffer + examples
-        else:
-            original_combined_examples = examples
+
         # If packing enabled, greedily fill up to pack_to_max_tokens
         if self.pack_to_max_tokens is not None:
             chosen, remainder = [], []
             current_tokens = 0
-            for ex in original_combined_examples:
+            for ex in examples:
                 n_tokens = len(ex["input_ids"])
                 if (
                     current_tokens + n_tokens <= self.pack_to_max_tokens
@@ -305,18 +293,13 @@ class DocumentBatchCollator:
                 ):
                     chosen.append(ex)
                     current_tokens += n_tokens
-                elif self._ring_buffer is not None:
-                    remainder.append(ex)
-            if self._ring_buffer is not None:
-                self._ring_buffer = remainder  # carry over to next call
-                # Apply max_buffer_size constraint
-                self._ring_buffer = self._ring_buffer[
-                    max(0, len(self._ring_buffer) - self.max_buffer_size) :
-                ]
+                else:
+                    print("Warning too many tokens in batch")
+                    break
 
             combined_examples = chosen
         else:
-            combined_examples = original_combined_examples
+            combined_examples = examples
 
         non_string_data = [
             {k: v for k, v in e.items() if (not isinstance(v, str)) and keep_feature(k)}
@@ -364,7 +347,7 @@ class DocumentBatchCollator:
                 ]:
                     if keep_feature(key):
                         parts = [e[key] for e in combined_examples]
-                        packed_string_data[key] = "-".join(parts)
+                        packed_string_data[key] = "$".join(parts)
             string_data = (
                 [packed_string_data] if packed_string_data else []
             )  # list containing one dict of packed strings
@@ -424,7 +407,7 @@ class DocumentBatchCollator:
             str_obj = StringObject()
             str_obj.text = str_vals
             batch[str_key] = str_obj
-        ring_buffer_len = len(self._ring_buffer) if self._ring_buffer is not None else 0
+        
         if "batch_size" not in batch:
             batch["batch_size"] = len(combined_examples)
         # if 'train' in examples[0]['ds_name']:

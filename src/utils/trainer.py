@@ -42,12 +42,13 @@ class ProFamTrainer(Trainer):
             print(
                 "Setting accumulate_grad_batches to", kwargs["accumulate_grad_batches"]
             )
-        if timeout is not None:
-            assert kwargs.get("strategy", "auto") == "ddp"
-            # default is 1800 seconds
-            kwargs["strategy"] = DDPStrategy(
-                timeout=datetime.timedelta(seconds=timeout)
-            )
+        # JW NOTE: below was causing CUDA errors on multi GPU
+        # if timeout is not None:
+        #     assert kwargs.get("strategy", "auto") == "ddp"
+        #     # default is 1800 seconds
+        #     kwargs["strategy"] = DDPStrategy(
+        #         timeout=datetime.timedelta(seconds=timeout)
+        #     )
         if (
             val_check_interval_divide_by_world_size
             and kwargs.get("val_check_interval", 1.0) != 1.0

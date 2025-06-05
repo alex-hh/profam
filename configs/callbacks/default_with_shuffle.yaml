@@ -6,6 +6,7 @@ defaults:
   - timer
   - print
   - sample_counter
+  - count_unique_batches
   - shuffle
   - _self_
 

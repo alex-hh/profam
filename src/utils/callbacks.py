@@ -11,6 +11,8 @@ from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities import rank_zero_info
 from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
 from typing_extensions import override
+import hashlib
+import torch.distributed as dist
 
 from src.utils import RankedLogger
 from src.utils.throughput import Throughput
@@ -250,10 +252,10 @@ class SampleCounter(Callback):
         else:
             batch_size = batch["batch_size"]
 
-        # In distributed setting, use Lightning’s strategy to reduce across all ranks
+        # In distributed setting, use Lightning's strategy to reduce across all ranks
         if trainer.world_size > 1:
             batch_size_tensor = torch.tensor(batch_size, device=pl_module.device)
-            # Use the trainer strategy’s reduce method to sum across ranks
+            # Use the trainer strategy's reduce method to sum across ranks
             batch_size_tensor = trainer.strategy.reduce(
                 batch_size_tensor, reduce_op="SUM"
             )
@@ -303,3 +305,104 @@ class SampleCounter(Callback):
     def on_fit_start(self, trainer: L.Trainer, pl_module: L.LightningModule) -> None:
         super().on_fit_start(trainer, pl_module)
         trainer.samples_seen = self.samples_seen
+
+class CountUniqueBatches(Callback):
+    """
+    Checks for repeated batches during training
+    1) checks if the same samples are occuring in the packed batch together
+    2) checks how often individual samples are seen during training
+    """
+    def __init__(self):
+        super().__init__()
+        self.samples_seen = 0
+        self.dataset_sample_counts = {}
+        self.identifier_sample_counts = {}
+        self.batch_identifier_counts = {}
+
+    def _merge_counts(self, trainer: L.Trainer, local_dict: Dict[str, int]) -> Dict[str, int]:
+        """Gather and sum counts across all ranks to get global counts."""
+        if trainer.world_size > 1 and dist.is_available() and dist.is_initialized():
+            gathered = [None for _ in range(trainer.world_size)]
+            dist.all_gather_object(gathered, local_dict)
+            merged = {}
+            for d in gathered:
+                for key, val in d.items():
+                    merged[key] = merged.get(key, 0) + val
+            return merged
+        return local_dict.copy()
+
+    def on_train_batch_end(
+        self,
+        trainer: L.Trainer,
+        pl_module: L.LightningModule,
+        outputs: Dict[str, Any],
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        super().on_train_batch_end(trainer, pl_module, outputs, batch, batch_idx)
+        identifier_strings = batch["identifier"].text[0].split("$")
+        ds_strings = batch["ds_name"].text[0].split("$")
+        ids_w_ds = [f"{id}{ds}" for id, ds in zip(identifier_strings, ds_strings)]
+        # Hash the batch identifier for determinism and brevity
+        raw_identifier = "".join(sorted(ids_w_ds))
+        batch_id_hash = hashlib.md5(raw_identifier.encode("utf-8")).hexdigest()
+
+        # Update batch identifier counts using hashed identifier
+        self.batch_identifier_counts[batch_id_hash] = self.batch_identifier_counts.get(batch_id_hash, 0) + 1
+
+        # Update sample counts per identifier
+        for id in ids_w_ds:
+            self.identifier_sample_counts[id] = self.identifier_sample_counts.get(id, 0) + 1
+
+        # Update dataset sample counts
+        for ds in ds_strings:
+            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
+
+        # Update total samples seen
+        num_samples = len(ids_w_ds)
+        self.samples_seen += num_samples
+
+        # Sync local dictionaries into global counts
+        global_batch_counts = self._merge_counts(trainer, self.batch_identifier_counts)
+        global_identifier_counts = self._merge_counts(trainer, self.identifier_sample_counts)
+        global_dataset_counts = self._merge_counts(trainer, self.dataset_sample_counts)
+
+        # Compute metrics for logging each step
+        batch_counts = list(global_batch_counts.values())
+        total_batches = sum(batch_counts)
+        unique_batches = len(batch_counts)
+        repeated_batches = total_batches - unique_batches
+        max_batch_repetition = max(batch_counts) if batch_counts else 0
+        min_batch_repetition = min(batch_counts) if batch_counts else 0
+        mean_batch_repetition = total_batches / unique_batches if unique_batches else 0.0
+
+        sample_counts = list(global_identifier_counts.values())
+        total_samples = sum(sample_counts)
+        unique_samples = len(sample_counts)
+        repeated_samples = total_samples - unique_samples
+        max_sample_repetition = max(sample_counts) if sample_counts else 0
+        min_sample_repetition = min(sample_counts) if sample_counts else 0
+        mean_sample_repetition = total_samples / unique_samples if unique_samples else 0.0
+
+        # Prepare metrics dict
+        metrics = {
+            "train_batch_monitoring/total_batches": total_batches,
+            "train_batch_monitoring/unique_batches": unique_batches,
+            "train_batch_monitoring/repeated_batches": repeated_batches,
+            "train_batch_monitoring/max_batch_repetition": max_batch_repetition,
+            "train_batch_monitoring/min_batch_repetition": min_batch_repetition,
+            "train_batch_monitoring/mean_batch_repetition": mean_batch_repetition,
+            "train_batch_monitoring/total_samples": total_samples,
+            "train_batch_monitoring/unique_samples": unique_samples,
+            "train_batch_monitoring/repeated_samples": repeated_samples,
+            "train_batch_monitoring/max_sample_repetition": max_sample_repetition,
+            "train_batch_monitoring/min_sample_repetition": min_sample_repetition,
+            "train_batch_monitoring/mean_sample_repetition": mean_sample_repetition,
+        }
+        # Add per-dataset counts
+        for ds, count in global_dataset_counts.items():
+            metrics[f"train_batch_monitoring/{ds}_sample_count"] = count
+
+        # Log metrics (already globally aggregated) only on rank zero
+        pl_module.log_dict(metrics, on_step=True, on_epoch=False, sync_dist=False, rank_zero_only=True)
+

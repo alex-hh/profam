@@ -29,7 +29,7 @@ trainer:
   tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 10000
-  val_check_interval: null
+  val_check_interval: 2000
   use_distributed_sampler: False # required  when we use our custom Sampler
 
 logger:
