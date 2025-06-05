@@ -72,7 +72,7 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
                 yield batch
         else:
             # If batch_size is specified, yield batches of that size
-            for idx in range(0, len(self.dataset), self.world_size):
+            for idx in range(self.rank, len(self.dataset), self.world_size):
                 batch.append(idx)
                 if len(batch) >= self.batch_size:
                     yield batch
