@@ -186,7 +186,8 @@ class ProteinDataMixture(LightningDataModule):
                 )
 
             # we wrap with OffsetOnlineDataset to support resuming from correct sample
-            self.train_dataset = OffsetOnlineDataset(self.train_dataset)
+            if isinstance(self.train_dataset, OnlineSampleMappingDataset):
+                self.train_dataset = OffsetOnlineDataset(self.train_dataset)
 
             # # test speed of loading 1000 samples (uncomment to activate)
             # N = 10000
