@@ -204,10 +204,10 @@ class TokenThroughputMonitor(ThroughputMonitor):
         if hasattr(pl_module, "flops_per_batch"):
             flops_per_batch = pl_module.flops_per_batch
         else:
-            rank_zero_warn(
-                "When using the `ThroughputMonitor`, you need to define a `flops_per_batch` attribute or property"
-                f" in {type(pl_module).__name__} to compute the FLOPs."
-            )
+            # rank_zero_warn(
+            #     "When using the `ThroughputMonitor`, you need to define a `flops_per_batch` attribute or property"
+            #     f" in {type(pl_module).__name__} to compute the FLOPs."
+            # )
             flops_per_batch = None
 
         throughput.update(
@@ -263,10 +263,10 @@ class SampleCounter(Callback):
 
         pl_module.samples_seen = self.samples_seen
 
-        # Log dataset sample counts
-        ds_name = batch["ds_name"].text
-        for ds in ds_name:
-            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
+        # # Log dataset sample counts
+        # ds_name = batch["ds_name"].text
+        # for ds in ds_name:
+        #     self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
 
         pl_module.log(
             "train/total_samples_seen",
@@ -278,17 +278,17 @@ class SampleCounter(Callback):
         )
         # rank_zero_info(f"Total samples seen: {self.samples_seen}")
 
-        # Log dataset sample counts
-        pl_module.log_dict(
-            {
-                f"train/{k}_times_sampled": v
-                for k, v in self.dataset_sample_counts.items()
-            },
-            on_step=True,
-            on_epoch=False,
-            sync_dist=False,  # Ensure counts are synchronized across devices
-            rank_zero_only=True,  # Allow all ranks to log
-        )
+        # # Log dataset sample counts
+        # pl_module.log_dict(
+        #     {
+        #         f"train/{k}_times_sampled": v
+        #         for k, v in self.dataset_sample_counts.items()
+        #     },
+        #     on_step=True,
+        #     on_epoch=False,
+        #     sync_dist=False,  # Ensure counts are synchronized across devices
+        #     rank_zero_only=True,  # Allow all ranks to log
+        # )
 
     def state_dict(self) -> Dict[str, Any]:
         return {

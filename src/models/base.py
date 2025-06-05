@@ -17,7 +17,7 @@ from transformers import PreTrainedTokenizerFast
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
-from src.constants import BASEDIR, aa_letters
+from src.constants import BASEDIR, aa_letters, aa_letters_lower
 from src.data.objects import StringObject
 from src.data.tokenizers import ProFamTokenizer
 from src.models import metrics
@@ -226,25 +226,21 @@ class BaseLitModule(LightningModule):
         loss = outputs.loss
         n_tokens = batch["input_ids"].shape[-1]
         dataset_accuracies = metrics.accuracy_from_outputs(
+            batch["input_ids"],
             outputs,
             batch["labels"],
             ignore_index=self.ignore_index,
             dataset_names=None,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                 ["-", "X", "x", "[start-of-document]"]
-                + [aa.lower() for aa in aa_letters]
+                + aa_letters_lower
                 + self.tokenizer.all_special_tokens
             ),
             sep_token_id=self.tokenizer.sep_token_id,
             bos_token_id=self.tokenizer.bos_token_id,
             calc_full_no_context_accuracies=True,
         )
-        has_3di = torch.isin(
-            batch["input_ids"],
-            torch.tensor(
-                self.tokenizer.convert_tokens_to_ids([aa.lower() for aa in aa_letters])
-            ).to(batch["input_ids"]),
-        ).any()
+        has_3di = False
 
         global_metrics = {
             "loss": loss,
@@ -265,6 +261,7 @@ class BaseLitModule(LightningModule):
                 # accuracy where coordinates are available
                 aa_has_coords_mask = batch["interleaved_coords_mask"].any((-1, -2))
                 has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
+                    batch["input_ids"],
                     outputs,
                     batch["labels"],
                     ignore_index=self.ignore_index,
@@ -273,7 +270,7 @@ class BaseLitModule(LightningModule):
                     ].text,  # a list of dataset names (StringObject.text)
                     ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                         ["-", "X", "x"]
-                        + [aa.lower() for aa in aa_letters]
+                        + aa_letters_lower
                         + self.tokenizer.all_special_tokens
                     ),
                     sep_token_id=self.tokenizer.sep_token_id,
@@ -297,6 +294,7 @@ class BaseLitModule(LightningModule):
 
         if has_3di:
             dataset_accuracies_3di = metrics.accuracy_from_outputs(
+                batch["input_ids"],
                 outputs,
                 batch["labels"],
                 ignore_index=self.ignore_index,
@@ -799,7 +797,7 @@ class BaseFamilyLitModule(BaseLitModule):
         if structure_tokens:
             bad_aas = bad_aas + aa_letters
         else:
-            bad_aas = bad_aas + [aa.lower() for aa in aa_letters]
+            bad_aas = bad_aas + aa_letters_lower
 
         # each 'word' is treated as a list of tokens
         # TODO: write test for this with random model.

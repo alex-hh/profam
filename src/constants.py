@@ -31,6 +31,7 @@ aa_letters = [
     "W",
     "Y",
 ]
+aa_letters_lower = [aa.lower() for aa in aa_letters]
 
 BACKBONE_ATOMS = ["N", "CA", "C", "O"]
 

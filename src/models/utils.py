@@ -89,7 +89,7 @@ class InputAwareDynamicCache(DynamicCache):
         return new_cache
 
 
-def accuracy_from_outputs(
+def DEPRICATED_accuracy_from_outputs(
     model_outputs,
     labels,
     start_ix=0,
@@ -98,6 +98,7 @@ def accuracy_from_outputs(
     ignore_token_ids: Optional[List[int]] = None,
     mask=None,
 ):
+    # USE metrics.accuracy_from_outputs instead
     """Compute the accuracy of the target sequence given the model outputs.
 
     Args:

@@ -64,6 +64,7 @@ def calc_accuracy_with_masks(
 
 
 def accuracy_from_outputs(
+    input_ids,
     model_outputs,
     labels,
     start_ix=0,
@@ -92,7 +93,7 @@ def accuracy_from_outputs(
 
         # Calculate document indices using BOS tokens
         document_indices = torch.cumsum(
-            labels == bos_token_id, dim=-1
+            input_ids == bos_token_id, dim=-1
         )  # (batch, seq_len)
         # Calculate sequence indices that reset at each document
         sep_mask = (labels == sep_token_id).long()

@@ -105,51 +105,51 @@ data:
             _partial_: true
             fill_value: 0.0
 
-    # # openfold_train:
-    # #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-    # #   name: openfold_train
-    # #   dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
-    # #   tokenizer: ${tokenizer}
-    # #   preprocessor:
-    # #     _target_: src.data.processors.ProteinDocumentPreprocessor
-    # #     cfg:
-    # #       _target_: src.data.processors.AlignedProteinPreprocessingConfig
-    # #       document_token: "[RAW]"
-    # #       drop_first_protein: false
-    # #       keep_first_protein: false
-    # #       allow_unk: false
-    # #       max_tokens_per_example: 8192
-    # #       shuffle_proteins_in_document: true
-    # #       padding: "do_not_pad"
-    # #       keep_gaps: false
-    # #       keep_insertions: true
-    # #       to_upper: true
-    # #       use_msa_pos: false
-    # #     transform_fns:
-    # #       - _target_: src.data.processors.transforms.replace_nans_in_coords
-    # #         _partial_: true
-    # #         fill_value: 0.0
+    openfold_train:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: openfold_train
+      dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.AlignedProteinPreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 8192
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+          keep_gaps: false
+          keep_insertions: true
+          to_upper: true
+          use_msa_pos: false
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
 
-    # uniref90_train:
-    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-    #   name: uniref90_train
-    #   dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
-    #   tokenizer: ${tokenizer}
-    #   preprocessor:
-    #     _target_: src.data.processors.ProteinDocumentPreprocessor
-    #     cfg:
-    #       _target_: src.data.processors.PreprocessingConfig
-    #       document_token: "[RAW]"
-    #       drop_first_protein: false
-    #       keep_first_protein: false
-    #       allow_unk: false
-    #       max_tokens_per_example: 800
-    #       shuffle_proteins_in_document: true
-    #       padding: "do_not_pad"
-    #     transform_fns:
-    #       - _target_: src.data.processors.transforms.replace_nans_in_coords
-    #         _partial_: true
-    #         fill_value: 0.0
+    uniref90_train:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: uniref90_train
+      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 800
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
 
     funfams_s50_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
@@ -180,8 +180,8 @@ data:
   data_weights:
     funfams_s50_train: 1
     foldseek_s50_train: 1
-    # uniref90_train: 0.5
-    # openfold_train: 0.5
+    uniref90_train: 1
+    openfold_train: 1
   val_dataset_batch_sizes:
     funfams_s50_val: 1
 
@@ -195,4 +195,4 @@ data:
   shuffle: true
   interleaved: true
   interleaved_block_size: 1000 # number of samples to interleave all datasets. large values will be slower with better weight accuracy. 1000 should be fine
-  total_num_train_samples: 2000000
+  total_num_train_samples: 10000
