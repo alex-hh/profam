@@ -177,7 +177,7 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
-  
+
   ########## VALIDATION DATASETS ##########
 
     proteingym:
@@ -202,8 +202,8 @@ data:
       name: foldseek_s50_raw_val
       cfg:
         data_path_pattern: foldseek/foldseek_s50_seq_only/train_val_test_split/val/val_0_460_000.parquet
-  
-  
+
+
   # -----------------------------------------------------------
 
   data_weights:
@@ -227,4 +227,4 @@ data:
   shuffle: true
   interleaved: true
   interleaved_block_size: 1000 # number of samples to interleave all datasets. large values will be slower with better weight accuracy. 1000 should be fine
-  total_num_train_samples: 10000
+  total_num_train_samples: null

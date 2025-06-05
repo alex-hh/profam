@@ -344,7 +344,6 @@ class ProteinDataMixture(LightningDataModule):
             rank=rank,
             max_tokens=self.pack_to_max_tokens if self.pack_to_max_tokens else None,
             batch_size=self.batch_size if not self.pack_to_max_tokens else None,
-            length=self.total_num_train_samples,
         )
 
         return DataLoader(
