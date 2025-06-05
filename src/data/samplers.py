@@ -20,6 +20,7 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
         rank: int,
         max_tokens: int = None,
         batch_size: int = None,
+        length: int = None,
     ):
         """
         Args:
@@ -40,7 +41,7 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
         self.rank = rank
         self.max_tokens = max_tokens
         self.batch_size = batch_size
-
+        self.length = length
         if self.max_tokens is None and self.batch_size is None:
             raise ValueError("Either max_tokens or batch_size must be specified.")
         if self.max_tokens is not None and self.batch_size is not None:
@@ -85,4 +86,4 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
         Returns:
             int: Number of batches that will be yielded for this process.
         """
-        raise TypeError(f"object of type '{type(self).__name__}' has no len()")
+        return self.length // self.world_size

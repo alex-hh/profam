@@ -56,7 +56,6 @@ class ProteinDataMixture(LightningDataModule):
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         prefetch_factor: Optional[int] = None,
-        train_datasets: Optional[List[Dataset]] = [],
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -90,7 +89,6 @@ class ProteinDataMixture(LightningDataModule):
         )
         self._is_setup = False
         self.total_num_train_samples = total_num_train_samples
-        self.train_datasets = train_datasets
 
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
@@ -345,6 +343,7 @@ class ProteinDataMixture(LightningDataModule):
             rank=rank,
             max_tokens=self.pack_to_max_tokens if self.pack_to_max_tokens else None,
             batch_size=self.batch_size if not self.pack_to_max_tokens else None,
+            length=self.total_num_train_samples,
         )
 
         return DataLoader(
