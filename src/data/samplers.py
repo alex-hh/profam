@@ -56,7 +56,7 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
             # If max_tokens is specified, yield batches based on token counts
             batch = []
             current_tokens = 0
-            for idx in range(0, len(self.dataset), self.world_size):
+            for idx in range(self.rank, len(self.dataset), self.world_size):
                 tokens = self.size_fn(self.dataset[idx])  # compute tokens on-the-fly
                 # Start a new batch if adding the current sample exceeds max_tokens
                 if batch and (current_tokens + tokens > self.max_tokens):
@@ -71,7 +71,7 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
                 yield batch
         else:
             # If batch_size is specified, yield batches of that size
-            for idx in range(0, len(self.dataset), self.world_size):
+            for idx in range(self.rank, len(self.dataset), self.world_size):
                 batch.append(idx)
                 if len(batch) >= self.batch_size:
                     yield batch
