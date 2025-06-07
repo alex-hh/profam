@@ -176,12 +176,12 @@ data:
 
   batch_size: 100
   data_dir: ${paths.data_dir}
-  num_workers: 20
+  num_workers: 64
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 327680
+  pack_to_max_tokens: 52_000
   prefetch_factor: 4
   shuffle: true
   interleaved: true
   interleaved_block_size: 1000 # number of samples to interleave all datasets. large values will be slower with better weight accuracy. 1000 should be fine
-  total_num_train_samples: 10000
+  total_num_train_samples: null
