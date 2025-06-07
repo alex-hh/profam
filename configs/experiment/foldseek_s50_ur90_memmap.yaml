@@ -10,7 +10,6 @@
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: null          # we supply a custom data config below
-  - override /model: llama_nano
   - override /model: llama_251m.yaml
   - override /trainer: gpus_ddp
   - override /logger: wandb
@@ -121,7 +120,7 @@ data:
     uniref90_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: uniref90_val
-      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_iltered
+      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_filtered
       tokenizer: ${tokenizer}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor

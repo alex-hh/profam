@@ -10,7 +10,6 @@
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: null          # we supply a custom data config below
-  - override /model: llama_nano
   - override /model: llama_251m.yaml
   - override /trainer: gpus_ddp
   - override /logger: wandb
