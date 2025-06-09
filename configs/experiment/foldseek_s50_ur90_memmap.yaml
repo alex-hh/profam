@@ -23,11 +23,12 @@ seed: 12345
 trainer:
   devices: auto
   check_val_every_n_epoch: 1
-  target_tokens_per_batch: 256000
+  target_tokens_per_batch: null
   tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 10000
-  val_check_interval: 6000
+  val_check_interval: 24000
+  accumulate_grad_batches: 1
   use_distributed_sampler: False # required  when we use our custom Sampler
 
 logger:
