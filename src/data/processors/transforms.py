@@ -119,8 +119,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
     """
     extra_tokens_per_protein = 1  # separator token
     extra_tokens_per_document = tokenizer.num_start_tokens
-    # if len(proteins.sequences[0]) > max_tokens:
-    #     bp=1
+
     rnd = np.random if rng is None else rng
     if drop_first:
         proteins = proteins[1:]
@@ -242,7 +241,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     extra_tokens_per_document = tokenizer.num_start_tokens
 
     rnd = np.random if rng is None else rng
-    if drop_first and len(proteins) > 1:
+    if drop_first:
         proteins = proteins[1:]
 
     if shuffle:
@@ -815,6 +814,157 @@ def repeat_random_sequence_in_family(
             max_tokens=max_tokens,
         )
     return proteins
+
+
+AAs = "ACDEFGHIKLMNPQRSTVWY"
+
+
+def repeat_and_mutate_protein(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    repeat_prob: float = 0.5,
+    mutation_prob: float = 0.1,
+    deletion_prob: float = 0.1,
+    insertion_prob: float = 0.1,
+    rng: Optional[np.random.Generator] = None,
+    **kwargs,
+) -> ProteinDocument:
+    """
+    Data augmentation transform.
+    For each protein in the document, there's a `repeat_prob` chance that it gets
+    duplicated. The duplicated protein is then mutated with `mutation_prob`,
+    `deletion_prob`, and `insertion_prob` at each residue position.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    proteins_to_add = []
+
+    for i in range(len(proteins)):
+        if rng.random() < repeat_prob:
+            original_protein = proteins[i]
+
+            new_seq_chars = []
+            new_protein_fields = {}
+
+            per_residue_fields = [
+                "residue_positions",
+                "plddt",
+                "backbone_coords",
+                "backbone_coords_mask",
+                "structure_tokens",
+            ]
+
+            for field in per_residue_fields:
+                if getattr(original_protein, field) is not None:
+                    new_protein_fields[field] = []
+
+            for j in range(len(original_protein.sequence)):
+                # Deletion
+                if rng.random() < deletion_prob:
+                    continue
+
+                # Mutation or Keep
+                is_mutation = rng.random() < mutation_prob
+                if is_mutation:
+                    new_seq_chars.append(rng.choice(list(AAs)))
+                    if "structure_tokens" in new_protein_fields:
+                        new_protein_fields["structure_tokens"].append(
+                            tokenizer.mask_token
+                        )
+                else:
+                    new_seq_chars.append(original_protein.sequence[j])
+                    if "structure_tokens" in new_protein_fields:
+                        new_protein_fields["structure_tokens"].append(
+                            original_protein.structure_tokens[j]
+                        )
+
+                # Copy attributes for non-deleted residue
+                if "residue_positions" in new_protein_fields:
+                    new_protein_fields["residue_positions"].append(
+                        original_protein.residue_positions[j]
+                    )
+                if "plddt" in new_protein_fields:
+                    plddt_val = (
+                        50.0
+                        if is_mutation
+                        else original_protein.plddt[j]
+                    )
+                    new_protein_fields["plddt"].append(plddt_val)
+                if "backbone_coords" in new_protein_fields:
+                    new_protein_fields["backbone_coords"].append(
+                        original_protein.backbone_coords[j]
+                    )
+                if "backbone_coords_mask" in new_protein_fields:
+                    new_protein_fields["backbone_coords_mask"].append(
+                        original_protein.backbone_coords_mask[j]
+                    )
+
+                # Insertion
+                if rng.random() < insertion_prob:
+                    new_seq_chars.append(rng.choice(list(AAs)))
+                    if "residue_positions" in new_protein_fields:
+                        new_protein_fields["residue_positions"].append(
+                            original_protein.residue_positions[j]
+                        )
+                    if "plddt" in new_protein_fields:
+                        new_protein_fields["plddt"].append(0.0)
+                    if "backbone_coords" in new_protein_fields:
+                        new_protein_fields["backbone_coords"].append(
+                            np.full((4, 3), np.nan)
+                        )
+                    if "backbone_coords_mask" in new_protein_fields:
+                        new_protein_fields["backbone_coords_mask"].append(
+                            np.zeros((4, 3))
+                        )
+                    if "structure_tokens" in new_protein_fields:
+                        new_protein_fields["structure_tokens"].append(
+                            tokenizer.mask_token
+                        )
+            final_fields = {}
+            for field, value in new_protein_fields.items():
+                if field == "structure_tokens":
+                    final_fields[field] = "".join(value)
+                elif field == "residue_positions":
+                    final_fields[field] = value
+                else:
+                    final_fields[field] = np.array(value)
+
+            mutated_protein = Protein(
+                sequence="".join(new_seq_chars),
+                accession=f"{original_protein.accession}_mutated"
+                if original_protein.accession
+                else f"protein_{i}_mutated",
+                **final_fields,
+            )
+            proteins_to_add.append(mutated_protein)
+
+    if not proteins_to_add:
+        return proteins
+
+    if proteins.interleaved_coords_masks is not None or proteins.modality_masks is not None:
+        raise NotImplementedError(
+            "repeat_and_mutate_protein does not support interleaved proteins with modality masks yet."
+        )
+
+    all_protein_fields = [
+        "sequences",
+        "accessions",
+        "residue_positions",
+        "plddts",
+        "backbone_coords",
+        "backbone_coords_masks",
+        "structure_tokens",
+    ]
+
+    constructor_kwargs = {"identifier": proteins.identifier}
+    for field in all_protein_fields:
+        old_list = getattr(proteins, field)
+        if old_list is not None:
+            new_list = [getattr(p, field.rstrip("s")) for p in proteins_to_add]
+            constructor_kwargs[field] = old_list + new_list
+
+    return ProteinDocument(**constructor_kwargs)
 
 
 def seq_is_random_res_pos(
