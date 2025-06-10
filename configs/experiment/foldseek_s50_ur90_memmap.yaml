@@ -27,7 +27,7 @@ trainer:
   tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 10000
-  val_check_interval: 24000
+  val_check_interval: 50000
   accumulate_grad_batches: 1
   use_distributed_sampler: False # required  when we use our custom Sampler
 
@@ -46,7 +46,7 @@ model:
   scheduler_name: "constant_with_warmup"
   num_warmup_steps: 200
   num_training_steps: 1000000
-  lr: 1e-3
+  lr: 3e-3
   embed_sequence_index: false
   embed_residue_index: false
   config:
