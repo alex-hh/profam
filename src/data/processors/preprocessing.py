@@ -158,7 +158,14 @@ class ProteinDocumentPreprocessor:
 
     def apply_transforms(self, proteins, tokenizer):
         transform_fns = default_transforms(self.cfg)
-        transform_fns += self.transform_fns or []
+        additional_transform_fns = []
+        for partial_fn in self.transform_fns:
+            if getattr(partial_fn, "func", partial_fn) is transforms.repeat_and_mutate_protein:
+                transform_fns = [partial_fn] + transform_fns
+            else:
+                additional_transform_fns.append(partial_fn)
+        transform_fns += additional_transform_fns
+
         return transforms.apply_transforms(
             transform_fns,
             proteins,

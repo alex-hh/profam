@@ -885,12 +885,7 @@ def repeat_and_mutate_protein(
                         original_protein.residue_positions[j]
                     )
                 if "plddt" in new_protein_fields:
-                    plddt_val = (
-                        50.0
-                        if is_mutation
-                        else original_protein.plddt[j]
-                    )
-                    new_protein_fields["plddt"].append(plddt_val)
+                    new_protein_fields["plddt"].append(original_protein.plddt[j])
                 if "backbone_coords" in new_protein_fields:
                     new_protein_fields["backbone_coords"].append(
                         original_protein.backbone_coords[j]
@@ -947,21 +942,23 @@ def repeat_and_mutate_protein(
             "repeat_and_mutate_protein does not support interleaved proteins with modality masks yet."
         )
 
-    all_protein_fields = [
-        "sequences",
-        "accessions",
-        "residue_positions",
-        "plddts",
-        "backbone_coords",
-        "backbone_coords_masks",
-        "structure_tokens",
-    ]
+    doc_to_protein_field_map = {
+        "sequences": "sequence",
+        "accessions": "accession",
+        "residue_positions": "residue_positions",
+        "plddts": "plddt",
+        "backbone_coords": "backbone_coords",
+        "backbone_coords_masks": "backbone_coords_mask",
+        "structure_tokens": "structure_tokens",
+    }
+    all_protein_fields = list(doc_to_protein_field_map.keys())
 
     constructor_kwargs = {"identifier": proteins.identifier}
     for field in all_protein_fields:
         old_list = getattr(proteins, field)
         if old_list is not None:
-            new_list = [getattr(p, field.rstrip("s")) for p in proteins_to_add]
+            protein_field = doc_to_protein_field_map[field]
+            new_list = [getattr(p, protein_field) for p in proteins_to_add]
             constructor_kwargs[field] = old_list + new_list
 
     return ProteinDocument(**constructor_kwargs)
