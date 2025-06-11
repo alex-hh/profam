@@ -115,7 +115,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 320
+          max_tokens_per_example: 820
           shuffle_proteins_in_document: true
           padding: "do_not_pad"
         transform_fns:
@@ -143,7 +143,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 320
+          max_tokens_per_example: 820
           shuffle_proteins_in_document: true
           padding: "do_not_pad"
         transform_fns:
