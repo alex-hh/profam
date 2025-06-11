@@ -94,6 +94,12 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
+          - _target_: src.data.processors.transforms.repeat_and_mutate_protein
+            _partial_: true
+            repeat_prob: 0.06
+            mutation_prob: 0.005
+            deletion_prob: 0.002
+            insertion_prob: 0.002
 
 
     uniref90_train:
@@ -109,13 +115,19 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 320
+          max_tokens_per_example: 820
           shuffle_proteins_in_document: true
           padding: "do_not_pad"
         transform_fns:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
+          - _target_: src.data.processors.transforms.repeat_and_mutate_protein
+            _partial_: true
+            repeat_prob: 0.06
+            mutation_prob: 0.005
+            deletion_prob: 0.002
+            insertion_prob: 0.002
 
 
     uniref90_val:
@@ -131,7 +143,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 320
+          max_tokens_per_example: 820
           shuffle_proteins_in_document: true
           padding: "do_not_pad"
         transform_fns:

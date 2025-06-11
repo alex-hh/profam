@@ -225,12 +225,16 @@ class BaseLitModule(LightningModule):
         # N.B. actually val logging is a bit different because of this ds name thing
         loss = outputs.loss
         n_tokens = batch["input_ids"].shape[-1]
+        if step_name == "train":
+            ds_names=None
+        else:
+            ds_names = batch["ds_name"].text
         dataset_accuracies = metrics.accuracy_from_outputs(
             batch["input_ids"],
             outputs,
             batch["labels"],
             ignore_index=self.ignore_index,
-            dataset_names=None,  # a list of dataset names (StringObject.text)
+            dataset_names=ds_names,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                 ["-", "X", "x", "[start-of-document]"]
                 + aa_letters_lower

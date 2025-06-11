@@ -16,7 +16,7 @@ defaults:
   - _self_
 
 experiment_group: "ff_openfold_fs50_ur90_3b"
-tags: ["${experiment_group}"]
+tags: ["${experiment_group}", "lr1e-4", "acc3", ]
 
 seed: 12345
 
@@ -44,9 +44,9 @@ model:
   use_kv_cache_for_scoring: true
   embed_coords: false
   scheduler_name: "constant_with_warmup"
-  num_warmup_steps: 200
+  num_warmup_steps: 2000
   num_training_steps: 1000000
-  lr: 1e-3
+  lr: 1e-4
   embed_sequence_index: false
   embed_residue_index: false
   config:
@@ -135,7 +135,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 320
+          max_tokens_per_example: 820
           shuffle_proteins_in_document: true
           padding: "do_not_pad"
         transform_fns:
@@ -156,7 +156,7 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 320
+          max_tokens_per_example: 820
           shuffle_proteins_in_document: true
           padding: "do_not_pad"
         transform_fns:
