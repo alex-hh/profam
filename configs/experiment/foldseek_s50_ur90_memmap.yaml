@@ -46,7 +46,8 @@ model:
   scheduler_name: "constant_with_warmup"
   num_warmup_steps: 200
   num_training_steps: 1000000
-  lr: 3e-3
+  lr: 1e-3
+  weight_decay: 0.01
   embed_sequence_index: false
   embed_residue_index: false
   config:
