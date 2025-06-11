@@ -44,10 +44,10 @@ model:
   use_kv_cache_for_scoring: true
   embed_coords: false
   scheduler_name: "constant_with_warmup"
-  num_warmup_steps: 200
+  num_warmup_steps: 2000
   num_training_steps: 1000000
-  lr: 1e-3
   weight_decay: 0.01
+  lr: 1e-4
   embed_sequence_index: false
   embed_residue_index: false
   config:

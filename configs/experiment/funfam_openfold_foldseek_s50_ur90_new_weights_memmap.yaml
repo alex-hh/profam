@@ -10,13 +10,13 @@
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: null          # we supply a custom data config below
-  - override /model: llama_32_1b
+  - override /model: llama_32_3b
   - override /trainer: gpus_ddp
   - override /logger: wandb
   - _self_
 
-experiment_group: "ff_openfold_fs50_ur90_1b"
-tags: ["${experiment_group}"]
+experiment_group: "ff_openfold_fs50_ur90_3b"
+tags: ["${experiment_group}", "lr1e-4", "acc3", ]
 
 seed: 12345
 
@@ -28,7 +28,7 @@ trainer:
   min_epochs: 1000
   max_epochs: 10000
   val_check_interval: 50000
-  accumulate_grad_batches: 4
+  accumulate_grad_batches: 3
   use_distributed_sampler: False # required  when we use our custom Sampler
 
 logger:
@@ -44,10 +44,10 @@ model:
   use_kv_cache_for_scoring: true
   embed_coords: false
   scheduler_name: "constant_with_warmup"
-  num_warmup_steps: 200
+  num_warmup_steps: 2000
   num_training_steps: 1000000
-  lr: 1e-3
   weight_decay: 0.01
+  lr: 1e-4
   embed_sequence_index: false
   embed_residue_index: false
   config:
@@ -284,7 +284,7 @@ data:
   num_workers: 32
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 26_000
+  pack_to_max_tokens: 9_000
   prefetch_factor: 4
   shuffle: true
   interleaved: true
