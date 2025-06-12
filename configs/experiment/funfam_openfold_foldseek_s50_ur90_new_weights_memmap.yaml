@@ -10,13 +10,13 @@
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: null          # we supply a custom data config below
-  - override /model: llama_32_3b
+  - override /model: llama_32_1b
   - override /trainer: gpus_ddp
   - override /logger: wandb
   - _self_
 
-experiment_group: "ff_openfold_fs50_ur90_3b"
-tags: ["${experiment_group}", "lr1e-4", "acc3", ]
+experiment_group: "ff_openfold_fs50_ur90_1b"
+tags: ["${experiment_group}", "lr5e-4", "acc3", "wd0.01"]
 
 seed: 12345
 
@@ -47,7 +47,7 @@ model:
   num_warmup_steps: 2000
   num_training_steps: 1000000
   weight_decay: 0.01
-  lr: 1e-4
+  lr: 5e-4
   embed_sequence_index: false
   embed_residue_index: false
   config:
