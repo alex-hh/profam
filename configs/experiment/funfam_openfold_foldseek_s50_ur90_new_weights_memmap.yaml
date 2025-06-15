@@ -10,13 +10,13 @@
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: null          # we supply a custom data config below
-  - override /model: llama_32_1b
+  - override /model: llama_251m
   - override /trainer: gpus_ddp
   - override /logger: wandb
   - _self_
 
-experiment_group: "ff_openfold_fs50_ur90_1b"
-tags: ["${experiment_group}", "lr5e-4", "acc3", "wd0.01"]
+experiment_group: "ff_openfold_fs50_ur90_251m"
+tags: ["${experiment_group}", "lr1e-3", "acc1", "wd0.01", "mixCropUR90"]
 
 seed: 12345
 
@@ -47,7 +47,7 @@ model:
   num_warmup_steps: 2000
   num_training_steps: 1000000
   weight_decay: 0.01
-  lr: 5e-4
+  lr: 1e-3
   embed_sequence_index: false
   embed_residue_index: false
   config:
@@ -123,9 +123,9 @@ data:
 
 
 
-    uniref90_train:
+    uniref90_train_256:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-      name: uniref90_train
+      name: uniref90_train_256
       dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
       tokenizer: ${tokenizer}
       preprocessor:
@@ -136,7 +136,73 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 820
+          max_tokens_per_example: 256
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
+
+
+    uniref90_train_384:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: uniref90_train_384
+      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 384
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
+
+
+    uniref90_train_512:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: uniref90_train_512
+      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 512
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
+
+
+    uniref90_train_1024:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: uniref90_train_1024
+      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 1024
           shuffle_proteins_in_document: true
           padding: "do_not_pad"
         transform_fns:
@@ -269,10 +335,13 @@ data:
   # -----------------------------------------------------------
   data_weights:
     foldseek_s50_train: 1
-    uniref90_train: 1
+    uniref90_train_256: 0.25
+    uniref90_train_384: 0.25
+    uniref90_train_512: 0.25
+    uniref90_train_1024: 0.25
     openfold_train: 1
-    funfams_s100_train: 0.03
-    funfams_s50_train: 0.03
+    funfams_s100_train: 0.04
+    funfams_s50_train: 0.04
   val_dataset_batch_sizes:
     funfams_s50_val: 1
     proteingym: 1
