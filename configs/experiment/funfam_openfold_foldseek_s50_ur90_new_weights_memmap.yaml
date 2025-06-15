@@ -268,7 +268,7 @@ data:
   
   # -----------------------------------------------------------
   data_weights:
-    foldseek_s50_train: 0.25
+    foldseek_s50_train: 1
     uniref90_train: 1
     openfold_train: 1
     funfams_s100_train: 0.03
