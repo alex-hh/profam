@@ -139,8 +139,8 @@ class ProteinDataMixture(LightningDataModule):
             train_data_weights = [
                 w / sum(train_data_weights) for w in train_data_weights
             ]
-
-            assert len(train_datasets) > 0
+            if stage != "test":
+                assert len(train_datasets) > 0
             if len(train_datasets) > 1:
                 assert (
                     len(set([type(ds) for ds in train_datasets])) == 1
@@ -173,7 +173,7 @@ class ProteinDataMixture(LightningDataModule):
                     "Interleaved train dataset example types",
                     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
                 )
-            else:
+            elif len(train_datasets) == 1:
                 print("Using single dataset", flush=True)
                 print(f"Using sampled mapped train dataset, shuffle = {self.shuffle}")
                 print(f"num_samples = {self.total_num_train_samples}")
@@ -184,79 +184,73 @@ class ProteinDataMixture(LightningDataModule):
                     seed=42,
                     shuffle=self.shuffle,
                 )
+            if len(train_datasets) > 0:
+                # we wrap with OffsetOnlineDataset to support resuming from correct sample
+                if isinstance(self.train_dataset, OnlineSampleMappingDataset):
+                    self.train_dataset = OffsetOnlineDataset(self.train_dataset)
 
-            # we wrap with OffsetOnlineDataset to support resuming from correct sample
-            if isinstance(self.train_dataset, OnlineSampleMappingDataset):
-                self.train_dataset = OffsetOnlineDataset(self.train_dataset)
+                # # test speed of loading 1000 samples (uncomment to activate)
+                # N = 10000
+                # import time
+                # print(f"=======> Loading {N} samples from train dataset to test speed...")
+                # it = iter(self.train_dataset)
+                # start = time.time()
+                # for _ in range(N):
+                #     sample = next(it)
+                # end = time.time()
+                # print(f"=======> Loaded {N} samples in {end - start:.2f} seconds, {N / (end - start):.2f} samples/sec")
 
-            # # test speed of loading 1000 samples (uncomment to activate)
-            # N = 10000
-            # import time
-            # print(f"=======> Loading {N} samples from train dataset to test speed...")
-            # it = iter(self.train_dataset)
-            # start = time.time()
-            # for _ in range(N):
-            #     sample = next(it)
-            # end = time.time()
-            # print(f"=======> Loaded {N} samples in {end - start:.2f} seconds, {N / (end - start):.2f} samples/sec")
+                if isinstance(self.train_dataset, IterableDataset):
+                    # c.f. iterable dataset examples...
+                    # will shuffle the shards order and use a shuffle buffer when you start iterating
+                    # n.b. set_epoch is required in order for shuffling to be correctly randomised
+                    # - this is handled by ShuffleCallback
+                    # TODO: configure seed - although non-null seed prob important for ddp?
+                    # or does split_dataset_by_node synchronise the state of the data?
+                    # no - seeding is required. in face an error will be raised if not.
+                    # split dataset by node sets distributed config.
+                    # https://github.com/huggingface/datasets/blob/2eb4edb97e1a6af2ea62738ec58afbd3812fc66e/src/datasets/iterable_dataset.py#L1707
+                    self.train_dataset = self.train_dataset.shuffle(
+                        buffer_size=1000, seed=42
+                    )
+                    print("Num shards", self.train_dataset.n_shards)
+                    if self.num_workers is None:
+                        # number of workers should be less than available GPUs to prevent a computation bottleneck
+                        self.num_workers = min(
+                            os.cpu_count() * 3 // 4, self.train_dataset.n_shards
+                        )
+                        print(f"Using {self.num_workers} workers for data loading")
+                    # TODO: verify that non-iterable datasets are split automatically (e.g. by lightning...)
+                    if world_size > 1:
+                        assert (
+                            self.train_dataset.n_shards % world_size == 0
+                        )  # handled in load_protein_dataset
+                        # If the dataset has a number of shards that is a factor of world_size (i.e. if
+                        # dataset.n_shards % world_size == 0), then the shards are evenly assigned across
+                        # the nodes, which is the most optimized. Otherwise, each node keeps 1 example out of
+                        # world_size, skipping the other examples.
+                        # https://huggingface.co/docs/datasets/en/package_reference/main_classes#datasets.distributed.split_dataset_by_node
+                        self.train_dataset = split_dataset_by_node(
+                            self.train_dataset,
+                            rank=self.trainer.global_rank,
+                            world_size=world_size,
+                        )
+                        self.train_dataset = self.train_dataset.with_format(
+                            "numpy"
+                        )  # otherwise they gen converted to lists
+                        assert (
+                            self.total_num_train_samples is not None
+                        ), "total_num_train_samples must be set for distributed iterable datasets"
+                        print(
+                            f"Using {self.total_num_train_samples//world_size} samples for training on each device"
+                        )
+                    elif self.total_num_train_samples is None:
+                        print(
+                            "Warning: total_num_train_samples not needed for world size 1 and will be ignored"
+                        )
+            if self.num_workers is None:
+                self.num_workers = int(os.cpu_count() * 3 // 4)
 
-            if isinstance(self.train_dataset, IterableDataset):
-                # c.f. iterable dataset examples...
-                # will shuffle the shards order and use a shuffle buffer when you start iterating
-                # n.b. set_epoch is required in order for shuffling to be correctly randomised
-                # - this is handled by ShuffleCallback
-                # TODO: configure seed - although non-null seed prob important for ddp?
-                # or does split_dataset_by_node synchronise the state of the data?
-                # no - seeding is required. in face an error will be raised if not.
-                # split dataset by node sets distributed config.
-                # https://github.com/huggingface/datasets/blob/2eb4edb97e1a6af2ea62738ec58afbd3812fc66e/src/datasets/iterable_dataset.py#L1707
-                self.train_dataset = self.train_dataset.shuffle(
-                    buffer_size=1000, seed=42
-                )
-                print("Num shards", self.train_dataset.n_shards)
-                if self.num_workers is None:
-                    # number of workers should be less than available GPUs to prevent a computation bottleneck
-                    self.num_workers = min(
-                        os.cpu_count() * 3 // 4, self.train_dataset.n_shards
-                    )
-                    print(f"Using {self.num_workers} workers for data loading")
-                # TODO: verify that non-iterable datasets are split automatically (e.g. by lightning...)
-                if world_size > 1:
-                    assert (
-                        self.train_dataset.n_shards % world_size == 0
-                    )  # handled in load_protein_dataset
-                    # If the dataset has a number of shards that is a factor of world_size (i.e. if
-                    # dataset.n_shards % world_size == 0), then the shards are evenly assigned across
-                    # the nodes, which is the most optimized. Otherwise, each node keeps 1 example out of
-                    # world_size, skipping the other examples.
-                    # https://huggingface.co/docs/datasets/en/package_reference/main_classes#datasets.distributed.split_dataset_by_node
-                    self.train_dataset = split_dataset_by_node(
-                        self.train_dataset,
-                        rank=self.trainer.global_rank,
-                        world_size=world_size,
-                    )
-                    self.train_dataset = self.train_dataset.with_format(
-                        "numpy"
-                    )  # otherwise they gen converted to lists
-                    assert (
-                        self.total_num_train_samples is not None
-                    ), "total_num_train_samples must be set for distributed iterable datasets"
-                    print(
-                        f"Using {self.total_num_train_samples//world_size} samples for training on each device"
-                    )
-                elif self.total_num_train_samples is None:
-                    print(
-                        "Warning: total_num_train_samples not needed for world size 1 and will be ignored"
-                    )
-            else:
-                if self.num_workers is None:
-                    self.num_workers = int(os.cpu_count() * 3 // 4)
-                # unnecessary and could slow down in memory datasets
-                # self.train_dataset = self.train_dataset.shuffle(seed=42)
-                # if self.total_num_train_samples is not None:
-                #     print(
-                #         "Warning: total_num_train_samples not needed for non iterable datasets and will be ignored"
-                #     )
 
             self.val_datasets = []
             self.val_dataset_names = []
@@ -351,7 +345,7 @@ class ProteinDataMixture(LightningDataModule):
             batch_sampler=batch_sampler,  # <== requires: no sampler, no batch_size
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
-            persistent_workers=(self.num_workers > 0),
+            persistent_workers=self.num_workers is not None and self.num_workers > 1,
             prefetch_factor=self.prefetch_factor,
         )
 
@@ -362,8 +356,8 @@ class ProteinDataMixture(LightningDataModule):
                 batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
                 collate_fn=self.val_collator,
                 shuffle=False,
-                num_workers=self.num_workers // 2,
-                persistent_workers=self.num_workers > 1,
+                num_workers=self.num_workers,
+                persistent_workers=self.num_workers is not None and self.num_workers > 1,
                 prefetch_factor=self.prefetch_factor,
             )
             for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
@@ -377,8 +371,8 @@ class ProteinDataMixture(LightningDataModule):
                 batch_size=self.batch_size,
                 collate_fn=self.val_collator,
                 shuffle=False,
-                num_workers=self.num_workers // 2,
-                persistent_workers=self.num_workers > 1,
+                num_workers=self.num_workers,
+                persistent_workers=self.num_workers is not None and self.num_workers > 1,
                 prefetch_factor=self.prefetch_factor,
             )
         ]
@@ -474,15 +468,18 @@ class ProteinMemmapDataModule(LightningDataModule):
         return loaders
 
     def test_dataloader(self) -> List[DataLoader]:
-        loaders = [
-            DataLoader(
-                self.test_dataset,
-                batch_size=self.batch_size,
-                collate_fn=self.val_collator,
-                shuffle=False,
-                num_workers=self.num_workers // 2,
-                persistent_workers=self.num_workers > 1,
-                prefetch_factor=self.prefetch_factor,
-            )
-        ]
-        return loaders
+        if self.test_dataset is None:
+            return self.val_dataloader()
+        else:
+            loaders = [
+                DataLoader(
+                    self.test_dataset,
+                    batch_size=self.batch_size,
+                    collate_fn=self.val_collator,
+                    shuffle=False,
+                    num_workers=self.num_workers // 2,
+                    persistent_workers=self.num_workers > 1,
+                    prefetch_factor=self.prefetch_factor,
+                )
+            ]
+            return loaders

@@ -143,7 +143,7 @@ def load_msa_for_row(
         proteins,
         tokenizer=tokenizer,
         seed=seed,
-        drop_first=drop_wt,
+        drop_first=drop_wt and len(proteins) > 1,
         keep_first=keep_wt,
         max_tokens=max_tokens_for_msa,
         extra_tokens_per_document=extra_tokens_per_document,
@@ -206,9 +206,21 @@ def load_comp_seq_dms_for_row(
     return row
 
 
-def build_gym_df(dms_ids, gym_data_dir: str, use_foldseek_msa: bool = False):
+def build_gym_df(
+    dms_ids,
+    gym_data_dir: str,
+    use_foldseek_msa: bool = False,
+    max_tokens_per_example: Optional[int] = None,
+):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
+    if max_tokens_per_example is not None:
+        original_len = len(df)
+        df = df[(df["seq_len"] + 4) <= max_tokens_per_example]
+        if len(df) != original_len:
+            print(
+                f"Filtered {original_len - len(df)} examples with seq_len > {max_tokens_per_example}"
+            )
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     else:
@@ -401,6 +413,7 @@ class ProteinGymDataset(BaseProteinDataset):
             if self.gym_data_dir is None
             else self.gym_data_dir,
             use_foldseek_msa=self.use_foldseek_msa,
+            max_tokens_per_example=self.max_tokens_per_example,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)
