@@ -16,6 +16,7 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
+import pandas as pd
 
 from src.constants import BASEDIR, aa_letters, aa_letters_lower
 from src.data.objects import StringObject
@@ -69,10 +70,11 @@ class BaseLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 10240,
+        scoring_max_tokens: int = 32000,
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
         ignore_index: int = -100,
+        proteingym_csv_save_path: Optional[str] = "proteingym_results.csv",
     ) -> None:
         super().__init__()
         self.model = model
@@ -87,7 +89,12 @@ class BaseLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
-
+        if proteingym_csv_save_path is not None:
+            self.proteingym_csv_save_path = proteingym_csv_save_path.replace(
+                ".csv", f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                )
+        else:
+            self.proteingym_csv_save_path = None
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
         log.info(f"Using optimizer {optimizer_name}")
@@ -515,7 +522,7 @@ class BaseFamilyLitModule(BaseLitModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 8000,
+        scoring_max_tokens: int = 32_000,
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
@@ -915,7 +922,7 @@ class BaseFamilyLitModule(BaseLitModule):
             input_residue_index=batch.get("residue_index", None),
             completion_residue_index=batch.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
+            batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
             if self.use_kv_cache_for_scoring
             else 1,
         )
@@ -926,6 +933,13 @@ class BaseFamilyLitModule(BaseLitModule):
                 lls.astype(np.float32),
                 batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
             )
+        # save results to csv
+        completion_length = batch["completion_ids"].shape[-1]
+        n_completions = batch["completion_ids"].shape[1]
+        DMS_id = batch["DMS_id"].text[0]
+        if self.proteingym_csv_save_path is not None:   
+            with open(self.proteingym_csv_save_path, "a") as f:
+                f.write(f"{DMS_id},{completion_length},{n_completions},{spearman_corr}\n")
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman",

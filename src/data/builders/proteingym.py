@@ -210,17 +210,9 @@ def build_gym_df(
     dms_ids,
     gym_data_dir: str,
     use_foldseek_msa: bool = False,
-    max_tokens_per_example: Optional[int] = None,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
-    if max_tokens_per_example is not None:
-        original_len = len(df)
-        df = df[(df["seq_len"] + 4) <= max_tokens_per_example]
-        if len(df) != original_len:
-            print(
-                f"Filtered {original_len - len(df)} examples with seq_len > {max_tokens_per_example}"
-            )
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     else:
@@ -346,7 +338,7 @@ class ProteinGymDataset(BaseProteinDataset):
         n.b. we just ignore pack_to_max_tokens here.
         """
         remove_columns = [
-            "DMS_id",
+            # "DMS_id",
             "completion_seqs",
             "DMS_filename",
             "MSA_filename",
@@ -394,7 +386,7 @@ class ProteinGymDataset(BaseProteinDataset):
             num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
         )
         # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-        columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name"]
+        columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name", "DMS_id"]
 
         if tokenizer.embed_residue_index:
             columns += ["residue_index", "completion_residue_index"]
@@ -413,7 +405,6 @@ class ProteinGymDataset(BaseProteinDataset):
             if self.gym_data_dir is None
             else self.gym_data_dir,
             use_foldseek_msa=self.use_foldseek_msa,
-            max_tokens_per_example=self.max_tokens_per_example,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)

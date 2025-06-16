@@ -56,6 +56,7 @@ class ProteinDataMixture(LightningDataModule):
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         prefetch_factor: Optional[int] = None,
+        test_dataset: Optional[Dataset] = None,
         # TODO: add data_return_format (needs to be same for all datasets I guess...)
     ):
         super().__init__()
@@ -89,7 +90,8 @@ class ProteinDataMixture(LightningDataModule):
         )
         self._is_setup = False
         self.total_num_train_samples = total_num_train_samples
-
+        self.test_dataset = test_dataset
+        
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
         if not self._is_setup:
@@ -365,18 +367,21 @@ class ProteinDataMixture(LightningDataModule):
         return loaders
 
     def test_dataloader(self) -> List[DataLoader]:
-        loaders = [
-            DataLoader(
-                self.test_dataset,
-                batch_size=self.batch_size,
-                collate_fn=self.val_collator,
-                shuffle=False,
-                num_workers=self.num_workers,
-                persistent_workers=self.num_workers is not None and self.num_workers > 1,
-                prefetch_factor=self.prefetch_factor,
-            )
-        ]
-        return loaders
+        if self.test_dataset is None:
+            return self.val_dataloader()
+        else:
+            loaders = [
+                DataLoader(
+                    self.test_dataset,
+                    batch_size=self.batch_size,
+                    collate_fn=self.val_collator,
+                    shuffle=False,
+                    num_workers=self.num_workers,
+                    persistent_workers=self.num_workers is not None and self.num_workers > 1,
+                    prefetch_factor=self.prefetch_factor,
+                )
+            ]
+            return loaders
 
 
 class ProteinMemmapDataModule(LightningDataModule):

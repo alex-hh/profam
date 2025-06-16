@@ -198,7 +198,7 @@ class TokenThroughputMonitor(ThroughputMonitor):
             ).float()
             self._non_padding_lengths[stage] += padding_mask.sum().item()
             self._proteins[stage] += (
-                (batch["input_ids"] == pl_module.tokenizer.sep_token_id).sum().item()
+                max((batch["input_ids"] == pl_module.tokenizer.sep_token_id).sum().item(), 1)
             )
 
         self._samples[stage] += self.batch_size_fn(batch)
