@@ -91,7 +91,7 @@ class ProteinDataMixture(LightningDataModule):
         self._is_setup = False
         self.total_num_train_samples = total_num_train_samples
         self.test_dataset = test_dataset
-        
+
     def setup(self, stage: Optional[str] = None) -> None:
         # happens on every gpu
         if not self._is_setup:
@@ -253,7 +253,6 @@ class ProteinDataMixture(LightningDataModule):
             if self.num_workers is None:
                 self.num_workers = int(os.cpu_count() * 3 // 4)
 
-
             self.val_datasets = []
             self.val_dataset_names = []
             for v_ds_name, val_batch_size in self.val_dataset_batch_sizes.items():
@@ -359,7 +358,8 @@ class ProteinDataMixture(LightningDataModule):
                 collate_fn=self.val_collator,
                 shuffle=False,
                 num_workers=self.num_workers,
-                persistent_workers=self.num_workers is not None and self.num_workers > 1,
+                persistent_workers=self.num_workers is not None
+                and self.num_workers > 1,
                 prefetch_factor=self.prefetch_factor,
             )
             for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
@@ -377,7 +377,8 @@ class ProteinDataMixture(LightningDataModule):
                     collate_fn=self.val_collator,
                     shuffle=False,
                     num_workers=self.num_workers,
-                    persistent_workers=self.num_workers is not None and self.num_workers > 1,
+                    persistent_workers=self.num_workers is not None
+                    and self.num_workers > 1,
                     prefetch_factor=self.prefetch_factor,
                 )
             ]

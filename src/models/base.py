@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional
 
 import hydra
 import numpy as np
+import pandas as pd
 import torch
 import tqdm
 from lightning import LightningModule
@@ -16,7 +17,6 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
-import pandas as pd
 
 from src.constants import BASEDIR, aa_letters, aa_letters_lower
 from src.data.objects import StringObject
@@ -92,9 +92,10 @@ class BaseLitModule(LightningModule):
         if proteingym_csv_save_path is not None:
             self.proteingym_csv_save_path = proteingym_csv_save_path.replace(
                 ".csv", f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                )
+            )
         else:
             self.proteingym_csv_save_path = None
+
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
         log.info(f"Using optimizer {optimizer_name}")
@@ -233,7 +234,7 @@ class BaseLitModule(LightningModule):
         loss = outputs.loss
         n_tokens = batch["input_ids"].shape[-1]
         if step_name == "train":
-            ds_names=None
+            ds_names = None
         else:
             ds_names = batch["ds_name"].text
         dataset_accuracies = metrics.accuracy_from_outputs(
@@ -937,9 +938,11 @@ class BaseFamilyLitModule(BaseLitModule):
         completion_length = batch["completion_ids"].shape[-1]
         n_completions = batch["completion_ids"].shape[1]
         DMS_id = batch["DMS_id"].text[0]
-        if self.proteingym_csv_save_path is not None:   
+        if self.proteingym_csv_save_path is not None:
             with open(self.proteingym_csv_save_path, "a") as f:
-                f.write(f"{DMS_id},{completion_length},{n_completions},{spearman_corr}\n")
+                f.write(
+                    f"{DMS_id},{completion_length},{n_completions},{spearman_corr}\n"
+                )
         # TODO: log the specific landscape name
         self.log(
             "gym/spearman",

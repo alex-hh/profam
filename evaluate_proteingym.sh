@@ -48,4 +48,4 @@ while IFS= read -r REMOTE_LOGS; do
     hydra.run.dir="$LOCAL_RUN_DIR/eval_results"
   popd >/dev/null
 
-done < "$REMOTE_LIST_FILE" 
+done < "$REMOTE_LIST_FILE"

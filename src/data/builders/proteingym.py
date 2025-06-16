@@ -338,7 +338,6 @@ class ProteinGymDataset(BaseProteinDataset):
         n.b. we just ignore pack_to_max_tokens here.
         """
         remove_columns = [
-            # "DMS_id",
             "completion_seqs",
             "DMS_filename",
             "MSA_filename",

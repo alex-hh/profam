@@ -1,8 +1,10 @@
+import hashlib
 import time
 from typing import Any, Dict, Optional
 
 import lightning as L
 import torch
+import torch.distributed as dist
 from datasets import IterableDataset
 from lightning.fabric.utilities.throughput import get_available_flops
 from lightning.pytorch.callbacks import Callback, ThroughputMonitor
@@ -11,8 +13,6 @@ from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities import rank_zero_info
 from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
 from typing_extensions import override
-import hashlib
-import torch.distributed as dist
 
 from src.utils import RankedLogger
 from src.utils.throughput import Throughput
@@ -197,8 +197,8 @@ class TokenThroughputMonitor(ThroughputMonitor):
                 batch["input_ids"] != pl_module.tokenizer.pad_token_id
             ).float()
             self._non_padding_lengths[stage] += padding_mask.sum().item()
-            self._proteins[stage] += (
-                max((batch["input_ids"] == pl_module.tokenizer.sep_token_id).sum().item(), 1)
+            self._proteins[stage] += max(
+                (batch["input_ids"] == pl_module.tokenizer.sep_token_id).sum().item(), 1
             )
 
         self._samples[stage] += self.batch_size_fn(batch)
@@ -306,12 +306,14 @@ class SampleCounter(Callback):
         super().on_fit_start(trainer, pl_module)
         trainer.samples_seen = self.samples_seen
 
+
 class CountUniqueBatches(Callback):
     """
     Checks for repeated batches during training
     1) checks if the same samples are occuring in the packed batch together
     2) checks how often individual samples are seen during training
     """
+
     def __init__(self):
         super().__init__()
         self.samples_seen = 0
@@ -319,7 +321,9 @@ class CountUniqueBatches(Callback):
         self.identifier_sample_counts = {}
         self.batch_identifier_counts = {}
 
-    def _merge_counts(self, trainer: L.Trainer, local_dict: Dict[str, int]) -> Dict[str, int]:
+    def _merge_counts(
+        self, trainer: L.Trainer, local_dict: Dict[str, int]
+    ) -> Dict[str, int]:
         """Gather and sum counts across all ranks to get global counts."""
         if trainer.world_size > 1 and dist.is_available() and dist.is_initialized():
             gathered = [None for _ in range(trainer.world_size)]
@@ -348,11 +352,15 @@ class CountUniqueBatches(Callback):
         batch_id_hash = hashlib.md5(raw_identifier.encode("utf-8")).hexdigest()
 
         # Update batch identifier counts using hashed identifier
-        self.batch_identifier_counts[batch_id_hash] = self.batch_identifier_counts.get(batch_id_hash, 0) + 1
+        self.batch_identifier_counts[batch_id_hash] = (
+            self.batch_identifier_counts.get(batch_id_hash, 0) + 1
+        )
 
         # Update sample counts per identifier
         for id in ids_w_ds:
-            self.identifier_sample_counts[id] = self.identifier_sample_counts.get(id, 0) + 1
+            self.identifier_sample_counts[id] = (
+                self.identifier_sample_counts.get(id, 0) + 1
+            )
 
         # Update dataset sample counts
         for ds in ds_strings:
@@ -364,7 +372,9 @@ class CountUniqueBatches(Callback):
 
         # Sync local dictionaries into global counts
         global_batch_counts = self._merge_counts(trainer, self.batch_identifier_counts)
-        global_identifier_counts = self._merge_counts(trainer, self.identifier_sample_counts)
+        global_identifier_counts = self._merge_counts(
+            trainer, self.identifier_sample_counts
+        )
         global_dataset_counts = self._merge_counts(trainer, self.dataset_sample_counts)
 
         # Compute metrics for logging each step
@@ -374,7 +384,9 @@ class CountUniqueBatches(Callback):
         repeated_batches = total_batches - unique_batches
         max_batch_repetition = max(batch_counts) if batch_counts else 0
         min_batch_repetition = min(batch_counts) if batch_counts else 0
-        mean_batch_repetition = total_batches / unique_batches if unique_batches else 0.0
+        mean_batch_repetition = (
+            total_batches / unique_batches if unique_batches else 0.0
+        )
 
         sample_counts = list(global_identifier_counts.values())
         total_samples = sum(sample_counts)
@@ -382,7 +394,9 @@ class CountUniqueBatches(Callback):
         repeated_samples = total_samples - unique_samples
         max_sample_repetition = max(sample_counts) if sample_counts else 0
         min_sample_repetition = min(sample_counts) if sample_counts else 0
-        mean_sample_repetition = total_samples / unique_samples if unique_samples else 0.0
+        mean_sample_repetition = (
+            total_samples / unique_samples if unique_samples else 0.0
+        )
 
         # Prepare metrics dict
         metrics = {
@@ -404,5 +418,6 @@ class CountUniqueBatches(Callback):
             metrics[f"train_batch_monitoring/{ds}_sample_count"] = count
 
         # Log metrics (already globally aggregated) only on rank zero
-        pl_module.log_dict(metrics, on_step=True, on_epoch=False, sync_dist=False, rank_zero_only=True)
-
+        pl_module.log_dict(
+            metrics, on_step=True, on_epoch=False, sync_dist=False, rank_zero_only=True
+        )

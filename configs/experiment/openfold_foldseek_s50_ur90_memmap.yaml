@@ -164,7 +164,7 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
-            
+
 
     funfams_s50_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
@@ -191,8 +191,8 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
-    
-    
+
+
     foldseek_s50_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: foldseek_s50_val
@@ -214,7 +214,7 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
-  
+
   # -----------------------------------------------------------
   data_weights:
     foldseek_s50_train: 1
