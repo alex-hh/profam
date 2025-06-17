@@ -280,7 +280,6 @@ class DocumentBatchCollator:
         def keep_feature(feature_name):
             return self.feature_names is None or feature_name in self.feature_names
 
-
         # If packing enabled, greedily fill up to pack_to_max_tokens
         if self.pack_to_max_tokens is not None:
             chosen, remainder = [], []
@@ -407,7 +406,7 @@ class DocumentBatchCollator:
             str_obj = StringObject()
             str_obj.text = str_vals
             batch[str_key] = str_obj
-        
+
         if "batch_size" not in batch:
             batch["batch_size"] = len(combined_examples)
         # if 'train' in examples[0]['ds_name']:

@@ -937,7 +937,10 @@ def repeat_and_mutate_protein(
     if not proteins_to_add:
         return proteins
 
-    if proteins.interleaved_coords_masks is not None or proteins.modality_masks is not None:
+    if (
+        proteins.interleaved_coords_masks is not None
+        or proteins.modality_masks is not None
+    ):
         raise NotImplementedError(
             "repeat_and_mutate_protein does not support interleaved proteins with modality masks yet."
         )

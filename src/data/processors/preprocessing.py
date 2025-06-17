@@ -160,7 +160,10 @@ class ProteinDocumentPreprocessor:
         transform_fns = default_transforms(self.cfg)
         additional_transform_fns = []
         for partial_fn in self.transform_fns:
-            if getattr(partial_fn, "func", partial_fn) is transforms.repeat_and_mutate_protein:
+            if (
+                getattr(partial_fn, "func", partial_fn)
+                is transforms.repeat_and_mutate_protein
+            ):
                 transform_fns = [partial_fn] + transform_fns
             else:
                 additional_transform_fns.append(partial_fn)
