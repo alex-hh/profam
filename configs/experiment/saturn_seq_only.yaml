@@ -15,7 +15,7 @@ defaults:
   - override /logger: wandb
   - _self_
 
-experiment_group: "ff50_ff100_openfold_fs100_fs50_ur90_1b"
+experiment_group: "ted_s100_ff50_ff100_openfold_fs100_fs50_ur90_1b"
 tags:
   - "${experiment_group}"
   - "lr${model.lr}" 
@@ -23,6 +23,7 @@ tags:
   - "wd${model.weight_decay}"
   - "pack${data.pack_to_max_tokens}"
   - "ur90crop320"
+  - "ur90crop1024"
 
 seed: 12345
 
@@ -33,8 +34,8 @@ trainer:
   tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 10000
-  val_check_interval: 50000
-  accumulate_grad_batches: 2
+  val_check_interval: 100000
+  accumulate_grad_batches: 1
   use_distributed_sampler: False # required  when we use our custom Sampler
 
 logger:
@@ -49,9 +50,9 @@ paths:
 model:
   use_kv_cache_for_scoring: true
   embed_coords: false
-  scheduler_name: "constant_with_warmup"
+  scheduler_name: "cosine_with_min_lr"
   num_warmup_steps: 2000
-  num_training_steps: 1000000
+  num_training_steps: 300000
   weight_decay: 0.1
   lr: 1e-3
   embed_sequence_index: false
@@ -151,6 +152,27 @@ data:
             _partial_: true
             fill_value: 0.0
 
+    ted_s100_train:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: ted_s100_train
+      dataset_root: ${paths.data_dir}/ted/s100_text/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      seed: ${seed}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 8192
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
 
     uniref90_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
@@ -172,6 +194,28 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
+
+    uniref90_train_1024:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: uniref90_train
+      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: "[RAW]"
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 1024
+          shuffle_proteins_in_document: true
+          padding: "do_not_pad"
+        transform_fns:
+          - _target_: src.data.processors.transforms.replace_nans_in_coords
+            _partial_: true
+            fill_value: 0.0
+
 
     uniref90_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
@@ -298,11 +342,13 @@ data:
   # -----------------------------------------------------------
   data_weights:
     foldseek_s50_train: 1
-    uniref90_train: 1
+    uniref90_train: 0.8
+    uniref90_train_1024: 0.2
     openfold_train: 1
     funfams_s100_train: 0.05
     funfams_s50_train: 0.05
     foldseek_s100_train: 0.3
+    ted_s100_train: 0.5
   val_dataset_batch_sizes:
     funfams_s50_val: 1
     proteingym: 1
