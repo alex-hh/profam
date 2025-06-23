@@ -357,7 +357,7 @@ data:
 
   batch_size: 100
   data_dir: ${paths.data_dir}
-  num_workers: 32
+  num_workers: 20
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
   pack_to_max_tokens: 52_000
