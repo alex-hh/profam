@@ -35,7 +35,7 @@ trainer:
   min_epochs: 1000
   max_epochs: 10000
   val_check_interval: 100000
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 2
   use_distributed_sampler: False # required  when we use our custom Sampler
 
 logger:
