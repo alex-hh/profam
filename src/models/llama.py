@@ -36,6 +36,8 @@ class LlamaLitModule(BaseFamilyLitModule):
         max_sequence_index: int = 1024,
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,
+        use_focal_loss: bool = False,
+        focal_gamma: float = 2.0,
     ) -> None:
         """
         From the paper:
@@ -82,3 +84,60 @@ class LlamaLitModule(BaseFamilyLitModule):
             embed_coords=embed_coords,
             override_optimizer_on_load=override_optimizer_on_load,
         )
+
+        # Dynamically inject focal loss if requested.
+        if use_focal_loss:
+            # Ensure a sensible default if the YAML passes null.
+            gamma = focal_gamma if focal_gamma is not None else 2.0
+
+            ignore_index = self.ignore_index  # from BaseLitModule
+
+            def _focal_loss(
+                logits,
+                labels,
+                vocab_size: int,
+                num_items_in_batch: int = None,
+                ignore_index: int = ignore_index,
+                **kwargs,
+            ):
+                """Token-level focal loss for causal language modelling.
+
+                Mirrors the default `ForCausalLMLoss` implementation but applies the
+                focal scaling factor (\(1-p_t)^{\gamma}\)).
+                """
+                # Upcast for numerical stability
+                logits_ = logits.float()
+                labels_ = labels.to(logits_.device)
+
+                # Shift tokens for next-token prediction
+                shift_logits = logits_[..., :-1, :].contiguous()
+                shift_labels = labels_[..., 1:].contiguous()
+
+                # Flatten
+                shift_logits = shift_logits.view(-1, vocab_size)
+                shift_labels = shift_labels.view(-1)
+
+                # Compute per-token CE loss (no reduction)
+                ce_loss = torch.nn.functional.cross_entropy(
+                    shift_logits,
+                    shift_labels,
+                    ignore_index=ignore_index,
+                    reduction="none",
+                )
+
+                # Filter out ignored positions
+                valid_mask = shift_labels != ignore_index
+                if valid_mask.any():
+                    ce_loss = ce_loss[valid_mask]
+                    pt = torch.exp(-ce_loss)  # (N,)
+                    focal = ((1 - pt) ** gamma) * ce_loss
+                else:
+                    focal = ce_loss  # all ignored -> zero length
+
+                if num_items_in_batch is not None and num_items_in_batch > 0:
+                    return focal.sum() / num_items_in_batch
+                else:
+                    return focal.mean()
+
+            # Attach to the underlying HF model so its `forward` picks it up.
+            self.model.loss_function = _focal_loss
