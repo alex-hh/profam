@@ -1,21 +1,13 @@
-# @package _global_
-# Experiment: train on FunFams memmap dataset using ProteinDataMixture
-# ---------------------------------------------------------------
-# This is a copy of `train_funfam_text.yaml` adapted to use the
-# ProteinDataMixture LightningDataModule so we can exercise the
-# new `ProteinFamilyMemmapDatasetBuilder` within the mixed-dataset
-# pipeline (even if we only provide a single training source here).
-# ---------------------------------------------------------------
 
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: null          # we supply a custom data config below
-  - override /model: llama_553m
+  - override /model: llama_251m
   - override /trainer: gpus_ddp
   - override /logger: wandb
   - _self_
 
-experiment_group: "ted_s100_ff50_ff100_openfold_fs100_fs50_ur90_1b"
+experiment_group: "ted_s100_ff50_ff100_openfold_fs100_fs50_ur90"
 tags:
   - "${experiment_group}"
   - "lr${model.lr}" 
@@ -23,6 +15,7 @@ tags:
   - "wd${model.weight_decay}"
   - "pack${data.pack_to_max_tokens}"
   - "ur90crop320"
+  - "focal2"
   - "ur90crop1024"
 
 seed: 12345
@@ -35,7 +28,7 @@ trainer:
   min_epochs: 1000
   max_epochs: 10000
   val_check_interval: 100000
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 2
   use_distributed_sampler: False # required  when we use our custom Sampler
 
 logger:
@@ -54,9 +47,11 @@ model:
   num_warmup_steps: 2000
   num_training_steps: 1000000
   weight_decay: 0.4
-  lr: 4e-4
+  lr: 1e-3
   embed_sequence_index: false
   embed_residue_index: false
+  use_focal_loss: true
+  focal_gamma: 2
   config:
     attn_implementation: flash_attention_2
 
@@ -409,7 +404,7 @@ data:
   num_workers: 16
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 28_000
+  pack_to_max_tokens: 56_000
   prefetch_factor: 4
   shuffle: true
   interleaved: true
