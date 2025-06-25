@@ -187,8 +187,14 @@ class ProteinDataMixture(LightningDataModule):
                     shuffle=self.shuffle,
                 )
             if len(train_datasets) > 0:
-                # we wrap with OffsetOnlineDataset to support resuming from correct sample
-                if isinstance(self.train_dataset, OnlineSampleMappingDataset):
+                # Wrap with OffsetOnlineDataset so that we can skip samples that were
+                # already seen when resuming from a checkpoint.  This is required both
+                # for OnlineSampleMappingDataset (single-dataset case) and for
+                # WeightedConcatOnlineDataset (multi-dataset case).
+                if isinstance(
+                    self.train_dataset,
+                    (OnlineSampleMappingDataset, WeightedConcatOnlineDataset),
+                ):
                     self.train_dataset = OffsetOnlineDataset(self.train_dataset)
 
                 # # test speed of loading 1000 samples (uncomment to activate)
