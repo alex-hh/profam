@@ -12,7 +12,7 @@ experiment_group: "ur90"
 tags:
   - "${experiment_group}"
   - "lr${model.lr}" 
-  - "acc_scheduled"
+  - "acc_sched"
   - "wd${model.weight_decay}"
   - "pack${data.pack_to_max_tokens}"
   - "ur90crop320"
