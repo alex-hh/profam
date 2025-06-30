@@ -1,4 +1,4 @@
-
+# @package _global_
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - /callbacks@extra_callbacks.step_gradient_accumulation: step_gradient_accumulation
@@ -12,7 +12,7 @@ experiment_group: "ur90"
 tags:
   - "${experiment_group}"
   - "lr${model.lr}" 
-  - "acc${trainer.accumulate_grad_batches}"
+  - "acc_scheduled"
   - "wd${model.weight_decay}"
   - "pack${data.pack_to_max_tokens}"
   - "ur90crop320"

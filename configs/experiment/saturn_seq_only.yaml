@@ -1,4 +1,4 @@
-
+# @package _global_
 defaults:
   - /extra_callbacks@extra_callbacks.unconditional_sampling_callback: unconditional_sampling_callback
   - override /data: null          # we supply a custom data config below
