@@ -9,7 +9,7 @@ defaults:
   - /data/dataset@data.dataset_builders.uniref90_val: uniref90_single_raw
   - override /data: null
   - override /model: llama_251m.yaml
-  - override /callbacks: default_with_shuffle
+  - override /callbacks: default_with_shuffle #default_with_shuffle_and_step_grad_accum
   - override /trainer: gpu
   - override /logger: wandb
   - _self_
@@ -22,11 +22,12 @@ seed: 12345
 trainer:
   devices: auto
   check_val_every_n_epoch: 1
-  target_tokens_per_batch: 256000
-  tokens_per_document: 30000
   min_epochs: 1000
   max_epochs: 100000
   val_check_interval: 6000
+  target_tokens_per_batch: 256000
+  # accumulate_grad_batches: 2
+  tokens_per_document: 32_000
 
 logger:
   wandb:

@@ -1154,6 +1154,12 @@ class BaseFamilyLitModule(BaseLitModule):
             prog_bar=True,
             on_epoch=False,
         )
+        self.log(
+            "train/accumulate_grad_batches",
+            self.trainer.accumulate_grad_batches,
+            on_step=True,
+            on_epoch=False,
+        )
         return loss
 
     def on_train_epoch_end(self):

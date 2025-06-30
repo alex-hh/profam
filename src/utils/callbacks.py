@@ -1,8 +1,9 @@
 import hashlib
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import lightning as L
+import lightning as pl
 import torch
 import torch.distributed as dist
 from datasets import IterableDataset
@@ -11,7 +12,9 @@ from lightning.pytorch.callbacks import Callback, ThroughputMonitor
 from lightning.pytorch.callbacks.throughput_monitor import _plugin_to_compute_dtype
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities import rank_zero_info
+from lightning.pytorch.utilities.exceptions import MisconfigurationException
 from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
+from omegaconf import DictConfig
 from typing_extensions import override
 
 from src.utils import RankedLogger
@@ -96,9 +99,9 @@ class TokenThroughputMonitor(ThroughputMonitor):
             length_fn=lambda x: x["input_ids"].shape[1] * x["input_ids"].shape[0],
         )
         self.run_on_validation = run_on_validation
-        self._samples: Dict[RunningStage, int] = {}
-        self._non_padding_lengths: Dict[RunningStage, int] = {}
-        self._proteins: Dict[RunningStage, int] = {}
+        self._samples: Union[Dict[RunningStage, int], DictConfig] = {}
+        self._non_padding_lengths: Union[Dict[RunningStage, int], DictConfig] = {}
+        self._proteins: Union[Dict[RunningStage, int], DictConfig] = {}
 
     @override
     def setup(
@@ -420,4 +423,139 @@ class CountUniqueBatches(Callback):
         # Log metrics (already globally aggregated) only on rank zero
         pl_module.log_dict(
             metrics, on_step=True, on_epoch=False, sync_dist=False, rank_zero_only=True
+        )
+
+
+class StepGradientAccumulationScheduler(Callback):
+    r"""Change gradient accumulation factor according to a step-based schedule.
+
+    Args:
+        scheduling: A dictionary where keys are global step numbers (non-negative integers)
+                    and values are the accumulation factors (positive integers) to apply
+                    starting from that step. Example: {0: 2, 1000: 4, 5000: 8}
+                    If step 0 is not specified, it defaults to an accumulation factor of 1
+                    until the first specified step.
+    implementation based on:
+    https://lightning.ai/docs/pytorch/stable/_modules/lightning/pytorch/callbacks/gradient_accumulation_scheduler.html#GradientAccumulationScheduler
+    """
+
+    def __init__(self, scheduling: Union[dict[int, int], DictConfig]):
+        super().__init__()
+        assert scheduling is not None
+        if not isinstance(scheduling, Union[dict, DictConfig]) or not scheduling:
+            raise MisconfigurationException(
+                "`scheduling` must be a non-empty dictionary."
+            )
+
+        if any(not isinstance(step, int) or step < 0 for step in scheduling.keys()):
+            raise MisconfigurationException(
+                f"Scheduler steps must be non-negative integers. Got {list(scheduling.keys())}."
+            )
+
+        if any(
+            not isinstance(factor, int) or factor < 1 for factor in scheduling.values()
+        ):
+            raise MisconfigurationException(
+                f"Accumulation factors must be positive integers. Got {list(scheduling.values())}."
+            )
+
+        self.scheduling = scheduling.copy()
+
+        if 0 not in self.scheduling:
+            # If scheduling is not empty and min key > 0, or if scheduling is empty (which is caught above)
+            # This ensures that if user defines e.g. {100:2}, it implies {0:1, 100:2}
+            # min() is safe here due to prior checks (non-empty, keys >=0)
+            if min(self.scheduling.keys()) > 0:
+                self.scheduling[0] = 1
+
+        self.sorted_steps = sorted(self.scheduling.keys())
+        # Ensure sorted_steps is not empty, which should be guaranteed if scheduling[0] is added.
+        if not self.sorted_steps:
+            raise MisconfigurationException(
+                "`scheduling` must define at least one step, typically step 0."
+            )
+
+    def _get_accumulate_grad_batches(self, current_global_step: int) -> int:
+        accumulate_grad_batches = (
+            1  # Default, should be overridden by self.scheduling[0]
+        )
+        for step_threshold in reversed(self.sorted_steps):
+            if current_global_step >= step_threshold:
+                accumulate_grad_batches = self.scheduling[step_threshold]
+                break
+        return accumulate_grad_batches
+
+    def _is_method_overridden(
+        self, method_name: str, pl_module: "pl.LightningModule"
+    ) -> bool:
+        """Simple check to see if a method has been overridden from the base class."""
+        try:
+            # Check if the method exists and is not the same as the base class method
+            base_method = getattr(pl.LightningModule, method_name, None)
+            module_method = getattr(pl_module, method_name, None)
+
+            if base_method is None or module_method is None:
+                return False
+
+            # If the methods are different objects, it's likely overridden
+            return base_method != module_method
+        except Exception:
+            # If anything goes wrong, just return False to be safe
+            return False
+
+    def on_train_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
+        if not pl_module.automatic_optimization:
+            raise MisconfigurationException(
+                "Automatic gradient accumulation and the `StepGradientAccumulationScheduler` is not supported for "
+                "manual optimization. Please remove the callback or switch to automatic optimization."
+            )
+
+        # Check if optimizer methods are overridden (optional warning)
+        overridden_optimizer_step = self._is_method_overridden(
+            "optimizer_step", pl_module
+        )
+        overridden_optimizer_zero_grad = self._is_method_overridden(
+            "optimizer_zero_grad", pl_module
+        )
+        is_any_factor_greater_than_one = any(v > 1 for v in self.scheduling.values())
+
+        if (
+            overridden_optimizer_step or overridden_optimizer_zero_grad
+        ) and is_any_factor_greater_than_one:
+            rank_zero_warn(
+                "When using `StepGradientAccumulationScheduler` with factors > 1 and overriding "
+                "`LightningModule.optimizer_{step,zero_grad}`, the hooks will not be called on every batch "
+                "(rather, they are called on every optimization step)."
+            )
+
+        # Using MisconfigurationException for consistency with PTL error types
+        from lightning.pytorch.strategies import DeepSpeedStrategy
+
+        if isinstance(trainer.strategy, DeepSpeedStrategy):
+            rank_zero_warn(  # Changed to warn, as some DeepSpeed versions might handle this. User should verify.
+                f"The `{type(trainer.strategy).__name__}` might not support `accumulate_grad_batches` changing "
+                "dynamically via this callback. Please verify DeepSpeed's accumulation settings."
+            )
+
+        if trainer.accumulate_grad_batches != 1:
+            raise MisconfigurationException(
+                f"You are using the `StepGradientAccumulationScheduler` callback, but `trainer.accumulate_grad_batches` "
+                f"is {trainer.accumulate_grad_batches} (expected 1). "
+                "Please ensure `accumulate_grad_batches` is set to 1 in the Trainer when using this scheduler."
+            )
+
+        # Set initial accumulation factor based on step 0 schedule
+        trainer.accumulate_grad_batches = self._get_accumulate_grad_batches(0)
+
+    def on_train_batch_start(
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        trainer.accumulate_grad_batches = self._get_accumulate_grad_batches(
+            trainer.global_step
         )

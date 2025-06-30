@@ -11,6 +11,7 @@ def check_config(cfg: DictConfig):
                 dataset
             ].preprocessor.cfg.max_tokens_per_example
             max_train_doc_len = max(max_train_doc_len, n_toks)
+
     if "proteingym" in cfg.data.dataset_builders:
         pg_max_tokens = cfg.data.dataset_builders.proteingym.max_tokens_per_example
         assert cfg.trainer.tokens_per_document >= pg_max_tokens
@@ -38,6 +39,21 @@ def check_config(cfg: DictConfig):
             "attn_implementation" in cfg.model.config
             and cfg.model.config.attn_implementation == "flash_attention_2"
         ), "sequence packing (pack_to_max_tokens=True) requires flash_attention_2"
+
+        if (
+            "tokens_per_document" in cfg.trainer
+            and cfg.trainer.tokens_per_document is not None
+        ):
+            if (
+                abs(cfg.trainer.tokens_per_document - cfg.data.pack_to_max_tokens)
+                > 1000
+            ):
+                print(
+                    f"Warning: tokens_per_document ({cfg.trainer.tokens_per_document})"
+                    f"is significantly different from cfg.data.pack_to_max_tokens"
+                    f"({cfg.data.pack_to_max_tokens})."
+                    f"This may cause incorrect calculation of accumulate_grad_batches."
+                )
 
     if "config" in cfg.model:
         if (
