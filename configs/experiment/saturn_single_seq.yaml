@@ -168,6 +168,8 @@ data:
   val_dataset_batch_sizes:
     uniref90_val_320: 1
     uniref90_val_1024: 1
+    proteingym: 1
+    
 
   batch_size: 100
   data_dir: ${paths.data_dir}
