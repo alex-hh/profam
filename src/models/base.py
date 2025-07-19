@@ -937,7 +937,10 @@ class BaseFamilyLitModule(BaseLitModule):
         # save results to csv
         completion_length = batch["completion_ids"].shape[-1]
         n_completions = batch["completion_ids"].shape[1]
-        DMS_id = batch["DMS_id"].text[0]
+        try:
+            DMS_id = batch["DMS_id"].text[0]
+        except:
+            DMS_id = batch["DMS_id"][0]
         if self.proteingym_csv_save_path is not None:
             with open(self.proteingym_csv_save_path, "a") as f:
                 f.write(
