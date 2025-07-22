@@ -127,6 +127,7 @@ def load_msa_for_row(
         to_upper=True,
         keep_gaps=True if use_msa_pos else keep_gaps,
     )
+    seqs = [s for s in seqs if "X" not in s and "U" not in s and "Z" not in s and "O" not in s and "B" not in s and "J" not in s]
     proteins = ProteinDocument(
         sequences=seqs,
         accessions=None,
@@ -210,6 +211,7 @@ def build_gym_df(
     dms_ids,
     gym_data_dir: str,
     use_foldseek_msa: bool = False,
+    max_completion_length: Optional[bool] = None
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
@@ -217,6 +219,8 @@ def build_gym_df(
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     else:
         print("dms_ids is None so evaluating on all ProteinGym assays")
+    if max_completion_length is not None:
+        df = df[df["seq_len"] <= max_completion_length]
     if use_foldseek_msa:
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)
@@ -261,6 +265,7 @@ class ProteinGymDataset(BaseProteinDataset):
         max_context_seqs: Optional[
             int
         ] = None,  # 0 means no family context, None means use all
+        max_completion_length = None,
         keep_wt: bool = False,
         drop_wt: bool = True,
     ):
@@ -286,6 +291,7 @@ class ProteinGymDataset(BaseProteinDataset):
         self.gym_data_dir = gym_data_dir
         self.max_tokens_per_example = max_tokens_per_example
         self.max_context_seqs = max_context_seqs
+        self.max_completion_length = max_completion_length
         self.keep_wt = keep_wt
         self.drop_wt = drop_wt
         self.use_foldseek_msa = use_foldseek_msa
@@ -324,6 +330,7 @@ class ProteinGymDataset(BaseProteinDataset):
         print(f"  seed: {self.seed}")
         print(f"  extra_tokens_per_document: {self.extra_tokens_per_document}")
         print(f"  use_msa_pos: {self.use_msa_pos}")
+        print(f"  max_completion_length: {self.max_completion_length}")
         print(f"  dms_ids: {self.dms_ids}")
 
     def process(
@@ -404,6 +411,7 @@ class ProteinGymDataset(BaseProteinDataset):
             if self.gym_data_dir is None
             else self.gym_data_dir,
             use_foldseek_msa=self.use_foldseek_msa,
+            max_completion_length=self.max_completion_length
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)

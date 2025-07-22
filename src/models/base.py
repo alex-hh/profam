@@ -17,6 +17,8 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
+import random
+import copy
 
 from src.constants import BASEDIR, aa_letters, aa_letters_lower
 from src.data.objects import StringObject
@@ -527,6 +529,11 @@ class BaseFamilyLitModule(BaseLitModule):
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
+        # NEW -----------------------------------------------------------------
+        context_tokens_limit: int = 7_500,
+        subsamples_per_n: int = 3,
+        variant_csv_dir: str = "proteingym_variants",
+        # ---------------------------------------------------------------------
     ):
         super().__init__(
             model,
@@ -546,6 +553,13 @@ class BaseFamilyLitModule(BaseLitModule):
         self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
         self.embed_coords = embed_coords
         self.embed_sequence_index = self.model.embed_sequence_index
+        # NEW -----------------------------------------------------------------
+        self.context_tokens_limit = context_tokens_limit
+        self.subsamples_per_n = subsamples_per_n
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.variant_csv_dir = "proteingym_variants/20250722_113929" #os.path.join(variant_csv_dir, timestamp)
+        os.makedirs(self.variant_csv_dir, exist_ok=True)
+        # ---------------------------------------------------------------------
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
@@ -903,53 +917,210 @@ class BaseFamilyLitModule(BaseLitModule):
     # )
     # return self.tokenizer.decode_tokens(encoded)
 
-    def validation_step_proteingym(
-        self, batch: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
-        """Assumes that batch contains the following:
+    # ---------------------------------------------------------------------
+    # Context subsampling helpers (adapted from eval_ckpt_model_on_gym_multi_prompt)
+    # ---------------------------------------------------------------------
+    @staticmethod
+    def _clone_batch(batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """Deep-clone a ProteinGym batch so that in-place slicing does not affect the original."""
+        out: Dict[str, torch.Tensor] = {}
+        for k, v in batch.items():
+            if torch.is_tensor(v):
+                out[k] = v.clone()
+            elif isinstance(v, list):
+                out[k] = v.copy()
+            else:
+                out[k] = copy.deepcopy(v)
+        return out
 
-        input_ids: the prompt (i.e. MSA)
-        completion_ids: the completions (i.e. mutated sequences)
+    def _generate_context_variants(
+        self,
+        batch: Dict[str, torch.Tensor],
+        sep_tok_id: int,
+    ):
+        """Create context-truncated variants (random non-contiguous sampling).
 
-        on caching: it seems like, if we modify what is passed to attention forward, existing cache
-        might just work. currently model/sampling loop probably passes just the next token.
+        For each *n* up to the maximum number of sequences that can fit under the
+        `context_tokens_limit`, generate `subsamples_per_n` variants by *randomly*
+        selecting *n* unique sequences **without replacement**.  Sequence order
+        within the prompt is shuffled (randomised).  We attempt several random
+        draws until a set whose combined token count fits under the limit is
+        found; if none is found we fall back to the *contiguous* subset with the
+        smallest token count (still ≤ limit).  This ensures diversity while
+        guaranteeing progress.
         """
-        assert batch["DMS_scores"].ndim == 2  # b, n
-        L = batch["completion_ids"].shape[-1]
-        L_prompt = batch["input_ids"].shape[-1]
-        lls = self.score_seqs(
-            batch["input_ids"],
-            batch["completion_ids"],
-            input_residue_index=batch.get("residue_index", None),
-            completion_residue_index=batch.get("completion_residue_index", None),
-            use_cache=self.use_kv_cache_for_scoring,
-            batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
-            if self.use_kv_cache_for_scoring
-            else 1,
-        )
-        if lls.min() == lls.max():
-            spearman_corr = 0
-        else:
-            spearman_corr, _ = spearmanr(
-                lls.astype(np.float32),
-                batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
-            )
-        # save results to csv
-        completion_length = batch["completion_ids"].shape[-1]
-        n_completions = batch["completion_ids"].shape[1]
-        try:
-            DMS_id = batch["DMS_id"].text[0]
-        except:
-            DMS_id = batch["DMS_id"][0]
-        if self.proteingym_csv_save_path is not None:
-            with open(self.proteingym_csv_save_path, "a") as f:
-                f.write(
-                    f"{DMS_id},{completion_length},{n_completions},{spearman_corr}\n"
+
+        if batch["input_ids"] is None:
+            raise ValueError("input_ids must be present for context subsampling")
+
+        input_ids = batch["input_ids"]
+        device = input_ids.device
+
+        # Compute start & end token indices for every context sequence
+        seq_ends = (input_ids[0] == sep_tok_id).nonzero(as_tuple=True)[0].cpu()
+        total_seqs = len(seq_ends)
+        seq_starts = torch.zeros_like(seq_ends)
+        seq_starts[1:] = seq_ends[:-1] + 1
+
+        # Pre-compute token lengths for each sequence so we can sum quickly
+        seq_lengths = (seq_ends - seq_starts + 1).tolist()  # python ints
+
+        prefix_token_counts = seq_ends + 1  # inclusive counts (0-based index + 1)
+        max_n_under_limit = int((prefix_token_counts <= self.context_tokens_limit).sum())
+
+        variants = []
+        rng = random.Random()
+
+        for n in range(1, max_n_under_limit + 1, 3):
+            random_addition = random.choice([0, 1, 2])
+            n += random_addition
+            for rep in range(self.subsamples_per_n):
+                # Random permutation of all sequence indices
+                perm = list(range(total_seqs))
+                rng.shuffle(perm)
+
+                chosen_seq_idxs = []
+                slices = []
+                token_count = 0
+
+                # Greedily add sequences in shuffled order until we hit n or limit
+                for idx in perm:
+                    length = seq_lengths[idx]
+                    if len(chosen_seq_idxs) == n:
+                        break
+                    if token_count + length > self.context_tokens_limit:
+                        break
+                    chosen_seq_idxs.append(idx)
+                    start_tok = seq_starts[idx].item()
+                    end_tok = seq_ends[idx].item()
+                    slices.append((start_tok, end_tok))
+                    token_count += length
+
+                if len(chosen_seq_idxs) == 0:
+                    # If even the shortest sequence exceeds the limit (extremely unlikely), skip variant
+                    continue
+
+                # Construct variant prompt
+                var_batch = self._clone_batch(batch)
+
+                def _concat_slices(tensor):
+                    parts = [tensor[..., s : e + 1] for s, e in slices]
+                    return torch.cat(parts, dim=-1)
+
+                var_batch["input_ids"] = _concat_slices(var_batch["input_ids"]).clone()
+
+                if "residue_index" in var_batch and var_batch["residue_index"] is not None:
+                    var_batch["residue_index"] = _concat_slices(var_batch["residue_index"]).clone()
+
+                variants.append(
+                    (
+                        var_batch,
+                        {
+                            "variant_type": "random_greedy",
+                            "target_n": n,
+                            "n_seqs": len(chosen_seq_idxs),
+                            "n_tokens": token_count,
+                            "replicate": rep,
+                            "seq_indices": chosen_seq_idxs,
+                        },
+                    )
                 )
-        # TODO: log the specific landscape name
+        return variants
+
+    @staticmethod
+    def _compute_spearman(lls: np.ndarray, dms_scores: np.ndarray):
+        if lls.min() == lls.max():
+            return 0.0
+        return float(spearmanr(lls.astype(np.float32), dms_scores.astype(np.float32))[0])
+
+    def _evaluate_and_save_proteingym_variants(
+        self,
+        batch: Dict[str, torch.Tensor],
+        batch_idx: int,
+    ):
+        """Generate context variants, score them and write per-batch CSV."""
+        dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
+        csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}.csv")
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            print(f"Found existing CSV for batch {batch['DMS_id'].text[0]}")
+            return df["mean_log_likelihood"].mean(), df["spearman"].mean()
+        variants = self._generate_context_variants(batch, self.tokenizer.sep_token_id)        
+        rows = []
+        variant_lls = []
+        for vidx, (var_batch, meta) in enumerate(variants):
+            # Move tensors to device
+            var_batch_device: Dict[str, Any] = {}
+            for k, v in var_batch.items():
+                if torch.is_tensor(v):
+                    var_batch_device[k] = v.to(self.device)
+                else:
+                    var_batch_device[k] = v
+
+            L = var_batch_device["completion_ids"].shape[-1]
+            L_prompt = var_batch_device["input_ids"].shape[-1]
+            lls = self.score_seqs(
+                var_batch_device["input_ids"],
+                var_batch_device["completion_ids"],
+                input_residue_index=var_batch_device.get("residue_index", None),
+                completion_residue_index=var_batch_device.get("completion_residue_index", None),
+                use_cache=self.use_kv_cache_for_scoring,
+                batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
+                if self.use_kv_cache_for_scoring
+                else 1,
+            )
+            mean_ll = float(lls.mean())
+            sp = self._compute_spearman(lls, dms_scores_np)
+
+            row = {
+                "batch_idx": batch_idx,
+                "variant_idx": vidx,
+                "dataset_name": batch.get("ds_name", "unknown"),
+                "n_prompt_seqs": meta["n_seqs"],
+                "target_n": meta["target_n"],
+                "n_prompt_tokens": meta["n_tokens"],
+                "replicate": meta["replicate"],
+                "mean_log_likelihood": mean_ll,
+                "spearman": sp,
+                "DMS_id": batch['DMS_id'].text[0],
+                "seq_indices": "|".join([str(ix) for ix in meta["seq_indices"]])
+
+            }
+            rows.append(row)
+            variant_lls.append(lls)
+
+            # Write CSV (only on rank 0 to avoid conflicts in DDP)
+            if getattr(self, "global_rank", 0) == 0:
+                df = pd.DataFrame(rows)
+                df.to_csv(csv_path, index=False)
+
+        # Ensemble over variants (simple mean)
+        lls_array = np.stack(variant_lls, axis=0)
+        mean_lls = lls_array.mean(axis=0)
+        ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
+        ensemble_log_ll = float(mean_lls.mean())
+        return ensemble_log_ll, ensemble_spearman
+
+    # ---------------------------------------------------------------------
+    # Override of ProteinGym validation step using the new sampling logic
+    # ---------------------------------------------------------------------
+    def validation_step_proteingym(
+        self,
+        batch: Dict[str, torch.Tensor],
+        batch_idx: Optional[int] = None,
+    ) -> torch.Tensor:
+        """Evaluate ProteinGym batch with multiple randomly-subsampled contexts."""
+        if batch_idx is None:
+            batch_idx = -1  # fallback when Lightning doesn't supply the index
+
+        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_proteingym_variants(
+            batch, batch_idx
+        )
+
+        # Log aggregate metrics so that Lightning tracks them across batches
         self.log(
             "gym/spearman",
-            spearman_corr,
+            ensemble_spearman,
             on_step=False,
             on_epoch=True,
             prog_bar=False,
@@ -957,12 +1128,13 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         self.log(
             "gym/log_likelihood",
-            lls.mean(),
+            ensemble_log_ll,
             on_step=False,
             on_epoch=True,
             prog_bar=False,
             sync_dist=True,
         )
+        return torch.tensor(ensemble_spearman, device=self.device, dtype=torch.float32)
 
     def validation_step_family_classification(
         self, batch: Dict[str, torch.Tensor], task: str = "classification"
