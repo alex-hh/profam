@@ -2,8 +2,8 @@
 
 # Evaluate checkpoints on Protein Gym
 
-#$ -l tmem=16.9G
-#$ -l h_vmem=16.9G
+#$ -l tmem=127.9G
+#$ -l h_vmem=127.9G
 #$ -l gpu=true
 #$ -l gpu_type=(rtx3090|rtx4090|a6000|a40|a100|a100_80)
 #$ -l h_rt=23:55:30
