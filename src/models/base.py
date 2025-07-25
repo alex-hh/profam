@@ -1302,7 +1302,7 @@ class BaseFamilyLitModule(BaseLitModule):
             max_n_under_limit = max(max_n_under_limit, 1)
 
             # ---------------- NEW STRATEGY: sample-based search for optimal context size ----------------
-            likelihood_threshold = -1.6  # target mean log-likelihood
+            likelihood_threshold = -1.3  # target mean log-likelihood
             rng = random.Random()
 
             def _generate_variants_with_n(n: int):

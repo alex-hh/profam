@@ -8,8 +8,8 @@
 #$ -l gpu_type=(rtx3090|rtx4090|a6000|a40|a100|a100_80)
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N trainPF
-#$ -t 1-26
+#$ -N GYM_FULL
+#$ -t 1
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
