@@ -531,7 +531,7 @@ class BaseFamilyLitModule(BaseLitModule):
         override_optimizer_on_load: bool = False,
         # NEW -----------------------------------------------------------------
         context_tokens_limit: int = 7_500,
-        subsamples_per_n: int = 20,
+        subsamples_per_n: int = 5,
         variant_csv_dir: str = "proteingym_variants",
         # ---------------------------------------------------------------------
     ):
@@ -937,6 +937,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         batch: Dict[str, torch.Tensor],
         sep_tok_id: int,
+        start_tokens: list[int] = [47, 63]
     ):
         """Create context-truncated variants (random non-contiguous sampling).
 
@@ -970,10 +971,16 @@ class BaseFamilyLitModule(BaseLitModule):
 
         variants = []
         rng = random.Random()
-
-        for n in range(1, max_n_under_limit + 1, 3):
-            random_addition = random.choice([0, 1, 2])
-            n += random_addition
+        n_forward_search = min(30, max_n_under_limit//2)
+        n_log_samples = n_forward_search
+        while True:
+            n_vals = [int(s) for s in np.logspace(0, np.log10(max_n_under_limit), n_log_samples)] + [max_n_under_limit + 1]
+            n_vals = list(set(n_vals))
+            if len(n_vals) >= n_forward_search:
+                break
+            n_log_samples += 1
+        n_vals.sort()
+        for n in n_vals:
             for rep in range(self.subsamples_per_n):
                 # Random permutation of all sequence indices
                 perm = list(range(total_seqs))
@@ -1008,7 +1015,10 @@ class BaseFamilyLitModule(BaseLitModule):
                     return torch.cat(parts, dim=-1)
 
                 var_batch["input_ids"] = _concat_slices(var_batch["input_ids"]).clone()
-
+                # remove final sep and add start tokens
+                var_batch["input_ids"] = torch.cat([torch.tensor(start_tokens, device=var_batch["input_ids"].device).unsqueeze(0), var_batch["input_ids"]], dim=-1)
+                if var_batch["input_ids"][0, -1] == self.tokenizer.sep_token_id:
+                    var_batch["input_ids"] = var_batch["input_ids"][:, :-1]
                 if "residue_index" in var_batch and var_batch["residue_index"] is not None:
                     var_batch["residue_index"] = _concat_slices(var_batch["residue_index"]).clone()
 
@@ -1036,8 +1046,14 @@ class BaseFamilyLitModule(BaseLitModule):
     def _evaluate_and_save_proteingym_variants(
         self,
         batch: Dict[str, torch.Tensor],
-        batch_idx: int,
+        start_tokens: list[int] = [47, 63]
     ):
+        sep_tok_id = self.tokenizer.sep_token_id
+        start_tokens = torch.tensor(start_tokens, device=batch['input_ids'].device).unsqueeze(0)
+        if (batch["input_ids"][0, :2] == start_tokens).all():
+            batch["input_ids"] = batch["input_ids"][:, 2:]
+        if batch["input_ids"][0, -1] != sep_tok_id:
+            batch["input_ids"] = torch.cat([batch["input_ids"], torch.tensor([sep_tok_id], device=batch['input_ids'].device).unsqueeze(0)], dim=-1)
         """Generate context variants, score them and write per-batch CSV."""
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
         csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}.csv")
@@ -1073,8 +1089,6 @@ class BaseFamilyLitModule(BaseLitModule):
             sp = self._compute_spearman(lls, dms_scores_np)
 
             row = {
-                "batch_idx": batch_idx,
-                "dataset_name": batch.get("ds_name", "unknown"),
                 "n_prompt_seqs": meta["n_seqs"],
                 "target_n": meta["target_n"],
                 "n_prompt_tokens": meta["n_tokens"],
@@ -1085,6 +1099,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 "seq_indices": "|".join([str(ix) for ix in meta["seq_indices"]])
 
             }
+
             rows.append(row)
             variant_lls.append(lls)
 
@@ -1097,13 +1112,79 @@ class BaseFamilyLitModule(BaseLitModule):
         lls_array = np.stack(variant_lls, axis=0)
         mean_lls = lls_array.mean(axis=0)
         ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
+
         ensemble_log_ll = float(mean_lls.mean())
+
+        self.log(
+            "gym/ensemble_spearman",
+            ensemble_spearman,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
+        self.log(
+            "gym/mean_spearman",
+            float(self._compute_spearman(mean_lls, dms_scores_np)),
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
+        self.log(
+            "gym/mean_ll",
+            mean_lls.mean(),
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
+        self.log(
+            "gym/mean_ll_std",
+            lls_array.std().mean(),
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
+        # self.log(
+        #     "gym/coverage",
+        #     (sum(seq_lengths) / len(seq_lengths)) / L,
+        #     on_step=True,
+        #     on_epoch=True,
+        #     prog_bar=False,
+        #     sync_dist=True,
+        # )
+        self.log(
+            "gym/completion_len",
+            L,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
+        # self.log(
+        #     "gym/n_context_seqs",
+        #     n_opt,
+        #     on_step=True,
+        #     on_epoch=True,
+        #     prog_bar=False,
+        #     sync_dist=True,
+        # )
+        self.log(
+            "gym/n_context_tokens",
+            L_prompt,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
         return ensemble_log_ll, ensemble_spearman
 
     def _evaluate_and_save_proteingym_variants_optimised(
         self,
         batch: Dict[str, torch.Tensor],
-        batch_idx: int,
+        start_tokens: list[int] = [47, 63]
     ):
         """Optimised variant evaluation following an adaptive context-building strategy.
 
@@ -1130,6 +1211,8 @@ class BaseFamilyLitModule(BaseLitModule):
         # ------------------------------------------------------------------
         # Short-circuit if we have already processed this batch
         # ------------------------------------------------------------------
+        if "residue_index" in batch and batch["residue_index"] is not None:
+            raise NotImplementedError("Residue index not implemented for gym sampling")
         try:
             csv_path = os.path.join(
                 self.variant_csv_dir,
@@ -1164,6 +1247,11 @@ class BaseFamilyLitModule(BaseLitModule):
             # Determine the optimal number of context sequences (n_opt)
             # ------------------------------------------------------------------
             sep_tok_id = self.tokenizer.sep_token_id
+            start_tokens = torch.tensor(start_tokens, device=batch['input_ids'].device).unsqueeze(0)
+            if (batch["input_ids"][0, :2] == start_tokens).all():
+                    batch["input_ids"] = batch["input_ids"][:, 2:]
+            if batch["input_ids"][0, -1] != sep_tok_id:
+                batch["input_ids"] = torch.cat([batch["input_ids"], torch.tensor([sep_tok_id], device=batch['input_ids'].device).unsqueeze(0)], dim=-1)
             input_ids_full = batch["input_ids"]
             device = input_ids_full.device
             # Identify sequence boundaries in the prompt
@@ -1174,13 +1262,24 @@ class BaseFamilyLitModule(BaseLitModule):
             seq_lengths = (seq_ends - seq_starts + 1).tolist()  # python ints
 
             # Helper for constructing a truncated batch given a list of (possibly non-contiguous) indices
-            def _make_truncated_batch(idx_list: List[int]):
+            def _make_truncated_batch(idx_list: List[int], final_sep=False):
                 new_batch = self._clone_batch(batch)
 
+                if "residue_index" in new_batch and new_batch["residue_index"] is not None:
+                    raise NotImplementedError("Residue index not implemented for start tokens")
+                    new_batch["residue_index"] = new_batch["residue_index"][:, 2:]
                 def _concat_slices(tensor):
                     parts = [tensor[..., seq_starts[i] : seq_ends[i] + 1] for i in idx_list]
-                    return torch.cat(parts, dim=-1)
-
+                    concatenated = torch.cat(parts, dim=-1)
+                    # add start tokens back in
+                    concatenated = torch.cat([start_tokens, concatenated], dim=-1)
+                    if final_sep and concatenated[0, -1] != sep_tok_id:
+                        concatenated = torch.cat([concatenated, torch.tensor([sep_tok_id], device=device).unsqueeze(0)], dim=-1)
+                    if not final_sep and concatenated[0, -1] == sep_tok_id:
+                        concatenated = concatenated[:, :-1]
+                    return concatenated
+                
+                
                 new_batch["input_ids"] = _concat_slices(new_batch["input_ids"]).clone()
                 if (
                     "residue_index" in new_batch
@@ -1203,7 +1302,7 @@ class BaseFamilyLitModule(BaseLitModule):
             max_n_under_limit = max(max_n_under_limit, 1)
 
             # ---------------- NEW STRATEGY: sample-based search for optimal context size ----------------
-            likelihood_threshold = -1.8  # target mean log-likelihood
+            likelihood_threshold = -1.6  # target mean log-likelihood
             rng = random.Random()
 
             def _generate_variants_with_n(n: int):
@@ -1250,31 +1349,48 @@ class BaseFamilyLitModule(BaseLitModule):
 
             # Search for the smallest *n* whose sampled variants exceed the LL threshold
             n_opt = max_n_under_limit  # default fall-back in case threshold is never crossed
-            for n in range(1, max_n_under_limit + 1):
+            n_forward_search = min(10, max_n_under_limit)
+            n_log_samples = n_forward_search
+            while True:
+                n_vals = [int(s) for s in np.logspace(0, np.log10(max_n_under_limit), n_log_samples)] + [max_n_under_limit + 1]
+                n_vals = list(set(n_vals))
+                if len(n_vals) >= n_forward_search:
+                    break
+                n_log_samples += 1
+            n_vals.sort()
+            best_ll = -float("inf")
+            epsilon_delta = 0.1
+            
+            for n_ix, n in enumerate(n_vals):
                 candidate_variants = _generate_variants_with_n(n)
                 ll_means = []
-                for vb, _meta in candidate_variants:
+                for vb, _meta in candidate_variants[:1]:
                     vb_device = {
                         k: v.to(self.device) if torch.is_tensor(v) else v
                         for k, v in vb.items()
                     }
+                    n_completions_for_ll_eval = min(100, vb_device["completion_ids"].shape[1])
                     L = vb_device["completion_ids"].shape[-1]
                     L_prompt = vb_device["input_ids"].shape[-1]
                     lls = self.score_seqs(
                         vb_device["input_ids"],
-                        vb_device["completion_ids"],
+                        vb_device["completion_ids"][:,:n_completions_for_ll_eval,:],
                         input_residue_index=vb_device.get("residue_index", None),
                         completion_residue_index=vb_device.get("completion_residue_index", None),
                         use_cache=self.use_kv_cache_for_scoring,
-                        batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
+                        batch_size=max(min((self.scoring_max_tokens) // (L + L_prompt), 50), 1)
                         if self.use_kv_cache_for_scoring
                         else 1,
                     )
                     ll_means.append(float(lls.mean()))
 
+                if np.mean(ll_means) < best_ll - epsilon_delta:
+                    n_opt = n_vals[n_ix - 1]
+                    break
                 if np.mean(ll_means) > likelihood_threshold:
                     n_opt = n
                     break
+                best_ll = max(best_ll, np.mean(ll_means))
             # ---------------- END of new strategy ----------------
 
             # ------------------------------------------------------------------
@@ -1413,7 +1529,54 @@ class BaseFamilyLitModule(BaseLitModule):
                 prog_bar=False,
                 sync_dist=True,
             )
-            
+            self.log(
+                "gym/mean_ll",
+                mean_lls.mean(),
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+            self.log(
+                "gym/mean_ll_std",
+                lls_array.std().mean(),
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+            self.log(
+                "gym/coverage",
+                (sum(seq_lengths) / len(seq_lengths)) / L,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+            self.log(
+                "gym/completion_len",
+                L,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+            self.log(
+                "gym/n_context_seqs",
+                n_opt,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
+            self.log(
+                "gym/n_context_tokens",
+                L_prompt,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+            )
             return ensemble_log_ll, ensemble_spearman
         except:
             return 0, -1
@@ -1429,8 +1592,8 @@ class BaseFamilyLitModule(BaseLitModule):
         if batch_idx is None:
             batch_idx = -1  # fallback when Lightning doesn't supply the index
 
-        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_proteingym_variants_optimised(
-            batch, batch_idx
+        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_proteingym_variants(
+            batch
         )
 
         # Log aggregate metrics so that Lightning tracks them across batches
