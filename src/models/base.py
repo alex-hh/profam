@@ -1093,6 +1093,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 "target_n": meta["target_n"],
                 "n_prompt_tokens": meta["n_tokens"],
                 "replicate": meta["replicate"],
+                "variant_idx": vidx,
                 "mean_log_likelihood": mean_ll,
                 "spearman": sp,
                 "DMS_id": batch['DMS_id'].text[0],
@@ -1110,6 +1111,24 @@ class BaseFamilyLitModule(BaseLitModule):
 
         # Ensemble over variants (simple mean)
         lls_array = np.stack(variant_lls, axis=0)
+        # ------------------------------------------------------------------
+        # NEW: Save full per-sequence likelihoods for every forward pass
+        # ------------------------------------------------------------------
+        if getattr(self, "global_rank", 0) == 0:
+            lls_save_path = os.path.join(
+                self.variant_csv_dir,
+                f"batch_{batch['DMS_id'].text[0]}_lls.npz",
+            )
+            try:
+                np.savez_compressed(
+                    lls_save_path,
+                    lls=lls_array.astype(np.float32),
+                    n_prompt_seqs=np.array([r["n_prompt_seqs"] for r in rows], dtype=np.int16),
+                    variant_idx=np.array([r["variant_idx"] for r in rows], dtype=np.int16),
+                    replicate=np.array([r["replicate"] for r in rows], dtype=np.int16),
+                )
+            except Exception as e:
+                warnings.warn(f"Could not save likelihoods to {lls_save_path}: {e}")
         mean_lls = lls_array.mean(axis=0)
         ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
 
@@ -1577,6 +1596,24 @@ class BaseFamilyLitModule(BaseLitModule):
                 prog_bar=False,
                 sync_dist=True,
             )
+            # ------------------------------------------------------------------
+            # NEW: Save full per-sequence likelihoods for every forward pass (optimised)
+            # ------------------------------------------------------------------
+            if getattr(self, "global_rank", 0) == 0:
+                lls_save_path = os.path.join(
+                    self.variant_csv_dir,
+                    f"batch_{batch['DMS_id'].text[0]}_optimised_lls.npz",
+                )
+                try:
+                    np.savez_compressed(
+                        lls_save_path,
+                        lls=lls_array.astype(np.float32),
+                        n_prompt_seqs=np.array([ar["n_prompt_seqs"] for ar in assay_rows], dtype=np.int16),
+                        variant_idx=np.array([ar["variant_idx"] for ar in assay_rows], dtype=np.int16),
+                        replicate=np.array([ar["replicate"] for ar in assay_rows], dtype=np.int16),
+                    )
+                except Exception as e:
+                    warnings.warn(f"Could not save likelihoods to {lls_save_path}: {e}")
             return ensemble_log_ll, ensemble_spearman
         except:
             return 0, -1

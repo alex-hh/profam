@@ -14,8 +14,6 @@
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
 
-set -euo pipefail
-
 date
 hostname
 echo "#################### QSUB SCRIPT START ####################"
