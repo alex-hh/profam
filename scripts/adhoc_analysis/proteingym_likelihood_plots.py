@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, LSQUnivariateSpline
 
-csv_dir = "proteingym_variants/20250722_113929"
+csv_dir = "proteingym_variants/20250724_224201"
 
 csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
 
@@ -17,13 +17,14 @@ all_likelihood_vals = []  # list of np.ndarray
 all_spearman_norm_vals = []  # list of np.ndarray
 all_n_prompt_vals = []  # list of np.ndarray
 
+
 highest_likelihood_vals = []
 last_value_vals = []
 mean_vals = []
 upper_quartile_vals = []
 upper_quartile_exclude_lt1_vals = []
 highest_with_exclusion_vals = []
-exclusion_threshold = -1.7
+exclusion_threshold = -1.0
 for i, csv_file in enumerate(csv_files):
     df = pd.read_csv(csv_file)
     df = df.sort_values(by='n_prompt_seqs', ascending=True)
@@ -48,6 +49,7 @@ for i, csv_file in enumerate(csv_files):
     all_likelihood_vals.append(likelihood_vals)
     all_spearman_norm_vals.append(spearman_norm)
     all_n_prompt_vals.append(n_prompt_vals)
+    
 
     highest_likelihood_vals.append(spearman_vals[-1])
     mean_vals.append(np.mean(spearman_vals))
@@ -299,6 +301,145 @@ for ax_np in axes_np_flat[: len(csv_files)]:
 fig_np.tight_layout()
 subplot_path_np = f"{csv_dir}/spearman_vs_n_prompt_subplots.png"
 fig_np.savefig(subplot_path_np)
+plt.show()
+
+# -----------------------------------------------------------------------------
+# Scatterplots of n_prompt_seqs vs raw spearman grouped by likelihood bins
+# -----------------------------------------------------------------------------
+
+bin_ranges = [
+    (-np.inf, -3.5),
+    (-3.5, -2.6),
+    (-2.6, -2.1),
+    (-2.1, -1.8),
+    (-1.8, -1.5),
+    (-1.5, 0),
+]
+bin_labels = [
+    "(-Inf, -3.5]",
+    "(-3.5, -2.6]",
+    "(-2.6, -2.1]",
+    "(-2.1, -1.8]",
+    "(-1.8, -1.5]",
+    "(-1.5, 0]",
+]
+
+fig_bins, axes_bins = plt.subplots(1, len(bin_ranges), figsize=(5 * len(bin_ranges), 4), sharey=True)
+
+# Ensure axes_bins is iterable even when only one subplot is returned
+if len(bin_ranges) == 1:
+    axes_bins = [axes_bins]
+
+for b_idx, ((low, high), label) in enumerate(zip(bin_ranges, bin_labels)):
+    ax = axes_bins[b_idx]
+
+    # Collect points across all CSVs for this bin to enable spline fitting
+    combined_x_bin = []
+    combined_y_bin = []
+
+    for i in range(len(csv_files)):
+        mask = (all_likelihood_vals[i] > low) & (all_likelihood_vals[i] <= high)
+        if np.any(mask):
+            x_bin = all_n_prompt_vals[i][mask]
+            y_bin = all_spearman_norm_vals[i][mask]
+
+            # Scatter individual CSV points in their colour
+            ax.scatter(x_bin, y_bin, color=colors[i], alpha=0.4, s=10)
+
+            combined_x_bin.append(x_bin)
+            combined_y_bin.append(y_bin)
+
+    # Fit a smoothing spline across all gathered points in this bin, if enough data
+    if len(combined_x_bin) > 0:
+        xs_bin = np.concatenate(combined_x_bin)
+        ys_bin = np.concatenate(combined_y_bin)
+
+        try:
+            sort_idx_bin = np.argsort(xs_bin)
+            xs_sorted, ys_sorted = xs_bin[sort_idx_bin], ys_bin[sort_idx_bin]
+
+            unique_x_bin = np.unique(xs_sorted)
+            internal_knots_bin = []
+            if len(unique_x_bin) > 15:
+                internal_knots_bin = np.quantile(unique_x_bin, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
+            elif len(unique_x_bin) > 7:
+                internal_knots_bin = [np.median(unique_x_bin)]
+
+            if len(internal_knots_bin) > 0:
+                spline_bin = LSQUnivariateSpline(xs_sorted, ys_sorted, t=internal_knots_bin, k=2)
+            else:
+                spline_bin = UnivariateSpline(xs_sorted, ys_sorted, k=3, s=0)
+
+            xs_smooth_bin = np.linspace(xs_sorted.min(), xs_sorted.max(), 300)
+            ys_smooth_bin = spline_bin(xs_smooth_bin)
+            ax.plot(xs_smooth_bin, ys_smooth_bin, color="black", linewidth=2)
+        except Exception as e:
+            # In case fitting fails (e.g., insufficient unique points) skip
+            print(f"Spline fitting failed for bin {label}: {e}")
+    ax.set_title(label)
+    ax.set_xlabel("n_prompt_seqs")
+    if b_idx == 0:
+        ax.set_ylabel("Spearman")
+    ax.grid(True, alpha=0.2)
+
+fig_bins.suptitle("n_prompt_seqs vs Spearman by likelihood bin")
+fig_bins.tight_layout(rect=[0, 0.03, 1, 0.95])
+fig_bins.savefig(f"{csv_dir}/n_prompt_vs_spearman_likelihood_bins.png")
+plt.show()
+
+# -----------------------------------------------------------------------------
+# Subplots of mean_log_likelihood vs n_prompt_seqs (per assay)
+# -----------------------------------------------------------------------------
+
+fig_ll_vs_np, axes_ll_vs_np = plt.subplots(
+    n_rows,
+    n_cols,
+    figsize=(4 * n_cols, 3 * n_rows),
+    sharex=False,  # do not share x-axis as per instructions
+    squeeze=False,
+)
+
+axes_ll_vs_np_flat = axes_ll_vs_np.flatten()
+
+for i in range(n_rows * n_cols):
+    if i >= len(csv_files):
+        axes_ll_vs_np_flat[i].axis("off")
+        continue
+
+    x_np = all_n_prompt_vals[i]
+    y_ll = all_likelihood_vals[i]
+
+    ax_ll = axes_ll_vs_np_flat[i]
+    ax_ll.scatter(x_np, y_ll, color="purple", alpha=0.3, s=10)
+
+    # Fit spline with ≤2 internal knots
+    try:
+        sort_idx_local = np.argsort(x_np)
+        xs_l, ys_l = x_np[sort_idx_local], y_ll[sort_idx_local]
+
+        unique_x_l = np.unique(xs_l)
+        int_knots_l = []
+        if len(unique_x_l) > 12:
+            int_knots_l = np.quantile(unique_x_l, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
+        elif len(unique_x_l) > 6:
+            int_knots_l = [np.median(unique_x_l)]
+
+        if len(int_knots_l) > 0:
+            spline_l = LSQUnivariateSpline(xs_l, ys_l, t=int_knots_l, k=2)
+        else:
+            spline_l = UnivariateSpline(xs_l, ys_l, k=3, s=0)
+
+        xs_smooth = np.linspace(xs_l.min(), xs_l.max(), 200)
+        ys_smooth = spline_l(xs_smooth)
+        ax_ll.plot(xs_smooth, ys_smooth, color="blue")
+    except Exception as e:
+        print(f"Spline (LL vs n_prompt) failed for CSV index {i}: {e}")
+
+    ax_ll.tick_params(axis='both', which='major', labelsize=6)
+
+fig_ll_vs_np.tight_layout()
+subplot_path_ll_vs_np = f"{csv_dir}/likelihood_vs_n_prompt_subplots.png"
+fig_ll_vs_np.savefig(subplot_path_ll_vs_np)
 plt.show()
 
 
