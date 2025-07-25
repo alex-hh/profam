@@ -1144,7 +1144,7 @@ class BaseFamilyLitModule(BaseLitModule):
         )
         self.log(
             "gym/mean_spearman",
-            float(self._compute_spearman(mean_lls, dms_scores_np)),
+            df.spearman.mean(),
             on_step=True,
             on_epoch=True,
             prog_bar=False,
