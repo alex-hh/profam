@@ -73,15 +73,15 @@ echo "Experiment group : $NAME"
 echo "Running evaluation..."
 
 python src/train.py \
-  experiment_group="$NAME" \
-  --config-dir="$DIR/.hydra" \
-  --config-name=config_gym.yaml \
-  model.config.scoring_max_tokens=120_000 \
-  train=false \
-  test=true \
-  data.dataset_builders.proteingym.max_tokens_per_example=2_000_000 \
-  data.dataset_builders.proteingym.dms_ids: null \
-  data.dataset_builders.proteingym.max_mutated_sequences=3000 \
-  ckpt_path="$DIR/checkpoints/last.ckpt"
+experiment_group="${NAME}" \
+--config-dir="${DIR}/.hydra" \
+--config-name=config_gym.yaml \
+model.config.scoring_max_tokens=120_000 \
+train=false \
+test=true \
+data.dataset_builders.proteingym.max_tokens_per_example=2000000 \
+data.dataset_builders.proteingym.dms_ids=null \
+data.dataset_builders.proteingym.max_mutated_sequences=3000 \
+ckpt_path="${DIR}/checkpoints/last.ckpt"
 
 date

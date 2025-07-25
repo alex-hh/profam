@@ -1057,10 +1057,10 @@ class BaseFamilyLitModule(BaseLitModule):
         """Generate context variants, score them and write per-batch CSV."""
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
         csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}.csv")
-        if os.path.exists(csv_path):
-            df = pd.read_csv(csv_path)
-            print(f"Found existing CSV for batch {batch['DMS_id'].text[0]}")
-            return df["mean_log_likelihood"].mean(), df["spearman"].mean()
+        # if os.path.exists(csv_path):
+        #     df = pd.read_csv(csv_path)
+        #     print(f"Found existing CSV for batch {batch['DMS_id'].text[0]}")
+        #     return df["mean_log_likelihood"].mean(), df["spearman"].mean()
         variants = self._generate_context_variants(batch, self.tokenizer.sep_token_id)        
         rows = []
         variant_lls = []
