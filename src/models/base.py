@@ -448,7 +448,9 @@ class BaseLitModule(LightningModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
+        print("Entering validation step")
         if "DMS_scores" in batch:
+            print("validation step:", batch["DMS_id"].text[0])
             outputs = self.validation_step_proteingym(batch)
             return outputs
         elif "family_labels" in batch:
@@ -1061,7 +1063,9 @@ class BaseFamilyLitModule(BaseLitModule):
         #     df = pd.read_csv(csv_path)
         #     print(f"Found existing CSV for batch {batch['DMS_id'].text[0]}")
         #     return df["mean_log_likelihood"].mean(), df["spearman"].mean()
+        print("generating variants for",  batch["DMS_id"].text[0])
         variants = self._generate_context_variants(batch, self.tokenizer.sep_token_id)        
+        print(len(variants), "generated")
         rows = []
         variant_lls = []
         for vidx, (var_batch, meta) in enumerate(variants):
