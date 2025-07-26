@@ -1053,8 +1053,6 @@ class BaseFamilyLitModule(BaseLitModule):
             batch["input_ids"] = torch.cat([batch["input_ids"], torch.tensor([sep_tok_id], device=batch['input_ids'].device).unsqueeze(0)], dim=-1)
         """Generate context variants, score them and write per-batch CSV."""
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
-        from src.train import ckpt_dir_for_saving_test_results
-        assert ckpt_dir_for_saving_test_results is not None
         self.variant_csv_dir = os.path.join(
             self.gym_results_save_dir,
             self.timestamp
@@ -1238,8 +1236,6 @@ class BaseFamilyLitModule(BaseLitModule):
         # ------------------------------------------------------------------
         if "residue_index" in batch and batch["residue_index"] is not None:
             raise NotImplementedError("Residue index not implemented for gym sampling")
-        from src.train import ckpt_dir_for_saving_test_results
-        assert ckpt_dir_for_saving_test_results is not None
         self.variant_csv_dir = os.path.join(
             self.gym_results_save_dir,
             self.timestamp
