@@ -76,6 +76,7 @@ class BaseLitModule(LightningModule):
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
         ignore_index: int = -100,
+        gym_results_save_dir = "proteingym_variants"
     ) -> None:
         super().__init__()
         self.model = model
@@ -91,6 +92,10 @@ class BaseLitModule(LightningModule):
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.gym_results_save_dir = gym_results_save_dir
+        assert os.path.exists(gym_results_save_dir)
+        print("proteinGym results saved in", self.gym_results_save_dir)
+
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
@@ -1051,8 +1056,7 @@ class BaseFamilyLitModule(BaseLitModule):
         from src.train import ckpt_dir_for_saving_test_results
         assert ckpt_dir_for_saving_test_results is not None
         self.variant_csv_dir = os.path.join(
-            ckpt_dir_for_saving_test_results,
-            "proteingym_variants", 
+            self.gym_results_save_dir,
             self.timestamp
         )
         os.makedirs(self.variant_csv_dir, exist_ok=True)
@@ -1237,8 +1241,7 @@ class BaseFamilyLitModule(BaseLitModule):
         from src.train import ckpt_dir_for_saving_test_results
         assert ckpt_dir_for_saving_test_results is not None
         self.variant_csv_dir = os.path.join(
-            ckpt_dir_for_saving_test_results,
-            "proteingym_variants", 
+            self.gym_results_save_dir,
             self.timestamp
         )
         try:
