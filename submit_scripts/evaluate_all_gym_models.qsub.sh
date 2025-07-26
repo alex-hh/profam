@@ -34,7 +34,6 @@ DIRS=(
   "logs/saturn_cloud_good_runs/4ot38rfy_SING_SEQur90/copied_2025_07_04_11-55/2025-06-30_15-19-43-709946"
   "logs/saturn_cloud_good_runs/4ot38rfy_SING_SEQur90/copied_2025_07_09_21-43/2025-06-30_15-19-43-709946"
   "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-22_09-34/2025-06-17_13-41-16-626286"
-  "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-22-21-20/2025-06-17_13-41-16-626286"
   "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-25_07-09/2025-06-17_13-41-16-626286"
   "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-25_09-49/2025-06-17_13-41-16-626286"
   "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-25_14-45/2025-06-17_13-41-16-626286"
@@ -75,12 +74,13 @@ echo "Running evaluation..."
 python src/train.py \
 --config-dir="${DIR}/.hydra" \
 --config-name=gym_config.yaml \
-model.scoring_max_tokens=120_000 \
+model.scoring_max_tokens=50_000 \
 train=false \
 test=true \
 data.dataset_builders.proteingym.max_tokens_per_example=500000 \
 data.dataset_builders.proteingym.dms_ids=null \
 data.dataset_builders.proteingym.max_mutated_sequences=3000 \
++data.dataset_builders.proteingym.max_completion_length=1024 \
 ckpt_path="${DIR}/checkpoints/last.ckpt"
 
 date
