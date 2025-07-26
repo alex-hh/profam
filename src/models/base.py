@@ -530,10 +530,9 @@ class BaseFamilyLitModule(BaseLitModule):
         use_kv_cache_for_scoring: bool = True,
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
-        # NEW -----------------------------------------------------------------
         context_tokens_limit: int = 7_500,
         subsamples_per_n: int = 5,
-        # ---------------------------------------------------------------------
+        gym_results_save_dir = "proteingym_variants"
     ):
         super().__init__(
             model,
@@ -546,6 +545,7 @@ class BaseFamilyLitModule(BaseLitModule):
             scoring_max_tokens=scoring_max_tokens,
             optimizer="adamw",
             override_optimizer_on_load=override_optimizer_on_load,
+            gym_results_save_dir=gym_results_save_dir
         )
         self.scoring_max_tokens = scoring_max_tokens
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
