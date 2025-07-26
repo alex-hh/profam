@@ -159,8 +159,11 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             log.warning("Best ckpt not found! Using config ckpt path...")
             ckpt_path = cfg.get("ckpt_path")
         trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        print("CHECKPOINT PATH", ckpt_path)
         global ckpt_dir_for_saving_test_results
         ckpt_dir_for_saving_test_results = os.path.dirname(ckpt_path)
+        assert ckpt_dir_for_saving_test_results is not None
+        print("DIRECTORY FOR SAVING TEST RESULTS:", ckpt_dir_for_saving_test_results)
         log.info(f"Best ckpt path: {ckpt_path}")
 
     test_metrics = trainer.callback_metrics

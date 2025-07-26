@@ -76,7 +76,6 @@ class BaseLitModule(LightningModule):
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
         ignore_index: int = -100,
-        proteingym_csv_save_path: Optional[str] = "proteingym_results.csv",
     ) -> None:
         super().__init__()
         self.model = model
@@ -91,12 +90,7 @@ class BaseLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
-        if proteingym_csv_save_path is not None:
-            self.proteingym_csv_save_path = proteingym_csv_save_path.replace(
-                ".csv", f"_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            )
-        else:
-            self.proteingym_csv_save_path = None
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
@@ -1055,11 +1049,11 @@ class BaseFamilyLitModule(BaseLitModule):
         """Generate context variants, score them and write per-batch CSV."""
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
         from src.train import ckpt_dir_for_saving_test_results
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        assert ckpt_dir_for_saving_test_results is not None
         self.variant_csv_dir = os.path.join(
             ckpt_dir_for_saving_test_results,
             "proteingym_variants", 
-            timestamp
+            self.timestamp
         )
         os.makedirs(self.variant_csv_dir, exist_ok=True)
         csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}.csv")
@@ -1241,11 +1235,11 @@ class BaseFamilyLitModule(BaseLitModule):
         if "residue_index" in batch and batch["residue_index"] is not None:
             raise NotImplementedError("Residue index not implemented for gym sampling")
         from src.train import ckpt_dir_for_saving_test_results
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        assert ckpt_dir_for_saving_test_results is not None
         self.variant_csv_dir = os.path.join(
             ckpt_dir_for_saving_test_results,
             "proteingym_variants", 
-            timestamp
+            self.timestamp
         )
         try:
             csv_path = os.path.join(
