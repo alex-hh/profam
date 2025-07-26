@@ -534,7 +534,6 @@ class BaseFamilyLitModule(BaseLitModule):
         # NEW -----------------------------------------------------------------
         context_tokens_limit: int = 7_500,
         subsamples_per_n: int = 5,
-        variant_csv_dir: str = "proteingym_variants",
         # ---------------------------------------------------------------------
     ):
         super().__init__(
@@ -558,9 +557,6 @@ class BaseFamilyLitModule(BaseLitModule):
         # NEW FOR EVALUATING PROTEIN GYM OFFLINE ONLY-------------------------
         self.context_tokens_limit = context_tokens_limit
         self.subsamples_per_n = subsamples_per_n
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.variant_csv_dir = os.path.join(variant_csv_dir, timestamp)
-        os.makedirs(self.variant_csv_dir, exist_ok=True)
         # ---------------------------------------------------------------------
 
     def get_forward_kwargs(self, batch):
@@ -1058,6 +1054,14 @@ class BaseFamilyLitModule(BaseLitModule):
             batch["input_ids"] = torch.cat([batch["input_ids"], torch.tensor([sep_tok_id], device=batch['input_ids'].device).unsqueeze(0)], dim=-1)
         """Generate context variants, score them and write per-batch CSV."""
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
+        from src.train import ckpt_dir_for_saving_test_results
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.variant_csv_dir = os.path.join(
+            ckpt_dir_for_saving_test_results,
+            "proteingym_variants", 
+            timestamp
+        )
+        os.makedirs(self.variant_csv_dir, exist_ok=True)
         csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}.csv")
         # if os.path.exists(csv_path):
         #     df = pd.read_csv(csv_path)
@@ -1236,6 +1240,13 @@ class BaseFamilyLitModule(BaseLitModule):
         # ------------------------------------------------------------------
         if "residue_index" in batch and batch["residue_index"] is not None:
             raise NotImplementedError("Residue index not implemented for gym sampling")
+        from src.train import ckpt_dir_for_saving_test_results
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.variant_csv_dir = os.path.join(
+            ckpt_dir_for_saving_test_results,
+            "proteingym_variants", 
+            timestamp
+        )
         try:
             csv_path = os.path.join(
                 self.variant_csv_dir,

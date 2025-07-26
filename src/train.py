@@ -41,6 +41,7 @@ from src.utils import (
 )
 
 log = RankedLogger(__name__, rank_zero_only=True)
+ckpt_dir_for_saving_test_results: Optional[str] = None
 
 
 @task_wrapper
@@ -158,6 +159,8 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             log.warning("Best ckpt not found! Using config ckpt path...")
             ckpt_path = cfg.get("ckpt_path")
         trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        global ckpt_dir_for_saving_test_results
+        ckpt_dir_for_saving_test_results = os.path.dirname(ckpt_path)
         log.info(f"Best ckpt path: {ckpt_path}")
 
     test_metrics = trainer.callback_metrics
