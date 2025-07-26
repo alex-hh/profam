@@ -75,7 +75,7 @@ echo "Running evaluation..."
 python src/train.py \
 --config-dir="${DIR}/.hydra" \
 --config-name=gym_config.yaml \
-model.config.scoring_max_tokens=120_000 \
+model.scoring_max_tokens=120_000 \
 train=false \
 test=true \
 data.dataset_builders.proteingym.max_tokens_per_example=2000000 \
