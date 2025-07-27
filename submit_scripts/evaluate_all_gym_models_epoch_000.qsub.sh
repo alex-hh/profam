@@ -36,7 +36,7 @@ DIRS=(
   # "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-22_09-34/2025-06-17_13-41-16-626286"
   "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-22-21-20/2025-06-17_13-41-16-626286"
   # "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-25_07-09/2025-06-17_13-41-16-626286"
-  # "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-25_09-49/2025-06-17_13-41-16-626286"
+  "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-25_09-49/2025-06-17_13-41-16-626286"
   # "logs/saturn_cloud_good_runs/28yyyp8u_ff50_ff100_openfold_fs100_fs50_ur90_553/copied_2025-06-25_14-45/2025-06-17_13-41-16-626286"
   # "logs/saturn_cloud_good_runs/60lnxlim_ff50_ff100_of_fs50_ur90/copied_2025-06-18_22-08"
   # "logs/saturn_cloud_good_runs/60lnxlim_ff50_ff100_of_fs50_ur90/copied_2025-06-20_15-08/2025-06-11_00-09-25-545380"
