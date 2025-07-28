@@ -38,6 +38,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         override_optimizer_on_load: bool = False,
         use_focal_loss: bool = False,
         focal_gamma: float = 2.0,
+        gym_results_save_dir = "proteingym_variants"
     ) -> None:
         """
         From the paper:
@@ -83,6 +84,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
             embed_coords=embed_coords,
             override_optimizer_on_load=override_optimizer_on_load,
+            gym_results_save_dir=gym_results_save_dir
         )
 
         # Dynamically inject focal loss if requested.
