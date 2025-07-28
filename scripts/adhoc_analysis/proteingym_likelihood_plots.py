@@ -6,9 +6,11 @@ import numpy as np
 from scipy.interpolate import UnivariateSpline, LSQUnivariateSpline
 
 csv_dir = "proteingym_variants/20250724_224201"
+csv_dir = "logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620"
 
 csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
-
+# randomly sample 50 csv files
+csv_files = np.random.choice(csv_files, size=50, replace=False)
 # Generate a distinct color for each CSV using a continuous colormap
 colors = plt.cm.rainbow(np.linspace(0, 1, len(csv_files)))
 
@@ -338,11 +340,16 @@ for b_idx, ((low, high), label) in enumerate(zip(bin_ranges, bin_labels)):
     combined_y_bin = []
 
     for i in range(len(csv_files)):
-        mask = (all_likelihood_vals[i] > low) & (all_likelihood_vals[i] <= high)
+        # Only include points where n_prompt_seqs is between 0 and 35
+        mask = (
+            (all_likelihood_vals[i] > low)
+            & (all_likelihood_vals[i] <= high)
+            & (all_n_prompt_vals[i] >= 0)
+            & (all_n_prompt_vals[i] <= 35)
+        )
         if np.any(mask):
             x_bin = all_n_prompt_vals[i][mask]
             y_bin = all_spearman_norm_vals[i][mask]
-
             # Scatter individual CSV points in their colour
             ax.scatter(x_bin, y_bin, color=colors[i], alpha=0.4, s=10)
 
