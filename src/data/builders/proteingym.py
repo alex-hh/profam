@@ -118,6 +118,10 @@ def load_msa_for_row(
     use_msa_pos: bool = True,
 ):
     msa_file = row["MSA_filename"]
+    if not os.path.exists(msa_file):
+        msa_file = msa_file.replace(".a2m", ".a3m")
+        if not os.path.exists(msa_file):
+            raise FileNotFoundError(f"MSA file {msa_file} not found")
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
     print(f"Loading MSA from {msa_file}")
@@ -211,7 +215,8 @@ def build_gym_df(
     dms_ids,
     gym_data_dir: str,
     use_foldseek_msa: bool = False,
-    max_completion_length: Optional[bool] = None
+    max_completion_length: Optional[bool] = None,
+    msa_folder_name: str = "DMS_msa_files",
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
@@ -227,7 +232,7 @@ def build_gym_df(
         )
     else:
         df["MSA_filename"] = df["MSA_filename"].apply(
-            lambda x: os.path.join(gym_data_dir, "DMS_msa_files", x)
+            lambda x: os.path.join(gym_data_dir, msa_folder_name, x)
         )
     assert all(
         os.path.exists(msa_file) for msa_file in df["MSA_filename"]
@@ -268,6 +273,7 @@ class ProteinGymDataset(BaseProteinDataset):
         max_completion_length = None,
         keep_wt: bool = False,
         drop_wt: bool = True,
+        msa_folder_name: str = "DMS_msa_files",
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -295,6 +301,7 @@ class ProteinGymDataset(BaseProteinDataset):
         self.keep_wt = keep_wt
         self.drop_wt = drop_wt
         self.use_foldseek_msa = use_foldseek_msa
+        self.msa_folder_name = msa_folder_name
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
                 warnings.warn(
@@ -332,6 +339,7 @@ class ProteinGymDataset(BaseProteinDataset):
         print(f"  use_msa_pos: {self.use_msa_pos}")
         print(f"  max_completion_length: {self.max_completion_length}")
         print(f"  dms_ids: {self.dms_ids}")
+        print(f"  msa_folder_name: {self.msa_folder_name}")
 
     def process(
         self,
@@ -411,7 +419,8 @@ class ProteinGymDataset(BaseProteinDataset):
             if self.gym_data_dir is None
             else self.gym_data_dir,
             use_foldseek_msa=self.use_foldseek_msa,
-            max_completion_length=self.max_completion_length
+            max_completion_length=self.max_completion_length,
+            msa_folder_name=self.msa_folder_name,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)

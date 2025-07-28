@@ -531,7 +531,7 @@ class BaseFamilyLitModule(BaseLitModule):
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
         context_tokens_limit: int = 7_500,
-        subsamples_per_n: int = 5,
+        subsamples_per_n: int = 10,
         gym_results_save_dir = "proteingym_variants"
     ):
         super().__init__(
@@ -968,7 +968,7 @@ class BaseFamilyLitModule(BaseLitModule):
 
         variants = []
         rng = random.Random()
-        n_forward_search = min(30, max_n_under_limit//2)
+        n_forward_search = min(40, max_n_under_limit)
         n_log_samples = n_forward_search
         while True:
             n_vals = [int(s) for s in np.logspace(0, np.log10(max_n_under_limit), n_log_samples)] + [max_n_under_limit + 1]
@@ -1376,7 +1376,7 @@ class BaseFamilyLitModule(BaseLitModule):
 
             # Search for the smallest *n* whose sampled variants exceed the LL threshold
             n_opt = max_n_under_limit  # default fall-back in case threshold is never crossed
-            n_forward_search = min(10, max_n_under_limit)
+            n_forward_search = min(40, max_n_under_limit)
             n_log_samples = n_forward_search
             while True:
                 n_vals = [int(s) for s in np.logspace(0, np.log10(max_n_under_limit), n_log_samples)] + [max_n_under_limit + 1]
