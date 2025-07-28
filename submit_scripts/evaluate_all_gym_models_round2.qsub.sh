@@ -57,7 +57,7 @@ data.dataset_builders.proteingym.max_tokens_per_example=500000 \
 data.dataset_builders.proteingym.dms_ids=null \
 data.dataset_builders.proteingym.max_mutated_sequences=3000 \
 +data.dataset_builders.proteingym.max_completion_length=null \
-+model.gym_results_save_dir="${DIR} \
++model.gym_results_save_dir="${DIR}" \
 ckpt_path="${DIR}/checkpoints/last.ckpt"
 
 date

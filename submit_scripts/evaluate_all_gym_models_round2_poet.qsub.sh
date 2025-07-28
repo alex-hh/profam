@@ -59,7 +59,7 @@ data.dataset_builders.proteingym.max_mutated_sequences=3000 \
 +data.dataset_builders.proteingym.max_completion_length=null \
 +data.dataset_builders.proteingym.msa_folder_name="PoET_DMS_msa_files/DMS_substitutions" \
 +data.dataset_builders.proteingym.use_filtered_msa=false \
-+model.gym_results_save_dir="${DIR} \
++model.gym_results_save_dir="${DIR}" \
 ckpt_path="${DIR}/checkpoints/last.ckpt"
 
 date
