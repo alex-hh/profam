@@ -6,6 +6,7 @@
 #$ -l h_vmem=127.9G
 #$ -l gpu=true
 #$ -l gpu_type=(rtx3090|rtx4090|a6000|a40|a100|a100_80)
+#$ -l hostname=!(bubba*)
 #$ -l h_rt=72:55:30
 #$ -S /bin/bash
 #$ -N GYM2_POET
