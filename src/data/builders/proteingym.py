@@ -230,6 +230,10 @@ def build_gym_df(
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)
         )
+    elif "PoET" in msa_folder_name:
+        df["MSA_filename"] = df["DMS_id"].apply(
+            lambda x: os.path.join(gym_data_dir, msa_folder_name, x + ".a3m")
+        )
     else:
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, msa_folder_name, x)

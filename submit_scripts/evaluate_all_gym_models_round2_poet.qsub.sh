@@ -6,6 +6,7 @@
 #$ -l h_vmem=127.9G
 #$ -l gpu=true
 #$ -l gpu_type=(rtx3090|rtx4090|a6000|a40|a100|a100_80)
+#$ -l hostname=!(bubba*)
 #$ -l h_rt=72:55:30
 #$ -S /bin/bash
 #$ -N GYM2_POET
@@ -56,9 +57,9 @@ test=true \
 data.dataset_builders.proteingym.max_tokens_per_example=500000 \
 data.dataset_builders.proteingym.dms_ids=null \
 data.dataset_builders.proteingym.max_mutated_sequences=3000 \
-+data.dataset_builders.proteingym.max_completion_length=null \
++data.dataset_builders.proteingym.max_completion_length=1024 \
 +data.dataset_builders.proteingym.msa_folder_name="PoET_DMS_msa_files/DMS_substitutions" \
-+data.dataset_builders.proteingym.use_filtered_msa=false \
+data.dataset_builders.proteingym.use_filtered_msa=false \
 +model.gym_results_save_dir="${DIR}" \
 ckpt_path="${DIR}/checkpoints/last.ckpt"
 
