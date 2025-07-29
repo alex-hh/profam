@@ -93,7 +93,7 @@ class BaseLitModule(LightningModule):
         self.ignore_index = ignore_index
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.gym_results_save_dir = gym_results_save_dir
-        assert os.path.exists(gym_results_save_dir)
+        os.makedirs(gym_results_save_dir, exist_ok=True)
         print("proteinGym results saved in", self.gym_results_save_dir)
 
 
