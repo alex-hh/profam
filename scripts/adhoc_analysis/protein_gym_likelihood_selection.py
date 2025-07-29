@@ -59,7 +59,6 @@ def threshold_lls(lls, lls_mean, threshold, top_k):
     return selected
 
 
-
 if __name__ == "__main__":
     npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620/*.npz")
     print(f"Found {len(npz_files)} npz files")
@@ -72,7 +71,6 @@ if __name__ == "__main__":
         df = pd.read_csv(csv_path)
         dms_id = df["DMS_id"].iloc[0]
         completed_dms_ids.append(dms_id)
-        continue
         dms_scores_path = f"../data/ProteinGym/DMS_ProteinGym_substitutions/{dms_id}.csv"
         dms_scores = load_dms_scores(dms_scores_path).DMS_score.values
         data = np.load(npz_file)
@@ -96,32 +94,10 @@ if __name__ == "__main__":
                 results_rows.append(new_row)
         results_df = pd.DataFrame(results_rows)
         results_df.to_csv("protein_gym_likelihood_selection_results.csv", index=False)
-    others = others[others["DMS ID"].isin(completed_dms_ids)]
-    all_scores = []
-    new_csv_rows = []
-
-    for model in others.columns[1:-5]:
-        all_scores.append(others[model].mean())
-        new_csv_rows.append({
-            "model": model,
-            "spearman_corr": others[model].mean(),
-        })
-    new_csv_df = pd.DataFrame(new_csv_rows)
-    new_csv_df = new_csv_df.sort_values(by="spearman_corr", ascending=False)
-    new_csv_df.to_csv("protein_gym_likelihood_selection_results_others.csv", index=False)
-    plt.hist(all_scores, bins=20)
-    plt.xlabel("Spearman Correlation")
-    plt.ylabel("Frequency")
-    plt.title("Distribution of Spearman Correlations for Other Models")
-    # add vertical line at 0.46
-    plt.axvline(x=0.46, color="red", linestyle="--")
-    plt.savefig("protein_gym_likelihood_selection_results_others_hist.png")
-    bp=1
+    
     grouped_results_df = results_df[["strategy", "spearman_corr"]].groupby( "strategy").mean().reset_index()
     # sort by spearman_corr
     grouped_results_df = grouped_results_df.sort_values(by="spearman_corr", ascending=False)
     for i, row in grouped_results_df.iterrows():
         print(row.strategy, round(row.spearman_corr, 3))
 
-
-    # Load the first npz file to get the keys

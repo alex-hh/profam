@@ -10,6 +10,8 @@ csv_dir = "logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/
 
 csv_files = glob.glob(os.path.join(csv_dir, "*.csv"))
 # randomly sample 50 csv files
+
+np.random.seed(42)
 csv_files = np.random.choice(csv_files, size=50, replace=False)
 # Generate a distinct color for each CSV using a continuous colormap
 colors = plt.cm.rainbow(np.linspace(0, 1, len(csv_files)))
@@ -18,6 +20,11 @@ colors = plt.cm.rainbow(np.linspace(0, 1, len(csv_files)))
 all_likelihood_vals = []  # list of np.ndarray
 all_spearman_norm_vals = []  # list of np.ndarray
 all_n_prompt_vals = []  # list of np.ndarray
+all_spearman_vals = []  # list of np.ndarray (raw, un-normalised)
+# NEW METRIC CONTAINERS
+all_likelihood_range_vals = []  # range (max-min) per sequence
+all_likelihood_var_vals = []    # variance per sequence
+all_likelihood_qcount_vals = [] # unique quantised (2dp) likelihood count per sequence
 
 
 highest_likelihood_vals = []
@@ -26,8 +33,11 @@ mean_vals = []
 upper_quartile_vals = []
 upper_quartile_exclude_lt1_vals = []
 highest_with_exclusion_vals = []
-exclusion_threshold = -1.0
+exclusion_threshold = -1.2
 for i, csv_file in enumerate(csv_files):
+    npz_file = csv_file.replace(".csv", "_lls.npz")
+    data = np.load(npz_file)
+    lls = data["lls"]
     df = pd.read_csv(csv_file)
     df = df.sort_values(by='n_prompt_seqs', ascending=True)
     last_value_vals.append(df.iloc[-1]['spearman'])
@@ -35,6 +45,27 @@ for i, csv_file in enumerate(csv_files):
     likelihood_vals = df['mean_log_likelihood'].values
     spearman_vals = df['spearman'].values
     n_prompt_vals = df['n_prompt_seqs'].values
+
+
+    # ---------------------------------------------------------------------
+    # NEW METRICS (computed row-wise over the lls array)
+    # ---------------------------------------------------------------------
+
+    # 1) Full range of log-likelihoods for each sequence (max – min)
+    likelihood_ranges = lls.max(axis=1) - lls.min(axis=1)
+
+    # 2) Variance of log-likelihoods for each sequence
+    likelihood_variances = lls.var(axis=1)
+
+    # 3) Count of unique quantised (2dp) likelihoods per sequence
+    quantised_lls = np.round(lls, 4)
+    likelihood_qcounts = np.apply_along_axis(lambda x: len(np.unique(x)), 1, quantised_lls)
+
+    # Re-order metrics to stay aligned with current df ordering (df index
+    # corresponds to the original row number prior to sorting)
+    likelihood_ranges = likelihood_ranges[df.index]
+    likelihood_variances = likelihood_variances[df.index]
+    likelihood_qcounts = likelihood_qcounts[df.index]
 
     # Normalise spearman values to the range [0, 1] for this CSV
     spearman_min, spearman_max = spearman_vals.min(), spearman_vals.max()
@@ -51,7 +82,16 @@ for i, csv_file in enumerate(csv_files):
     all_likelihood_vals.append(likelihood_vals)
     all_spearman_norm_vals.append(spearman_norm)
     all_n_prompt_vals.append(n_prompt_vals)
-    
+    # Store the raw spearman values (aligned with likelihood_vals)
+    all_spearman_vals.append(spearman_vals)
+
+    # ------------------------------------------------------------------
+    # Collect new metric arrays for later visualisation
+    # ------------------------------------------------------------------
+
+    all_likelihood_range_vals.append(likelihood_ranges)
+    all_likelihood_var_vals.append(likelihood_variances)
+    all_likelihood_qcount_vals.append(likelihood_qcounts)
 
     highest_likelihood_vals.append(spearman_vals[-1])
     mean_vals.append(np.mean(spearman_vals))
@@ -187,6 +227,8 @@ for i in range(n_rows * n_cols):
     ax = axes_flat[i]
     # Scatter points in purple
     ax.scatter(x, y, color="purple", alpha=0.3, s=10)
+    # Subtitle = basename of the CSV
+    ax.set_title(os.path.basename(csv_files[i]), fontsize=7)
 
     # Fit a spline with at most 2 internal knots to reduce wiggling
     try:
@@ -266,6 +308,8 @@ for i in range(n_rows * n_cols):
 
     ax_np = axes_np_flat[i]
     ax_np.scatter(x_np, y_np, color="purple", alpha=0.3, s=10)
+    # Subtitle = basename of the CSV
+    ax_np.set_title(os.path.basename(csv_files[i]), fontsize=7)
 
     # Fit spline with ≤2 internal knots
     try:
@@ -418,6 +462,8 @@ for i in range(n_rows * n_cols):
 
     ax_ll = axes_ll_vs_np_flat[i]
     ax_ll.scatter(x_np, y_ll, color="purple", alpha=0.3, s=10)
+    # Subtitle = basename of the CSV
+    ax_ll.set_title(os.path.basename(csv_files[i]), fontsize=7)
 
     # Fit spline with ≤2 internal knots
     try:
@@ -448,6 +494,202 @@ fig_ll_vs_np.tight_layout()
 subplot_path_ll_vs_np = f"{csv_dir}/likelihood_vs_n_prompt_subplots.png"
 fig_ll_vs_np.savefig(subplot_path_ll_vs_np)
 plt.show()
+
+# -----------------------------------------------------------------------------
+# NEW: Subplots with RAW spearman, shared likelihood x-axis
+# -----------------------------------------------------------------------------
+
+n_rows_raw = n_rows
+n_cols_raw = n_cols
+
+fig_raw_shared, axes_raw_shared = plt.subplots(
+    n_rows_raw,
+    n_cols_raw,
+    figsize=(4 * n_cols_raw, 3 * n_rows_raw),
+    sharex=True,
+    squeeze=False,
+)
+
+axes_raw_shared_flat = axes_raw_shared.flatten()
+
+# Re-use global x-limits calculated earlier (global_x_min / global_x_max)
+
+for i in range(n_rows_raw * n_cols_raw):
+    if i >= len(csv_files):
+        axes_raw_shared_flat[i].axis("off")
+        continue
+
+    x_rs = all_likelihood_vals[i]
+    y_rs = all_spearman_vals[i]
+
+    ax_rs = axes_raw_shared_flat[i]
+    ax_rs.scatter(x_rs, y_rs, color="purple", alpha=0.3, s=10)
+
+    # Fit spline (same logic as before)
+    try:
+        sort_idx_rs = np.argsort(x_rs)
+        xs_rs, ys_rs = x_rs[sort_idx_rs], y_rs[sort_idx_rs]
+
+        unique_x_rs = np.unique(xs_rs)
+        internal_knots_rs = []
+        if len(unique_x_rs) > 12:
+            internal_knots_rs = np.quantile(unique_x_rs, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
+        elif len(unique_x_rs) > 6:
+            internal_knots_rs = [np.median(unique_x_rs)]
+
+        if len(internal_knots_rs) > 0:
+            spline_rs = LSQUnivariateSpline(xs_rs, ys_rs, t=internal_knots_rs, k=2)
+        else:
+            spline_rs = UnivariateSpline(xs_rs, ys_rs, k=3, s=0)
+
+        xs_rs_smooth = np.linspace(xs_rs.min(), xs_rs.max(), 200)
+        ys_rs_smooth = spline_rs(xs_rs_smooth)
+        ax_rs.plot(xs_rs_smooth, ys_rs_smooth, color="blue")
+
+        # Horizontal line at spline maximum
+        y_max_rs = ys_rs_smooth.max()
+        x_max_rs = xs_rs_smooth[np.argmax(ys_rs_smooth)]
+        ax_rs.axhline(y_max_rs, linestyle="--", color="grey", alpha=0.5)
+        # Vertical dashed line at exclusion_threshold
+        # ax_rs.axvline(exclusion_threshold, linestyle="--", color="grey", alpha=0.5)
+        ax_rs.axvline(x_max_rs, linestyle="--", color="grey", alpha=0.5)
+    except Exception as e:
+        print(f"Spline (raw shared) failed for CSV index {i}: {e}")
+
+    ax_rs.tick_params(axis='both', which='major', labelsize=6)
+    ax_rs.set_title(os.path.basename(csv_files[i]), fontsize=7)
+
+# Apply global x-limits
+for ax_rs in axes_raw_shared_flat[: len(csv_files)]:
+    ax_rs.set_xlim(global_x_min, global_x_max)
+
+fig_raw_shared.tight_layout()
+subplot_path_raw_shared = f"{csv_dir}/spearman_vs_likelihood_raw_subplots_shared.png"
+fig_raw_shared.savefig(subplot_path_raw_shared)
+plt.show()
+
+# -----------------------------------------------------------------------------
+# NEW: Subplots with RAW spearman, individual likelihood x-axis (non-shared)
+# -----------------------------------------------------------------------------
+
+fig_raw, axes_raw = plt.subplots(
+    n_rows_raw,
+    n_cols_raw,
+    figsize=(4 * n_cols_raw, 3 * n_rows_raw),
+    sharex=False,
+    squeeze=False,
+)
+
+axes_raw_flat = axes_raw.flatten()
+
+for i in range(n_rows_raw * n_cols_raw):
+    if i >= len(csv_files):
+        axes_raw_flat[i].axis("off")
+        continue
+
+    x_r = all_likelihood_vals[i]
+    y_r = all_spearman_vals[i]
+
+    ax_r = axes_raw_flat[i]
+    ax_r.scatter(x_r, y_r, color="purple", alpha=0.3, s=10)
+
+    # Fit spline (same logic as before)
+    try:
+        sort_idx_r = np.argsort(x_r)
+        xs_r, ys_r = x_r[sort_idx_r], y_r[sort_idx_r]
+
+        unique_x_r = np.unique(xs_r)
+        internal_knots_r = []
+        if len(unique_x_r) > 12:
+            internal_knots_r = np.quantile(unique_x_r, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
+        elif len(unique_x_r) > 6:
+            internal_knots_r = [np.median(unique_x_r)]
+
+        if len(internal_knots_r) > 0:
+            spline_r = LSQUnivariateSpline(xs_r, ys_r, t=internal_knots_r, k=2)
+        else:
+            spline_r = UnivariateSpline(xs_r, ys_r, k=3, s=0)
+
+        xs_r_smooth = np.linspace(xs_r.min(), xs_r.max(), 200)
+        ys_r_smooth = spline_r(xs_r_smooth)
+        ax_r.plot(xs_r_smooth, ys_r_smooth, color="blue")
+
+        y_max_r = ys_r_smooth.max()
+        x_max_r = xs_r_smooth[np.argmax(ys_r_smooth)]
+        ax_r.axhline(y_max_r, linestyle="--", color="grey", alpha=0.5)
+        ax_r.axvline(x_max_r, linestyle="--", color="grey", alpha=0.5)
+    except Exception as e:
+        print(f"Spline (raw) failed for CSV index {i}: {e}")
+
+    ax_r.tick_params(axis='both', which='major', labelsize=6)
+    ax_r.set_title(os.path.basename(csv_files[i]), fontsize=7)
+
+fig_raw.tight_layout()
+subplot_path_raw = f"{csv_dir}/spearman_vs_likelihood_raw_subplots.png"
+fig_raw.savefig(subplot_path_raw)
+plt.show()
+
+# -----------------------------------------------------------------------------
+# NEW: Subplots for additional likelihood metrics vs RAW spearman
+# -----------------------------------------------------------------------------
+
+metric_configs = [
+    (all_likelihood_range_vals, "Likelihood range (max − min)", "likelihood_range_vs_spearman"),
+    (all_likelihood_var_vals, "Variance of likelihoods", "likelihood_variance_vs_spearman"),
+    (all_likelihood_qcount_vals, "Quantised likelihood count (2 dp)", "likelihood_qcount_vs_spearman"),
+]
+
+for metric_list, x_label, fname_stub in metric_configs:
+    fig_m, axes_m = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(4 * n_cols, 3 * n_rows),
+        sharex=False,
+        squeeze=False,
+    )
+    axes_m_flat = axes_m.flatten()
+
+    for i in range(n_rows * n_cols):
+        if i >= len(csv_files):
+            axes_m_flat[i].axis("off")
+            continue
+
+        x_m = metric_list[i]
+        y_m = all_spearman_vals[i]  # RAW spearman values
+
+        ax_m = axes_m_flat[i]
+        ax_m.scatter(x_m, y_m, color="purple", alpha=0.3, s=10)
+
+        # Fit smoothing spline (≤2 internal knots)
+        try:
+            sort_idx_m = np.argsort(x_m)
+            xs_m, ys_m = x_m[sort_idx_m], y_m[sort_idx_m]
+
+            unique_x_m = np.unique(xs_m)
+            int_knots_m = []
+            if len(unique_x_m) > 12:
+                int_knots_m = np.quantile(unique_x_m, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
+            elif len(unique_x_m) > 6:
+                int_knots_m = [np.median(unique_x_m)]
+
+            if len(int_knots_m) > 0:
+                spline_m = LSQUnivariateSpline(xs_m, ys_m, t=int_knots_m, k=2)
+            else:
+                spline_m = UnivariateSpline(xs_m, ys_m, k=3, s=0)
+
+            xs_smooth_m = np.linspace(xs_m.min(), xs_m.max(), 200)
+            ys_smooth_m = spline_m(xs_smooth_m)
+            ax_m.plot(xs_smooth_m, ys_smooth_m, color="blue")
+        except Exception as e:
+            print(f"Spline ({fname_stub}) failed for CSV index {i}: {e}")
+
+        ax_m.tick_params(axis='both', which='major', labelsize=6)
+        ax_m.set_title(os.path.basename(csv_files[i]), fontsize=7)
+
+    fig_m.tight_layout()
+    subplot_path_metric = f"{csv_dir}/{fname_stub}_subplots.png"
+    fig_m.savefig(subplot_path_metric)
+    plt.show()
 
 
 
