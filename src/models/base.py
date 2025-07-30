@@ -531,7 +531,7 @@ class BaseFamilyLitModule(BaseLitModule):
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
         context_tokens_limit: int = 7_500,
-        subsamples_per_n: int = 200,
+        gym_subsamples_per_n: int = 200,
         gym_results_save_dir = "proteingym_variants"
     ):
         super().__init__(
@@ -555,7 +555,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.embed_sequence_index = self.model.embed_sequence_index
         # NEW FOR EVALUATING PROTEIN GYM OFFLINE ONLY-------------------------
         self.context_tokens_limit = context_tokens_limit
-        self.subsamples_per_n = subsamples_per_n
+        self.gym_subsamples_per_n = gym_subsamples_per_n
         # ---------------------------------------------------------------------
 
     def get_forward_kwargs(self, batch):
@@ -942,7 +942,7 @@ class BaseFamilyLitModule(BaseLitModule):
         """Create context-truncated variants (random non-contiguous sampling).
 
         For each *n* up to the maximum number of sequences that can fit under the
-        `context_tokens_limit`, generate `subsamples_per_n` variants by *randomly*
+        `context_tokens_limit`, generate `gym_subsamples_per_n` variants by *randomly*
         selecting *n* unique sequences **without replacement**.  Sequence order
         within the prompt is shuffled (randomised).  We attempt several random
         draws until a set whose combined token count fits under the limit is
@@ -981,7 +981,7 @@ class BaseFamilyLitModule(BaseLitModule):
             n_log_samples += 1
         n_vals.sort()
         for n in n_vals:
-            for rep in range(self.subsamples_per_n):
+            for rep in range(self.gym_subsamples_per_n):
                 # Random permutation of all sequence indices
                 perm = list(range(total_seqs))
                 rng.shuffle(perm)
@@ -1226,7 +1226,7 @@ class BaseFamilyLitModule(BaseLitModule):
         1.  Binary-search over *contiguous* prefixes of the prompt to find an
             `n_opt` (number of context sequences) that lands inside the band.
             If the monotonicity assumption breaks we fall back to a random `n`.
-        2.  Draw `self.subsamples_per_n` random variants that each contain
+        2.  Draw `self.gym_subsamples_per_n` random variants that each contain
             exactly `n_opt` sequences (shuffled order, no replacement) without
             exceeding `self.context_tokens_limit`.
         3.  Evaluate *all* completion sequences for every variant, saving both
@@ -1391,7 +1391,7 @@ class BaseFamilyLitModule(BaseLitModule):
         csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}_v3.csv")
         token_count_attempts = 100
         fail_count = 0
-        for rep in range(self.subsamples_per_n):
+        for rep in range(self.gym_subsamples_per_n):
             while n_opt >= 1:
                 idxs = rng.sample(range(total_seqs), n_opt)
                 rng.shuffle(idxs)
@@ -1424,7 +1424,7 @@ class BaseFamilyLitModule(BaseLitModule):
                         if mean_ll > optimal_likelihood:
                             n_opt = max(1, n_opt -1)
                         else:
-                            n_opt += 1
+                            n_opt = min(n_opt + 1, total_seqs)
                     fail_count = 0
                     break
                 else:
@@ -1479,7 +1479,7 @@ class BaseFamilyLitModule(BaseLitModule):
             current prompt exceeds ``-2``.
 
         Once the optimal number of context sequences ``n_opt`` is determined we
-        construct ``self.subsamples_per_n`` **random** context prompts each
+        construct ``self.gym_subsamples_per_n`` **random** context prompts each
         containing exactly ``n_opt`` sequences (sampling without replacement
         and shuffling sequence order).  For every variant we evaluate the
         log-likelihood of *every* completion sequence and *persist all of these
@@ -1591,10 +1591,10 @@ class BaseFamilyLitModule(BaseLitModule):
             rng = random.Random()
 
             def _generate_variants_with_n(n: int):
-                """Sample `subsamples_per_n` random variants, each containing *n* context sequences."""
+                """Sample `gym_subsamples_per_n` random variants, each containing *n* context sequences."""
                 variants_local = []
                 attempts_per_rep = 100
-                for rep in range(self.subsamples_per_n):
+                for rep in range(self.gym_subsamples_per_n):
                     for attempt in range(attempts_per_rep):
                         idxs = rng.sample(range(total_seqs), n)
                         rng.shuffle(idxs)  # randomise order within the prompt
@@ -1685,7 +1685,7 @@ class BaseFamilyLitModule(BaseLitModule):
             variants: list[tuple[Dict[str, torch.Tensor], Dict[str, Any]]] = []
             attempts_per_rep = 100  # retry budget per replicate to satisfy token limit
 
-            for rep in range(self.subsamples_per_n):
+            for rep in range(self.gym_subsamples_per_n):
                 for attempt in range(attempts_per_rep):
                     ix_sample = rng.sample(range(total_seqs), n_opt)
                     rng.shuffle(ix_sample)  # randomise order
