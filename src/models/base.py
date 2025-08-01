@@ -439,6 +439,7 @@ class BaseLitModule(LightningModule):
             "train/grad_norm",
             calc_grad_norm(self.model.parameters()),
             on_step=True,
+
             prog_bar=True,
         )
         self.log("train/lr", optimizer.param_groups[0]["lr"])
@@ -1382,7 +1383,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 raise ValueError("Should not happen")
         # ------------------------------------------------------------------ #
         # Generate random variants                                           #
-
+        spearman_list = []
         variants = []
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
         rows, variant_lls = [], []
@@ -1416,6 +1417,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     )
                     mean_ll = float(lls.mean())
                     variant_lls.append(lls)
+                    spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
                     rows.append({**meta, "mean_log_likelihood": mean_ll, "spearman": float(self._compute_spearman(lls, dms_scores_np)), "DMS_id": batch["DMS_id"].text[0]})
                     # update n_opt
                     if random_strategy:
@@ -1457,7 +1459,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 )
             except Exception as e:
                 warnings.warn(f"Could not save likelihoods to {lls_save_path}: {e}")
-
+        mean_spearman = np.mean(spearman_list)
+        self.log("gym/mean_spearman_v3", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log("gym/ensemble_spearman_v3", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log("gym/ensemble_log_ll_v3", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         return ensemble_log_ll, ensemble_spearman
