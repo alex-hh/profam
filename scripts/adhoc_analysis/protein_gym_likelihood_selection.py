@@ -60,7 +60,8 @@ def threshold_lls(lls, lls_mean, threshold, top_k):
 
 
 if __name__ == "__main__":
-    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620/*.npz")
+    # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620/*.npz")
+    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250730_183304_100_reps/*.npz")
     print(f"Found {len(npz_files)} npz files")
     results_rows = []
     others = pd.read_csv("/Users/judewells/Documents/dataScienceProgramming/ProteinGym/benchmarks/DMS_zero_shot/substitutions/Spearman/DMS_substitutions_Spearman_DMS_level.csv")
