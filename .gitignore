@@ -53,3 +53,4 @@ out/
 .zshrc
 .zcompdump
 .viminfo
+evo_finetune_gym/

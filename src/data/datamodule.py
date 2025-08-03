@@ -337,15 +337,17 @@ class ProteinDataMixture(LightningDataModule):
         dataset = self.train_dataset
         world_size = self.trainer.world_size
         rank = self.trainer.global_rank
-
-        batch_sampler = MaxTokensDynamicBatchSampler(
-            dataset=dataset,
-            size_fn=lambda x: len(x["input_ids"]) if "input_ids" in x else 0,
-            world_size=world_size,
-            rank=rank,
-            max_tokens=self.pack_to_max_tokens if self.pack_to_max_tokens else None,
-            batch_size=self.batch_size if not self.pack_to_max_tokens else None,
-        )
+        if not isinstance(dataset, IterableDataset):
+            batch_sampler = MaxTokensDynamicBatchSampler(
+                dataset=dataset,
+                size_fn=lambda x: len(x["input_ids"]) if "input_ids" in x else 0,
+                world_size=world_size,
+                rank=rank,
+                max_tokens=self.pack_to_max_tokens if self.pack_to_max_tokens else None,
+                batch_size=self.batch_size if not self.pack_to_max_tokens else None,
+            )
+        else:
+            batch_sampler = None
 
         return DataLoader(
             dataset,
