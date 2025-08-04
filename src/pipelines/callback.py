@@ -105,3 +105,8 @@ class SamplingEvaluationPipelineCallback(Callback):
                     trainer, evaluator_results, non_numeric_cols
                 )
         model.log_dict(all_metrics, on_epoch=True, rank_zero_only=True, sync_dist=True)
+    
+    @rank_zero_only
+    def on_test_start(self, trainer, model):
+        self.on_validation_epoch_end(trainer, model)
+        

@@ -1794,11 +1794,23 @@ class BaseFamilyLitModule(BaseLitModule):
                 assay_df = pd.DataFrame(assay_rows)
                 assay_df.to_csv(assay_csv_path, index=False)
 
-            # ------------------------------------------------------------------
             # Aggregate metrics across variants
-            # ------------------------------------------------------------------
             lls_array = np.stack(variant_lls, axis=0)  # (n_variants, n_completion_seqs)
             mean_lls = lls_array.mean(axis=0)
+            mean_per_forward_pass = lls_array.mean(axis=1)
+            sorted_indices = np.argsort(-mean_per_forward_pass)
+            for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]:
+                top_k = min(1, int(top_pct * len(sorted_indices)))
+                top_k_mean_ll = lls_array[sorted_indices[:top_k]].mean(axis=0)
+                top_k_spearman = self._compute_spearman(top_k_mean_ll, dms_scores_np)
+                self.log(
+                    f"gym/top_{top_pct}_spearman",
+                    top_k_spearman,
+                    on_step=True,
+                    on_epoch=True,
+                    prog_bar=False,
+                    sync_dist=True,
+                )
             ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
             ensemble_log_ll = float(mean_lls.mean())
             self.log(
