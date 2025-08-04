@@ -532,7 +532,7 @@ class BaseFamilyLitModule(BaseLitModule):
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
         context_tokens_limit: int = 7_500,
-        gym_subsamples_per_n: int = 200,
+        gym_subsamples_per_n: int = 100,
         gym_results_save_dir = "proteingym_variants"
     ):
         super().__init__(
@@ -1213,7 +1213,7 @@ class BaseFamilyLitModule(BaseLitModule):
         batch: Dict[str, torch.Tensor],
         start_tokens: list[int] = [47, 63],
         min_target_likelihood: float = -2.5,
-        max_target_likelihood: float = -1.0,
+        max_target_likelihood: float = -0.9,
         starting_target_n: int = 25,
     ):
         """
@@ -1287,7 +1287,7 @@ class BaseFamilyLitModule(BaseLitModule):
             return new_batch
 
         avg_seq_len = sum(seq_lengths) / len(seq_lengths)
-        max_n_by_tokens = max(1, min(int(self.context_tokens_limit // avg_seq_len), total_seqs))
+        max_n_by_tokens = max(1, min(int(self.context_tokens_limit // avg_seq_len) + 2, total_seqs))
 
         # ------------------------------------------------------------------ #
         # Quick evaluator for contiguous prefixes                            #
@@ -1317,7 +1317,7 @@ class BaseFamilyLitModule(BaseLitModule):
         # ------------------------------------------------------------------ #
         # Forward logspace search                                            #
         # ------------------------------------------------------------------ #
-        n_forward_search = min(10, max_n_by_tokens)
+        n_forward_search = min(30, max_n_by_tokens)
         n_log_samples = n_forward_search
         while True:
             n_vals = [int(s) for s in np.logspace(0, np.log10(max_n_by_tokens), n_log_samples)]
@@ -1421,12 +1421,23 @@ class BaseFamilyLitModule(BaseLitModule):
                     rows.append({**meta, "mean_log_likelihood": mean_ll, "spearman": float(self._compute_spearman(lls, dms_scores_np)), "DMS_id": batch["DMS_id"].text[0]})
                     # update n_opt
                     if random_strategy:
-                        n_opt = random.randint(1, max_n_by_tokens + 1)
-                    else:
-                        if mean_ll > optimal_likelihood:
-                            n_opt = max(1, n_opt -1)
+                        if len(vals_in_range) > 1:
+                            min_n_in_range = min(vals_in_range, key=lambda x: x[0])[0]
+                            max_n_in_range = max(vals_in_range, key=lambda x: x[0])[0]
+                            n_opt = random.choice(range(min_n_in_range, max_n_in_range + 1))
                         else:
-                            n_opt = min(n_opt + 1, total_seqs)
+                            n_opt = random.randint(1, max_n_by_tokens + 1)
+                    else:
+                        p_random_in_range = 0.1
+                        if len(vals_in_range) > 1 and random.random() < p_random_in_range:
+                            min_n_in_range = min(vals_in_range, key=lambda x: x[0])[0]
+                            max_n_in_range = max(vals_in_range, key=lambda x: x[0])[0]
+                            n_opt = random.choice(range(min_n_in_range, max_n_in_range + 1))
+                        else:
+                            if mean_ll > optimal_likelihood:
+                                n_opt = max(1, n_opt -1)
+                            else:
+                                n_opt = min(n_opt + 1, total_seqs)
                     fail_count = 0
                     break
                 else:
@@ -1435,16 +1446,24 @@ class BaseFamilyLitModule(BaseLitModule):
                         n_opt -= 1
                         fail_count = 0
 
-        # ------------------------------------------------------------------ #
-        # Evaluate variants and save                                         #
-        # ------------------------------------------------------------------ #
-
-
-        if getattr(self, "global_rank", 0) == 0:
-            import pandas as pd
-            pd.DataFrame(rows).to_csv(csv_path, index=False)
-
         lls_array = np.stack(variant_lls, axis=0)
+        if getattr(self, "global_rank", 0) == 0:
+            mean_per_forward_pass = lls_array.mean(axis=1)
+            sorted_indices = np.argsort(-mean_per_forward_pass)
+            for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]:
+                top_k = max(1, int(top_pct * len(sorted_indices)))
+                top_k_mean_ll = lls_array[sorted_indices[:top_k]].mean(axis=0)
+                top_k_spearman = self._compute_spearman(top_k_mean_ll, dms_scores_np)
+                self.log(
+                    f"gym/top_{top_pct}_spearman",
+                    top_k_spearman,
+                    on_step=True,
+                    on_epoch=True,
+                    prog_bar=False,
+                    sync_dist=True,
+                    batch_size=1,
+                )
+        
         mean_lls = lls_array.mean(axis=0)
         ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
         ensemble_log_ll = float(mean_lls.mean())
@@ -1460,447 +1479,13 @@ class BaseFamilyLitModule(BaseLitModule):
             except Exception as e:
                 warnings.warn(f"Could not save likelihoods to {lls_save_path}: {e}")
         mean_spearman = np.mean(spearman_list)
+        
         self.log("gym/mean_spearman_v3", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log("gym/ensemble_spearman_v3", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log("gym/ensemble_log_ll_v3", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         return ensemble_log_ll, ensemble_spearman
 
-    def _evaluate_and_save_proteingym_variants_optimised(
-        self,
-        batch: Dict[str, torch.Tensor],
-        start_tokens: list[int] = [47, 63]
-    ):
-        """Optimised variant evaluation following an adaptive context-building strategy.
 
-        We begin with *one* context sequence and iteratively append additional
-        sequences **in their original order** until either of the following
-        stopping criteria is triggered:
-
-        1.  Adding the next sequence would cause the total number of context
-            tokens to exceed ``self.context_tokens_limit``.
-        2.  The *mean* log-likelihood over the completion sequences for the
-            current prompt exceeds ``-2``.
-
-        Once the optimal number of context sequences ``n_opt`` is determined we
-        construct ``self.gym_subsamples_per_n`` **random** context prompts each
-        containing exactly ``n_opt`` sequences (sampling without replacement
-        and shuffling sequence order).  For every variant we evaluate the
-        log-likelihood of *every* completion sequence and *persist all of these
-        individual values* to a per-batch CSV so that downstream analyses can
-        explore how different ensemble sizes affect correlation metrics.
-        The function returns the ensemble mean log-likelihood and Spearman
-        correlation (simple average across variants), keeping the interface
-        consistent with the original helper.
-        """
-        # ------------------------------------------------------------------
-        # Short-circuit if we have already processed this batch
-        # ------------------------------------------------------------------
-        if "residue_index" in batch and batch["residue_index"] is not None:
-            raise NotImplementedError("Residue index not implemented for gym sampling")
-        self.variant_csv_dir = os.path.join(
-            self.gym_results_save_dir,
-            self.timestamp
-        )
-        try:
-            csv_path = os.path.join(
-                self.variant_csv_dir,
-                f"batch_{batch['DMS_id'].text[0]}_optimised.csv",
-            )
-            if os.path.exists(csv_path):
-                df = pd.read_csv(csv_path)
-                print(
-                    f"Found existing optimised CSV for batch {batch['DMS_id'].text[0]} – reusing results"
-                )
-                # Reconstruct the (n_variants, n_completion_seqs) array from the
-                # long-form CSV.  This assumes that every variant has exactly the
-                # same number of completion sequences recorded.
-                pivot = (
-                    df.pivot_table(
-                        index="variant_idx",
-                        columns="completion_seq_idx",
-                        values="log_likelihood",
-                        aggfunc="mean",
-                    )
-                    .sort_index(axis=0)
-                    .sort_index(axis=1)
-                )
-                variant_lls_arr = pivot.to_numpy(dtype=np.float32)
-                mean_lls = variant_lls_arr.mean(axis=0)
-                dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
-                ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
-                ensemble_log_ll = float(mean_lls.mean())
-                return ensemble_log_ll, ensemble_spearman
-
-            # ------------------------------------------------------------------
-            # Determine the optimal number of context sequences (n_opt)
-            # ------------------------------------------------------------------
-            sep_tok_id = self.tokenizer.sep_token_id
-            start_tokens = torch.tensor(start_tokens, device=batch['input_ids'].device).unsqueeze(0)
-            if (batch["input_ids"][0, :2] == start_tokens).all():
-                    batch["input_ids"] = batch["input_ids"][:, 2:]
-            if batch["input_ids"][0, -1] != sep_tok_id:
-                batch["input_ids"] = torch.cat([batch["input_ids"], torch.tensor([sep_tok_id], device=batch['input_ids'].device).unsqueeze(0)], dim=-1)
-            input_ids_full = batch["input_ids"]
-            device = input_ids_full.device
-            # Identify sequence boundaries in the prompt
-            seq_ends = (input_ids_full[0] == sep_tok_id).nonzero(as_tuple=True)[0].cpu()
-            total_seqs = len(seq_ends)
-            seq_starts = torch.zeros_like(seq_ends)
-            seq_starts[1:] = seq_ends[:-1] + 1
-            seq_lengths = (seq_ends - seq_starts + 1).tolist()  # python ints
-
-            # Helper for constructing a truncated batch given a list of (possibly non-contiguous) indices
-            def _make_truncated_batch(idx_list: List[int], final_sep=False):
-                new_batch = self._clone_batch(batch)
-
-                if "residue_index" in new_batch and new_batch["residue_index"] is not None:
-                    raise NotImplementedError("Residue index not implemented for start tokens")
-                    new_batch["residue_index"] = new_batch["residue_index"][:, 2:]
-                def _concat_slices(tensor):
-                    parts = [tensor[..., seq_starts[i] : seq_ends[i] + 1] for i in idx_list]
-                    concatenated = torch.cat(parts, dim=-1)
-                    # add start tokens back in
-                    concatenated = torch.cat([start_tokens, concatenated], dim=-1)
-                    if final_sep and concatenated[0, -1] != sep_tok_id:
-                        concatenated = torch.cat([concatenated, torch.tensor([sep_tok_id], device=device).unsqueeze(0)], dim=-1)
-                    if not final_sep and concatenated[0, -1] == sep_tok_id:
-                        concatenated = concatenated[:, :-1]
-                    return concatenated
-                
-                
-                new_batch["input_ids"] = _concat_slices(new_batch["input_ids"]).clone()
-                if (
-                    "residue_index" in new_batch
-                    and new_batch["residue_index"] is not None
-                ):
-                    new_batch["residue_index"] = _concat_slices(new_batch["residue_index"]).clone()
-                return new_batch
-
-            # Pre-compute cumulative token counts for the first k contiguous sequences
-            prefix_token_counts = []
-            running_total = 0
-            for l in seq_lengths:
-                running_total += l
-                prefix_token_counts.append(running_total)
-
-            # Maximum k such that the token budget is not exceeded
-            max_n_under_limit = int(
-                (np.array(prefix_token_counts) <= self.context_tokens_limit).sum()
-            )
-            max_n_under_limit = max(max_n_under_limit, 1)
-
-            # ---------------- NEW STRATEGY: sample-based search for optimal context size ----------------
-            likelihood_threshold = -1.3  # target mean log-likelihood
-            rng = random.Random()
-
-            def _generate_variants_with_n(n: int):
-                """Sample `gym_subsamples_per_n` random variants, each containing *n* context sequences."""
-                variants_local = []
-                attempts_per_rep = 100
-                for rep in range(self.gym_subsamples_per_n):
-                    for attempt in range(attempts_per_rep):
-                        idxs = rng.sample(range(total_seqs), n)
-                        rng.shuffle(idxs)  # randomise order within the prompt
-                        tok_cnt = sum(seq_lengths[i] for i in idxs)
-                        if tok_cnt <= self.context_tokens_limit:
-                            vb = _make_truncated_batch(idxs)
-                            variants_local.append(
-                                (
-                                    vb,
-                                    {
-                                        "variant_type": "random_fixed_n",
-                                        "n_seqs": n,
-                                        "n_tokens": tok_cnt,
-                                        "replicate": rep,
-                                        "seq_indices": idxs,
-                                    },
-                                )
-                            )
-                            break  # success for this replicate
-                    else:
-                        # If no random combination fits the budget, fall back to the first *n* contiguous sequences
-                        vb = _make_truncated_batch(list(range(n)))
-                        tok_cnt = prefix_token_counts[n - 1]
-                        variants_local.append(
-                            (
-                                vb,
-                                {
-                                    "variant_type": "contiguous_fallback",
-                                    "n_seqs": n,
-                                    "n_tokens": tok_cnt,
-                                    "replicate": rep,
-                                    "seq_indices": list(range(n)),
-                                },
-                            )
-                        )
-                return variants_local
-
-            # Search for the smallest *n* whose sampled variants exceed the LL threshold
-            n_opt = max_n_under_limit  # default fall-back in case threshold is never crossed
-            n_forward_search = min(40, max_n_under_limit)
-            n_log_samples = n_forward_search
-            while True:
-                n_vals = [int(s) for s in np.logspace(0, np.log10(max_n_under_limit), n_log_samples)] + [max_n_under_limit + 1]
-                n_vals = list(set(n_vals))
-                if len(n_vals) >= n_forward_search:
-                    break
-                n_log_samples += 1
-            n_vals.sort()
-            best_ll = -float("inf")
-            epsilon_delta = 0.1
-            
-            for n_ix, n in enumerate(n_vals):
-                candidate_variants = _generate_variants_with_n(n)
-                ll_means = []
-                for vb, _meta in candidate_variants[:1]:
-                    vb_device = {
-                        k: v.to(self.device) if torch.is_tensor(v) else v
-                        for k, v in vb.items()
-                    }
-                    n_completions_for_ll_eval = min(100, vb_device["completion_ids"].shape[1])
-                    L = vb_device["completion_ids"].shape[-1]
-                    L_prompt = vb_device["input_ids"].shape[-1]
-                    lls = self.score_seqs(
-                        vb_device["input_ids"],
-                        vb_device["completion_ids"][:,:n_completions_for_ll_eval,:],
-                        input_residue_index=vb_device.get("residue_index", None),
-                        completion_residue_index=vb_device.get("completion_residue_index", None),
-                        use_cache=self.use_kv_cache_for_scoring,
-                        batch_size=max(min((self.scoring_max_tokens) // (L + L_prompt), 50), 1)
-                        if self.use_kv_cache_for_scoring
-                        else 1,
-                    )
-                    ll_means.append(float(lls.mean()))
-
-                if np.mean(ll_means) < best_ll - epsilon_delta:
-                    n_opt = n_vals[n_ix - 1]
-                    break
-                if np.mean(ll_means) > likelihood_threshold:
-                    n_opt = n
-                    break
-                best_ll = max(best_ll, np.mean(ll_means))
-            # ---------------- END of new strategy ----------------
-
-            # ------------------------------------------------------------------
-            # Generate random variants with exactly n_opt sequences
-            # ------------------------------------------------------------------
-            rng = random.Random()
-            variants: list[tuple[Dict[str, torch.Tensor], Dict[str, Any]]] = []
-            attempts_per_rep = 100  # retry budget per replicate to satisfy token limit
-
-            for rep in range(self.gym_subsamples_per_n):
-                for attempt in range(attempts_per_rep):
-                    ix_sample = rng.sample(range(total_seqs), n_opt)
-                    rng.shuffle(ix_sample)  # randomise order
-                    # Compute token count quickly
-                    tok_cnt = sum(seq_lengths[i] for i in ix_sample)
-                    if tok_cnt <= self.context_tokens_limit:
-                        var_batch = _make_truncated_batch(ix_sample)
-                        variants.append(
-                            (
-                                var_batch,
-                                {
-                                    "variant_type": "random_fixed_n",
-                                    "n_seqs": n_opt,
-                                    "n_tokens": tok_cnt,
-                                    "replicate": rep,
-                                    "seq_indices": ix_sample,
-                                },
-                            )
-                        )
-                        break  # success for this replicate
-                    elif attempt > 5:
-                        n_opt -= 1
-                else:
-                    # If no combination within limit found, fallback to the first *n_opt* contiguous sequences
-                    var_batch = _make_truncated_batch(list(range(n_opt)))
-                    tok_cnt = prefix_token_counts[n_opt - 1]
-                    variants.append(
-                        (
-                            var_batch,
-                            {
-                                "variant_type": "contiguous_fallback",
-                                "n_seqs": n_opt,
-                                "n_tokens": tok_cnt,
-                                "replicate": rep,
-                                "seq_indices": list(range(n_opt)),
-                            },
-                        )
-                    )
-
-            # ------------------------------------------------------------------
-            # Evaluate variants & write individual LLs to CSV
-            # ------------------------------------------------------------------
-            dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
-            rows = []
-            assay_rows = []
-            variant_lls = []
-
-            for vidx, (var_batch, meta) in enumerate(variants):
-                # Move tensors to device (again – small overhead)
-                var_batch_device: Dict[str, Any] = {}
-                for k, v in var_batch.items():
-                    var_batch_device[k] = v.to(self.device) if torch.is_tensor(v) else v
-
-                L = var_batch_device["completion_ids"].shape[-1]
-                L_prompt = var_batch_device["input_ids"].shape[-1]
-                lls = self.score_seqs(
-                    var_batch_device["input_ids"],
-                    var_batch_device["completion_ids"],
-                    input_residue_index=var_batch_device.get("residue_index", None),
-                    completion_residue_index=var_batch_device.get(
-                        "completion_residue_index", None
-                    ),
-                    use_cache=self.use_kv_cache_for_scoring,
-                    batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
-                    if self.use_kv_cache_for_scoring
-                    else 1,
-                )
-
-                variant_lls.append(lls)
-                assay_row = {
-                    "ll_mean": float(lls.mean()),
-                    "ll_std": float(lls.std()),
-                    "ll_min": float(lls.min()),
-                    "ll_max": float(lls.max()),
-                    "spearman": float(self._compute_spearman(lls, dms_scores_np)),
-                    "n_seqs": n_opt,
-                    "n_tokens": meta["n_tokens"],
-                    "variant_idx": vidx,
-                    "replicate": meta["replicate"],
-                    "n_prompt_seqs": meta["n_seqs"],
-                    "DMS_id": batch["DMS_id"].text[0],
-                    
-                }
-                assay_rows.append(assay_row)
-                for seq_idx, ll_val in enumerate(lls):
-                    row = {
-                        "variant_idx": vidx,
-                        "replicate": meta["replicate"],
-                        "n_prompt_seqs": meta["n_seqs"],
-                        "n_prompt_tokens": meta["n_tokens"],
-                        "seq_indices": "|".join(map(str, meta["seq_indices"])),
-                        "completion_seq_idx": seq_idx,
-                        "log_likelihood": float(ll_val),
-                        "DMS_id": batch["DMS_id"].text[0],
-                    }
-                    rows.append(row)
-
-            # Persist CSV on rank 0
-            if getattr(self, "global_rank", 0) == 0:
-                df = pd.DataFrame(rows)
-                df.to_csv(csv_path, index=False)
-                assay_csv_path = os.path.join(self.variant_csv_dir, f"assay_results_{batch['DMS_id'].text[0]}.csv")
-                assay_df = pd.DataFrame(assay_rows)
-                assay_df.to_csv(assay_csv_path, index=False)
-
-            # Aggregate metrics across variants
-            lls_array = np.stack(variant_lls, axis=0)  # (n_variants, n_completion_seqs)
-            mean_lls = lls_array.mean(axis=0)
-            mean_per_forward_pass = lls_array.mean(axis=1)
-            sorted_indices = np.argsort(-mean_per_forward_pass)
-            for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]:
-                top_k = min(1, int(top_pct * len(sorted_indices)))
-                top_k_mean_ll = lls_array[sorted_indices[:top_k]].mean(axis=0)
-                top_k_spearman = self._compute_spearman(top_k_mean_ll, dms_scores_np)
-                self.log(
-                    f"gym/top_{top_pct}_spearman",
-                    top_k_spearman,
-                    on_step=True,
-                    on_epoch=True,
-                    prog_bar=False,
-                    sync_dist=True,
-                )
-            ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
-            ensemble_log_ll = float(mean_lls.mean())
-            self.log(
-                "gym/ensemble_spearman",
-                ensemble_spearman,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            self.log(
-                "gym/mean_spearman",
-                assay_df["spearman"].mean(),
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            self.log(
-                "gym/mean_ll",
-                mean_lls.mean(),
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            self.log(
-                "gym/mean_ll_std",
-                lls_array.std().mean(),
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            self.log(
-                "gym/coverage",
-                (sum(seq_lengths) / len(seq_lengths)) / L,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            self.log(
-                "gym/completion_len",
-                L,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            self.log(
-                "gym/n_context_seqs",
-                n_opt,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            self.log(
-                "gym/n_context_tokens",
-                L_prompt,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
-            # ------------------------------------------------------------------
-            # NEW: Save full per-sequence likelihoods for every forward pass (optimised)
-            # ------------------------------------------------------------------
-            if getattr(self, "global_rank", 0) == 0:
-                lls_save_path = os.path.join(
-                    self.variant_csv_dir,
-                    f"batch_{batch['DMS_id'].text[0]}_optimised_lls.npz",
-                )
-                try:
-                    np.savez_compressed(
-                        lls_save_path,
-                        lls=lls_array.astype(np.float32),
-                        n_prompt_seqs=np.array([ar["n_prompt_seqs"] for ar in assay_rows], dtype=np.int16),
-                        variant_idx=np.array([ar["variant_idx"] for ar in assay_rows], dtype=np.int16),
-                        replicate=np.array([ar["replicate"] for ar in assay_rows], dtype=np.int16),
-                    )
-                except Exception as e:
-                    warnings.warn(f"Could not save likelihoods to {lls_save_path}: {e}")
-            return ensemble_log_ll, ensemble_spearman
-        except:
-            return 0, -1
-    # ---------------------------------------------------------------------
-    # Override of ProteinGym validation step using the new sampling logic
-    # ---------------------------------------------------------------------
     def validation_step_proteingym(
         self,
         batch: Dict[str, torch.Tensor],
