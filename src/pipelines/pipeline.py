@@ -7,7 +7,6 @@ import json
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
-import logomaker
 import numpy as np
 import pandas as pd
 import tqdm
@@ -452,6 +451,11 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         
         def create_logo_from_fasta(alignment_fasta, output_logo):
             """Create sequence logo from aligned FASTA."""
+            try:
+                import logomaker
+            except ImportError:
+                print("logomaker not found, skipping logo creation")
+                return
             alignment = AlignIO.read(alignment_fasta, "fasta")
             sequences = [str(record.seq) for record in alignment]
             
