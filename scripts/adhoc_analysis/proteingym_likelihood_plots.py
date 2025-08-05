@@ -4,6 +4,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import UnivariateSpline, LSQUnivariateSpline
+from scipy.stats import spearmanr
+
+def get_top_k_spearman_vals(lls, k, dms_scores):
+    lls_mean = lls.mean(axis=0)
+    lls_mean_sorted_indices = np.argsort(-lls_mean)
+    lls_sorted = lls[lls_mean_sorted_indices]
+    lls_to_use_sorted = lls_sorted[:k]
+    lls_mean_sorted = lls_to_use_sorted.mean(axis=0)
+    return spearmanr(lls_mean_sorted, dms_scores)[0]
 
 csv_dir = "proteingym_variants/20250724_224201"
 csv_dir = "logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620"
@@ -34,6 +43,7 @@ upper_quartile_vals = []
 upper_quartile_exclude_lt1_vals = []
 highest_with_exclusion_vals = []
 exclusion_threshold = -1.2
+per_assay_ensemble_spearman_vals = {}
 for i, csv_file in enumerate(csv_files):
     npz_file = csv_file.replace(".csv", "_lls.npz")
     data = np.load(npz_file)
@@ -496,7 +506,7 @@ fig_ll_vs_np.savefig(subplot_path_ll_vs_np)
 plt.show()
 
 # -----------------------------------------------------------------------------
-# NEW: Subplots with RAW spearman, shared likelihood x-axis
+# Subplots with RAW spearman, shared likelihood x-axis
 # -----------------------------------------------------------------------------
 
 n_rows_raw = n_rows
@@ -513,6 +523,8 @@ fig_raw_shared, axes_raw_shared = plt.subplots(
 axes_raw_shared_flat = axes_raw_shared.flatten()
 
 # Re-use global x-limits calculated earlier (global_x_min / global_x_max)
+global_spearman_min = -0.05
+global_spearman_max = 1.0
 
 for i in range(n_rows_raw * n_cols_raw):
     if i >= len(csv_files):
@@ -559,13 +571,24 @@ for i in range(n_rows_raw * n_cols_raw):
     ax_rs.tick_params(axis='both', which='major', labelsize=6)
     ax_rs.set_title(os.path.basename(csv_files[i]), fontsize=7)
 
-# Apply global x-limits
+
+for ax_rs in axes_raw_shared_flat[: len(csv_files)]:
+    ax_rs.set_ylim(global_spearman_min, global_spearman_max)
+    fig_raw_shared.tight_layout()
+
+subplot_path_raw_shared = f"{csv_dir}/spearman_vs_likelihood_raw_subplots_shared_global_y.png"
+fig_raw_shared.savefig(subplot_path_raw_shared)
 for ax_rs in axes_raw_shared_flat[: len(csv_files)]:
     ax_rs.set_xlim(global_x_min, global_x_max)
 
-fig_raw_shared.tight_layout()
-subplot_path_raw_shared = f"{csv_dir}/spearman_vs_likelihood_raw_subplots_shared.png"
+subplot_path_raw_shared = f"{csv_dir}/spearman_vs_likelihood_raw_subplots_shared_global_y_and_x.png"
 fig_raw_shared.savefig(subplot_path_raw_shared)
+
+
+
+
+fig_raw_shared.tight_layout()
+
 plt.show()
 
 # -----------------------------------------------------------------------------
