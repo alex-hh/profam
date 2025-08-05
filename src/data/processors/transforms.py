@@ -677,69 +677,82 @@ def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
 
 
 def add_final_sep(proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwargs):
-    """Add a separator token to the end of each sequence and extend other arrays accordingly.
+    """Add a separator token to the end of the last sequence and extend other arrays accordingly.
 
     Args:
         proteins: ProteinDocument containing the proteins to modify
         tokenizer: ProFamTokenizer containing the separator token
 
     Returns:
-        Modified ProteinDocument with separator tokens added and arrays extended
+        Modified ProteinDocument with separator token added only to the last protein
     """
-    new_sequences = [seq + tokenizer.sep_token for seq in proteins.sequences]
+    # Add sep token only to the last sequence
+    new_sequences = []
+    for i, seq in enumerate(proteins.sequences):
+        if i == len(proteins.sequences) - 1:  # Last protein
+            new_sequences.append(seq + tokenizer.sep_token)
+        else:
+            new_sequences.append(seq)
+    
+    # Add position -1 only to the last protein's positions
+    new_positions = None
+    if proteins.residue_positions is not None:
+        new_positions = []
+        for i, pos in enumerate(proteins.residue_positions):
+            if i == len(proteins.residue_positions) - 1:  # Last protein
+                new_positions.append(pos + [-1])
+            else:
+                new_positions.append(pos)
 
-    # Handle residue positions - add -1 for separator (similar to interleave_structure_sequence)
-    new_positions = (
-        [pos + [-1] for pos in proteins.residue_positions]
-        if proteins.residue_positions is not None
-        else None
-    )
+    # Add plddt value only to the last protein
+    new_plddts = None
+    if proteins.plddts is not None:
+        new_plddts = []
+        for i, plddt in enumerate(proteins.plddts):
+            if i == len(proteins.plddts) - 1:  # Last protein
+                new_plddts.append(np.concatenate([plddt, np.array([100.0])]))
+            else:
+                new_plddts.append(plddt)
 
-    # Handle plddts - extend with 100.0 (full confidence for special tokens)
-    new_plddts = (
-        [np.concatenate([plddt, np.array([100.0])]) for plddt in proteins.plddts]
-        if proteins.plddts is not None
-        else None
-    )
+    # Add coords only to the last protein
+    new_coords = None
+    if proteins.backbone_coords is not None:
+        new_coords = []
+        for i, coords in enumerate(proteins.backbone_coords):
+            if i == len(proteins.backbone_coords) - 1:  # Last protein
+                new_coords.append(np.concatenate([coords, np.zeros((1, 4, 3))], axis=0))
+            else:
+                new_coords.append(coords)
 
-    # Handle backbone coordinates - extend with zeros
-    new_coords = (
-        [
-            np.concatenate([coords, np.zeros((1, 4, 3))], axis=0)
-            for coords in proteins.backbone_coords
-        ]
-        if proteins.backbone_coords is not None
-        else None
-    )
+    # Add coords mask only to the last protein
+    new_coords_masks = None
+    if proteins.backbone_coords_masks is not None:
+        new_coords_masks = []
+        for i, mask in enumerate(proteins.backbone_coords_masks):
+            if i == len(proteins.backbone_coords_masks) - 1:  # Last protein
+                new_coords_masks.append(np.concatenate([mask, np.zeros((1, 4, 3))], axis=0))
+            else:
+                new_coords_masks.append(mask)
 
-    # Handle backbone coordinate masks - extend with zeros
-    new_coords_masks = (
-        [
-            np.concatenate([mask, np.zeros((1, 4, 3))], axis=0)
-            for mask in proteins.backbone_coords_masks
-        ]
-        if proteins.backbone_coords_masks is not None
-        else None
-    )
+    # Add structure token only to the last protein
+    new_structure_tokens = None
+    if proteins.structure_tokens is not None:
+        new_structure_tokens = []
+        for i, tokens in enumerate(proteins.structure_tokens):
+            if i == len(proteins.structure_tokens) - 1:  # Last protein
+                new_structure_tokens.append(tokens + tokenizer.mask_token)
+            else:
+                new_structure_tokens.append(tokens)
 
-    # Handle structure tokens - extend with mask token
-    new_structure_tokens = (
-        [tokens + tokenizer.mask_token for tokens in proteins.structure_tokens]
-        if proteins.structure_tokens is not None
-        else None
-    )
-
-    # Handle modality masks if present - extend with zeros for sequence position
-    new_modality_masks = (
-        [
-            np.concatenate(
-                [mask, np.array([[1, 0]])], axis=0
-            )  # [1,0] indicates sequence token
-            for mask in proteins.modality_masks
-        ]
-        if proteins.modality_masks is not None
-        else None
-    )
+    # Add modality mask only to the last protein
+    new_modality_masks = None
+    if proteins.modality_masks is not None:
+        new_modality_masks = []
+        for i, mask in enumerate(proteins.modality_masks):
+            if i == len(proteins.modality_masks) - 1:  # Last protein
+                new_modality_masks.append(np.concatenate([mask, np.array([[1, 0]])], axis=0))  # [1,0] indicates sequence token
+            else:
+                new_modality_masks.append(mask)
 
     return proteins.clone(
         sequences=new_sequences,
