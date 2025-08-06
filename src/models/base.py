@@ -736,7 +736,7 @@ class BaseFamilyLitModule(BaseLitModule):
             completion_ids = torch.cat([start_tokens_tensor, completion_ids], dim=-1)
         all_lls = []
         for completion_ix in tqdm.tqdm(
-            range(0, completion_ids.shape[1], batch_size), disable=not verbose
+            range(0, completion_ids.shape[0], batch_size), disable=not verbose
         ):
             this_input_ids = completion_ids[completion_ix:completion_ix+batch_size]
             forward_kwargs = {}
