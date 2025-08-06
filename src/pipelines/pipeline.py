@@ -471,10 +471,9 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
         def compute_sequence_similarity(seq1: str, seq2: str) -> float:
             """Compute sequence similarity between two sequences."""
             seq_len = max(len(seq1.replace('-', '')), len(seq2.replace('-', '')))
-            if len(seq1) != len(seq2):
-                return 0.0  # Different lengths, no similarity
             matches = sum(1 for a, b in zip(seq1, seq2) if a == b and a != "-")
             return matches / seq_len if seq_len > 0 else 0.0
+        
         prompt_sequences = [s.replace("[SEP]", "") for s in prompt_sequences]
         # Create temporary files for alignments
         with tempfile.TemporaryDirectory() as temp_dir:
