@@ -233,6 +233,8 @@ def check_array_lengths(*arrays):  # TODO: name better!
             continue
         if isinstance(arr[0], str):
             arr = [s.replace("[SEP]", "/") for s in arr]  # replace [SEP] w single char?
+        if isinstance(arr[0], float):
+            continue
         sequence_lengths.append(tuple([len(seq) for seq in arr]))
 
     assert all(
@@ -264,6 +266,8 @@ class ProteinDocument:
         "backbone_coords",
         "backbone_coords_masks",
         "structure_tokens",
+        "sequence_similarities",
+        "coverages",
     ]
     sequences: List[str]
     accessions: Optional[List[str]] = None
@@ -284,6 +288,9 @@ class ProteinDocument:
         str
     ] = None  # e.g. seed or cluster representative
     original_size: Optional[int] = None  # total number of proteins in original set
+    # Per-sequence coverage and similarity data against WT sequence
+    sequence_similarities: Optional[List[float]] = None
+    coverages: Optional[List[float]] = None
 
     def __post_init__(self):
         for field in [
@@ -306,6 +313,8 @@ class ProteinDocument:
                 self.backbone_coords_masks,
                 self.structure_tokens,
                 self.interleaved_coords_masks,
+                self.sequence_similarities,
+                self.coverages,
             )
         except AssertionError:
             print(
@@ -316,6 +325,8 @@ class ProteinDocument:
                 f"backbone_coords_masks: {self.backbone_coords_masks}",
                 f"structure_tokens: {self.structure_tokens}",
                 f"interleaved_coords_masks: {self.interleaved_coords_masks}",
+                f"sequence_similarities: {self.sequence_similarities}",
+                f"coverages: {self.coverages}",
             )
             raise
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
@@ -466,6 +477,12 @@ class ProteinDocument:
                 modality_masks=self.modality_masks[key]
                 if self.modality_masks is not None
                 else None,
+                sequence_similarities=self.sequence_similarities[key]
+                if self.sequence_similarities is not None
+                else None,
+                coverages=self.coverages[key]
+                if self.coverages is not None
+                else None,
                 representative_accession=self.representative_accession,
                 original_size=self.original_size,
             )
@@ -496,6 +513,12 @@ class ProteinDocument:
                 original_size=self.original_size,
                 modality_masks=[self.modality_masks[i] for i in key]
                 if self.modality_masks is not None
+                else None,
+                sequence_similarities=[self.sequence_similarities[i] for i in key]
+                if self.sequence_similarities is not None
+                else None,
+                coverages=[self.coverages[i] for i in key]
+                if self.coverages is not None
                 else None,
             )
         elif isinstance(key, int):
@@ -641,6 +664,14 @@ class ProteinDocument:
             modality_masks=kwargs.pop(
                 "modality_masks",
                 self.modality_masks.copy() if self.modality_masks is not None else None,
+            ),
+            sequence_similarities=kwargs.pop(
+                "sequence_similarities",
+                self.sequence_similarities.copy() if self.sequence_similarities is not None else None,
+            ),
+            coverages=kwargs.pop(
+                "coverages",
+                self.coverages.copy() if self.coverages is not None else None,
             ),
             **kwargs,
         )
