@@ -1292,9 +1292,20 @@ class BaseFamilyLitModule(BaseLitModule):
             return per_prompt_entropies
 
         def _make_truncated_batch(idxs):
-            """Deep-clone *batch* keeping only the sequences at *idxs*."""
-            new_batch = self._clone_batch(batch)
+            """Deep-clone *batch* keeping only the sequences at *idxs*.
 
+            If *idxs* is empty (i.e. no context sequences are selected) we return a
+            batch with *input_ids* and *residue_index* set to **None** so that
+            downstream code takes the no-context scoring path.
+            """
+            new_batch = self._clone_batch(batch)
+            # Handle the no-context case early ---------------------------------
+            if len(idxs) == 0:
+                new_batch["input_ids"] = None
+                if "residue_index" in new_batch:
+                    new_batch["residue_index"] = None
+                return new_batch
+            # ------------------------------------------------------------------
             def _concat_slices(tensor):
                 parts = [tensor[..., seq_starts[i] : seq_ends[i] + 1] for i in idxs]
                 concat = torch.cat(parts, dim=-1)
@@ -1430,17 +1441,32 @@ class BaseFamilyLitModule(BaseLitModule):
                 idxs = rng.sample(range(total_seqs), n_opt)
                 rng.shuffle(idxs)
                 tok_cnt = sum(seq_lengths[i] for i in idxs)
-                shortest_seq_len = min(seq_lengths[i] for i in idxs)
+                # Gracefully handle the empty *idxs* case
+                shortest_seq_len = min(seq_lengths[i] for i in idxs) if idxs else 0
                 if tok_cnt + completion_length <= self.max_tokens:
                     var_batch = _make_truncated_batch(idxs)
-                    meta = {"variant_idx": rep, "replicate": rep, "n_seqs": n_opt, "n_tokens": tok_cnt, "seq_indices": idxs, "min_completion_coverage": shortest_seq_len / batch['completion_ids'].shape[-1]}
+                    min_cov = (shortest_seq_len / batch['completion_ids'].shape[-1]) if shortest_seq_len > 0 else 0.0
+                    meta = {
+                        "variant_idx": rep,
+                        "replicate": rep,
+                        "n_seqs": n_opt,
+                        "n_tokens": tok_cnt,
+                        "seq_indices": idxs,
+                        "min_completion_coverage": min_cov,
+                    }
                     n_seqs_list.append(n_opt)
                     tok_cnt_list.append(tok_cnt)
-                    min_cov_list.append(shortest_seq_len / batch['completion_ids'].shape[-1])
+                    min_cov_list.append(min_cov)
                     variants.append((var_batch, meta))
-                    var_batch_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()}
+                    var_batch_device = {
+                        k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()
+                    }
                     L = var_batch_device["completion_ids"].shape[-1]
-                    L_prompt = var_batch_device["input_ids"].shape[-1]
+                    L_prompt = (
+                        var_batch_device["input_ids"].shape[-1]
+                        if var_batch_device["input_ids"] is not None
+                        else 0
+                    )
                     lls = self.score_seqs(
                         var_batch_device["input_ids"],
                         var_batch_device["completion_ids"],
@@ -1481,7 +1507,14 @@ class BaseFamilyLitModule(BaseLitModule):
                     if fail_count > token_count_attempts:
                         n_opt -= 1
                         fail_count = 0
-
+            if n_opt < 0:
+                fail_count = 0
+                if len(vals_in_range) > 1:
+                    min_n_in_range = min(vals_in_range, key=lambda x: x[0])[0]
+                    max_n_in_range = max(vals_in_range, key=lambda x: x[0])[0]
+                    n_opt = random.choice(range(min_n_in_range, max_n_in_range + 1))
+                else:
+                    n_opt = random.randint(0, max_n_by_tokens + 1)
         lls_array = np.stack(variant_lls, axis=0)
         entropy_per_prompt = calculate_entropy_per_prompt(lls_array)
         if getattr(self, "global_rank", 0) == 0:
