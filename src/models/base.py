@@ -1884,8 +1884,25 @@ class BaseFamilyLitModule(BaseLitModule):
             )
         # Track whether the zero-context prompt (n=0) has already been evaluated.
         zero_evaluated = False
+        zero_objective: Optional[float] = None
         for rep in range(self.gym_subsamples_per_n):
-            suggested_n = int(opt.ask()[0])
+            # Keep asking until we get a suggestion other than 0 if we've already
+            # evaluated n=0. When 0 is suggested again, immediately feed the
+            # cached objective back to the optimiser so it can update its model
+            # without us wasting an evaluation.
+            ask_retries = 0
+            while True:
+                suggested_n = int(opt.ask()[0])
+                if suggested_n == 0 and zero_objective is not None:
+                    opt.tell([0], zero_objective)
+                    ask_retries += 1
+                    if ask_retries > 5:
+                        # Fall back to a random non-zero point to guarantee progress
+                        if max_n_by_tokens >= 1:
+                            suggested_n = rng.randint(1, max_n_by_tokens)
+                        break
+                    continue
+                break
             chosen_n = max(0, min(suggested_n, total_seqs))
             # If n == 0 has already been evaluated, pick a different n
             if chosen_n == 0 and zero_evaluated:
@@ -1893,8 +1910,8 @@ class BaseFamilyLitModule(BaseLitModule):
                     chosen_n = random.randint(1, max_n_by_tokens)
                 # If max_n_by_tokens is 0 we keep chosen_n = 0 (nothing else possible)
             if n_opt_range_extension > 0:
-                max_subtract = chosen_n - 1
-                max_add = max_n_by_tokens - chosen_n
+                max_subtract = min(chosen_n - 1, n_opt_range_extension)
+                max_add = min(max_n_by_tokens - chosen_n, n_opt_range_extension)
                 chosen_n = max(0, min(chosen_n + rng.randint(-max_subtract, max_add), max_n_by_tokens))
 
             fail_count = 0
@@ -1967,12 +1984,14 @@ class BaseFamilyLitModule(BaseLitModule):
             variant_lls.append(lls)
             spearman = float(self._compute_spearman(lls, dms_scores_np))
             spearman_list.append(spearman)
-            # Mark that zero-context has been evaluated
+            mean_ll_val = float(lls.mean())
+            # Mark and cache the zero-context objective value
             if chosen_n == 0:
                 zero_evaluated = True
-            rows.append({**meta, "mean_log_likelihood": float(lls.mean()), "spearman": spearman, "DMS_id": batch["DMS_id"].text[0]})
+                zero_objective = _distance_to_band(mean_ll_val)
+            rows.append({**meta, "mean_log_likelihood": mean_ll_val, "spearman": spearman, "DMS_id": batch["DMS_id"].text[0]})
             # Update Bayesian optimizer with the observed objective value
-            opt.tell([chosen_n], _distance_to_band(float(lls.mean())))
+            opt.tell([chosen_n], _distance_to_band(mean_ll_val))
 
         lls_array = np.stack(variant_lls, axis=0)
         entropy_per_prompt = calculate_entropy_per_prompt(lls_array)
