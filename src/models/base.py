@@ -1541,15 +1541,18 @@ class BaseFamilyLitModule(BaseLitModule):
             new_batch["input_ids"] = _concat_slices(new_batch["input_ids"]).clone()
             if "residue_index" in new_batch and new_batch["residue_index"] is not None:
                 new_batch["residue_index"] = _concat_slices(new_batch["residue_index"]).clone()
+            # Also slice optional per-sequence metadata to keep consistency with v5
+            if "sequence_similarities" in new_batch and new_batch["sequence_similarities"] is not None:
+                new_batch["sequence_similarities"] = new_batch["sequence_similarities"][0, idxs].clone()
+            if "coverages" in new_batch and new_batch["coverages"] is not None:
+                new_batch["coverages"] = new_batch["coverages"][0, idxs].clone()
             return new_batch
         completion_length = batch["completion_ids"].shape[-1]
         max_context_tokens = (self.max_tokens - completion_length) - 5 # 5 is a buffer.
         avg_seq_len = sum(seq_lengths) / len(seq_lengths)
         max_n_by_tokens = max(0, min(int(max_context_tokens // avg_seq_len) + 2, total_seqs))
 
-        # ------------------------------------------------------------------ #
-        # Quick evaluator for contiguous prefixes                            #
-        # ------------------------------------------------------------------ #
+
         @torch.no_grad()
         def _eval_prefix(n):
             n = max(0, min(n, total_seqs))
@@ -1606,11 +1609,15 @@ class BaseFamilyLitModule(BaseLitModule):
                 n_opt = n_curr
                 vals_in_range.append(n_curr)
         if len(vals_in_range) > 0:
+            vals_in_range = np.arange(
+                max(0, min(vals_in_range) - n_opt_range_extension), 
+                min(max(vals_in_range) + n_opt_range_extension, max_n_by_tokens + 1) + 1
+            )
             n_opt = random.choice(vals_in_range)
             if 0 not in vals_in_range:
                 vals_in_range.append(0)
         else:
-            vals_in_range = list(range(max_n_by_tokens + 1))
+            vals_in_range = list(range(max_n_by_tokens + 2))
             n_opt = random.choice(vals_in_range)
 
         # compute likelihoods for each n_opt value in the range:
@@ -1621,17 +1628,25 @@ class BaseFamilyLitModule(BaseLitModule):
         n_seqs_list = []
         tok_cnt_list = []
         min_cov_list = []
+        # Additional metrics to mirror v5
+        min_length_ratio_list = []
+        min_sequence_similarity_list, mean_sequence_similarity_list, max_sequence_similarity_list = [], [], []
+        min_coverage_list, mean_coverage_list, max_coverage_list = [], [], []
         self.variant_csv_dir = os.path.join(self.gym_results_save_dir, self.timestamp)
         os.makedirs(self.variant_csv_dir, exist_ok=True)
-        csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}_v3.csv")
+        csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}_v4.csv")
         
         token_count_attempts = 100
-        for rep in range(self.gym_subsamples_per_n):
+        if completion_length + 2 > self.max_tokens:
+            n_opt = 0
+            repeats = 1
+        else:
+            repeats = self.gym_subsamples_per_n
+        for rep in range(repeats):
             fail_count = 0
             while True:
-                if completion_length + 2 > self.max_tokens:
-                    n_opt = 0
-                    break
+                if n_opt == 0 and 0 in n_seqs_list:
+                    n_opt = random.choice(vals_in_range)
                 idxs = rng.sample(range(total_seqs), n_opt)
                 rng.shuffle(idxs)
                 tok_cnt = sum(seq_lengths[i] for i in idxs)
@@ -1653,10 +1668,37 @@ class BaseFamilyLitModule(BaseLitModule):
                 var_batch["input_ids"] = None
                 var_batch["residue_index"] = None
                 min_completion_coverage = 0
+                min_length_ratio = 0
+                min_sequence_similarity = 0
+                mean_sequence_similarity = 0
+                max_sequence_similarity = 0
+                min_coverage = 0
+                mean_coverage = 0
+                max_coverage = 0
             else:
                 shortest_seq_len = min(seq_lengths[i] for i in idxs)
                 var_batch = _make_truncated_batch(idxs)
                 min_completion_coverage = shortest_seq_len / batch["completion_ids"].shape[-1] if batch["completion_ids"].shape[-1] > 0 else 0
+                # Additional metrics consistent with v5
+                min_length_ratio = min_completion_coverage
+                seq_sims = var_batch.get("sequence_similarities", None)
+                covs = var_batch.get("coverages", None)
+                if seq_sims is not None:
+                    min_sequence_similarity = seq_sims.min().item()
+                    mean_sequence_similarity = seq_sims.mean().item()
+                    max_sequence_similarity = seq_sims.max().item()
+                else:
+                    min_sequence_similarity = 0
+                    mean_sequence_similarity = 0
+                    max_sequence_similarity = 0
+                if covs is not None:
+                    min_coverage = covs.min().item()
+                    mean_coverage = covs.mean().item()
+                    max_coverage = covs.max().item()
+                else:
+                    min_coverage = 0
+                    mean_coverage = 0
+                    max_coverage = 0
             meta = {
                 "variant_idx": rep,
                 "replicate": rep,
@@ -1664,10 +1706,25 @@ class BaseFamilyLitModule(BaseLitModule):
                 "n_tokens": tok_cnt,
                 "seq_indices": idxs,
                 "min_completion_coverage": min_completion_coverage,
+                "min_length_ratio": min_length_ratio,
+                "min_sequence_similarity": min_sequence_similarity,
+                "mean_sequence_similarity": mean_sequence_similarity,
+                "max_sequence_similarity": max_sequence_similarity,
+                "min_coverage": min_coverage,
+                "mean_coverage": mean_coverage,
+                "max_coverage": max_coverage,
             }
             n_seqs_list.append(n_opt)
             tok_cnt_list.append(tok_cnt)
             min_cov_list.append(min_completion_coverage)
+            # Track additional lists for NPZ logging
+            min_length_ratio_list.append(min_length_ratio)
+            min_sequence_similarity_list.append(min_sequence_similarity)
+            mean_sequence_similarity_list.append(mean_sequence_similarity)
+            max_sequence_similarity_list.append(max_sequence_similarity)
+            min_coverage_list.append(min_coverage)
+            mean_coverage_list.append(mean_coverage)
+            max_coverage_list.append(max_coverage)
             variants.append((var_batch, meta))
             var_batch_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()}
             L = var_batch_device["completion_ids"].shape[-1]
@@ -1687,8 +1744,6 @@ class BaseFamilyLitModule(BaseLitModule):
             spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
             rows.append({**meta, "mean_log_likelihood": mean_ll, "spearman": float(self._compute_spearman(lls, dms_scores_np)), "DMS_id": batch["DMS_id"].text[0]})
             n_opt = random.choice(vals_in_range)
-            if n_opt - n_opt_range_extension >= 0:
-                n_opt += random.randint(-n_opt_range_extension, n_opt_range_extension)
 
 
         lls_array = np.stack(variant_lls, axis=0)
@@ -1725,7 +1780,9 @@ class BaseFamilyLitModule(BaseLitModule):
         ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
         ensemble_log_ll = float(mean_lls.mean())
         if getattr(self, "global_rank", 0) == 0:
-            lls_save_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}_v3_lls.npz")
+            # Save CSV summary and NPZ payload consistent with v5 naming
+            pd.DataFrame(rows).to_csv(csv_path, index=False)
+            lls_save_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}_v4_lls.npz")
             try:
                 np.savez_compressed(
                     lls_save_path,
@@ -1733,11 +1790,24 @@ class BaseFamilyLitModule(BaseLitModule):
                     n_prompt_seqs=n_seqs_list,
                     tok_cnt_list=tok_cnt_list,
                     min_cov_list=min_cov_list,
+                    min_length_ratio_list=min_length_ratio_list,
+                    min_sequence_similarity_list=np.asarray(min_sequence_similarity_list, dtype=np.float32),
+                    mean_sequence_similarity_list=np.asarray(mean_sequence_similarity_list, dtype=np.float32),
+                    max_sequence_similarity_list=np.asarray(max_sequence_similarity_list, dtype=np.float32),
+                    min_coverage_list=np.asarray(min_coverage_list, dtype=np.float32),
+                    mean_coverage_list=np.asarray(mean_coverage_list, dtype=np.float32),
+                    max_coverage_list=np.asarray(max_coverage_list, dtype=np.float32),
                     entropy_per_prompt=entropy_per_prompt.astype(np.float32),
                     dms_scores = dms_scores_np.astype(np.float32),
                 )
             except Exception as e:
                 warnings.warn(f"Could not save likelihoods to {lls_save_path}: {e}")
+            # Save diagnostic scatter similar to v5
+            self._save_variant_scatter_plot(
+                n_seqs_list,
+                variant_lls,
+                batch['DMS_id'].text[0],
+            )
         mean_spearman = np.mean(spearman_list)
         if getattr(self, "global_rank", 0) == 0:
             self.log("gym/mean_spearman_v4", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
