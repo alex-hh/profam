@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import glob
 import pandas as pd
 
-npz_files = glob.glob("debug_gym_results/20250807_201548/*.npz")
+npz_files = glob.glob("debug_gym_results/20250807_231522/*.npz")
 
 for npz_file in npz_files:
     data = np.load(npz_file)
