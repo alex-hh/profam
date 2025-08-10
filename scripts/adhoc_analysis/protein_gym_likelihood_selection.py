@@ -61,20 +61,20 @@ def threshold_lls(lls, lls_mean, threshold, top_k):
 
 if __name__ == "__main__":
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620/*.npz")
-    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250730_183304_100_reps/*.npz")
+    npz_files = glob.glob("logs/proteingym_eval_results/20250808_000300_PoET_MSAs_BO/*.npz")
     print(f"Found {len(npz_files)} npz files")
     results_rows = []
-    others = pd.read_csv("/Users/judewells/Documents/dataScienceProgramming/ProteinGym/benchmarks/DMS_zero_shot/substitutions/Spearman/DMS_substitutions_Spearman_DMS_level.csv")
+    # others = pd.read_csv("/Users/judewells/Documents/dataScienceProgramming/ProteinGym/benchmarks/DMS_zero_shot/substitutions/Spearman/DMS_substitutions_Spearman_DMS_level.csv")
     completed_dms_ids = []
     for npz_file in npz_files:
         print(npz_file)
-        csv_path = npz_file.replace("_lls.npz", ".csv")
+        csv_path = npz_file.replace("_lls.npz", ".csv").replace(".npz", ".csv")
         df = pd.read_csv(csv_path)
         dms_id = df["DMS_id"].iloc[0]
         completed_dms_ids.append(dms_id)
         dms_scores_path = f"../data/ProteinGym/DMS_ProteinGym_substitutions/{dms_id}.csv"
-        dms_scores = load_dms_scores(dms_scores_path).DMS_score.values
         data = np.load(npz_file)
+        dms_scores = data['dms_scores']
         assert len(dms_scores) == data["lls"].shape[1], "Number of lls and dms scores must match"
         
         lls = data["lls"]

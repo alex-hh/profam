@@ -2135,7 +2135,7 @@ class BaseFamilyLitModule(BaseLitModule):
         if batch_idx is None:
             batch_idx = -1  # fallback when Lightning doesn't supply the index
 
-        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v5(
+        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v4(
             batch
         )
 
