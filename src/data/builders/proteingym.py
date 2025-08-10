@@ -4,6 +4,7 @@ import re
 import warnings
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 from datasets import Dataset
 from transformers import PreTrainedTokenizerFast
@@ -131,7 +132,29 @@ def load_msa_for_row(
         to_upper=True,
         keep_gaps=True if use_msa_pos else keep_gaps,
     )
-    seqs = [s for s in seqs if "X" not in s and "U" not in s and "Z" not in s and "O" not in s and "B" not in s and "J" not in s]
+    
+    
+    # Load coverage and similarity data if available
+    sequence_similarities = None
+    coverages = None
+    npz_file = os.path.splitext(msa_file)[0] + ".npz"
+    if os.path.exists(npz_file):
+        print(f"Loading coverage and similarity data from {npz_file}")
+        npz_data = np.load(npz_file)
+        # Replace any NaN values with 0 before converting to list
+        sequence_similarities = np.nan_to_num(
+            npz_data["sequence_similarities"], nan=0.0
+        ).tolist()
+        coverages = np.nan_to_num(npz_data["coverages"], nan=0.0).tolist()
+        # Ensure we have the same number of sequences
+        if len(sequence_similarities) != len(seqs):
+            print(f"Warning: Number of sequences in MSA ({len(seqs)}) doesn't match number in .npz file ({len(sequence_similarities)})")
+            sequence_similarities = None
+            coverages = None
+    seq_indices = [i for i, s in enumerate(seqs) if "X" not in s and "U" not in s and "Z" not in s and "O" not in s and "B" not in s and "J" not in s]
+    seqs = [seqs[i] for i in seq_indices]
+    sequence_similarities = [sequence_similarities[i] for i in seq_indices]
+    coverages = [coverages[i] for i in seq_indices]
     proteins = ProteinDocument(
         sequences=seqs,
         accessions=None,
@@ -140,6 +163,8 @@ def load_msa_for_row(
         plddts=None,
         backbone_coords=None,
         structure_tokens=None,
+        sequence_similarities=sequence_similarities,
+        coverages=coverages,
     )
     # need to allow room for the completion
     # todo should be max completion length (once we handle indels)
@@ -166,6 +191,11 @@ def load_msa_for_row(
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     row["MSA"] = proteins.sequences
     row["seq_pos"] = proteins.residue_positions
+    # Also store the coverage and similarity data in the row
+    if proteins.sequence_similarities is not None:
+        row["sequence_similarities"] = proteins.sequence_similarities
+    if proteins.coverages is not None:
+        row["coverages"] = proteins.coverages
     return row
 
 
@@ -408,6 +438,12 @@ class ProteinGymDataset(BaseProteinDataset):
 
         if tokenizer.embed_residue_index:
             columns += ["residue_index", "completion_residue_index"]
+
+        # Add coverage and similarity fields if they exist in the dataset
+        if "sequence_similarities" in dataset.column_names:
+            columns.append("sequence_similarities")
+        if "coverages" in dataset.column_names:
+            columns.append("coverages")
 
         # TODO: what is right here?
         dataset.set_format(

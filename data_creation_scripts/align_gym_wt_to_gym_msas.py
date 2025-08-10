@@ -100,7 +100,7 @@ def check_target_sequence_consistency(gym_df):
     print(f"Successfully processed {success_counter} DMSs")
 
 
-def save_coverage_similarity_data(msa_path, wt_seq, aligned_seqs, seq_sims, coverages):
+def save_coverage_similarity_data(msa_path, wt_seq, seq_sims, coverages):
     """
     Save coverage and sequence similarity data for each sequence in the MSA as a .npz file.
     
@@ -119,7 +119,6 @@ def save_coverage_similarity_data(msa_path, wt_seq, aligned_seqs, seq_sims, cove
     np.savez(
         npz_path,
         wt_sequence=wt_seq,
-        aligned_sequences=np.array(aligned_seqs),
         sequence_similarities=seq_sims,
         coverages=coverages,
         msa_path=msa_path
@@ -132,7 +131,7 @@ if __name__ == "__main__":
     poet_gym_msa_pattern = "../data/ProteinGym/PoET_DMS_msa_files/DMS_substitutions/*.a3m"
     gym_csv_path = "../data/ProteinGym/DMS_substitutions.csv"
     df = pd.read_csv(gym_csv_path)
-    check_target_sequence_consistency(df)
+    # check_target_sequence_consistency(df)
     df['MSA_filename'] = df['MSA_filename'].apply(lambda x: x.split(".")[0])
     
     for path_pattern in [gym_msa_pattern, poet_gym_msa_pattern]:
@@ -185,7 +184,11 @@ if __name__ == "__main__":
                 write_fasta(updated_seqs, updated_accessions, temp_fasta_path)
                 
                 # Run alignment
-                new_msa_path = msa_path.replace(".a3m", "_updated.a3m")
+                dirpath = os.path.dirname(msa_path)
+                filename = os.path.basename(msa_path)
+                new_dirpath = os.path.join(dirpath, "wt_updated_msa_files")
+                new_msa_path = os.path.join(new_dirpath, filename)
+                os.makedirs(new_dirpath, exist_ok=True)
                 run_alignment_with_mafft(temp_fasta_path, new_msa_path, threads=1)
                 
                 # Read the updated alignment
@@ -204,10 +207,10 @@ if __name__ == "__main__":
                 new_row["updated_msa_path"] = new_msa_path
                 
                 # Calculate coverage and similarity for all sequences
-                seq_sims, coverages = compute_coverage_and_similarity_for_all_seqs(wt_seq, updated_seqs)
+                seq_sims, coverages = compute_coverage_and_similarity_for_all_seqs(wt_seq, updated_seqs[1:])
                 
                 # Save the data as .npz file
-                save_coverage_similarity_data(new_msa_path, wt_seq, updated_seqs, seq_sims, coverages)
+                save_coverage_similarity_data(msa_path, wt_seq, seq_sims, coverages)
                 
                 new_row["mean_seq_sim"] = np.mean(seq_sims)
                 new_row["mean_coverage"] = np.mean(coverages)
@@ -222,7 +225,7 @@ if __name__ == "__main__":
                 seq_sims, coverages = compute_coverage_and_similarity_for_all_seqs(wt_seq, seqs)
                 
                 # Save the data as .npz file
-                save_coverage_similarity_data(msa_path, wt_seq, seqs, seq_sims, coverages)
+                save_coverage_similarity_data(msa_path, wt_seq, seq_sims, coverages)
                 
                 new_row["mean_seq_sim"] = np.mean(seq_sims)
                 new_row["mean_coverage"] = np.mean(coverages)
