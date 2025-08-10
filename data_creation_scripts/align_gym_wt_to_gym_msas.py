@@ -127,42 +127,59 @@ def save_coverage_similarity_data(msa_path, wt_seq, seq_sims, coverages):
 
 
 if __name__ == "__main__":
-    gym_msa_pattern = "../data/ProteinGym/DMS_msa_files/*hhfilter.a3m"
+    # gym_msa_pattern = "../data/ProteinGym/DMS_msa_files/*hhfilter.a3m"
+    # gym_msa_pattern = "../data/ProteinGym/DMS_msa_files/*.a3m"
+    gym_msa_pattern = "../data/ProteinGym/DMS_msa_files/*.a2m"
     poet_gym_msa_pattern = "../data/ProteinGym/PoET_DMS_msa_files/DMS_substitutions/*.a3m"
     gym_csv_path = "../data/ProteinGym/DMS_substitutions.csv"
     df = pd.read_csv(gym_csv_path)
     # check_target_sequence_consistency(df)
     df['MSA_filename'] = df['MSA_filename'].apply(lambda x: x.split(".")[0])
     
-    for path_pattern in [gym_msa_pattern, poet_gym_msa_pattern]:
+    # for path_pattern in [gym_msa_pattern, poet_gym_msa_pattern]:
+    for path_pattern in [gym_msa_pattern]:
         fail_counter = 0
         results_rows = []
         for msa_path in glob.glob(path_pattern):
-            
+            # check if .npz file exists and skip if so
+            base_name = os.path.splitext(msa_path)[0]
+            npz_path = f"{base_name}.npz"
+            if os.path.exists(npz_path):
+                continue
+            if "hhfilter" not in path_pattern and "hhfilter" in msa_path:
+                continue
             if "PoET" in msa_path:
                 row  = df[df.DMS_id == os.path.basename(msa_path).split(".")[0]]
                 row = row.iloc[0]
                 csv_save_path = "poet_gym_msa_meta_analysis_results.csv"
             else:
-                row = df[df.MSA_filename== os.path.basename(msa_path).split(".")[0].replace("_reformat_hhfilter", "")]
+                row = df[df.MSA_filename== os.path.basename(msa_path).split(".")[0].replace("_reformat_hhfilter", "").replace("_reformat", "")]
                 if len(row) == 0:
                     print(f"No row found for {msa_path}")
                     fail_counter += 1
                     results_rows.append({"msa_path": msa_path})
                     continue
-
                 row = row.iloc[0]
-                csv_save_path = "gym_msa_meta_analysis_results.csv"
+                if "hhfilter" in gym_msa_pattern:
+                    csv_save_path = "gym_msa_meta_analysis_results.csv"
+                else:
+                    csv_save_path = "unfiltered_gym_msa_meta_analysis_results.csv"
             row['MSA_filename'] = msa_path
             new_row = {
                 "DMS_id": row['DMS_id'],
                 "target_seq": row['target_seq'],
             }
-            _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
+            _, seqs = fasta.read_fasta(
                 msa_path,
                 keep_insertions=False,
                 to_upper=False,
                 keep_gaps=True,
+            )
+            _, seqs_w_insertions = fasta.read_fasta(
+                msa_path,
+                keep_insertions=True,
+                to_upper=True,
+                keep_gaps=False,
             )
             new_row["first_msa_seq"] = seqs[0]
             new_row["msa_path"] = msa_path
@@ -171,7 +188,7 @@ if __name__ == "__main__":
             
             wt_seq = row['target_seq']
             
-            if wt_seq not in seqs:
+            if wt_seq not in seqs and wt_seq not in seqs_w_insertions:
                 # WT sequence not in MSA, need to redo alignment
                 print(f"WT sequence not found in MSA for {row['DMS_id']}, redoing alignment...")
                 
@@ -217,6 +234,9 @@ if __name__ == "__main__":
                 new_row["n_seqs_in_msa"] = len(updated_seqs)
                 
             else:
+                if wt_seq != seqs[0] and wt_seq == seqs_w_insertions[0]:
+                    # if the original file had insertions on the WT we need to use the version without insertions
+                    wt_seq = seqs[0]
                 # WT sequence is in MSA, use original alignment
                 new_row["wt_matches_msa"] = 1
                 new_row["alignment_updated"] = False
@@ -228,7 +248,10 @@ if __name__ == "__main__":
                 save_coverage_similarity_data(msa_path, wt_seq, seq_sims, coverages)
                 
                 new_row["mean_seq_sim"] = np.mean(seq_sims)
+                new_row["min_seq_sim"] = min(seq_sims)
+                new_row["max_seq_sim"] = max(seq_sims)
                 new_row["mean_coverage"] = np.mean(coverages)
+                new_row["min_coverage"] = min(coverages)
                 new_row["n_seqs_in_msa"] = len(seqs)
             
             print("\n", row['DMS_id'])
