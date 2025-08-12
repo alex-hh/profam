@@ -1605,13 +1605,16 @@ class BaseFamilyLitModule(BaseLitModule):
             # ------------------------------------------------------------------ #
             n_forward_search = min(30, max_n_by_tokens)
             n_log_samples = n_forward_search
-            while True:
-                n_vals = [0] + [int(s) for s in np.logspace(0, np.log10(max_n_by_tokens), n_log_samples)]
-                n_vals = list(set(n_vals))
-                if len(n_vals) >= n_forward_search:
-                    break
-                n_log_samples += 1
-            n_vals.sort()
+            if max_n_by_tokens <= 0:
+                n_vals = [0]
+            else:
+                while True:
+                    n_vals = [0] + [int(s) for s in np.logspace(0, np.log10(max_n_by_tokens), n_log_samples)]
+                    n_vals = list(set(n_vals))
+                    if len(n_vals) >= n_forward_search:
+                        break
+                    n_log_samples += 1
+                n_vals.sort()
             n_seqs_list = []
             ll_list = []
 
@@ -1625,16 +1628,16 @@ class BaseFamilyLitModule(BaseLitModule):
                     n_opt = n_curr
                     vals_in_range.append(n_curr)
             if len(vals_in_range) > 0:
-                vals_in_range = np.arange(
-                    max(0, min(vals_in_range) - n_opt_range_extension), 
-                    min(max(vals_in_range) + n_opt_range_extension, max_n_by_tokens + 1) + 1
-                )
-                n_opt = random.choice(vals_in_range)
+                lower_bound = max(0, min(vals_in_range) - n_opt_range_extension)
+                upper_bound = min(max(vals_in_range) + n_opt_range_extension, max_n_by_tokens + 1)
+                vals_in_range = np.arange(lower_bound, upper_bound + 1)
+                n_opt = int(random.choice(vals_in_range))
                 if 0 not in vals_in_range:
                     vals_in_range = np.append(vals_in_range, 0)
             else:
+                # allow [0, max_n_by_tokens] inclusive
                 vals_in_range = list(range(max_n_by_tokens + 2))
-                n_opt = random.choice(vals_in_range)
+                n_opt = int(random.choice(vals_in_range))
 
             # compute likelihoods for each n_opt value in the range:
             spearman_list = []
@@ -1662,7 +1665,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 fail_count = 0
                 while True:
                     if n_opt == 0 and 0 in n_seqs_list:
-                        n_opt = random.choice(vals_in_range)
+                        n_opt = int(random.choice(vals_in_range))
+                    n_opt = max(0, max(vals_in_range))
                     idxs = rng.sample(range(total_seqs), n_opt)
                     rng.shuffle(idxs)
                     tok_cnt = sum(seq_lengths[i] for i in idxs)
