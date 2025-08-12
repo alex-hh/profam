@@ -1580,14 +1580,16 @@ class BaseFamilyLitModule(BaseLitModule):
         """Adaptive variant evaluation (no inner functions) with optional reuse of saved NPZ."""
         random.seed(42)
         rng = random.Random()
-        # Set paths under timestamped dir
-        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, self.timestamp)
+        
+        # self.variant_csv_dir = os.path.join(self.gym_results_save_dir, self.timestamp)
+        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250810_135739")
         os.makedirs(self.variant_csv_dir, exist_ok=True)
         dms_id = batch["DMS_id"].text[0]
         lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v4_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
         if os.path.exists(lls_npz_path):
+            print(f"Loading from {lls_npz_path}")
             data = np.load(lls_npz_path)
             lls_array = data["lls"]
         else:
