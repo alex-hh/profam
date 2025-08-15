@@ -305,4 +305,8 @@ class DocumentBatchCollator:
             str_obj = StringObject()
             str_obj.text = str_vals
             batch[str_key] = str_obj
+
+        if "batch_size" not in batch:
+            batch["batch_size"] = len(examples)
+
         return batch

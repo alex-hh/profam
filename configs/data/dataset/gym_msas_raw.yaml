@@ -1,0 +1,14 @@
+_target_: src.data.builders.fasta.FastaProteinIterableDataset
+name: gym_msas_raw
+defaults:
+  - /preprocessor: raw_from_msa
+
+cfg:
+  _target_: src.data.builders.HFProteinDatasetConfig
+  data_path_pattern: ProteinGym/DMS_msa_files/*.a3m
+  holdout_data_files: null
+  holdout_identifiers: null
+  identifier_col: null
+  file_type: text
+  minimum_sequences: null
+  max_sequences_per_document: 10000

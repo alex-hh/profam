@@ -5,6 +5,7 @@ defaults:
   - rich_progress_bar
   - timer
   - print
+  - sample_counter
   - shuffle
   - _self_
 

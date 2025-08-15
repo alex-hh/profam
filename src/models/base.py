@@ -72,6 +72,7 @@ class BaseLitModule(LightningModule):
         scoring_max_tokens: int = 10240,
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
+        ignore_index: int = -100,
     ) -> None:
         super().__init__()
         self.model = model
@@ -85,6 +86,7 @@ class BaseLitModule(LightningModule):
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
+        self.ignore_index = ignore_index
 
     def configure_optimizers(self) -> Dict[str, Any]:
         optimizer_name = self.hparams.get("optimizer", "adamw")
@@ -163,7 +165,8 @@ class BaseLitModule(LightningModule):
             # BaseLitModule.model.forward()
             # in general we assume that if you call BaseLitModule.forward()
             # you are not using KV cache.
-
+        if labels is not None:
+            labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -194,12 +197,12 @@ class BaseLitModule(LightningModule):
         dataset_accuracies = metrics.accuracy_from_outputs(
             outputs,
             batch["labels"],
-            ignore_index=-100,
+            ignore_index=self.ignore_index,
             dataset_names=batch[
                 "ds_name"
             ].text,  # a list of dataset names (StringObject.text)
             ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-", "X", "x"]
+                ["-", "X", "x", "[start-of-document]"]
                 + [aa.lower() for aa in aa_letters]
                 + self.tokenizer.all_special_tokens
             ),
@@ -235,7 +238,7 @@ class BaseLitModule(LightningModule):
                 has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
                     outputs,
                     batch["labels"],
-                    ignore_index=-100,
+                    ignore_index=self.ignore_index,
                     dataset_names=batch[
                         "ds_name"
                     ].text,  # a list of dataset names (StringObject.text)
@@ -267,7 +270,7 @@ class BaseLitModule(LightningModule):
             dataset_accuracies_3di = metrics.accuracy_from_outputs(
                 outputs,
                 batch["labels"],
-                ignore_index=-100,
+                ignore_index=self.ignore_index,
                 dataset_names=batch["ds_name"].text,
                 ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
                     ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
@@ -339,9 +342,6 @@ class BaseLitModule(LightningModule):
         seq_len_stats = metrics.sequence_lengths(
             batch["labels"], self.tokenizer.sep_token_id
         )
-        doc_len_stats = metrics.document_lengths(
-            batch["labels"], self.tokenizer.bos_token_id
-        )
         sep_tokens_in_batch = (
             (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
         )
@@ -352,15 +352,6 @@ class BaseLitModule(LightningModule):
             self.log(
                 name=f"{step_name}/token_stats/{reduce_fx}_seq_len_in_batch",
                 value=seq_len_stats[f"{reduce_fx}_seq_length"],
-                on_step=True,
-                on_epoch=False,
-                prog_bar=False,
-                reduce_fx=reduce_fx,
-                add_dataloader_idx=add_dataloader_idx,
-            )
-            self.log(
-                name=f"{step_name}/token_stats/{reduce_fx}_doc_len_in_batch",
-                value=doc_len_stats[f"{reduce_fx}_doc_length"],
                 on_step=True,
                 on_epoch=False,
                 prog_bar=False,
@@ -1112,31 +1103,9 @@ class BaseFamilyLitModule(BaseLitModule):
             prog_bar=True,
             on_epoch=False,
         )
-        self.log_ds_sample_counts(batch)
         return loss
-
-    def on_train_start(self):
-        self.dataset_sample_counts = {}
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
         # https://github.com/Lightning-AI/pytorch-lightning/issues/19604
         log.info("Train epoch end %s", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-
-    def log_ds_sample_counts(self, batch):
-        """Log statistics about dataset usage.
-
-        N.B. in distributed setting, these will be device-specific.
-        """
-        ds_name = batch["ds_name"].text
-        for ds in ds_name:
-            self.dataset_sample_counts[ds] = self.dataset_sample_counts.get(ds, 0) + 1
-
-        self.log_dict(
-            {
-                f"train/{k}_times_sampled": v
-                for k, v in self.dataset_sample_counts.items()
-            },
-            on_step=True,
-            on_epoch=False,
-        )

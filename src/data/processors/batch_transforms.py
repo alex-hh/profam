@@ -12,6 +12,7 @@ from src.data.utils import examples_list_to_dict, examples_to_list_of_dicts
 def pack_examples(examples: List[Dict]):
     keys = examples[0].keys()
     packed_example = {}
+    batch_size = len(examples)
     for example in examples:
         for k in keys:
             if isinstance(example[k], torch.Tensor):
@@ -48,6 +49,7 @@ def pack_examples(examples: List[Dict]):
                 raise ValueError(f"Unsupported type: {type(example[k])}")
     if "original_size" in packed_example:
         packed_example["original_size"] = np.mean(packed_example["original_size"])
+    packed_example["batch_size"] = batch_size
     return packed_example
 
 

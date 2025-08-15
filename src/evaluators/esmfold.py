@@ -298,6 +298,8 @@ class ESMFoldSamplingEvaluator(SamplingEvaluator):
                         seq = seq[:-1]
                     out = self.esmfold.infer(seq)
                     prot = esmfold_output_to_proteins(out)[0]
+                    if self.save_structures:
+                        prot.to_pdb_file(os.path.join(output_dir, f"prompt_{i}.pdb"))
                     prompt_prots.append(prot)
             else:
                 prot = raw_prompt_document[i]

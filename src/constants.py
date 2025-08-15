@@ -94,6 +94,7 @@ TOKENIZED_FEATURE_TYPES = {
     "coords_mask": Array3D(dtype="bool", shape=(None, 4, 3)),
     "ds_name": Value(dtype="string"),
     "identifier": Value(dtype="string"),
+    "batch_size": Value(dtype="int32"),
 }
 
 ARRAY_TYPES = (Sequence, _ArrayXD)

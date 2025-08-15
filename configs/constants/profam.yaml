@@ -16,6 +16,7 @@ sequence_features:
   - attention_mask
   - original_size
   - residue_index
+  - batch_size
 
 structure_features:
   - ds_name
