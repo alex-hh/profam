@@ -26,10 +26,11 @@ If no likelihoods are less than threshold, then take the average of the lowest 1
 """
 
 # Selection config
-top_pcts = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
-min_seq_sims = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-max_seq_sims = [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]
-ll_thresholds = [0, -0.5, -1.0, -1.1, -1.2, -1.3, -1.4, -1.5, -1.6, -1.7]
+top_pcts = [1.0, 0.9, 0.8, 0.7, 0.4, 0.3, 0.2]
+min_seq_sims = [0.0, 0.1, 0.15]
+max_seq_sims = [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65]
+ll_thresholds = [0, -0.5, -1.0, -1.1, -1.2, -1.3, -1.4, -1.5]
+min_coverages = [0, 0.6, 0.7, 0.8]
 
 def load_dms_scores(csv_path, seed=42, max_mutated_sequences=3000):
     dms_df = pd.read_csv(csv_path)
@@ -44,8 +45,10 @@ def select_replicates_with_thresholds(
     top_pct: float,
     min_seq_sim_arr: np.ndarray,
     max_seq_sim_arr: np.ndarray,
+    coverage_arr: np.ndarray,
     min_sim_threshold: float,
     max_sim_threshold: float,
+    min_coverage: float,
 ):
     """Select replicates based on LL threshold and sequence similarity thresholds.
 
@@ -63,7 +66,8 @@ def select_replicates_with_thresholds(
     ll_violation = np.maximum(0.0, lls_mean - ll_threshold)
     min_sim_violation = np.maximum(0.0, min_sim_threshold - min_seq_sim_arr)
     max_sim_violation = np.maximum(0.0, max_seq_sim_arr - max_sim_threshold)
-    total_violation = ll_violation + min_sim_violation + max_sim_violation
+    coverage_violation = np.maximum(0.0, min_coverage - coverage_arr)
+    total_violation = ll_violation + min_sim_violation + max_sim_violation + coverage_violation
 
     valid_mask = total_violation == 0.0
     valid_indices = np.where(valid_mask)[0]
@@ -72,7 +76,7 @@ def select_replicates_with_thresholds(
     if valid_indices.size < 5:
         # Sort all replicates by total violation ascending (valid ones first)
         sorted_by_violation = np.argsort(total_violation)
-        chosen_indices = sorted_by_violation[: max(5, valid_indices.size)]
+        chosen_indices = sorted_by_violation[: max(10, valid_indices.size)]
     else:
         chosen_indices = valid_indices
 
@@ -95,7 +99,8 @@ def select_replicates_with_thresholds(
 if __name__ == "__main__":
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620/*.npz")
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250730_183304_100_reps/*.npz")
-    npz_files = glob.glob("debug_gym_results/20250807_231522/*.npz")
+    # npz_files = glob.glob("debug_gym_results/20250807_231522/*.npz")
+    npz_files = glob.glob("logs/proteingym_eval_results/20250808_000300_PoET_MSAs_BO/*.npz")
     print(f"Found {len(npz_files)} npz files")
     results_rows = []
     completed_dms_ids = []
@@ -110,7 +115,8 @@ if __name__ == "__main__":
         assert len(dms_scores) == data["lls"].shape[1], "Number of lls and dms scores must match"
         min_seq_sim = data["min_sequence_similarity_list"]
         max_seq_sim = data["max_sequence_similarity_list"]
-        assert len(min_seq_sim) == len(max_seq_sim) == data["lls"].shape[0], "Number of min_seq_sim, max_seq_sim, and lls must match"
+        coverage_arr = data["min_coverage_list"]
+        assert len(min_seq_sim) == len(max_seq_sim) == len(coverage_arr) == data["lls"].shape[0], "Number of min_seq_sim, max_seq_sim, coverage, and lls must match"
         
         lls = data["lls"]
         lls_mean = lls.mean(axis=1)
@@ -121,47 +127,50 @@ if __name__ == "__main__":
             for threshold in ll_thresholds:
                 for min_sim_threshold in min_seq_sims:
                     for max_sim_threshold in max_seq_sims:
-                        # Skip inconsistent threshold combos
-                        if min_sim_threshold > max_sim_threshold:
-                            continue
-                        lls_to_use, chosen_indices = select_replicates_with_thresholds(
-                            lls=lls,
-                            lls_mean=lls_mean,
-                            ll_threshold=threshold,
-                            top_pct=top_pct,
-                            min_seq_sim_arr=min_seq_sim_arr,
-                            max_seq_sim_arr=max_seq_sim_arr,
-                            min_sim_threshold=min_sim_threshold,
-                            max_sim_threshold=max_sim_threshold,
-                        )
-                        ensemble_likelihoods = lls_to_use.mean(axis=0)
-                        spearman_corr, _ = spearmanr(ensemble_likelihoods, dms_scores)
+                        for min_coverage in min_coverages:
+                            # Skip inconsistent threshold combos
+                            if min_sim_threshold > max_sim_threshold:
+                                continue
+                            lls_to_use, chosen_indices = select_replicates_with_thresholds(
+                                lls=lls,
+                                lls_mean=lls_mean,
+                                ll_threshold=threshold,
+                                top_pct=top_pct,
+                                min_seq_sim_arr=min_seq_sim_arr,
+                                max_seq_sim_arr=max_seq_sim_arr,
+                                coverage_arr=coverage_arr,
+                                min_sim_threshold=min_sim_threshold,
+                                max_sim_threshold=max_sim_threshold,
+                                min_coverage=min_coverage,
+                            )
+                            ensemble_likelihoods = lls_to_use.mean(axis=0)
+                            spearman_corr, _ = spearmanr(ensemble_likelihoods, dms_scores)
 
-                        # Derived values for logging
-                        derived_top_k = len(chosen_indices)
+                            # Derived values for logging
+                            derived_top_k = len(chosen_indices)
 
-                        new_row = {
-                            "dms_id": dms_id,
-                            "top_pct": top_pct,
-                            "ll_threshold": threshold,
-                            "min_sim_threshold": min_sim_threshold,
-                            "max_sim_threshold": max_sim_threshold,
-                            "strategy": (
-                                f"pct_{top_pct}_llth_{threshold}_minsim_{min_sim_threshold}_maxsim_{max_sim_threshold}"
-                            ),
-                            "spearman_corr": spearman_corr,
-                            "n_in_ensemble": len(lls_to_use),
-                            "replicate_indices": ",".join(map(str, chosen_indices.tolist())),
-                            "derived_top_k": derived_top_k,
-                        }
-                        results_rows.append(new_row)
+                            new_row = {
+                                "dms_id": dms_id,
+                                "top_pct": top_pct,
+                                "ll_threshold": threshold,
+                                "min_sim_threshold": min_sim_threshold,
+                                "max_sim_threshold": max_sim_threshold,
+                                "strategy": (
+                                    f"pct_{top_pct}_llth_{threshold}_minsim_{min_sim_threshold}_maxsim_{max_sim_threshold}"
+                                ),
+                                "spearman_corr": spearman_corr,
+                                "n_in_ensemble": len(lls_to_use),
+                                "replicate_indices": ",".join(map(str, chosen_indices.tolist())),
+                                "derived_top_k": derived_top_k,
+                            }
+                            results_rows.append(new_row)
         results_df = pd.DataFrame(results_rows)
-        results_df.to_csv(f"{os.path.dirname(npz_file)}/protein_gym_likelihood_selection_results.csv", index=False)
+        # results_df.to_csv(f"{os.path.dirname(npz_file)}/protein_gym_likelihood_selection_results.csv", index=False)
     
     grouped_results_df = results_df[["strategy", "spearman_corr"]].groupby( "strategy").mean().reset_index()
     # sort by spearman_corr
     grouped_results_df = grouped_results_df.sort_values(by="spearman_corr", ascending=False)
     grouped_results_df.to_csv(f"{os.path.dirname(npz_file)}/protein_gym_likelihood_selection_results_grouped_by_strategy.csv", index=False)
-    for i, row in grouped_results_df.iterrows():
+    for i, row in grouped_results_df.iterrows().iloc[:20]:
         print(row.strategy, round(row.spearman_corr, 3))
 
