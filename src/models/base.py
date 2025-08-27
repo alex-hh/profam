@@ -560,6 +560,8 @@ class BaseFamilyLitModule(BaseLitModule):
         self.max_tokens = max_tokens
         self.gym_subsamples_per_n = gym_subsamples_per_n
         # ---------------------------------------------------------------------
+        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250810_135739")
+        os.makedirs(self.variant_csv_dir, exist_ok=True)
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
@@ -1312,8 +1314,6 @@ class BaseFamilyLitModule(BaseLitModule):
 
         # Save artefacts (CSV, NPZ, scatter)
         if getattr(self, "global_rank", 0) == 0:
-            self.variant_csv_dir = os.path.join(self.gym_results_save_dir, self.timestamp)
-            os.makedirs(self.variant_csv_dir, exist_ok=True)
             csv_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_{file_suffix}.csv")
             lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_{file_suffix}_lls.npz")
             if rows is not None and len(rows) > 0:
@@ -1581,9 +1581,6 @@ class BaseFamilyLitModule(BaseLitModule):
         random.seed(42)
         rng = random.Random()
         
-        # self.variant_csv_dir = os.path.join(self.gym_results_save_dir, self.timestamp)
-        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250810_135739")
-        os.makedirs(self.variant_csv_dir, exist_ok=True)
         dms_id = batch["DMS_id"].text[0]
         lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v4_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
@@ -1877,8 +1874,6 @@ class BaseFamilyLitModule(BaseLitModule):
         min_coverage_list, mean_coverage_list, max_coverage_list = [], [], []
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
-        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, self.timestamp)
-        os.makedirs(self.variant_csv_dir, exist_ok=True)
         csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}_v5.csv")
 
         token_count_attempts = 100
