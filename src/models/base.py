@@ -560,7 +560,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.max_tokens = max_tokens
         self.gym_subsamples_per_n = gym_subsamples_per_n
         # ---------------------------------------------------------------------
-        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250810_135739")
+        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250828_v6_gym_msas")
         os.makedirs(self.variant_csv_dir, exist_ok=True)
 
     def get_forward_kwargs(self, batch):
@@ -1572,7 +1572,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         batch: Dict[str, torch.Tensor],
         start_tokens: list[int] = [47, 63],
-        min_target_likelihood: float = -2.5,
+        min_target_likelihood: float = -2.0,
         max_target_likelihood: float = -0.9,
         n_opt_range_extension: int = 4,
     ):
