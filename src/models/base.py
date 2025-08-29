@@ -560,7 +560,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.max_tokens = max_tokens
         self.gym_subsamples_per_n = gym_subsamples_per_n
         # ---------------------------------------------------------------------
-        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250828_v6_gym_msas")
+        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250829_v6_gym_msas_filtered")
         os.makedirs(self.variant_csv_dir, exist_ok=True)
 
     def get_forward_kwargs(self, batch):
