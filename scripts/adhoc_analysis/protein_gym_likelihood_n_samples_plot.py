@@ -36,58 +36,54 @@ if __name__ == "__main__":
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250726_173620/*.npz")
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250730_183304_100_reps/*.npz")
     # npz_files = glob.glob("logs/proteingym_eval_results/20250808_000300_PoET_MSAs_BO/*.npz")
-    npz_files = glob.glob("logs/proteingym_eval_results/20250810_135739_poet_msas_random_sampling_v4/*.npz")
-    target_score = -1.5
-    print(f"Found {len(npz_files)} npz files")
-    results_rows = []
-    others = pd.read_csv("/Users/judewells/Documents/dataScienceProgramming/ProteinGym/benchmarks/DMS_zero_shot/substitutions/Spearman/DMS_substitutions_Spearman_DMS_level.csv")
-    completed_dms_ids = []
-    samps_used = []
-    spearman_corrs = []
-    sorted_spearman_corrs = []
-    for i in range(1, 200 + 1, 4):
-        one_value_spearman_corrs = []
-        one_value_spearman_corrs_sorted = []
-        for npz_file in npz_files:
-            npz_file = npz_file.replace("20250810_135739_poet_msas_random_sampling_v4", "20250808_000300_PoET_MSAs_BO").replace("_v4_lls.npz", "_v5.npz")
-            print(npz_file)
-            csv_path = npz_file.replace("_lls.npz", ".csv").replace(".npz", ".csv")
-            df = pd.read_csv(csv_path)
-            dms_id = df["DMS_id"].iloc[0]
-            completed_dms_ids.append(dms_id)
-            dms_scores_path = f"../data/ProteinGym/DMS_ProteinGym_substitutions/{dms_id}.csv"
-            # dms_scores = load_dms_scores(dms_scores_path).DMS_score.values
-            
-            data = np.load(npz_file)
-            dms_scores = data["dms_scores"]
-            assert len(dms_scores) == data["lls"].shape[1], "Number of lls and dms scores must match"
-            if data["lls"].shape[0] < 200:
-                print(f"Skipping {npz_file} because it has {data['lls'].shape[0]} reps")
-                continue
-            lls_to_use = data["lls"][:i]
-            lls_mean = lls_to_use.mean(axis=0)
-            one_value_spearman_corrs.append(spearmanr(lls_mean, dms_scores)[0])
-            # sort the lls by the mean likelihood
-            mutant_means = data["lls"].mean(axis=1)
-            lls_distances = np.abs(mutant_means - target_score)
-            lls_mean_sorted_indices = np.argsort(lls_distances)
-            lls_sorted = data["lls"][lls_mean_sorted_indices]
-            lls_to_use_sorted = lls_sorted[:i]
-            lls_mean_sorted = lls_to_use_sorted.mean(axis=0)
-            one_value_spearman_corrs_sorted.append(spearmanr(lls_mean_sorted, dms_scores)[0])
+    # npz_files = glob.glob("logs/proteingym_eval_results/20250810_135739_poet_msas_random_sampling_v4/*.npz")
+    # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_full_gym/*.npz")
+    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_v6_full_gym/*v6_lls.npz")
+    target_scores = [-1.5, -1.2, -1.3, -1.25, -1.35, -1.4]
+    for target_score in target_scores:
+        print(f"Found {len(npz_files)} npz files")
+        results_rows = []
+        others = pd.read_csv("/Users/judewells/Documents/dataScienceProgramming/ProteinGym/benchmarks/DMS_zero_shot/substitutions/Spearman/DMS_substitutions_Spearman_DMS_level.csv")
+        completed_dms_ids = []
+        samps_used = []
+        spearman_corrs = []
+        sorted_spearman_corrs = []
+        for i in range(1, 200 + 1, 4):
+            print(f"Processing {i} samples")
+            one_value_spearman_corrs = []
+            one_value_spearman_corrs_sorted = []
+            for npz_file in npz_files:
 
-        samps_used.append(i)
-        spearman_corrs.append(np.mean(one_value_spearman_corrs))
-        sorted_spearman_corrs.append(np.mean(one_value_spearman_corrs_sorted))
+                data = np.load(npz_file)
+                dms_scores = data["dms_scores"]
+                assert len(dms_scores) == data["lls"].shape[1], "Number of lls and dms scores must match"
+                if data["lls"].shape[0] < 200:
+                    print(f"Skipping {npz_file} because it has {data['lls'].shape[0]} reps")
+                    continue
+                lls_to_use = data["lls"][:i]
+                lls_mean = lls_to_use.mean(axis=0)
+                one_value_spearman_corrs.append(spearmanr(lls_mean, dms_scores)[0])
+                # sort the lls by the mean likelihood
+                mutant_means = data["lls"].mean(axis=1)
+                lls_distances = np.abs(mutant_means - target_score)
+                lls_mean_sorted_indices = np.argsort(lls_distances)
+                lls_sorted = data["lls"][lls_mean_sorted_indices]
+                lls_to_use_sorted = lls_sorted[:i]
+                lls_mean_sorted = lls_to_use_sorted.mean(axis=0)
+                one_value_spearman_corrs_sorted.append(spearmanr(lls_mean_sorted, dms_scores)[0])
 
-    plt.plot(samps_used, sorted_spearman_corrs, label="Sorted")
+            samps_used.append(i)
+            spearman_corrs.append(np.mean(one_value_spearman_corrs))
+            sorted_spearman_corrs.append(np.mean(one_value_spearman_corrs_sorted))
 
-    plt.plot(samps_used, spearman_corrs, label="Unsorted")
-    plt.xlabel("Number of samples used")
-    plt.ylabel("Spearman correlation")
-    plt.title("Spearman correlation vs. number of samples used")
-    plt.legend()
-    plt.savefig("protein_gym_likelihood_n_samples_plot.png")
+        plt.plot(samps_used, sorted_spearman_corrs, label=f"Sorted {target_score}")
+        if target_score == target_scores[0]:
+            plt.plot(samps_used, spearman_corrs, label="Unsorted", color="blue")
+        plt.xlabel("Number of samples used")
+        plt.ylabel("Spearman correlation")
+        plt.title("Spearman correlation vs. number of samples used")
+        plt.legend()
+        plt.savefig(f"protein_gym_likelihood_n_samples_plot_{target_score}.png")
 
 
 

@@ -260,15 +260,29 @@ def build_gym_df(
     use_foldseek_msa: bool = False,
     max_completion_length: Optional[bool] = None,
     msa_folder_name: str = "DMS_msa_files",
+    task_index: Optional[int] = None,
+    num_tasks: Optional[int] = None,
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
     df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
+
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
     else:
         print("dms_ids is None so evaluating on all ProteinGym assays")
+
     if max_completion_length is not None:
         df = df[df["seq_len"] <= max_completion_length]
+    
+    if task_index is not None and num_tasks is not None:
+        batch_size = len(df) // num_tasks
+        start_idx = task_index * batch_size
+        if task_index == num_tasks - 1:
+            end_idx = len(df)
+        else:
+            end_idx = start_idx + batch_size
+        df = df.iloc[start_idx:end_idx]
+    
     if use_foldseek_msa:
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)
@@ -326,6 +340,8 @@ class ProteinGymDataset(BaseProteinDataset):
         drop_wt: bool = True,
         msa_folder_name: str = "DMS_msa_files",
         use_msa_seq_weights: bool = False,
+        task_index: Optional[int] = None,
+        num_tasks: Optional[int] = None,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -355,6 +371,8 @@ class ProteinGymDataset(BaseProteinDataset):
         self.use_foldseek_msa = use_foldseek_msa
         self.msa_folder_name = msa_folder_name
         self.use_msa_seq_weights = use_msa_seq_weights
+        self.task_index = task_index
+        self.num_tasks = num_tasks
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
                 warnings.warn(
@@ -482,6 +500,8 @@ class ProteinGymDataset(BaseProteinDataset):
             use_foldseek_msa=self.use_foldseek_msa,
             max_completion_length=self.max_completion_length,
             msa_folder_name=self.msa_folder_name,
+            task_index=self.task_index,
+            num_tasks=self.num_tasks,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)
