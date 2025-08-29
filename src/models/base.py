@@ -560,7 +560,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self.max_tokens = max_tokens
         self.gym_subsamples_per_n = gym_subsamples_per_n
         # ---------------------------------------------------------------------
-        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250829_msa_pariformer_random_single_pass")
+        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250829_msa_pariformer_exp_2")
         os.makedirs(self.variant_csv_dir, exist_ok=True)
 
     def get_forward_kwargs(self, batch):
@@ -2299,7 +2299,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 while True:
                     weights = batch["sequence_weights"][0].float().cpu().numpy()
                     if weighting_factor == 1:
-                        weights = np.exp(weights * 5)
+                        weights = np.exp(weights * 2)
                         idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights/np.sum(weights)).tolist()
                     elif weighting_factor == 0:
                         idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False).tolist()
@@ -2654,7 +2654,7 @@ class BaseFamilyLitModule(BaseLitModule):
         if batch_idx is None:
             batch_idx = -1  # fallback when Lightning doesn't supply the index
 
-        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v8(
+        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v7(
             batch
         )
 
