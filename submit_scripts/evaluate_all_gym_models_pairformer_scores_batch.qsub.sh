@@ -37,7 +37,10 @@ NAME="${DIR_REL#logs/saturn_cloud_good_runs/}_GYM_ONLY"
 
 echo "Selected directory: $DIR"
 echo "Experiment group : $NAME"
-
+cat src/models/base.py
+echo "#########  updated after git pull ##################" 
+git pull origin gym_eval_strategies
+cat src/models/base.py
 echo "Running evaluation..."
 sleep 60
 python src/train.py \
