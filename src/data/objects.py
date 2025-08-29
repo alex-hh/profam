@@ -268,6 +268,7 @@ class ProteinDocument:
         "structure_tokens",
         "sequence_similarities",
         "coverages",
+        "sequence_weights",
     ]
     sequences: List[str]
     accessions: Optional[List[str]] = None
@@ -291,6 +292,7 @@ class ProteinDocument:
     # Per-sequence coverage and similarity data against WT sequence
     sequence_similarities: Optional[List[float]] = None
     coverages: Optional[List[float]] = None
+    sequence_weights: Optional[List[float]] = None
 
     def __post_init__(self):
         for field in [
@@ -300,6 +302,7 @@ class ProteinDocument:
             "struct_is_pdb",
             "interleaved_coords_masks",
             "modality_masks",
+            "sequence_weights",
         ]:
             attr = getattr(self, field)
             if attr is not None and isinstance(attr[0], list):
@@ -315,6 +318,7 @@ class ProteinDocument:
                 self.interleaved_coords_masks,
                 self.sequence_similarities,
                 self.coverages,
+                self.sequence_weights,
             )
         except AssertionError:
             print(
@@ -327,6 +331,7 @@ class ProteinDocument:
                 f"interleaved_coords_masks: {self.interleaved_coords_masks}",
                 f"sequence_similarities: {self.sequence_similarities}",
                 f"coverages: {self.coverages}",
+                f"sequence_weights: {self.sequence_weights}",
             )
             raise
         if self.backbone_coords_masks is None and self.backbone_coords is not None:
@@ -483,6 +488,9 @@ class ProteinDocument:
                 coverages=self.coverages[key]
                 if self.coverages is not None
                 else None,
+                sequence_weights=self.sequence_weights[key]
+                if self.sequence_weights is not None
+                else None,
                 representative_accession=self.representative_accession,
                 original_size=self.original_size,
             )
@@ -520,6 +528,9 @@ class ProteinDocument:
                 coverages=[self.coverages[i] for i in key]
                 if self.coverages is not None
                 else None,
+                sequence_weights=[self.sequence_weights[i] for i in key]
+                if self.sequence_weights is not None
+                else None,
             )
         elif isinstance(key, int):
             return Protein(
@@ -549,34 +560,34 @@ class ProteinDocument:
             sequences=[seq[s] for seq, s in zip(self.sequences, slices)],
             accessions=self.accessions,
             residue_positions=[pos[s] for pos, s in zip(self.residue_positions, slices)]
-            if self.residue_positions is not None
-            else None,
+            if self.residue_positions is not None else None,
             plddts=[plddt[s] for plddt, s in zip(self.plddts, slices)]
             if self.plddts is not None
             else None,
             backbone_coords=[xyz[s] for xyz, s in zip(self.backbone_coords, slices)]
-            if self.backbone_coords is not None
-            else None,
+            if self.backbone_coords is not None else None,
             backbone_coords_masks=[
                 mask[s] for mask, s in zip(self.backbone_coords_masks, slices)
             ]
-            if self.backbone_coords_masks is not None
-            else None,
+            if self.backbone_coords_masks is not None else None,
             structure_tokens=[
                 tokens[s] for tokens, s in zip(self.structure_tokens, slices)
             ]
-            if self.structure_tokens is not None
-            else None,
+            if self.structure_tokens is not None else None,
             representative_accession=self.representative_accession,
             original_size=self.original_size,
             modality_masks=[mask[s] for mask, s in zip(self.modality_masks, slices)]
-            if self.modality_masks is not None
-            else None,
+            if self.modality_masks is not None else None,
             interleaved_coords_masks=[
                 mask[s] for mask, s in zip(self.interleaved_coords_masks, slices)
             ]
-            if self.interleaved_coords_masks is not None
-            else None,
+            if self.interleaved_coords_masks is not None else None,
+            # Per-sequence scalar fields are unchanged by per-residue slicing
+            sequence_similarities=self.sequence_similarities.copy()
+            if self.sequence_similarities is not None else None,
+            coverages=self.coverages.copy() if self.coverages is not None else None,
+            sequence_weights=self.sequence_weights.copy()
+            if self.sequence_weights is not None else None,
         )
 
     def __len__(self):
@@ -672,6 +683,10 @@ class ProteinDocument:
             coverages=kwargs.pop(
                 "coverages",
                 self.coverages.copy() if self.coverages is not None else None,
+            ),
+            sequence_weights=kwargs.pop(
+                "sequence_weights",
+                self.sequence_weights.copy() if self.sequence_weights is not None else None,
             ),
             **kwargs,
         )

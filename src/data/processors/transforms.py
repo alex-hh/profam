@@ -257,6 +257,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     sampled_protein_positions = []
     sampled_protein_sequence_similarities = [] if proteins.sequence_similarities is not None else None
     sampled_protein_coverages = [] if proteins.coverages is not None else None
+    sampled_protein_sequence_weights = [] if proteins.sequence_weights is not None else None
 
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
@@ -289,6 +290,8 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                     sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
                 if proteins.coverages is not None:
                     sampled_protein_coverages.append(proteins.coverages[ix])
+                if proteins.sequence_weights is not None:
+                    sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
                 total_length += len(seq[seq_slice]) + extra_tokens_per_protein
             break
         elif (
@@ -306,6 +309,8 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                 sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
             if proteins.coverages is not None:
                 sampled_protein_coverages.append(proteins.coverages[ix])
+            if proteins.sequence_weights is not None:
+                sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
             total_length += len(seq[seq_slice]) + extra_tokens_per_protein
         else:
             total_length += seq_length
@@ -316,6 +321,8 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                 sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
             if proteins.coverages is not None:
                 sampled_protein_coverages.append(proteins.coverages[ix])
+            if proteins.sequence_weights is not None:
+                sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
     if len(sampled_protein_ids) == 0:
         raise ValueError("No proteins sampled: adjust max_tokens")
     # init will check array sizes - but misalignment could still occur
@@ -324,6 +331,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
         sequences=sampled_protein_sequences,
         sequence_similarities=sampled_protein_sequence_similarities,
         coverages=sampled_protein_coverages,
+        sequence_weights=sampled_protein_sequence_weights,
     )
 
 

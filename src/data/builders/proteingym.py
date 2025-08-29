@@ -24,6 +24,8 @@ def has_no_indels(string_list):
     pattern = r"[.\-a-z]"
     return not any(re.search(pattern, s) for s in string_list)
 
+def extract_sequence_weights_from_seq_ids(seq_ids: list) -> np.ndarray[float]:
+    return np.array([float(e.split("score=")[-1].split(" ")[0]  ) for e in seq_ids])
 
 def tokenize_msa(
     sample,
@@ -117,6 +119,7 @@ def load_msa_for_row(
     use_filtered_msa: bool = False,
     extra_tokens_per_document: int = 2,
     use_msa_pos: bool = True,
+    use_msa_seq_weights: bool = False,
 ):
     msa_file = row["MSA_filename"]
     if not os.path.exists(msa_file):
@@ -126,13 +129,16 @@ def load_msa_for_row(
     if use_filtered_msa:
         msa_file = msa_file.replace(".a2m", "_reformat_hhfilter.a3m")
     print(f"Loading MSA from {msa_file}")
-    _, seqs = fasta.read_fasta(  # initially load without changes for pos calc
+    seq_ids, seqs = fasta.read_fasta(  # initially load without changes for pos calc
         msa_file,
         keep_insertions=True,
         to_upper=True,
         keep_gaps=True if use_msa_pos else keep_gaps,
     )
-    
+    if use_msa_seq_weights:
+        sequence_weights = extract_sequence_weights_from_seq_ids(seq_ids)
+    else:
+        sequence_weights = [1 for _ in seqs]
     
     # Load coverage and similarity data if available
     sequence_similarities = None
@@ -153,8 +159,12 @@ def load_msa_for_row(
             coverages = None
     seq_indices = [i for i, s in enumerate(seqs) if "X" not in s and "U" not in s and "Z" not in s and "O" not in s and "B" not in s and "J" not in s]
     seqs = [seqs[i] for i in seq_indices]
-    sequence_similarities = [sequence_similarities[i] for i in seq_indices]
-    coverages = [coverages[i] for i in seq_indices]
+    if sequence_similarities is not None:
+        sequence_similarities = [sequence_similarities[i] for i in seq_indices]
+    if coverages is not None:
+        coverages = [coverages[i] for i in seq_indices]
+    if sequence_weights is not None:
+        sequence_weights = [sequence_weights[i] for i in seq_indices]
     proteins = ProteinDocument(
         sequences=seqs,
         accessions=None,
@@ -165,6 +175,7 @@ def load_msa_for_row(
         structure_tokens=None,
         sequence_similarities=sequence_similarities,
         coverages=coverages,
+        sequence_weights=sequence_weights,
     )
     # need to allow room for the completion
     # todo should be max completion length (once we handle indels)
@@ -196,6 +207,8 @@ def load_msa_for_row(
         row["sequence_similarities"] = proteins.sequence_similarities
     if proteins.coverages is not None:
         row["coverages"] = proteins.coverages
+    if use_msa_seq_weights:
+        row["sequence_weights"] = proteins.sequence_weights
     return row
 
 
@@ -264,6 +277,10 @@ def build_gym_df(
         df["MSA_filename"] = df["DMS_id"].apply(
             lambda x: os.path.join(gym_data_dir, msa_folder_name, x + ".a3m")
         )
+    elif "msa_pairformer" in msa_folder_name:
+        df["MSA_filename"] = df["MSA_filename"].apply(
+            lambda x: os.path.join(gym_data_dir, msa_folder_name, x.split(".")[0] + "_ranked.fasta")
+        )
     else:
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, msa_folder_name, x)
@@ -308,6 +325,7 @@ class ProteinGymDataset(BaseProteinDataset):
         keep_wt: bool = False,
         drop_wt: bool = True,
         msa_folder_name: str = "DMS_msa_files",
+        use_msa_seq_weights: bool = False,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -336,6 +354,7 @@ class ProteinGymDataset(BaseProteinDataset):
         self.drop_wt = drop_wt
         self.use_foldseek_msa = use_foldseek_msa
         self.msa_folder_name = msa_folder_name
+        self.use_msa_seq_weights = use_msa_seq_weights
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
                 warnings.warn(
@@ -406,6 +425,7 @@ class ProteinGymDataset(BaseProteinDataset):
                     max_context_seqs=self.max_context_seqs,
                     keep_wt=self.keep_wt,
                     drop_wt=self.drop_wt,
+                    use_msa_seq_weights=self.use_msa_seq_weights,
                 ),
                 batched=False,
                 num_proc=self.num_proc,
@@ -444,7 +464,8 @@ class ProteinGymDataset(BaseProteinDataset):
             columns.append("sequence_similarities")
         if "coverages" in dataset.column_names:
             columns.append("coverages")
-
+        if "sequence_weights" in dataset.column_names:
+            columns.append("sequence_weights")
         # TODO: what is right here?
         dataset.set_format(
             type="torch",
