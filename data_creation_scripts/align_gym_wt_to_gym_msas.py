@@ -131,13 +131,14 @@ if __name__ == "__main__":
     # gym_msa_pattern = "../data/ProteinGym/DMS_msa_files/*.a3m"
     gym_msa_pattern = "../data/ProteinGym/DMS_msa_files/*.a2m"
     poet_gym_msa_pattern = "../data/ProteinGym/PoET_DMS_msa_files/DMS_substitutions/*.a3m"
+    filtered_poet_msa_pattern = "../data/ProteinGym/filtered_msas_poet/*_filtered.fasta"
     gym_csv_path = "../data/ProteinGym/DMS_substitutions.csv"
     df = pd.read_csv(gym_csv_path)
     # check_target_sequence_consistency(df)
     df['MSA_filename'] = df['MSA_filename'].apply(lambda x: x.split(".")[0])
     
     # for path_pattern in [gym_msa_pattern, poet_gym_msa_pattern]:
-    for path_pattern in [gym_msa_pattern]:
+    for path_pattern in [filtered_poet_msa_pattern]:
         fail_counter = 0
         results_rows = []
         for msa_path in glob.glob(path_pattern):
@@ -148,8 +149,8 @@ if __name__ == "__main__":
                 continue
             if "hhfilter" not in path_pattern and "hhfilter" in msa_path:
                 continue
-            if "PoET" in msa_path:
-                row  = df[df.DMS_id == os.path.basename(msa_path).split(".")[0]]
+            if "poet" in msa_path.lower():
+                row  = df[df.DMS_id == os.path.basename(msa_path).split(".")[0].replace("_filtered", "")]
                 row = row.iloc[0]
                 csv_save_path = "poet_gym_msa_meta_analysis_results.csv"
             else:
