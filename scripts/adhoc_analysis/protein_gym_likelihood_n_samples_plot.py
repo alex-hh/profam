@@ -38,12 +38,14 @@ if __name__ == "__main__":
     # npz_files = glob.glob("logs/proteingym_eval_results/20250808_000300_PoET_MSAs_BO/*.npz")
     # npz_files = glob.glob("logs/proteingym_eval_results/20250810_135739_poet_msas_random_sampling_v4/*.npz")
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_full_gym/*.npz")
-    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_v6_full_gym/*v6_lls.npz")
+    # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_v6_full_gym/*v6_lls.npz")
+    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250828_v6_gym_msas/*v6_lls.npz")
+    save_dir = "../gym_spearman_likelihood_plots_gym_msas_unfiltered"
+    os.makedirs(save_dir, exist_ok=True)
     target_scores = [-1.5, -1.2, -1.3, -1.25, -1.35, -1.4]
     for target_score in target_scores:
         print(f"Found {len(npz_files)} npz files")
         results_rows = []
-        others = pd.read_csv("/Users/judewells/Documents/dataScienceProgramming/ProteinGym/benchmarks/DMS_zero_shot/substitutions/Spearman/DMS_substitutions_Spearman_DMS_level.csv")
         completed_dms_ids = []
         samps_used = []
         spearman_corrs = []
@@ -83,7 +85,7 @@ if __name__ == "__main__":
         plt.ylabel("Spearman correlation")
         plt.title("Spearman correlation vs. number of samples used")
         plt.legend()
-        plt.savefig(f"protein_gym_likelihood_n_samples_plot_{target_score}.png")
+        plt.savefig(f"{save_dir}/protein_gym_likelihood_n_samples_plot_{target_score}.png")
 
 
 

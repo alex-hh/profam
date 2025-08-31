@@ -48,7 +48,6 @@ def extract_sequence_weights_from_seq_ids(seq_ids: list) -> np.ndarray[float]:
 #     Uniprot21 alphabet expected by the original implementation.
 
 
-_AA_TO_IDX = {aa: i for i, aa in enumerate("ACDEFGHIKLMNPQRSTVWY")}
 _GAP_TOKEN_IDX = 20  # must match default of compute_homology_weights
 
 
@@ -58,7 +57,7 @@ def _encode_msa_strings_to_uint8(seqs: list[str]) -> np.ndarray:
 
     Any unknown or gap-like character (including '-') is mapped to the GAP token.
     """
-
+    _AA_TO_IDX = {aa: i for i, aa in enumerate("ACDEFGHIKLMNPQRSTVWY")}
     seq_len = len(seqs[0]) if seqs else 0
     arr = np.zeros((len(seqs), seq_len), dtype=np.uint8)
     for i, s in enumerate(seqs):
