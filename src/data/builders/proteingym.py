@@ -25,7 +25,6 @@ import pandas as pd
 from datasets import Dataset
 from transformers import PreTrainedTokenizerFast
 
-# Import the existing homology weight routine so we can reuse the optimised implementation
 from src.data.msa_subsampling import compute_homology_weights
 
 
@@ -215,10 +214,16 @@ def load_msa_for_row(
     # Sequence weights
     # ------------------------------------------------------------------
     if use_msa_seq_weights:
+        _, seqs_for_weights = fasta.read_fasta(  # initially load without changes for pos calc
+        msa_file,
+        keep_insertions=False,
+        to_upper=True,
+        keep_gaps=True
+    )
         # Homology-based weights with on-disk caching
         sequence_weights = compute_homology_sequence_weights(
             msa_file=msa_file,
-            sequences=seqs,
+            sequences=seqs_for_weights,
         ).tolist()
     else:
         sequence_weights = [1.0 for _ in seqs]

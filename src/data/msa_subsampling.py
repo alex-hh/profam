@@ -3,7 +3,7 @@ import hashlib
 import math
 import pickle
 from pathlib import Path
-from typing import Callable, Literal, Optional, Union
+from typing import Callable, Literal, Optional, Union, Sequence
 
 import numba as nb
 import numpy as np
@@ -176,7 +176,7 @@ def compute_homology_weights(
 
         ungapped_msa (np.ndarray): The MSA (from .fa).
         theta (float, optional): A parameter used to determine the similarity between sequences. Default is 0.2.
-        gap_token (int, optional): The token representing gaps in the (Uniprot21 encoded) MSA. Default is 20.
+        gap_token (int, optional): The token representing gaps in the encoded MSA. Default is 20.
         gap_token_mask (int): token for masking gaps. should be a token not representing any other value.
 
     Returns:
@@ -296,47 +296,47 @@ class MSASampler(BaseModel):
         return original_msa_sample_idxs
 
 
-def sample_msa_sequences(
-    get_sequence_fn: Callable[[int], bytes],
-    sample_idxs: Sequence[int],
-    max_tokens: int,
-    alphabet: Uniprot21,
-    shuffle: bool = True,
-    shuffle_seed: Optional[int] = None,
-    truncate: bool = True,
-) -> list[np.ndarray]:
-    assert alphabet.start_token != -1
-    assert alphabet.stop_token != -1
-    if not shuffle:
-        assert shuffle_seed is None
+# def sample_msa_sequences(
+#     get_sequence_fn: Callable[[int], bytes],
+#     sample_idxs: Sequence[int],
+#     max_tokens: int,
+#     alphabet,
+#     shuffle: bool = True,
+#     shuffle_seed: Optional[int] = None,
+#     truncate: bool = True,
+# ) -> list[np.ndarray]:
+#     assert alphabet.start_token != -1
+#     assert alphabet.stop_token != -1
+#     if not shuffle:
+#         assert shuffle_seed is None
 
-    seqs, total_tokens = [], 0
-    for idx in sample_idxs:
-        next_sequence = get_sequence_fn(idx)
-        seqs.append(append_startstop(alphabet.encode(next_sequence), alphabet=alphabet))
-        total_tokens += len(seqs[-1])
-        if total_tokens > max_tokens:
-            break
+#     seqs, total_tokens = [], 0
+#     for idx in sample_idxs:
+#         next_sequence = get_sequence_fn(idx)
+#         seqs.append(append_startstop(alphabet.encode(next_sequence), alphabet=alphabet))
+#         total_tokens += len(seqs[-1])
+#         if total_tokens > max_tokens:
+#             break
 
-    # shuffle order and truncate to max tokens
-    if shuffle:
-        rng = (
-            np.random.default_rng(shuffle_seed)
-            if shuffle_seed is not None
-            else np.random
-        )
-        final_permutation = rng.permutation(len(seqs))
-    else:
-        final_permutation = np.arange(len(seqs))
-    final_seqs, total_tokens = [], 0
-    for seq in [seqs[i] for i in final_permutation]:
-        if truncate and (total_tokens + len(seq) > max_tokens):
-            seq = seq[: max_tokens - total_tokens]
-        total_tokens += len(seq)
-        final_seqs.append(seq)
-        if total_tokens >= max_tokens:
-            break
-    return final_seqs
+#     # shuffle order and truncate to max tokens
+#     if shuffle:
+#         rng = (
+#             np.random.default_rng(shuffle_seed)
+#             if shuffle_seed is not None
+#             else np.random
+#         )
+#         final_permutation = rng.permutation(len(seqs))
+#     else:
+#         final_permutation = np.arange(len(seqs))
+#     final_seqs, total_tokens = [], 0
+#     for seq in [seqs[i] for i in final_permutation]:
+#         if truncate and (total_tokens + len(seq) > max_tokens):
+#             seq = seq[: max_tokens - total_tokens]
+#         total_tokens += len(seq)
+#         final_seqs.append(seq)
+#         if total_tokens >= max_tokens:
+#             break
+#     return final_seqs
 
 
 if __name__=="__main__":

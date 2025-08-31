@@ -42,7 +42,9 @@ if __name__ == "__main__":
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250828_v6_gym_msas/*v6_lls.npz")
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250829_v6_gym_msas_filtered/*v6_lls.npz")
     npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250829_msa_pariformer_exp_2_gym_msas_unfiltered/*v7_lls.npz")
-    save_dir = "../gym_spearman_likelihood_plots_full_gym_msas_no_filter_test"
+    npz_files = glob.glob("filtered_poet_msas_no_weighting_v9/20250831_154342/*.npz")
+    npz_files = glob.glob("filtered_poet_msas_with_weighting_v9/20250831_154342/*.npz")
+    save_dir = "gym_spearman_likelihood_plots_subsample_filtered_poet_msas_with_weighting_60lnxlim"
     os.makedirs(save_dir, exist_ok=True)
     target_scores = [-1.3]
     for target_score in target_scores:
@@ -52,16 +54,17 @@ if __name__ == "__main__":
         samps_used = []
         spearman_corrs = []
         sorted_spearman_corrs = []
-        for i in [1, 2, 5, 10, 20, 30, 50, 80, 120, 160, 200]:
+        # for i in [1, 2, 5, 10, 20, 30, 50, 80, 120, 160, 200]:
+        for i in [1, 2, 5, 10, 20, 30, 50]:
             print(f"Processing {i} samples")
             one_value_spearman_corrs = []
             one_value_spearman_corrs_sorted = []
             for npz_file in npz_files:
-                npz_file = npz_file.replace("20250829_msa_pariformer_exp_2_gym_msas_unfiltered", "20250828_v6_gym_msas").replace("v7_lls.npz", "v6_lls.npz")
+                # npz_file = npz_file.replace("20250829_msa_pariformer_exp_2_gym_msas_unfiltered", "20250828_v6_gym_msas").replace("v7_lls.npz", "v6_lls.npz")
                 data = np.load(npz_file)
                 dms_scores = data["dms_scores"]
                 assert len(dms_scores) == data["lls"].shape[1], "Number of lls and dms scores must match"
-                if data["lls"].shape[0] < 200:
+                if data["lls"].shape[0] < 50:
                     print(f"Skipping {npz_file} because it has {data['lls'].shape[0]} reps")
                     continue
                 lls_to_use = data["lls"][:i]
