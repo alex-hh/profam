@@ -94,8 +94,8 @@ class BaseLitModule(LightningModule):
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.gym_results_save_dir = gym_results_save_dir
-        os.makedirs(gym_results_save_dir, exist_ok=True)
+        self.gym_results_save_dir = os.path.join(gym_results_save_dir, self.timestamp)
+        os.makedirs(self.gym_results_save_dir, exist_ok=True)
         print("proteinGym results saved in", self.gym_results_save_dir)
 
 
@@ -560,8 +560,6 @@ class BaseFamilyLitModule(BaseLitModule):
         self.max_tokens = max_tokens
         self.gym_subsamples_per_n = gym_subsamples_per_n
         # ---------------------------------------------------------------------
-        self.variant_csv_dir = os.path.join(self.gym_results_save_dir, "20250829_msa_pariformer_exp_2")
-        os.makedirs(self.variant_csv_dir, exist_ok=True)
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
@@ -1116,7 +1114,7 @@ class BaseFamilyLitModule(BaseLitModule):
             cbar.set_label("Variant index (earlier → later)")
 
             scatter_path = os.path.join(
-                self.variant_csv_dir,
+                self.gym_results_save_dir,
                 f"batch_{dms_id}_scatter.png",
             )
             fig.tight_layout()
@@ -1315,8 +1313,8 @@ class BaseFamilyLitModule(BaseLitModule):
 
         # Save artefacts (CSV, NPZ, scatter)
         if getattr(self, "global_rank", 0) == 0:
-            csv_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_{file_suffix}.csv")
-            lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_{file_suffix}_lls.npz")
+            csv_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}.csv")
+            lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}_lls.npz")
             if rows is not None and len(rows) > 0:
                 try:
                     pd.DataFrame(rows).to_csv(csv_path, index=False)
@@ -1582,7 +1580,7 @@ class BaseFamilyLitModule(BaseLitModule):
         rng = random.Random()
         
         dms_id = batch["DMS_id"].text[0]
-        lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v4_lls.npz")
+        lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v4_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
         if os.path.exists(lls_npz_path):
@@ -1875,7 +1873,7 @@ class BaseFamilyLitModule(BaseLitModule):
         min_coverage_list, mean_coverage_list, max_coverage_list = [], [], []
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
-        csv_path = os.path.join(self.variant_csv_dir, f"batch_{batch['DMS_id'].text[0]}_v5.csv")
+        csv_path = os.path.join(self.gym_results_save_dir, f"batch_{batch['DMS_id'].text[0]}_v5.csv")
 
         token_count_attempts = 100
         # ------------------------------------------------------------------ #
@@ -2038,7 +2036,7 @@ class BaseFamilyLitModule(BaseLitModule):
         rng = random.Random()
         np.random.seed(seed)
         dms_id = batch["DMS_id"].text[0]
-        lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v6_lls.npz")
+        lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v6_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
         if os.path.exists(lls_npz_path):
@@ -2241,20 +2239,146 @@ class BaseFamilyLitModule(BaseLitModule):
                 rows=rows,
                 extra_npz_payload=extra_payload,
             )
+    def get_sequence_weights(
+            self,
+            batch, 
+            precomputed_sequence_weights=None, 
+            weight_by_coverage=False,
+            weight_by_seq_sim=False,
+            target_seq_sim=0.5,
+            top_p_mass_target=0.65,
+            top_p=0.35,
+            min_seqs_for_weighting=200,
+            ):
+        eps = 1e-8
+
+        def _to_np_1d(x):
+            if x is None:
+                return None
+            arr = x.detach().float().cpu().numpy()
+            arr = arr[0]
+            return arr.astype(np.float32)
+
+        def _softmax_with_temp(scores: np.ndarray, tau: float) -> np.ndarray:
+            # Stable softmax
+            z = scores / max(tau, eps)
+            z = z - z.max()
+            exps = np.exp(z)
+            denom = exps.sum()
+            if denom <= eps:
+                return np.ones_like(scores) / max(scores.shape[0], 1)
+            return exps / denom
+
+        def _adjust_temperature_to_top_mass(scores: np.ndarray, desired_mass: float, top_frac: float) -> np.ndarray:
+            n = scores.shape[0]
+            if n == 0:
+                return scores
+            # If all scores equal, uniform is already smooth; return as-is
+            if np.allclose(scores, scores[0]):
+                return np.ones(n, dtype=np.float32) / max(n, 1)
+            k = max(1, int(np.ceil(top_frac * n)))
+            # Fix the ordering by raw scores; we tune temperature only
+            order = np.argsort(-scores)
+            top_idx = order[:k]
+            # Binary search on temperature to hit target mass smoothly
+            lo, hi = 1e-3, 1e3
+            best_probs = None
+            for _ in range(30):
+                mid = (lo + hi) / 2.0
+                probs = _softmax_with_temp(scores, mid)
+                mass = probs[top_idx].sum()
+                best_probs = probs
+                if mass < desired_mass:
+                    # Need sharper distribution (more mass on top) → decrease tau
+                    hi = mid
+                else:
+                    # Too concentrated → increase tau
+                    lo = mid
+            if best_probs is None:
+                best_probs = _softmax_with_temp(scores, 1.0)
+            s = best_probs.sum()
+            return (best_probs / s).astype(np.float32) if s > eps else (np.ones(n, dtype=np.float32) / max(n, 1))
+
+        # Determine n_seqs from any available vector
+        seq_sims_np = _to_np_1d(batch.get('sequence_similarities', None))
+        covs_np = _to_np_1d(batch.get('coverages', None))
+        if seq_sims_np is not None:
+            n_seqs = seq_sims_np.shape[0]
+        elif covs_np is not None:
+            n_seqs = covs_np.shape[0]
+        else:
+            raise ValueError("At least one of 'sequence_similarities' or 'coverages' must be present in batch")
+        if n_seqs < min_seqs_for_weighting:
+            return np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
+        if not any([weight_by_coverage, weight_by_seq_sim, precomputed_sequence_weights is not None]):
+            return np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
+
+        component_probs: List[np.ndarray] = []
+
+        if precomputed_sequence_weights is not None:
+            # Accept torch tensor or numpy
+            if torch.is_tensor(precomputed_sequence_weights):
+                pre_np = precomputed_sequence_weights.detach().cpu().numpy()
+                if pre_np.ndim == 2 and pre_np.shape[0] == 1:
+                    pre_np = pre_np[0]
+            else:
+                pre_np = np.asarray(precomputed_sequence_weights)
+            if pre_np.shape[0] != n_seqs:
+                raise ValueError("precomputed_sequence_weights must have length n_seqs")
+            pre_np = np.maximum(pre_np.astype(np.float32), 0.0)
+            if pre_np.sum() <= eps:
+                pre_np = np.ones_like(pre_np)
+            pre_np = pre_np / pre_np.sum()
+            # Treat these probabilities as scores via log; tune temperature to target mass
+            pre_scores = np.log(pre_np + eps)
+            pre_probs = _adjust_temperature_to_top_mass(pre_scores, top_p_mass_target, top_p)
+            component_probs.append(pre_probs.astype(np.float32))
+
+        # Coverage-based weights (target = 1.0 i.e. 100%)
+        if weight_by_coverage and covs_np is not None:
+            target_cov = 1.0
+            d = np.abs(covs_np - target_cov)
+            std = np.std(covs_np)
+            scale = std if std > eps else (np.mean(np.abs(covs_np - np.mean(covs_np))) + eps)
+            cov_scores = - (d / (scale + eps)) ** 2
+            cov_probs = _adjust_temperature_to_top_mass(cov_scores, top_p_mass_target, top_p)
+            component_probs.append(cov_probs.astype(np.float32))
+
+        # Sequence similarity-based weights (target specified)
+        if weight_by_seq_sim and seq_sims_np is not None:
+            d = np.abs(seq_sims_np - float(target_seq_sim))
+            std = np.std(seq_sims_np)
+            scale = std if std > eps else (np.mean(np.abs(seq_sims_np - np.mean(seq_sims_np))) + eps)
+            sim_scores = - (d / (scale + eps)) ** 2
+            sim_probs = _adjust_temperature_to_top_mass(sim_scores, top_p_mass_target, top_p)
+            component_probs.append(sim_probs.astype(np.float32))
+
+        if len(component_probs) == 0:
+            final_probs = np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
+        else:
+            # Aggregate components and re-adjust smoothly
+            agg = np.mean(np.stack(component_probs, axis=0), axis=0)
+            agg = agg / max(agg.sum(), eps)
+            agg_scores = np.log(agg + eps)
+            final_probs = _adjust_temperature_to_top_mass(agg_scores, top_p_mass_target, top_p)
+
+        return final_probs.astype(np.float32)
+
 
     def _evaluate_and_save_variants_v7(
         self,
         batch: Dict[str, torch.Tensor],
         start_tokens: list[int] = [47, 63],
         seed: int = 42,
-        weighting_factor: int = 1,
+        weight_by_coverage: bool = True,
+        weight_by_seq_sim: bool = True,
     ):
-        """uses the sequence weights to sample the sequences"""
+        """uses the weights to sample the sequences"""
         random.seed(seed)
         rng = random.Random()
         np.random.seed(seed)
         dms_id = batch["DMS_id"].text[0]
-        lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v7_lls.npz")
+        lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v7_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
         if os.path.exists(lls_npz_path):
@@ -2273,7 +2397,6 @@ class BaseFamilyLitModule(BaseLitModule):
             
             # compute likelihoods for each n_opt value in the range:
             spearman_list = []
-            rows: List[Dict[str, Any]] = []
             variant_lls: List[np.ndarray] = []
             n_seqs_list = []
             tok_cnt_list: List[int] = []
@@ -2294,21 +2417,20 @@ class BaseFamilyLitModule(BaseLitModule):
                 repeats = self.gym_subsamples_per_n
             vals_in_range = list(range(1, max_n_by_tokens + 1))
             n_opt_values = np.random.choice(vals_in_range, repeats, replace=True)
-            
+            weights = self.get_sequence_weights(
+                batch, 
+                precomputed_sequence_weights=None, 
+                weight_by_coverage=weight_by_coverage,
+                weight_by_seq_sim=weight_by_seq_sim,
+                target_seq_sim=0.5,
+                top_p_mass_target=0.7,
+                top_p=0.3
+            )
             for rep, n_opt in enumerate(n_opt_values):
                 fail_count = 0
                 while True:
-                    weights = batch["sequence_weights"][0].float().cpu().numpy()
-                    if weighting_factor == 1:
-                        weights = np.exp(weights * 2)
-                        idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights/np.sum(weights)).tolist()
-                    elif weighting_factor == 0:
-                        idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False).tolist()
-                    elif weighting_factor == -1:
-                        weights = np.exp(1 / weights)
-                        idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights/np.sum(weights)).tolist()
-                    else:
-                        raise ValueError(f"Invalid weighting factor: {weighting_factor}")
+
+                    idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
                     rng.shuffle(idxs)
                     tok_cnt = sum(seq_lengths[i] for i in idxs)
                     if tok_cnt + completion_length <= self.max_tokens:
@@ -2361,22 +2483,6 @@ class BaseFamilyLitModule(BaseLitModule):
                         min_coverage = 0
                         mean_coverage = 0
                         max_coverage = 0
-                meta = {
-                    "variant_idx": rep,
-                    "replicate": rep,
-                    "n_seqs": n_opt,
-                    "n_tokens": tok_cnt,
-                    "seq_indices": idxs,
-                    "min_completion_coverage": min_completion_coverage,
-                    "min_length_ratio": min_length_ratio,
-                    "min_sequence_similarity": min_sequence_similarity,
-                    "mean_sequence_similarity": mean_sequence_similarity,
-                    "max_sequence_similarity": max_sequence_similarity,
-                    "min_coverage": min_coverage,
-                    "mean_coverage": mean_coverage,
-                    "max_coverage": max_coverage,
-                    "sequence_weights": batch["sequence_weights"][0, idxs].float().cpu().numpy(),
-                }
                 
                 n_seqs_list.append(n_opt)
                 tok_cnt_list.append(tok_cnt)
@@ -2405,7 +2511,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 mean_ll = float(lls.mean())
                 variant_lls.append(lls)
                 spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
-                rows.append({**meta, "mean_log_likelihood": mean_ll, "spearman": float(self._compute_spearman(lls, dms_scores_np)), "DMS_id": batch["DMS_id"].text[0]})
 
 
             # Stack and persist
@@ -2422,8 +2527,9 @@ class BaseFamilyLitModule(BaseLitModule):
                     "min_coverage_list": np.asarray(min_coverage_list, dtype=np.float32),
                     "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
                     "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
-                    "sequence_weights": batch["sequence_weights"][0, idxs].float().cpu().numpy(),
                 }
+                if "sequence_weights" in batch:
+                    extra_payload["sequence_weights"]= batch["sequence_weights"][0, idxs].float().cpu().numpy()
                 payload_entropy = self._calculate_entropy_per_prompt(lls_array)
                 try:
                     np.savez_compressed(
@@ -2469,7 +2575,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 n_seqs_list=n_seqs_list,
                 variant_lls=variant_lls,
                 file_suffix="v7",
-                rows=rows,
+                rows=None,
                 extra_npz_payload=extra_payload,
             )
 
@@ -2486,7 +2592,7 @@ class BaseFamilyLitModule(BaseLitModule):
         rng = random.Random()
         np.random.seed(seed)
         dms_id = batch["DMS_id"].text[0]
-        lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v7_lls.npz")
+        lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v7_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
         if os.path.exists(lls_npz_path):
@@ -2890,7 +2996,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 rows=None,
                 extra_npz_payload=extra_payload,
             )
-
 
     def validation_step_proteingym(
         self,
