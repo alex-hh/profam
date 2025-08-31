@@ -1600,7 +1600,7 @@ class BaseFamilyLitModule(BaseLitModule):
             # ------------------------------------------------------------------ #
             # Forward logspace search                                            #
             # ------------------------------------------------------------------ #
-            n_forward_search = min(30, max_n_by_tokens)
+            n_forward_search = min(50, max_n_by_tokens)
             n_log_samples = n_forward_search
             if max_n_by_tokens <= 0:
                 n_vals = [0]
@@ -1617,6 +1617,7 @@ class BaseFamilyLitModule(BaseLitModule):
 
             # find range of n_opt values that are in the target likelihood range:
             vals_in_range: List[int] = []
+            distances_to_target = []
             for n_curr in n_vals:
                 ll_curr = self._eval_prefix_mean_ll(batch, n_curr, seq_starts, seq_ends, start_tokens, rng)
                 n_seqs_list.append(n_curr)
@@ -2642,7 +2643,253 @@ class BaseFamilyLitModule(BaseLitModule):
                 extra_npz_payload=extra_payload,
             )
 
+    def _evaluate_and_save_variants_v9(
+        self,
+        batch: Dict[str, torch.Tensor],
+        start_tokens: list[int] = [47, 63],
+        min_target_likelihood: float = -1.7,
+        max_target_likelihood: float = -0.9,
+        n_opt_range_extension: int = 2,
+    ):
+        """
+        re-implementation of v4 to fix bugs
+        this version does a log search to determine vals in range
+        and subsequently does random sampling from those values.
+        """
+        random.seed(42)
+        rng = random.Random()
+        optimal_likelihood = min_target_likelihood + (max_target_likelihood - min_target_likelihood) / 2
+        dms_id = batch["DMS_id"].text[0]
+        lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v9_lls.npz")
+        dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
+        if os.path.exists(lls_npz_path):
+            print(f"Loading from {lls_npz_path}")
+            data = np.load(lls_npz_path)
+            lls_array = data["lls"]
+        else:
+            seq_starts, seq_ends, seq_lengths, total_seqs, completion_length = self._prepare_prompt_and_stats(
+                batch, start_tokens
+            )
+            max_context_tokens = (self.max_tokens - completion_length) - 5
+            avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
+            max_n_by_tokens = max(0, min(int(max_context_tokens // avg_seq_len) + 2, total_seqs)) if avg_seq_len > 0 else 0
+
+            # ------------------------------------------------------------------ #
+            # Forward logspace search                                            #
+            # ------------------------------------------------------------------ #
+            n_forward_search = min(50, max_n_by_tokens)
+            n_log_samples = n_forward_search
+            if max_n_by_tokens <= 0:
+                n_vals = [0]
+            else:
+                while True:
+                    n_vals = [0] + [int(s) for s in np.logspace(0, np.log10(max_n_by_tokens), n_log_samples)]
+                    n_vals = list(set(n_vals))
+                    if len(n_vals) >= n_forward_search:
+                        break
+                    n_log_samples += 1
+                n_vals.sort()
+            n_seqs_list = []
+            ll_list = []
+
+            # find range of n_opt values that are in the target likelihood range:
+            vals_in_range: List[int] = []
+            distances_to_target = {}
+            for n_curr in n_vals:
+                ll_curr = self._eval_prefix_mean_ll(batch, n_curr, seq_starts, seq_ends, start_tokens, rng)
+                n_seqs_list.append(n_curr)
+                ll_list.append(ll_curr)
+                if min_target_likelihood <= ll_curr <= max_target_likelihood:
+                    n_opt = n_curr
+                    vals_in_range.append(n_curr)
+                    distances_to_target[n_curr] = abs(n_curr - optimal_likelihood)
+            if len(vals_in_range) > 0:
+                lower_bound = max(0, min(vals_in_range) - n_opt_range_extension)
+                upper_bound = min(max(vals_in_range) + n_opt_range_extension, max_n_by_tokens + 1)
+            else:
+                # allow [0, max_n_by_tokens] inclusive
+                best_by_distance = sorted(distances_to_target.items(), key=lambda x: x[1])[:5]
+                best_by_distance = [x[0] for x in best_by_distance]
+                lower_bound = max(0, min(best_by_distance) - n_opt_range_extension)
+                upper_bound = min(max(best_by_distance) + n_opt_range_extension, max_n_by_tokens + 1)
+            vals_in_range = np.arange(lower_bound, upper_bound + 1)
+            n_opt = int(random.choice(vals_in_range))
+
+            # compute likelihoods for each n_opt value in the range:
+            spearman_list = []
+            variant_lls: List[np.ndarray] = []
+            n_seqs_list = []
+            tok_cnt_list: List[int] = []
+            min_cov_list: List[float] = []
+            # Additional metrics to mirror v5
+            min_length_ratio_list: List[float] = []
+            min_sequence_similarity_list: List[float] = []
+            mean_sequence_similarity_list: List[float] = []
+            max_sequence_similarity_list: List[float] = []
+            min_coverage_list: List[float] = []
+            mean_coverage_list: List[float] = []
+            max_coverage_list: List[float] = []
+            
+            token_count_attempts = 100
+            if completion_length + 2 > self.max_tokens:
+                n_opt = 0
+                repeats = 1
+            else:
+                repeats = self.gym_subsamples_per_n
+            for rep in range(repeats):
+                fail_count = 0
+                while True:
+                    if n_opt == 0 and 0 in n_seqs_list:
+                        n_opt = int(random.choice(vals_in_range))
+                    n_opt = max(0, max(vals_in_range))
+                    idxs = rng.sample(range(total_seqs), n_opt)
+                    rng.shuffle(idxs)
+                    tok_cnt = sum(seq_lengths[i] for i in idxs)
+                    if tok_cnt + completion_length <= self.max_tokens:
+                        fail_count = 0
+                        break
+                    else:
+                        fail_count += 1
+                        if fail_count > token_count_attempts:
+                            n_opt = max(0, n_opt - 1)
+                            fail_count = 0
+                
+                if n_opt == 0:
+                    # No context sequences selected; use empty prompt
+                    idxs = []
+                    tok_cnt = 0
+                    shortest_seq_len = 0
+                    var_batch = self._clone_batch(batch)
+                    var_batch["input_ids"] = None
+                    var_batch["residue_index"] = None
+                    min_completion_coverage = 0
+                    min_length_ratio = 0
+                    min_sequence_similarity = 0
+                    mean_sequence_similarity = 0
+                    max_sequence_similarity = 0
+                    min_coverage = 0
+                    mean_coverage = 0
+                    max_coverage = 0
+                else:
+                    shortest_seq_len = min(seq_lengths[i] for i in idxs)
+                    var_batch = self._make_truncated_batch_from_indices(
+                        batch, idxs, seq_starts, seq_ends, start_tokens, include_optional_meta=True
+                    )
+                    min_completion_coverage = shortest_seq_len / batch["completion_ids"].shape[-1] if batch["completion_ids"].shape[-1] > 0 else 0
+                    # Additional metrics consistent with v5
+                    min_length_ratio = min_completion_coverage
+                    seq_sims = var_batch.get("sequence_similarities", None)
+                    covs = var_batch.get("coverages", None)
+                    if seq_sims is not None:
+                        min_sequence_similarity = seq_sims.min().item()
+                        mean_sequence_similarity = seq_sims.mean().item()
+                        max_sequence_similarity = seq_sims.max().item()
+                    else:
+                        min_sequence_similarity = 0
+                        mean_sequence_similarity = 0
+                        max_sequence_similarity = 0
+                    if covs is not None:
+                        min_coverage = covs.min().item()
+                        mean_coverage = covs.mean().item()
+                        max_coverage = covs.max().item()
+                    else:
+                        min_coverage = 0
+                        mean_coverage = 0
+                        max_coverage = 0
+                n_seqs_list.append(n_opt)
+                tok_cnt_list.append(tok_cnt)
+                min_cov_list.append(min_completion_coverage)
+                # Track additional lists for NPZ logging
+                min_length_ratio_list.append(min_length_ratio)
+                min_sequence_similarity_list.append(min_sequence_similarity)
+                mean_sequence_similarity_list.append(mean_sequence_similarity)
+                max_sequence_similarity_list.append(max_sequence_similarity)
+                min_coverage_list.append(min_coverage)
+                mean_coverage_list.append(mean_coverage)
+                max_coverage_list.append(max_coverage)
+                var_batch_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()}
+                L = var_batch_device["completion_ids"].shape[-1]
+                L_prompt = 0 if var_batch_device["input_ids"] is None else var_batch_device["input_ids"].shape[-1]
+                lls = self.score_seqs(
+                    var_batch_device["input_ids"],
+                    var_batch_device["completion_ids"],
+                    input_residue_index=var_batch_device.get("residue_index", None),
+                    completion_residue_index=var_batch_device.get("completion_residue_index", None),
+                    use_cache=self.use_kv_cache_for_scoring,
+                    batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
+                    if self.use_kv_cache_for_scoring
+                    else 1,
+                )
+                mean_ll = float(lls.mean())
+                variant_lls.append(lls)
+                spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
+                n_opt = random.choice(vals_in_range)
+
+
+            # Stack and persist
+            lls_array = np.stack(variant_lls, axis=0)
+            # Persist NPZ here for re-use on subsequent runs
+            if getattr(self, "global_rank", 0) == 0:
+                extra_payload = {
+                    "tok_cnt_list": tok_cnt_list,
+                    "min_cov_list": min_cov_list,
+                    "min_length_ratio_list": np.asarray(min_length_ratio_list, dtype=np.float32),
+                    "min_sequence_similarity_list": np.asarray(min_sequence_similarity_list, dtype=np.float32),
+                    "mean_sequence_similarity_list": np.asarray(mean_sequence_similarity_list, dtype=np.float32),
+                    "max_sequence_similarity_list": np.asarray(max_sequence_similarity_list, dtype=np.float32),
+                    "min_coverage_list": np.asarray(min_coverage_list, dtype=np.float32),
+                    "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
+                    "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
+                }
+                payload_entropy = self._calculate_entropy_per_prompt(lls_array)
+                try:
+                    np.savez_compressed(
+                        lls_npz_path,
+                        lls=lls_array.astype(np.float32),
+                        n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
+                        entropy_per_prompt=payload_entropy.astype(np.float32),
+                        dms_scores=dms_scores_np.astype(np.float32),
+                        **extra_payload,
+                    )
+                except Exception as e:
+                    warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
+
+        # Centralised logging and returns
+        # If we loaded from disk, we have no rows/variant_lls to plot — pass None
+        if os.path.exists(lls_npz_path) and 'variant_lls' not in locals():
+            return self._log_and_save_variant_results(
+                dms_id=dms_id,
+                lls_array=lls_array,
+                dms_scores_np=dms_scores_np,
+                n_seqs_list=[],
+                variant_lls=None,
+                file_suffix="v9",
+                rows=None,
+                extra_npz_payload=None,
+            )
+        else:
+            extra_payload = {
+                "tok_cnt_list": tok_cnt_list,
+                "min_cov_list": min_cov_list,
+                "min_length_ratio_list": min_length_ratio_list,
+                "min_sequence_similarity_list": min_sequence_similarity_list,
+                "mean_sequence_similarity_list": mean_sequence_similarity_list,
+                "max_sequence_similarity_list": max_sequence_similarity_list,
+                "min_coverage_list": min_coverage_list,
+                "mean_coverage_list": mean_coverage_list,
+                "max_coverage_list": max_coverage_list,
+            }
+            return self._log_and_save_variant_results(
+                dms_id=dms_id,
+                lls_array=lls_array,
+                dms_scores_np=dms_scores_np,
+                n_seqs_list=n_seqs_list,
+                variant_lls=variant_lls,
+                file_suffix="v9",
+                rows=None,
+                extra_npz_payload=extra_payload,
+            )
 
 
     def validation_step_proteingym(
@@ -2654,7 +2901,7 @@ class BaseFamilyLitModule(BaseLitModule):
         if batch_idx is None:
             batch_idx = -1  # fallback when Lightning doesn't supply the index
 
-        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v7(
+        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v9(
             batch
         )
 

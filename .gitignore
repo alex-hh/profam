@@ -33,6 +33,7 @@ data/val_test/overlap_counts/
 src/models/tranception
 data/val_test/overlap_counts/
 data/cath_chain_topology_class.pickle
+scripts/adhoc_analysis/redundant_scripts/
 */.ipynb_checkpoints/
 .ipynb_checkpoints/
 .env
