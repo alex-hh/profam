@@ -1,14 +1,13 @@
-from pydantic import BaseModel, Field
 import hashlib
 import math
 import pickle
 from pathlib import Path
 from typing import Callable, Literal, Optional, Union, Sequence
+from dataclasses import dataclass
 
 import numba as nb
 import numpy as np
 import torch
-from pydantic import BaseModel, Field
 
 def hash_of_string_list(lst: list[str]) -> str:
     m = hashlib.sha1()
@@ -215,7 +214,8 @@ def compute_homology_weights(
     return n_eff, p
 
 
-class NeighborsSampler(BaseModel):
+@dataclass
+class NeighborsSampler:
     sampler_type: Literal["neighbors"] = "neighbors"
     theta: float = 0.2
     can_use_torch: bool = True
@@ -247,11 +247,10 @@ class NeighborsSampler(BaseModel):
         return rng.choice(len(msa), replace=False, size=size, p=weights / weights.sum())
 
 
-class MSASampler(BaseModel):
+@dataclass
+class MSASampler:
     # TODO: refactor msa sampling code...
-    method: Union[ NeighborsSampler] = Field(
-        ..., discriminator="sampler_type"
-    )
+    method: Union[NeighborsSampler]
     force_include_first: bool = False
     max_similarity: float = 1.0
     max_dissimilarity: float = 1.0
@@ -338,27 +337,3 @@ class MSASampler(BaseModel):
 #             break
 #     return final_seqs
 
-
-if __name__=="__main__":
-    sampler = MSASampler(
-        method=NeighborsSampler(
-            can_use_torch=False,
-        ),
-        max_similarity=0.95,
-    )
-    sample_idxs = sampler.get_sample_idxs(
-        msa=msa,
-        gap_token=alphabet.gap_token,
-        seed=args.seed,
-    )
-    # create the sequence-of-sequences
-    this_msa_sequences = sample_msa_sequences(
-        get_sequence_fn=lambda ii: msa_sequences[ii]
-        .upper()
-        .translate(None, delete=b"-"),
-        sample_idxs=sample_idxs,
-        max_tokens=max_tokens,
-        alphabet=alphabet,
-        shuffle_seed=args.seed,
-        truncate=False,
-    )
