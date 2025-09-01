@@ -44,9 +44,11 @@ if __name__ == "__main__":
     npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250829_msa_pariformer_exp_2_gym_msas_unfiltered/*v7_lls.npz")
     npz_files = glob.glob("filtered_poet_msas_no_weighting_v9/20250831_154342/*.npz")
     npz_files = glob.glob("filtered_poet_msas_with_weighting_v9/20250831_154342/*.npz")
-    save_dir = "gym_spearman_likelihood_plots_subsample_filtered_poet_msas_with_weighting_60lnxlim"
+    npz_files = glob.glob("filtered_poet_msas_with_no_weighting_v9/20250831_211318/*.npz")
+    npz_files = glob.glob("filtered_poet_msas_with_only_diversity_weighting_v9/20250831_221004/*.npz")
+    save_dir = "gym_spearman_likelihood_plots_subsample_filtered_poet_msas_diversity_weighting_abyoeovl"
     os.makedirs(save_dir, exist_ok=True)
-    target_scores = [-1.3]
+    target_scores = [-1.1, -1.2, -1.3, -1.4, -1.5, -1.6, -1.7]
     for target_score in target_scores:
         print(f"Found {len(npz_files)} npz files")
         results_rows = []

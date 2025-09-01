@@ -2597,8 +2597,8 @@ class BaseFamilyLitModule(BaseLitModule):
         min_target_likelihood: float = -1.7,
         max_target_likelihood: float = -0.9,
         n_opt_range_extension: int = 2,
-        coverage_multiplier: float = 1.0,
-        seq_sim_multiplier: float = 1.0,
+        coverage_multiplier: float = 0.0,
+        seq_sim_multiplier: float = 0.0,
         precomputed_multiplier: float = 1.0,
         resample_downweighter: float = 0.6
     ):
