@@ -313,7 +313,6 @@ def load_comp_seq_dms_for_row(
     if max_mutated_sequences is not None and max_mutated_sequences < len(dms_df):
         dms_df = dms_df.sample(n=max_mutated_sequences, random_state=seed)
     completion_seqs = dms_df["mutated_sequence"].tolist()
-    assert has_no_indels(completion_seqs), "Comp seq indel handling not implemented"
     proteins = ProteinDocument(
         sequences=completion_seqs,
         accessions=None,
@@ -350,9 +349,10 @@ def build_gym_df(
     msa_folder_name: str = "DMS_msa_files",
     task_index: Optional[int] = None,
     num_tasks: Optional[int] = None,
+    csv_filename: str = "DMS_substitutions.csv",
 ):
     """We pre-load and pre-sample MSAs, ensuring they are same at each validation step."""
-    df = pd.read_csv(os.path.join(gym_data_dir, "DMS_substitutions.csv"))
+    df = pd.read_csv(os.path.join(gym_data_dir, csv_filename))
 
     if dms_ids is not None:
         df = df[df["DMS_id"].isin(dms_ids)].sort_values("DMS_id")
@@ -434,6 +434,7 @@ class ProteinGymDataset(BaseProteinDataset):
         use_msa_seq_weights: bool = False,
         task_index: Optional[int] = None,
         num_tasks: Optional[int] = None,
+        csv_filename: str = "DMS_substitutions.csv",
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -465,6 +466,7 @@ class ProteinGymDataset(BaseProteinDataset):
         self.use_msa_seq_weights = use_msa_seq_weights
         self.task_index = task_index
         self.num_tasks = num_tasks
+        self.csv_filename = csv_filename
         if max_context_seqs == 0:
             if mutant_bos_token != self.document_token:
                 warnings.warn(
@@ -583,7 +585,7 @@ class ProteinGymDataset(BaseProteinDataset):
         )
         return dataset
 
-    def load(self, data_dir="data", world_size: int = 1, verbose: bool = False):
+    def load(self, data_dir="../data", world_size: int = 1, verbose: bool = False):
         df = build_gym_df(
             self.dms_ids,
             gym_data_dir=os.path.join(data_dir, "ProteinGym")
@@ -594,6 +596,7 @@ class ProteinGymDataset(BaseProteinDataset):
             msa_folder_name=self.msa_folder_name,
             task_index=self.task_index,
             num_tasks=self.num_tasks,
+            csv_filename=self.csv_filename,
         )
         # n.b. this isn't streamed
         dataset = Dataset.from_pandas(df, preserve_index=False)
