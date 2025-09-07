@@ -1662,7 +1662,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 while True:
                     if n_opt == 0 and 0 in n_seqs_list:
                         n_opt = int(random.choice(vals_in_range))
-                    n_opt = max(0, max(vals_in_range))
                     idxs = rng.sample(range(total_seqs), n_opt)
                     rng.shuffle(idxs)
                     tok_cnt = sum(seq_lengths[i] for i in idxs)
@@ -2243,8 +2242,9 @@ class BaseFamilyLitModule(BaseLitModule):
             self,
             batch, 
             precomputed_sequence_weights=None, 
-            weight_by_coverage=False,
-            weight_by_seq_sim=False,
+            coverage_multiplier: float = 0.0,
+            seq_sim_multiplier: float = 0.0,
+            precomputed_multiplier: float = 0.0,
             target_seq_sim=0.5,
             top_p_mass_target=0.65,
             top_p=0.35,
@@ -2310,15 +2310,19 @@ class BaseFamilyLitModule(BaseLitModule):
             raise ValueError("At least one of 'sequence_similarities' or 'coverages' must be present in batch")
         if n_seqs < min_seqs_for_weighting:
             return np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
-        if not any([weight_by_coverage, weight_by_seq_sim, precomputed_sequence_weights is not None]):
+        use_precomputed = (precomputed_multiplier > 0) and (precomputed_sequence_weights is not None)
+        use_cov = (coverage_multiplier > 0) and (covs_np is not None)
+        use_sim = (seq_sim_multiplier > 0) and (seq_sims_np is not None)
+        if not (use_precomputed or use_cov or use_sim):
             return np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
 
         component_probs: List[np.ndarray] = []
+        component_weights: List[float] = []
 
-        if precomputed_sequence_weights is not None:
+        if use_precomputed:
             # Accept torch tensor or numpy
             if torch.is_tensor(precomputed_sequence_weights):
-                pre_np = precomputed_sequence_weights.detach().cpu().numpy()
+                pre_np = precomputed_sequence_weights.detach().float().cpu().numpy()
                 if pre_np.ndim == 2 and pre_np.shape[0] == 1:
                     pre_np = pre_np[0]
             else:
@@ -2328,14 +2332,12 @@ class BaseFamilyLitModule(BaseLitModule):
             pre_np = np.maximum(pre_np.astype(np.float32), 0.0)
             if pre_np.sum() <= eps:
                 pre_np = np.ones_like(pre_np)
-            pre_np = pre_np / pre_np.sum()
-            # Treat these probabilities as scores via log; tune temperature to target mass
-            pre_scores = np.log(pre_np + eps)
-            pre_probs = _adjust_temperature_to_top_mass(pre_scores, top_p_mass_target, top_p)
+            pre_probs = pre_np / pre_np.sum()
             component_probs.append(pre_probs.astype(np.float32))
+            component_weights.append(float(precomputed_multiplier))
 
         # Coverage-based weights (target = 1.0 i.e. 100%)
-        if weight_by_coverage and covs_np is not None:
+        if use_cov:
             target_cov = 1.0
             d = np.abs(covs_np - target_cov)
             std = np.std(covs_np)
@@ -2343,25 +2345,31 @@ class BaseFamilyLitModule(BaseLitModule):
             cov_scores = - (d / (scale + eps)) ** 2
             cov_probs = _adjust_temperature_to_top_mass(cov_scores, top_p_mass_target, top_p)
             component_probs.append(cov_probs.astype(np.float32))
+            component_weights.append(float(coverage_multiplier))
 
         # Sequence similarity-based weights (target specified)
-        if weight_by_seq_sim and seq_sims_np is not None:
+        if use_sim:
             d = np.abs(seq_sims_np - float(target_seq_sim))
             std = np.std(seq_sims_np)
             scale = std if std > eps else (np.mean(np.abs(seq_sims_np - np.mean(seq_sims_np))) + eps)
             sim_scores = - (d / (scale + eps)) ** 2
             sim_probs = _adjust_temperature_to_top_mass(sim_scores, top_p_mass_target, top_p)
             component_probs.append(sim_probs.astype(np.float32))
+            component_weights.append(float(seq_sim_multiplier))
 
         if len(component_probs) == 0:
             final_probs = np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
         else:
-            # Aggregate components and re-adjust smoothly
-            agg = np.mean(np.stack(component_probs, axis=0), axis=0)
-            agg = agg / max(agg.sum(), eps)
-            agg_scores = np.log(agg + eps)
-            final_probs = _adjust_temperature_to_top_mass(agg_scores, top_p_mass_target, top_p)
-
+            # Aggregate components using provided multipliers and re-adjust smoothly
+            weights_arr = np.asarray(component_weights, dtype=np.float32)
+            weights_sum = float(weights_arr.sum())
+            if weights_sum <= eps:
+                weights_arr = np.ones_like(weights_arr) / max(weights_arr.shape[0], 1)
+            else:
+                weights_arr = weights_arr / weights_sum
+            stacked = np.stack(component_probs, axis=0)
+            agg = np.sum(stacked * weights_arr.reshape(-1, 1), axis=0)
+            final_probs = agg / max(agg.sum(), eps)
         return final_probs.astype(np.float32)
 
 
@@ -2370,8 +2378,9 @@ class BaseFamilyLitModule(BaseLitModule):
         batch: Dict[str, torch.Tensor],
         start_tokens: list[int] = [47, 63],
         seed: int = 42,
-        weight_by_coverage: bool = True,
-        weight_by_seq_sim: bool = True,
+        coverage_multiplier: float = 1.0,
+        seq_sim_multiplier: float = 1.0,
+        precomputed_multiplier: float = 0.0,
     ):
         """uses the weights to sample the sequences"""
         random.seed(seed)
@@ -2420,8 +2429,9 @@ class BaseFamilyLitModule(BaseLitModule):
             weights = self.get_sequence_weights(
                 batch, 
                 precomputed_sequence_weights=None, 
-                weight_by_coverage=weight_by_coverage,
-                weight_by_seq_sim=weight_by_seq_sim,
+                coverage_multiplier=coverage_multiplier,
+                seq_sim_multiplier=seq_sim_multiplier,
+                precomputed_multiplier=precomputed_multiplier,
                 target_seq_sim=0.5,
                 top_p_mass_target=0.7,
                 top_p=0.3
@@ -2580,175 +2590,6 @@ class BaseFamilyLitModule(BaseLitModule):
             )
 
 
-    def _evaluate_and_save_variants_v8(
-        self,
-        batch: Dict[str, torch.Tensor],
-        start_tokens: list[int] = [47, 63],
-        seed: int = 42,
-        use_random_selection: bool = True,
-    ):
-        """uses the maximum number of sequences selecting the top ranked"""
-        random.seed(seed)
-        rng = random.Random()
-        np.random.seed(seed)
-        dms_id = batch["DMS_id"].text[0]
-        lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v7_lls.npz")
-        dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
-
-        if os.path.exists(lls_npz_path):
-            print(f"Loading from {lls_npz_path}")
-            data = np.load(lls_npz_path)
-            lls_array = data["lls"]
-        else:
-            seq_starts, seq_ends, seq_lengths, total_seqs, completion_length = self._prepare_prompt_and_stats(
-                batch, start_tokens
-            )
-            if 'sequence_weights' in batch:
-                assert batch["sequence_weights"].shape == (1, total_seqs)
-            max_context_tokens = (self.max_tokens - completion_length) - 5
-            avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
-            max_n_by_tokens = max(0, min(int(max_context_tokens // avg_seq_len), total_seqs) - 2) if avg_seq_len > 0 else 0
-            
-            # compute likelihoods for each n_opt value in the range:
-            spearman_list = []
-            rows: List[Dict[str, Any]] = []
-            variant_lls: List[np.ndarray] = []
-            n_seqs_list = []
-            tok_cnt_list: List[int] = []
-            min_cov_list: List[float] = []
-            min_length_ratio_list: List[float] = []
-            min_sequence_similarity_list: List[float] = []
-            mean_sequence_similarity_list: List[float] = []
-            max_sequence_similarity_list: List[float] = []
-            min_coverage_list: List[float] = []
-            mean_coverage_list: List[float] = []
-            max_coverage_list: List[float] = []
-            
-            n_opt = max_n_by_tokens
-            if use_random_selection:
-                idxs = rng.sample(range(total_seqs), max_n_by_tokens)
-            else:
-                idxs = np.argsort(batch["sequence_weights"][0].float().cpu().numpy())[-max_n_by_tokens:]
-            rng.shuffle(idxs)
-            shortest_seq_len = min(seq_lengths[i] for i in idxs)
-            var_batch = self._make_truncated_batch_from_indices(
-                batch, idxs, seq_starts, seq_ends, start_tokens, include_optional_meta=True
-            )
-            tok_cnt = var_batch['input_ids'].shape[-1]
-            min_completion_coverage = shortest_seq_len / batch["completion_ids"].shape[-1] if batch["completion_ids"].shape[-1] > 0 else 0
-            min_length_ratio = min_completion_coverage
-            seq_sims = var_batch.get("sequence_similarities", None)
-            covs = var_batch.get("coverages", None)
-            if seq_sims is not None:
-                min_sequence_similarity = seq_sims.min().item()
-                mean_sequence_similarity = seq_sims.mean().item()
-                max_sequence_similarity = seq_sims.max().item()
-            else:
-                min_sequence_similarity = 0
-                mean_sequence_similarity = 0
-                max_sequence_similarity = 0
-            if covs is not None:
-                min_coverage = covs.min().item()
-                mean_coverage = covs.mean().item()
-                max_coverage = covs.max().item()
-            else:
-                min_coverage = 0
-                mean_coverage = 0
-                max_coverage = 0
-
-            n_seqs_list.append(n_opt)
-            tok_cnt_list.append(tok_cnt)
-            min_cov_list.append(min_completion_coverage)
-            # Track additional lists for NPZ logging
-            min_length_ratio_list.append(min_length_ratio)
-            min_sequence_similarity_list.append(min_sequence_similarity)
-            mean_sequence_similarity_list.append(mean_sequence_similarity)
-            max_sequence_similarity_list.append(max_sequence_similarity)
-            min_coverage_list.append(min_coverage)
-            mean_coverage_list.append(mean_coverage)
-            max_coverage_list.append(max_coverage)
-            var_batch_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()}
-            L = var_batch_device["completion_ids"].shape[-1]
-            L_prompt = 0 if var_batch_device["input_ids"] is None else var_batch_device["input_ids"].shape[-1]
-            lls = self.score_seqs(
-                var_batch_device["input_ids"],
-                var_batch_device["completion_ids"],
-                input_residue_index=var_batch_device.get("residue_index", None),
-                completion_residue_index=var_batch_device.get("completion_residue_index", None),
-                use_cache=self.use_kv_cache_for_scoring,
-                batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
-                if self.use_kv_cache_for_scoring
-                else 1,
-            )
-            mean_ll = float(lls.mean())
-            variant_lls.append(lls)
-            spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
-
-            # Stack and persist
-            lls_array = np.stack(variant_lls, axis=0)
-            # Persist NPZ here for re-use on subsequent runs
-            if getattr(self, "global_rank", 0) == 0:
-                extra_payload = {
-                    "tok_cnt_list": tok_cnt_list,
-                    "min_cov_list": min_cov_list,
-                    "min_length_ratio_list": np.asarray(min_length_ratio_list, dtype=np.float32),
-                    "min_sequence_similarity_list": np.asarray(min_sequence_similarity_list, dtype=np.float32),
-                    "mean_sequence_similarity_list": np.asarray(mean_sequence_similarity_list, dtype=np.float32),
-                    "max_sequence_similarity_list": np.asarray(max_sequence_similarity_list, dtype=np.float32),
-                    "min_coverage_list": np.asarray(min_coverage_list, dtype=np.float32),
-                    "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
-                    "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
-                    "sequence_weights": batch["sequence_weights"][0, idxs].float().cpu().numpy(),
-                }
-                payload_entropy = self._calculate_entropy_per_prompt(lls_array)
-                try:
-                    np.savez_compressed(
-                        lls_npz_path,
-                        lls=lls_array.astype(np.float32),
-                        n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
-                        entropy_per_prompt=payload_entropy.astype(np.float32),
-                        dms_scores=dms_scores_np.astype(np.float32),
-                        **extra_payload,
-                    )
-                except Exception as e:
-                    warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
-
-        # Centralised logging and returns
-        # If we loaded from disk, we have no rows/variant_lls to plot — pass None
-        if os.path.exists(lls_npz_path) and 'variant_lls' not in locals():
-            return self._log_and_save_variant_results(
-                dms_id=dms_id,
-                lls_array=lls_array,
-                dms_scores_np=dms_scores_np,
-                n_seqs_list=[],
-                variant_lls=None,
-                file_suffix="v7",
-                rows=None,
-                extra_npz_payload=None,
-            )
-        else:
-            extra_payload = {
-                "tok_cnt_list": tok_cnt_list,
-                "min_cov_list": min_cov_list,
-                "min_length_ratio_list": min_length_ratio_list,
-                "min_sequence_similarity_list": min_sequence_similarity_list,
-                "mean_sequence_similarity_list": mean_sequence_similarity_list,
-                "max_sequence_similarity_list": max_sequence_similarity_list,
-                "min_coverage_list": min_coverage_list,
-                "mean_coverage_list": mean_coverage_list,
-                "max_coverage_list": max_coverage_list,
-            }
-            return self._log_and_save_variant_results(
-                dms_id=dms_id,
-                lls_array=lls_array,
-                dms_scores_np=dms_scores_np,
-                n_seqs_list=n_seqs_list,
-                variant_lls=variant_lls,
-                file_suffix="v7",
-                rows=rows,
-                extra_npz_payload=extra_payload,
-            )
-
     def _evaluate_and_save_variants_v9(
         self,
         batch: Dict[str, torch.Tensor],
@@ -2756,17 +2597,22 @@ class BaseFamilyLitModule(BaseLitModule):
         min_target_likelihood: float = -1.7,
         max_target_likelihood: float = -0.9,
         n_opt_range_extension: int = 2,
+        coverage_multiplier: float = 1.0,
+        seq_sim_multiplier: float = 1.0,
+        precomputed_multiplier: float = 1.0,
+        resample_downweighter: float = 0.6
     ):
         """
         re-implementation of v4 to fix bugs
         this version does a log search to determine vals in range
         and subsequently does random sampling from those values.
+        Also permits use of weighting.
         """
         random.seed(42)
         rng = random.Random()
         optimal_likelihood = min_target_likelihood + (max_target_likelihood - min_target_likelihood) / 2
         dms_id = batch["DMS_id"].text[0]
-        lls_npz_path = os.path.join(self.variant_csv_dir, f"batch_{dms_id}_v9_lls.npz")
+        lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v9_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
 
         if os.path.exists(lls_npz_path):
@@ -2809,16 +2655,17 @@ class BaseFamilyLitModule(BaseLitModule):
                 if min_target_likelihood <= ll_curr <= max_target_likelihood:
                     n_opt = n_curr
                     vals_in_range.append(n_curr)
-                    distances_to_target[n_curr] = abs(n_curr - optimal_likelihood)
+                distances_to_target[n_curr] = abs(ll_curr - optimal_likelihood)
             if len(vals_in_range) > 0:
-                lower_bound = max(0, min(vals_in_range) - n_opt_range_extension)
+                lower_bound = max(1, min(vals_in_range) - n_opt_range_extension)
                 upper_bound = min(max(vals_in_range) + n_opt_range_extension, max_n_by_tokens + 1)
             else:
                 # allow [0, max_n_by_tokens] inclusive
                 best_by_distance = sorted(distances_to_target.items(), key=lambda x: x[1])[:5]
                 best_by_distance = [x[0] for x in best_by_distance]
-                lower_bound = max(0, min(best_by_distance) - n_opt_range_extension)
-                upper_bound = min(max(best_by_distance) + n_opt_range_extension, max_n_by_tokens + 1)
+                lower_bound = max(0, min(best_by_distance))
+                upper_bound = min(max(best_by_distance), max_n_by_tokens + 1)
+            upper_bound = min(upper_bound, total_seqs)
             vals_in_range = np.arange(lower_bound, upper_bound + 1)
             n_opt = int(random.choice(vals_in_range))
 
@@ -2843,13 +2690,29 @@ class BaseFamilyLitModule(BaseLitModule):
                 repeats = 1
             else:
                 repeats = self.gym_subsamples_per_n
+            weights = self.get_sequence_weights(
+                batch, 
+                precomputed_sequence_weights=batch.get('sequence_weights', None), 
+                coverage_multiplier=coverage_multiplier,
+                seq_sim_multiplier=seq_sim_multiplier,
+                precomputed_multiplier=precomputed_multiplier,
+                target_seq_sim=0.5,
+                top_p_mass_target=0.7,
+                top_p=0.3
+            )
             for rep in range(repeats):
                 fail_count = 0
                 while True:
                     if n_opt == 0 and 0 in n_seqs_list:
                         n_opt = int(random.choice(vals_in_range))
-                    n_opt = max(0, max(vals_in_range))
-                    idxs = rng.sample(range(total_seqs), n_opt)
+                    idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
+                    # Downweight the probability of re-sampling chosen indices and renormalise
+                    weights[idxs] *= resample_downweighter
+                    w_sum = weights.sum()
+                    if w_sum > 0:
+                        weights /= w_sum
+                    else:
+                        weights[:] = 1.0 / len(weights)
                     rng.shuffle(idxs)
                     tok_cnt = sum(seq_lengths[i] for i in idxs)
                     if tok_cnt + completion_length <= self.max_tokens:
@@ -2927,7 +2790,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     if self.use_kv_cache_for_scoring
                     else 1,
                 )
-                mean_ll = float(lls.mean())
+                
                 variant_lls.append(lls)
                 spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
                 n_opt = random.choice(vals_in_range)
