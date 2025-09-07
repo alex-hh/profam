@@ -31,7 +31,8 @@ cd "$ROOT_DIR"
 # -----------------------------------------------------------------------------
 
 
-DIR_REL="logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325"
+#DIR_REL="logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325"
+DIR_REL="logs/saturn_cloud_good_runs/uljreks3_ted_s100_ff50_ff100_openfold_fs100_fs50_ur90_lr0.0004_acc1_wd0.4_pack28000_8GPU_ur90crop320_ur90crop1024-554M/copied_2025-06-30_14-57/2025-06-23_12-25-03-504044"
 DIR="${ROOT_DIR}/${DIR_REL}"
 NAME="${DIR_REL#logs/saturn_cloud_good_runs/}_GYM_ONLY"
 
