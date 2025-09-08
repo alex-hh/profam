@@ -94,6 +94,7 @@ class ProFamSampler:
         checkpoint_path: Optional[str] = None,
         match_representative_length: bool = False,
         dtype: Optional[torch.dtype] = None,
+        add_final_sep: bool = False,
     ):
         self.name = name
         self.model = model
@@ -104,6 +105,7 @@ class ProFamSampler:
         self.document_token = document_token
         self.match_representative_length = match_representative_length
         self.dtype = dtype or torch.float32
+        self.add_final_sep = add_final_sep
 
         if hasattr(self.model, "dtype") and self.model.dtype is None:
             self.model.dtype = self.dtype
@@ -146,7 +148,7 @@ class ProFamSampler:
             prompt,
             document_token=self.document_token,
             padding="longest",
-            add_final_sep=False,  # add sep token prior to this point
+            add_final_sep=self.add_final_sep,  # add sep token prior to this point
         )
         # Convert numpy arrays to torch tensors if needed
         for key in encoded:
@@ -445,6 +447,7 @@ class ProFamEnsembleSampler:
         reduction: str = "mean_probs",
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
+        add_final_sep: bool = False,
     ):
         self.name = name
         self.model = model
@@ -455,6 +458,7 @@ class ProFamEnsembleSampler:
         self.reduction = reduction
         self.temperature = temperature
         self.top_p = top_p
+        self.add_final_sep = add_final_sep
 
         # Enforce embedding constraints eagerly
         if getattr(self.model, "embed_coords", False):
@@ -491,7 +495,7 @@ class ProFamEnsembleSampler:
                 v,
                 document_token=self.document_token,
                 padding="do_not_pad",
-                add_final_sep=True,
+                add_final_sep=self.add_final_sep,
             )
             input_ids = torch.as_tensor(enc["input_ids"], dtype=torch.long)
             encoded_list.append(input_ids)

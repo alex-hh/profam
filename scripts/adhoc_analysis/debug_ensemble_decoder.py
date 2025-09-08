@@ -129,6 +129,7 @@ def main():
             reduction=args.reduction,
             temperature=args.temperature,
             top_p=args.top_p,
+            add_final_sep=True,
         )
     else:
         builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
@@ -143,6 +144,7 @@ def main():
             prompt_builder=builder,
             document_token=doc_token,
             sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
+            add_final_sep=True,
         )
     sampler.to(args.device)
 
