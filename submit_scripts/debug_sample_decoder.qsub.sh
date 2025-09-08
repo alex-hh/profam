@@ -8,7 +8,7 @@
 # -l hostname=!(bubba-213-1*)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N GYM16_v6_filt
+#$ -N sample1
 #$ -t 1-12
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
