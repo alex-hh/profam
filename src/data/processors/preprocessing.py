@@ -33,6 +33,7 @@ class PreprocessingConfig:
     max_tokens_per_example: Optional[int] = None
     shuffle_proteins_in_document: bool = True
     padding: str = "do_not_pad"  # "longest", "max_length", "do_not_pad"
+    defer_sampling: bool = False  # when True, do not sample-to-max in preprocessing
 
 
 @dataclass
@@ -53,22 +54,33 @@ def default_transforms(cfg: PreprocessingConfig):
             to_upper=cfg.to_upper,
             use_msa_pos=cfg.use_msa_pos,
         )
-        preprocess_sequences_fn = functools.partial(
-            transforms.preprocess_aligned_sequences_sampling_to_max_tokens,
-            max_tokens=cfg.max_tokens_per_example,
-            shuffle=cfg.shuffle_proteins_in_document,
-            sequence_converter=sequence_converter,
-            drop_first=cfg.drop_first_protein,
-            keep_first=cfg.keep_first_protein,
-        )
+        if cfg.defer_sampling:
+            preprocess_sequences_fn = functools.partial(
+                transforms.prepare_aligned_sequences_no_sampling,
+                sequence_converter=sequence_converter,
+            )
+        else:
+            preprocess_sequences_fn = functools.partial(
+                transforms.preprocess_aligned_sequences_sampling_to_max_tokens,
+                max_tokens=cfg.max_tokens_per_example,
+                shuffle=cfg.shuffle_proteins_in_document,
+                sequence_converter=sequence_converter,
+                drop_first=cfg.drop_first_protein,
+                keep_first=cfg.keep_first_protein,
+            )
     else:
-        preprocess_sequences_fn = functools.partial(
-            transforms.preprocess_raw_sequences_sampling_to_max_tokens,
-            max_tokens=cfg.max_tokens_per_example,
-            shuffle=cfg.shuffle_proteins_in_document,
-            drop_first=cfg.drop_first_protein,
-            keep_first=cfg.keep_first_protein,
-        )
+        if cfg.defer_sampling:
+            preprocess_sequences_fn = functools.partial(
+                transforms.prepare_raw_sequences_no_sampling,
+            )
+        else:
+            preprocess_sequences_fn = functools.partial(
+                transforms.preprocess_raw_sequences_sampling_to_max_tokens,
+                max_tokens=cfg.max_tokens_per_example,
+                shuffle=cfg.shuffle_proteins_in_document,
+                drop_first=cfg.drop_first_protein,
+                keep_first=cfg.keep_first_protein,
+            )
     return [
         preprocess_sequences_fn,
         transforms.fill_missing_fields,
@@ -135,7 +147,7 @@ class ProteinDocumentPreprocessor:
     def __init__(
         self,
         cfg: PreprocessingConfig,  # configures preprocessing of individual proteins
-        transform_fns: Optional[List[Callable]] = None,
+        transform_fns: Optional[List[Callable]] = [],
         interleave_structure_sequence: bool = False,
         structure_first_prob: float = 1.0,
         single_protein_documents: bool = False,

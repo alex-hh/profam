@@ -335,6 +335,48 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     )
 
 
+def prepare_raw_sequences_no_sampling(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    **kwargs,
+) -> ProteinDocument:
+    """
+    Prepare raw sequences without subsampling/truncation.
+
+    - Computes residue positions for all sequences.
+    - Does not change order or count of sequences.
+    - Does not enforce max_tokens.
+    """
+    return proteins.clone(
+        residue_positions=[list(range(1, len(seq) + 1)) for seq in proteins.sequences]
+    )
+
+
+def prepare_aligned_sequences_no_sampling(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    sequence_converter: Callable,
+    **kwargs,
+) -> ProteinDocument:
+    """
+    Prepare aligned sequences without subsampling/truncation.
+
+    Applies the provided sequence_converter to each aligned sequence to
+    obtain standardised sequence text and residue positions (alignment-aware),
+    keeping all sequences.
+    """
+    converted_sequences = []
+    converted_positions = []
+    for seq in proteins.sequences:
+        new_seq, pos, _ = sequence_converter(seq)
+        converted_sequences.append(new_seq)
+        converted_positions.append(pos)
+    return proteins.clone(
+        sequences=converted_sequences,
+        residue_positions=converted_positions,
+    )
+
+
 def noise_backbones(
     proteins: ProteinDocument,
     std: float = 0.1,

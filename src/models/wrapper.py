@@ -434,14 +434,15 @@ class WrappedHFModelWithPositionEmbeddingsMixin:
                 )
             assert residue_index is not None
             position_ids = residue_index
+        elif input_ids.shape[0] > 1:
+            assert (input_ids == self.tokenizer.bos_token_id).sum(axis=1).max() <= 1, "Sequence packing not supported with batch size > 1"
+            position_ids = None
         elif past_key_values is not None:
             assert (
                 input_ids == self.tokenizer.bos_token_id
             ).sum() <= 1, "Sequence packing not supported with past_key_values"
             position_ids = None
-        elif input_ids.shape[0] > 1:
-            assert (input_ids == self.tokenizer.bos_token_id).sum(axis=1).max() <= 1, "Sequence packing not supported with batch size > 1"
-            position_ids = None
+
         elif self.pass_res_pos_in_doc_as_position_ids:
             position_ids = self.compute_res_pos_in_doc(input_ids)
         return position_ids
