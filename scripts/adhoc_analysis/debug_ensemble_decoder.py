@@ -148,27 +148,34 @@ def main():
 
     # Process each file
     for fasta_path in input_files:
+        base = os.path.splitext(os.path.basename(fasta_path))[0]
+        out_path = os.path.join(args.save_dir, f"{base}_generated.fasta")
+        if os.path.exists(out_path):
+            print(f"Skipping {fasta_path} because {out_path} already exists")
+            continue
         try:
             pool = build_pool_from_fasta(fasta_path, args.msa)
-
+            if args.max_generated_length is None:
+                max_gen_len = int(max(pool.sequence_lengths) * 1.5)
+            else:
+                max_gen_len = min(args.max_generated_length, int(max(pool.sequence_lengths) * 1.5))
             if args.sampler == "ensemble":
                 sequences, _ = sampler.sample_seqs_ensemble(
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
                     num_variants=min(args.num_variants, len(pool.sequences)),
-                    max_generated_length=args.max_generated_length,
+                    max_generated_length=max_gen_len,
                 )
             else:
                 sequences, _ = sampler.sample_seqs(
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
-                    max_generated_length=args.max_generated_length,
+                    max_generated_length=max_gen_len,
                 )
 
-            base = os.path.splitext(os.path.basename(fasta_path))[0]
-            out_path = os.path.join(args.save_dir, f"{base}_generated.fasta")
+
             accessions = [f"{base}_sample_{i}" for i in range(len(sequences))]
             write_fasta(sequences, accessions, out_path)
             print(f"Wrote {len(sequences)} sequences -> {out_path}")
