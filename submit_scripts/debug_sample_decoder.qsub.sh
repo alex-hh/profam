@@ -14,6 +14,18 @@
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
 
+date
+hostname
+nvidia-smi
+echo "#################### QSUB SCRIPT START ####################"
+cat "$0"
+echo "####################  QSUB SCRIPT END  ####################"
+
+conda activate venvPF
+
+ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
+cd "$ROOT_DIR"
+
 set -euo pipefail
 
 # Optional overrides via env vars
@@ -64,7 +76,7 @@ if [ -n "${MAX_GENERATED_LENGTH}" ]; then
   MAXLEN_SEG="_maxlen=${MAX_GENERATED_LENGTH}"
 fi
 
-SAVE_DIR="$PWD/outputs/debug_ensemble_decoder/${DATASET}/sampler=${SAMPLER}/tp=${TOP_P}${TEMP_SEG}_ns=${NUM_SAMPLES}_nv=${NUM_VARIANTS}_red=${REDUCTION}${MAXLEN_SEG}"
+SAVE_DIR="../sampling_results/${DATASET}/sampler=${SAMPLER}_tp=${TOP_P}${TEMP_SEG}_ns=${NUM_SAMPLES}_nv=${NUM_VARIANTS}_red=${REDUCTION}${MAXLEN_SEG}"
 
 echo "[SGE_TASK_ID=${SGE_TASK_ID}] dataset=${DATASET} sampler=${SAMPLER}"
 echo "glob=${GLOB}"
@@ -81,16 +93,25 @@ if [ -n "${CHECKPOINT_DIR}" ]; then
   EXTRA_ARGS+=(--checkpoint_dir "${CHECKPOINT_DIR}")
 fi
 
-python -u scripts/adhoc_analysis/debug_ensemble_decoder.py \
-  --glob "${GLOB}" \
-  --save_dir "${SAVE_DIR}" \
-  --sampler "${SAMPLER}" \
-  --num_variants "${NUM_VARIANTS}" \
-  --num_samples "${NUM_SAMPLES}" \
-  --max_tokens "${MAX_TOKENS}" \
-  --top_p "${TOP_P}" \
-  --reduction "${REDUCTION}" \
-  --device cuda \
-  --dtype bfloat16 \
-  --msa \
-  "${EXTRA_ARGS[@]}"
+CMD=(
+  python -u scripts/adhoc_analysis/debug_ensemble_decoder.py
+  --glob "${GLOB}"
+  --save_dir "${SAVE_DIR}"
+  --sampler "${SAMPLER}"
+  --num_variants "${NUM_VARIANTS}"
+  --num_samples "${NUM_SAMPLES}"
+  --max_tokens "${MAX_TOKENS}"
+  --top_p "${TOP_P}"
+  --reduction "${REDUCTION}"
+  --device cuda
+  --dtype bfloat16
+  --msa
+)
+
+if [ "${#EXTRA_ARGS[@]}" -gt 0 ]; then
+  CMD+=("${EXTRA_ARGS[@]}")
+fi
+
+"${CMD[@]}"
+
+date
