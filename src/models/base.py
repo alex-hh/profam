@@ -801,6 +801,7 @@ class BaseFamilyLitModule(BaseLitModule):
         fixed_length: Optional[int] = None,
         greedy: bool = False,
         temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         sample_gaps: bool = False,
         structure_tokens: bool = False,
     ):
@@ -841,6 +842,11 @@ class BaseFamilyLitModule(BaseLitModule):
             generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
             generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
+        if top_p is not None:
+            # nucleus sampling; ensure valid range
+            if not (0.0 < float(top_p) <= 1.0):
+                raise ValueError("top_p must be in the interval (0, 1]")
+            generation_kwargs["top_p"] = float(top_p)
         bad_aas = [
             "X",
             "x",
