@@ -108,13 +108,14 @@ def main():
     # Preprocessor with deferred sampling (keeps all sequences)
     cfg = AlignedProteinPreprocessingConfig(
         document_token=doc_token,
-        defer_sampling=True,
+        defer_sampling=True if args.sampler == "ensemble" else False,
         padding="do_not_pad",
         shuffle_proteins_in_document=True,
         keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
+        max_tokens_per_example=None if args.sampler == "ensemble" else args.max_tokens,
     )
     preprocessor = ProteinDocumentPreprocessor(cfg=cfg)
 
@@ -132,6 +133,7 @@ def main():
             add_final_sep=True,
         )
     else:
+        
         builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
         sampling_kwargs = {}
         if args.top_p is not None:
@@ -170,6 +172,21 @@ def main():
                     max_generated_length=max_gen_len,
                 )
             else:
+                preprocessor.cfg.max_tokens_per_example = args.max_tokens - max_gen_len
+                builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
+                sampling_kwargs = {}
+                if args.top_p is not None:
+                    sampling_kwargs["top_p"] = args.top_p
+                if args.temperature is not None:
+                    sampling_kwargs["temperature"] = args.temperature
+                sampler = ProFamSampler(
+                    name="single_sampler",
+                    model=model,
+                    prompt_builder=builder,
+                    document_token=doc_token,
+                    sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
+                    add_final_sep=True,
+                )
                 sequences, _ = sampler.sample_seqs(
                     protein_document=pool,
                     num_samples=args.num_samples,

@@ -217,6 +217,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     rng: Optional[np.random.Generator] = None,
     drop_first: bool = False,
     keep_first: bool = False,
+    allow_partial_sequence: bool = False,
     **kwargs,
 ) -> ProteinDocument:
     """
@@ -282,17 +283,18 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                 leftover_tokens, tokenizer.max_res_pos_in_seq or leftover_tokens
             )
             if leftover_tokens > 0:
-                seq_slice = _get_truncated_slice(len(seq), leftover_tokens, rnd)
-                sampled_protein_ids.append(ix)
-                sampled_protein_sequences.append(seq[seq_slice])
-                sampled_protein_positions.append(pos[seq_slice])
-                if proteins.sequence_similarities is not None:
-                    sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
-                if proteins.coverages is not None:
-                    sampled_protein_coverages.append(proteins.coverages[ix])
-                if proteins.sequence_weights is not None:
-                    sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
-                total_length += len(seq[seq_slice]) + extra_tokens_per_protein
+                if allow_partial_sequence:
+                    seq_slice = _get_truncated_slice(len(seq), leftover_tokens, rnd)
+                    sampled_protein_ids.append(ix)
+                    sampled_protein_sequences.append(seq[seq_slice])
+                    sampled_protein_positions.append(pos[seq_slice])
+                    if proteins.sequence_similarities is not None:
+                        sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
+                    if proteins.coverages is not None:
+                        sampled_protein_coverages.append(proteins.coverages[ix])
+                    if proteins.sequence_weights is not None:
+                        sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
+                    total_length += len(seq[seq_slice]) + extra_tokens_per_protein
             break
         elif (
             tokenizer.max_res_pos_in_seq is not None
