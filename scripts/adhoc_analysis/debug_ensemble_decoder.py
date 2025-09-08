@@ -1,5 +1,6 @@
 import argparse
 import os
+import glob
 import torch
 import torch.nn.functional as F
 
@@ -7,6 +8,8 @@ from src.models.base import load_checkpoint
 from src.models.inference import (
     EnsemblePromptBuilder,
     ProFamEnsembleSampler,
+    PromptBuilder,
+    ProFamSampler
 )
 from src.data.objects import ProteinDocument
 from src.data.processors.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor, AlignedProteinPreprocessingConfig
@@ -32,14 +35,10 @@ def _pick_non_special_token_id(tokenizer) -> int:
     return 0
 
 
-@torch.no_grad()
-def assert_kv_cache_equivalence(
-    model: LlamaLitModule,
-    sampler: ProFamEnsembleSampler,
-    variants,
-    force_float32_eval: bool = False,
-):
-    pass
+def write_fasta(sequences, accessions, fasta_path):
+    with open(fasta_path, "w") as f:
+        for acc, seq in zip(accessions, sequences):
+            f.write(f">{acc}\n{seq}\n")
 
 
 def build_pool_from_fasta(path: str, is_msa: bool) -> ProteinDocument:
@@ -66,31 +65,44 @@ def main():
         help="Checkpoint run directory (contains .hydra)"
     )
     parser.add_argument(
-        "--input", 
-        type=str, 
-        default="../data/ProteinGym/filtered_msas_poet/PABP_YEAST_Melamed_2013_filtered.fasta", 
-        help="Path to FASTA/MSA file"
-        )
-    parser.add_argument("--msa", default=True, action="store_true", help="Treat input as MSA (a3m/a2m)")
+        "--glob",
+        type=str,
+        required=True,
+        help="Glob pattern for input FASTA/MSA files (e.g. '../data/val/*.fasta')"
+    )
+    parser.add_argument("--save_dir", type=str, required=True, help="Directory to save generated FASTA files")
+    parser.add_argument("--msa", default=True, action="store_true", help="Treat inputs as aligned MSAs (a3m/a2m)")
+    parser.add_argument("--sampler", type=str, default="ensemble", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
     parser.add_argument("--num_variants", type=int, default=8)
-    parser.add_argument("--num_samples", type=int, default=1)
+    parser.add_argument("--num_samples", type=int, default=20)
     parser.add_argument("--max_tokens", type=int, default=8192)
     parser.add_argument("--max_generated_length", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--top_p", type=float, default=0.95, help="Nucleus sampling probability mass (0<p<=1)")
     parser.add_argument("--reduction", type=str, default="mean_probs", choices=["mean_probs", "sum_log_probs"])
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--dtype", type=str, default="torch.bfloat16", choices=["float32", "float16", "bfloat16"])
-    parser.add_argument("--test_kv_cache", action="store_true", help="Run KV-cache equivalence test and exit")
+    parser.add_argument("--dtype", type=str, default="bfloat16", choices=["float32", "float16", "bfloat16"])
     args = parser.parse_args()
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
     # Load model (and tokenizer) from checkpoint dir
     model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path)
     model.eval()
-    model.to(args.device, dtype=eval(args.dtype))
+    dtype_map = {
+        "float32": torch.float32,
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+    }
+    model.to(args.device, dtype=dtype_map[args.dtype])
 
-    # Build full pool from input (no subsampling here)
-    pool = build_pool_from_fasta(args.input, args.msa)
+    # Prepare save directory
+    os.makedirs(args.save_dir, exist_ok=True)
+
+    # Collect input files
+    input_files = sorted(glob.glob(args.glob))
+    if len(input_files) == 0:
+        raise FileNotFoundError(f"No input files matched pattern: {args.glob}")
+
     doc_token = "[RAW]"
 
     # Preprocessor with deferred sampling (keeps all sequences)
@@ -99,37 +111,69 @@ def main():
         defer_sampling=True,
         padding="do_not_pad",
         shuffle_proteins_in_document=True,
-        keep_insertions=False,
+        keep_insertions=True,
         to_upper=True,
         keep_gaps=False,
         use_msa_pos=False,
     )
     preprocessor = ProteinDocumentPreprocessor(cfg=cfg)
 
-    # Ensemble sampler
-    builder = EnsemblePromptBuilder(preprocessor=preprocessor, shuffle=True)
-    sampler = ProFamEnsembleSampler(
-        name="ensemble_sampler",
-        model=model,
-        prompt_builder=builder,
-        document_token=doc_token,
-        reduction=args.reduction,
-        temperature=args.temperature,
-    )
+    # Build sampler according to selection
+    if args.sampler == "ensemble":
+        builder = EnsemblePromptBuilder(preprocessor=preprocessor, shuffle=True)
+        sampler = ProFamEnsembleSampler(
+            name="ensemble_sampler",
+            model=model,
+            prompt_builder=builder,
+            document_token=doc_token,
+            reduction=args.reduction,
+            temperature=args.temperature,
+            top_p=args.top_p,
+        )
+    else:
+        builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
+        sampling_kwargs = {}
+        if args.top_p is not None:
+            sampling_kwargs["top_p"] = args.top_p
+        if args.temperature is not None:
+            sampling_kwargs["temperature"] = args.temperature
+        sampler = ProFamSampler(
+            name="single_sampler",
+            model=model,
+            prompt_builder=builder,
+            document_token=doc_token,
+            sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
+        )
     sampler.to(args.device)
 
+    # Process each file
+    for fasta_path in input_files:
+        try:
+            pool = build_pool_from_fasta(fasta_path, args.msa)
 
-    sequences, variants = sampler.sample_seqs_ensemble(
-        protein_document=pool,
-        num_samples=args.num_samples,
-        max_tokens=args.max_tokens,
-        num_variants=args.num_variants,
-        max_generated_length=args.max_generated_length,
-    )
+            if args.sampler == "ensemble":
+                sequences, _ = sampler.sample_seqs_ensemble(
+                    protein_document=pool,
+                    num_samples=args.num_samples,
+                    max_tokens=args.max_tokens,
+                    num_variants=min(args.num_variants, len(pool.sequences)),
+                    max_generated_length=args.max_generated_length,
+                )
+            else:
+                sequences, _ = sampler.sample_seqs(
+                    protein_document=pool,
+                    num_samples=args.num_samples,
+                    max_tokens=args.max_tokens,
+                    max_generated_length=args.max_generated_length,
+                )
 
-    print("Generated sequences:")
-    for i, s in enumerate(sequences):
-        print(f"[{i}] {s}")
+            base = os.path.splitext(os.path.basename(fasta_path))[0]
+            out_path = os.path.join(args.save_dir, f"{base}_generated.fasta")
+            accessions = [f"{base}_sample_{i}" for i in range(len(sequences))]
+            write_fasta(sequences, accessions, out_path)
+            print(f"Wrote {len(sequences)} sequences -> {out_path}")
+        except Exception as e:
+            print(f"Error processing {fasta_path}: {e}")
 
 
 if __name__ == "__main__":

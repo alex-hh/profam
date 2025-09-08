@@ -245,12 +245,20 @@ class EnsemblePromptBuilder:
         tokenizer: ProFamTokenizer,
         num_variants: int,
         max_tokens: int,
+        sample_context_length: bool = True,
     ) -> List[ProteinDocument]:
         # Prepare (normalize) once; do not sample-to-max here
         prepared = self.preprocessor.apply_transforms(proteins, tokenizer)
         variants: List[ProteinDocument] = []
+        max_context_tokens = max_tokens - int(np.max(prepared.sequence_lengths) * 1.2)
+        max_context_tokens = max(max_context_tokens, 0)
         for _ in range(num_variants):
-            idxs = self._choose_indices_under_budget(prepared, tokenizer, max_tokens)
+            if sample_context_length:
+                this_context_tokens = np.random.randint(np.max(prepared.sequence_lengths),max_context_tokens + 1)
+                this_context_tokens = max(this_context_tokens, max_context_tokens // 2)
+            else:
+                this_context_tokens = max_context_tokens
+            idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
             # Preserve order within chosen set but randomly permute for diversity
             perm = np.array(idxs)
             if self.shuffle:
@@ -273,6 +281,7 @@ class EnsembleDecoder:
         reduction: str = "mean_probs",
         sample_gaps: bool = False,
         temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
     ):
         # Enforce constraints
         if getattr(model, "embed_coords", False):
@@ -287,6 +296,11 @@ class EnsembleDecoder:
         self.reduction = reduction
         self.sample_gaps = sample_gaps
         self.temperature = temperature
+        self.top_p = top_p
+
+        if self.top_p is not None:
+            if not (0.0 < float(self.top_p) <= 1.0):
+                raise ValueError("top_p must be in the interval (0, 1]")
 
         self._bad_token_ids = self._compute_bad_token_ids()
         self._eos_id = tokenizer.sep_token_id
@@ -369,8 +383,21 @@ class EnsembleDecoder:
             else:
                 agg_probs = torch.mean(torch.stack(probs_list, dim=0), dim=0)
 
-            sampled = torch.multinomial(agg_probs, num_samples=1).squeeze(-1)
-            token_id = int(sampled.item())
+            # Sample next token (optionally using nucleus sampling)
+            if self.top_p is not None and 0.0 < float(self.top_p) < 1.0:
+                # Nucleus sampling over aggregated distribution
+                sorted_probs, sorted_idx = torch.sort(agg_probs, descending=True)
+                cumsum = torch.cumsum(sorted_probs, dim=-1)
+                keep = cumsum <= float(self.top_p)
+                keep[..., 0] = True # Ensure at least the highest-prob token is included
+                candidate_probs = sorted_probs[keep]
+                candidate_indices = sorted_idx[keep]
+                candidate_probs = candidate_probs / candidate_probs.sum()
+                sampled_local = torch.multinomial(candidate_probs, num_samples=1).squeeze(-1)
+                token_id = int(candidate_indices[sampled_local].item())
+            else:
+                sampled = torch.multinomial(agg_probs, num_samples=1).squeeze(-1)
+                token_id = int(sampled.item())
             completions.append(token_id)
 
             # Termination
@@ -417,6 +444,7 @@ class ProFamEnsembleSampler:
         dtype: Optional[torch.dtype] = None,
         reduction: str = "mean_probs",
         temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
     ):
         self.name = name
         self.model = model
@@ -426,6 +454,7 @@ class ProFamEnsembleSampler:
         self.dtype = dtype or torch.float32
         self.reduction = reduction
         self.temperature = temperature
+        self.top_p = top_p
 
         # Enforce embedding constraints eagerly
         if getattr(self.model, "embed_coords", False):
@@ -491,6 +520,7 @@ class ProFamEnsembleSampler:
             tokenizer=self.model.tokenizer,
             reduction=self.reduction,
             temperature=self.temperature,
+            top_p=self.top_p,
         )
 
         sequences: List[str] = []
