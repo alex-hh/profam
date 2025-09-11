@@ -83,6 +83,8 @@ def main():
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dtype", type=str, default="bfloat16", choices=["float32", "float16", "bfloat16"])
     parser.add_argument("--continuous_sampling", action="store_true", default=False, help="Ignore [SEP] EOS and generate until token budget; drop final partial segment")
+    parser.add_argument("--task_index", type=int, default=None, help="Task index")
+    parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
     args = parser.parse_args()
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
@@ -101,6 +103,17 @@ def main():
 
     # Collect input files
     input_files = sorted(glob.glob(args.glob))
+    if args.task_index is not None and args.num_tasks is not None:
+        batch_size = len(input_files) // args.num_tasks
+        start_idx = args.task_index * batch_size
+        if args.task_index == args.num_tasks - 1:
+            end_idx = len(input_files)
+        else:
+            end_idx = start_idx + batch_size
+        input_files = input_files[start_idx:end_idx]
+        print(f"Processing {len(input_files)} files in task {args.task_index} of {args.num_tasks}")
+        for fpath in input_files:
+            print(fpath)
     if len(input_files) == 0:
         raise FileNotFoundError(f"No input files matched pattern: {args.glob}")
 
