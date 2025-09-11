@@ -22,7 +22,7 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/scripts/sample_sequences_from_checkpoint_model.py \
---glob ../CASP16/target_fastas/*.fasta \
+--glob "../CASP16/target_fastas/*.fasta" \
 --save_dir ../CASP16/ProFam_synthetic_msas_1200 \
 --sampler single \
 --num_samples 1200 \
