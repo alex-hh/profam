@@ -133,6 +133,7 @@ class ProFamSampler:
         max_tokens: int,
         document_is_prompt=False,
         max_generated_length: int = None,
+        continuous_sampling: bool = False,
     ):
         sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
         if self.match_representative_length:
@@ -170,9 +171,34 @@ class ProFamSampler:
                 .to(self.dtype)
                 if self.model.embed_coords
                 else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
+                continuous_sampling=continuous_sampling,
                 **sampling_kwargs,
             )
-            sequences = self.model.tokenizer.decode_tokens(tokens)
+            if not continuous_sampling:
+                sequences = self.model.tokenizer.decode_tokens(tokens)
+            else:
+                # Flatten all completed sequences delimited by [SEP]; drop trailing partial segment
+                sep_id = self.model.tokenizer.sep_token_id
+                sequences = []
+                for r in range(tokens.shape[0]):
+                    row = tokens[r]
+                    # Determine valid length (exclude any right-side padding)
+                    if (row == self.model.tokenizer.pad_token_id).all():
+                        continue
+                    # Find last SEP; skip if none
+                    sep_positions = (row == sep_id).nonzero(as_tuple=False).flatten().tolist()
+                    if len(sep_positions) == 0:
+                        continue
+                    prev = 0
+                    for sep_pos in sep_positions:
+                        seg = row[prev:sep_pos]
+                        if seg.numel() > 0:
+                            text = self.model.tokenizer.decode(
+                                seg.tolist(), skip_special_tokens=True
+                            ).replace(" ", "")
+                            if text:
+                                sequences.append(text)
+                        prev = sep_pos + 1
         return sequences, prompt
 
     @classmethod
@@ -331,6 +357,7 @@ class EnsembleDecoder:
         input_ids: List[torch.Tensor],
         max_generated_length: Optional[int] = None,
         eos_token_id: Optional[int] = None,
+        continuous_sampling: bool = False,
     ) -> torch.Tensor:
         device = self.model.device
         # Ensure tensors are on device
@@ -404,7 +431,7 @@ class EnsembleDecoder:
 
             # Termination
             step += 1
-            if token_id == eos:
+            if (not continuous_sampling) and token_id == eos:
                 break
             if max_generated_length is not None and step >= max_generated_length:
                 break
@@ -430,7 +457,7 @@ class EnsembleDecoder:
 
         if len(completions) == 0:
             return torch.empty((0,), dtype=torch.long, device=device)
-        if completions[-1] == eos:
+        if (not continuous_sampling) and completions[-1] == eos:
             completions = completions[:-1]
         return torch.tensor(completions, dtype=torch.long, device=device)
 
@@ -508,6 +535,7 @@ class ProFamEnsembleSampler:
         max_tokens: int,
         num_variants: int,
         max_generated_length: Optional[int] = None,
+        continuous_sampling: bool = False,
     ) -> Tuple[List[str], List[ProteinDocument]]:
         # Build prompt variants
         variants = self.prompt_builder.build_variants(
@@ -533,11 +561,28 @@ class ProFamEnsembleSampler:
                 input_ids=prompt_ids_list,
                 max_generated_length=max_generated_length,
                 eos_token_id=self.model.tokenizer.sep_token_id,
+                continuous_sampling=continuous_sampling,
             )
             if gen_ids.numel() == 0:
                 sequences.append("")
             else:
-                seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[0]
-                sequences.append(seq)
+                if not continuous_sampling:
+                    seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[0]
+                    sequences.append(seq)
+                else:
+                    # Split on [SEP] and drop trailing partial
+                    sep_id = self.model.tokenizer.sep_token_id
+                    row = gen_ids
+                    sep_positions = (row == sep_id).nonzero(as_tuple=False).flatten().tolist()
+                    prev = 0
+                    for sep_pos in sep_positions:
+                        seg = row[prev:sep_pos]
+                        if seg.numel() > 0:
+                            text = self.model.tokenizer.decode(
+                                seg.tolist(), skip_special_tokens=True
+                            ).replace(" ", "")
+                            if text:
+                                sequences.append(text)
+                        prev = sep_pos + 1
 
         return sequences, variants

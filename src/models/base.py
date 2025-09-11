@@ -804,6 +804,7 @@ class BaseFamilyLitModule(BaseLitModule):
         top_p: Optional[float] = None,
         sample_gaps: bool = False,
         structure_tokens: bool = False,
+        continuous_sampling: bool = False,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -827,6 +828,7 @@ class BaseFamilyLitModule(BaseLitModule):
         if max_generated_length is not None:
             assert max_generated_length <= max_total_length
         generation_kwargs = {}
+        sep_token_id = self.tokenizer.sep_token_id
         if fixed_length is not None:
             if max_total_length is not None:
                 assert input_ids.shape[1] + fixed_length <= max_total_length
@@ -836,10 +838,10 @@ class BaseFamilyLitModule(BaseLitModule):
         elif max_generated_length is not None:
             generation_kwargs["min_new_tokens"] = 3
             generation_kwargs["max_new_tokens"] = max_generated_length
-            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
+            generation_kwargs["eos_token_id"] = None if continuous_sampling else sep_token_id
         else:
             generation_kwargs["min_new_tokens"] = 3  # for esmfold
-            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
+            generation_kwargs["eos_token_id"] = None if continuous_sampling else sep_token_id
             generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
         if top_p is not None:
