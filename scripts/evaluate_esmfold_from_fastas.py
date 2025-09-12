@@ -11,6 +11,12 @@ from src.sequence import fasta
 from src.data.objects import ProteinDocument
 from src import constants
 
+"""
+Created by Jude Wells 2025-09-12
+Wrapper script that runs the ESMFold evaluation pipeline 
+on pre-generated fasta files.
+"""
+
 
 def map_generated_to_prompt_path(gen_fasta_path: str, pattern: str, replacement: str) -> str:
     """Map a generated FASTA path to the corresponding prompt FASTA path via regex.
