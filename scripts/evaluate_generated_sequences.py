@@ -8,9 +8,13 @@ We assume that you have the target structures (representative from each cluster)
 
 import glob
 import os
-
+from Bio import SeqIO
 from src.utils.evaluation_utils import sequence_only_evaluation
 import pandas as pd
+import numpy as np
+from src.data.objects import Protein
+from src.structure.superimposition import tm_score, lddt
+from src.utils.evaluation_utils import pairwise_sequence_identity
 
 def evaluate_generated_sequences():
     all_results = []
@@ -31,18 +35,97 @@ def evaluate_generated_sequences():
 
     pass
 
+def get_pdb_paths_from_fasta_path(fasta_path, gt_pdbs):
+    prompt_records = list(SeqIO.parse(fasta_path, "fasta"))
+    prompt_ids = [record.id for record in prompt_records]
+    pdb_paths = [p for p in gt_pdbs if any(pid in p for pid in prompt_ids)]
+    return pdb_paths
+
+
 if __name__ == "__main__":
-    evaluate_generated_sequences()
+    # evaluate_generated_sequences()
     generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
     gt_pdb_pattern = "../data/val_test_v2_pdbs/foldseek/*.pdb"
     generated_pdbs = glob.glob(generated_pdb_pattern)
     gt_pdbs = glob.glob(gt_pdb_pattern)
+    rows = []
     for generated_pdb in generated_pdbs:
+        if "_test_" in generated_pdb:
+            split = "test"
+        elif "_val_" in generated_pdb:
+            split = "val"
+        else:
+            raise ValueError(f"Unknown split in {generated_pdb}")
         generated_id = generated_pdb.split("/")[-2].split("_")[-1]
-        gt_pdb = next((p for p in gt_pdbs if generated_id in p), None)
-        if gt_pdb is None:
-            print(f"No GT PDB found for {generated_id}")
-            continue
-        print(f"Evaluating {generated_id}")
-        print(f"GT PDB: {gt_pdb}")
-        print(f"Generated PDB: {generated_pdb}")
+        prompt_fasta_path = glob.glob(f"../data/val_test_v2_fastas/foldseek/{split}/{generated_id}*.fasta")[0]
+        prompt_pdb_paths = get_pdb_paths_from_fasta_path(prompt_fasta_path, gt_pdbs)
+        # Load generated protein and compute mean pLDDT
+        try:
+            gen_prot = Protein.from_pdb(generated_pdb, bfactor_is_plddt=True)
+            mean_plddt = float(np.mean(gen_prot.plddt)) if gen_prot.plddt is not None else float("nan")
+        except Exception:
+            gen_prot = None
+            mean_plddt = float("nan")
+
+        # Sequence identity stats (generated vs all prompt sequences)
+        try:
+            prompt_records = list(SeqIO.parse(prompt_fasta_path, "fasta"))
+            prompt_seqs = [str(r.seq).replace("-", "") for r in prompt_records]
+            gen_seq = gen_prot.sequence if gen_prot is not None else ""
+            seq_ids = [pairwise_sequence_identity(gen_seq, pseq) for pseq in prompt_seqs] if len(prompt_seqs) > 0 and len(gen_seq) > 0 else []
+        except Exception:
+            seq_ids = []
+
+        def _agg_stats(values):
+            arr = np.array(values, dtype=float)
+            if arr.size == 0:
+                return float("nan"), float("nan"), float("nan")
+            return float(np.nanmin(arr)), float(np.nanmax(arr)), float(np.nanmean(arr))
+
+        seq_id_min, seq_id_max, seq_id_mean = _agg_stats(seq_ids)
+
+        # Structural comparisons vs all prompt PDBs
+        tm_scores = []
+        lddt_scores = []
+        if gen_prot is not None:
+            for pdb_path in prompt_pdb_paths:
+                try:
+                    prompt_prot = Protein.from_pdb(pdb_path, bfactor_is_plddt=True)
+                except Exception:
+                    continue
+                try:
+                    tm_val = tm_score(gen_prot, prompt_prot)
+                    tm_scores.append(float(tm_val))
+                except Exception:
+                    tm_scores.append(float("nan"))
+                try:
+                    lddt_val = lddt(gen_prot, prompt_prot)
+                    lddt_scores.append(float(lddt_val))
+                except Exception:
+                    lddt_scores.append(float("nan"))
+
+        tm_min, tm_max, tm_mean = _agg_stats([v for v in tm_scores if not np.isnan(v)])
+        lddt_min, lddt_max, lddt_mean = _agg_stats([v for v in lddt_scores if not np.isnan(v)])
+
+        rows.append({
+            "generated_id": generated_id,
+            "split": split,
+            "generated_pdb": generated_pdb,
+            "prompt_fasta": prompt_fasta_path,
+            "num_prompt_pdbs": len(prompt_pdb_paths),
+            "mean_plddt": mean_plddt,
+            "tm_min": tm_min,
+            "tm_mean": tm_mean,
+            "tm_max": tm_max,
+            "lddt_min": lddt_min,
+            "lddt_mean": lddt_mean,
+            "lddt_max": lddt_max,
+            "seq_identity_min": seq_id_min,
+            "seq_identity_mean": seq_id_mean,
+            "seq_identity_max": seq_id_max,
+        })
+
+    # Save structural evaluation CSV aggregated across all generated PDBs
+    structural_csv = "../sampling_results/colabfold_outputs/structural_evaluation.csv"
+    os.makedirs(os.path.dirname(structural_csv), exist_ok=True)
+    pd.DataFrame(rows).to_csv(structural_csv, index=False)
