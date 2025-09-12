@@ -41,7 +41,8 @@ if __name__=="__main__":
     # Inputs (adjust if needed)
     queries = glob.glob("../CASP16/target_fastas/*.fasta")
     # sampled_fasta_dir = "../CASP16/ProFam_synthetic_msas"
-    sampled_fasta_dir = "../CASP16/poet_casp16_synthetic_msas"
+    # sampled_fasta_dir = "../CASP16/poet_casp16_synthetic_msas"
+    sampled_fasta_dir = "../CASP16/ProFam_synthetic_msas_1200"
     threads = int(os.environ.get("MMSEQS_THREADS", "24"))
     hhfilter_binary = os.environ.get("HHFILTER_BINARY", "/mnt/disk2/msa_pairformer/hhsuite/hhfilter")
 
@@ -101,7 +102,9 @@ if __name__=="__main__":
         finally:
             # Clean up temporary directory
             shutil.rmtree(workdir, ignore_errors=True)
-        if os.path.exists(filtered_out + ".dbtype"):
-            os.remove(filtered_out + ".dbtype")
-        if os.path.exists(filtered_out + ".index"):
-            os.remove(filtered_out + ".index")
+        paths_to_remove = []
+        paths_to_remove += glob.glob(os.path.join(sampled_fasta_dir, "*.dbtype"))
+        paths_to_remove += glob.glob(os.path.join(sampled_fasta_dir, "*.index"))
+        for p in paths_to_remove:
+            if os.path.exists(p):
+                os.remove(p)

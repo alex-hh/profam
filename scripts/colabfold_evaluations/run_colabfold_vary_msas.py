@@ -95,6 +95,29 @@ if __name__=="__main__":
         else:
             print(f"Skipping {input_fasta} (with synthetic MSA) as output directory already exists")
 
+        output_dir_with_synthetic_1200 = f"../CASP16/colabfold_outputs/{casp_id}/{casp_id}_with_synthetic_MSA_1200"
+        if not os.path.exists(output_dir_with_synthetic_1200) or len(os.listdir(output_dir_with_synthetic_1200)) == 0:
+            a3m_path = f"../CASP16/ProFam_synthetic_msas_1200/{casp_id}.a3m"
+            if not os.path.exists(a3m_path):
+                print(f"Skipping {input_fasta} (with synthetic MSA 1200) as a3m file does not exist")
+                continue
+            command = f"colabfold_batch {a3m_path} {output_dir_with_synthetic_1200} --num-models 1"
+            os.system(command)
+        else:
+            print(f"Skipping {input_fasta} (with synthetic MSA) as output directory already exists")
+
+
+        output_dir_with_synthetic_poet = f"../CASP16/colabfold_outputs/{casp_id}/{casp_id}_with_synthetic_MSA_poet"
+        if not os.path.exists(output_dir_with_synthetic_poet) or len(os.listdir(output_dir_with_synthetic_poet)) == 0:
+            a3m_path = f"../CASP16/poet_casp16_synthetic_msas/{casp_id}.a3m"
+            if not os.path.exists(a3m_path):
+                print(f"Skipping {input_fasta} (with synthetic MSA poet) as a3m file does not exist")
+                continue
+            command = f"colabfold_batch {a3m_path} {output_dir_with_synthetic_poet} --num-models 1"
+            os.system(command)
+        else:
+            print(f"Skipping {input_fasta} (with synthetic MSA poet) as output directory already exists")
+
 
         output_dir_with_random = f"../CASP16/colabfold_outputs/{casp_id}/{casp_id}_with_random_MSA"
         if not os.path.exists(output_dir_with_random) or len(os.listdir(output_dir_with_random)) == 0:
@@ -111,6 +134,8 @@ if __name__=="__main__":
         best_no_pdb, best_no_plddt = _pick_best_pred_pdb(output_dir_no) if os.path.exists(output_dir_no) else (None, float("nan"))
         best_with_synthetic_pdb, best_with_synthetic_plddt = _pick_best_pred_pdb(output_dir_with_synthetic) if os.path.exists(output_dir_with_synthetic) else (None, float("nan"))
         best_with_random_pdb, best_with_random_plddt = _pick_best_pred_pdb(output_dir_with_random) if os.path.exists(output_dir_with_random) else (None, float("nan"))
+        best_with_synthetic_1200_pdb, best_with_synthetic_1200_plddt = _pick_best_pred_pdb(output_dir_with_synthetic_1200) if os.path.exists(output_dir_with_synthetic_1200) else (None, float("nan"))
+        best_with_synthetic_poet_pdb, best_with_synthetic_poet_plddt = _pick_best_pred_pdb(output_dir_with_synthetic_poet) if os.path.exists(output_dir_with_synthetic_poet) else (None, float("nan"))
 
         # Compute metrics
         tm_with = rmsd_with = float("nan")
@@ -144,7 +169,22 @@ if __name__=="__main__":
             rmsd_with_random = m.get("rmsd", float("nan"))
             pred_with_random_len = m.get("seq_len_1")
             gt_len = gt_len if gt_len is not None else m.get("seq_len_2")
-            lddt_with_random = m.get("lddt", float("nan"))
+            lddt_with_random = m.get("lddt", float("nan"))  
+        if best_with_synthetic_1200_pdb is not None:
+            m = get_metrics(best_with_synthetic_1200_pdb, ground_truth_pdb_path)
+            tm_with_synthetic_1200 = m.get("tm_score", float("nan"))
+            rmsd_with_synthetic_1200 = m.get("rmsd", float("nan"))
+            pred_with_synthetic_1200_len = m.get("seq_len_1")
+            gt_len = gt_len if gt_len is not None else m.get("seq_len_2")
+            lddt_with_synthetic_1200 = m.get("lddt", float("nan"))
+        if best_with_synthetic_poet_pdb is not None:
+            m = get_metrics(best_with_synthetic_poet_pdb, ground_truth_pdb_path)
+            tm_with_synthetic_poet = m.get("tm_score", float("nan"))
+            rmsd_with_synthetic_poet = m.get("rmsd", float("nan"))
+            pred_with_synthetic_poet_len = m.get("seq_len_1")
+            gt_len = gt_len if gt_len is not None else m.get("seq_len_2")
+            lddt_with_synthetic_poet = m.get("lddt", float("nan"))
+        
         rows.append({
             "casp_id": casp_id,
             "gt_pdb": ground_truth_pdb_path,
@@ -153,24 +193,32 @@ if __name__=="__main__":
             "pred_no_msa_mean_plddt": best_no_plddt if not np.isnan(best_no_plddt) else "",
             "pred_with_synthetic_mean_plddt": best_with_synthetic_plddt if not np.isnan(best_with_synthetic_plddt) else "",
             "pred_with_random_mean_plddt": best_with_random_plddt if not np.isnan(best_with_random_plddt) else "",
+            "pred_with_synthetic_1200_mean_plddt": best_with_synthetic_1200_plddt if not np.isnan(best_with_synthetic_1200_plddt) else "",
+            "pred_with_synthetic_poet_mean_plddt": best_with_synthetic_poet_plddt if not np.isnan(best_with_synthetic_poet_plddt) else "",
             "tm_with_msa": tm_with if not np.isnan(tm_with) else "",
             "tm_no_msa": tm_no if not np.isnan(tm_no) else "",
             "tm_with_synthetic": tm_with_synthetic if not np.isnan(tm_with_synthetic) else "",
             "tm_with_random": tm_with_random if not np.isnan(tm_with_random) else "",
+            "tm_with_synthetic_1200": tm_with_synthetic_1200 if not np.isnan(tm_with_synthetic_1200) else "",
+            "tm_with_synthetic_poet": tm_with_synthetic_poet if not np.isnan(tm_with_synthetic_poet) else "",
             "rmsd_with_msa": rmsd_with if not np.isnan(rmsd_with) else "",
             "rmsd_no_msa": rmsd_no if not np.isnan(rmsd_no) else "",
             "rmsd_with_synthetic": rmsd_with_synthetic if not np.isnan(rmsd_with_synthetic) else "",
             "rmsd_with_random": rmsd_with_random if not np.isnan(rmsd_with_random) else "",
+            "rmsd_with_synthetic_1200": rmsd_with_synthetic_1200 if not np.isnan(rmsd_with_synthetic_1200) else "",
+            "rmsd_with_synthetic_poet": rmsd_with_synthetic_poet if not np.isnan(rmsd_with_synthetic_poet) else "",
             "lddt_with_msa": lddt_with if not np.isnan(lddt_with) else "",
             "lddt_no_msa": lddt_no if not np.isnan(lddt_no) else "",
             "lddt_with_synthetic": lddt_with_synthetic if not np.isnan(lddt_with_synthetic) else "",
             "lddt_with_random": lddt_with_random if not np.isnan(lddt_with_random) else "",
+            "lddt_with_synthetic_1200": lddt_with_synthetic_1200 if not np.isnan(lddt_with_synthetic_1200) else "",
+            "lddt_with_synthetic_poet": lddt_with_synthetic_poet if not np.isnan(lddt_with_synthetic_poet) else "",
             "gt_len": gt_len if gt_len is not None else "",
             "pred_with_len": pred_with_len if pred_with_len is not None else "",
             
         })
 
-    metrics_csv = "../CASP16/colabfold_outputs/metrics_no_context.csv"
+    metrics_csv = "../CASP16/colabfold_outputs/metrics_vary_msas.csv"
     df = pd.DataFrame(rows)
     df.to_csv(metrics_csv, index=False)
     os.environ["PATH"] = previous_path

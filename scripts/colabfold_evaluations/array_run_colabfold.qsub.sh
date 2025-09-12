@@ -74,7 +74,20 @@ sed -n "${START_LINE},${END_LINE}p" "$LIST_FILE" | while IFS= read -r REL_FASTA_
   OUTPUT_DIR="../sampling_results/colabfold_outputs/${BASENAME_NOEXT}"
   echo "$OUTPUT_DIR"
   mkdir -p "$OUTPUT_DIR"
-  colabfold_batch $FASTAPATH $OUTPUT_DIR --num-models 1
+  # Skip if expected output PDB already exists
+  TARGET_PDB="gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
+  if [ -f "$OUTPUT_DIR/$TARGET_PDB" ]; then
+    echo "[INFO] Found existing output, skipping: $OUTPUT_DIR/$TARGET_PDB"
+    continue
+  fi
+  A3M_FILE="$OUTPUT_DIR/gen0.a3m"
+  if [ -f "$A3M_FILE" ]; then
+    echo "[INFO] Found gen0.a3m; using as input: $A3M_FILE"
+    INPUT_PATH="$A3M_FILE"
+  else
+    INPUT_PATH="$FASTAPATH"
+  fi
+  colabfold_batch "$INPUT_PATH" "$OUTPUT_DIR" --num-models 1
 done
 echo
 echo ${runstart}
