@@ -9,7 +9,7 @@
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -t 1-10
+#$ -t 2-10
 #$ -j y
 date
 hostname
@@ -20,7 +20,22 @@ conda activate venvPF
 ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
-bash scripts/colabfold_evaluations/setup_colabfold_cs_cluster.sh
+
+# 1) Load conda & activate the env
+source /SAN/orengolab/cath_plm/localcolabfold/conda/etc/profile.d/conda.sh
+conda activate /SAN/orengolab/cath_plm/localcolabfold/colabfold-conda
+
+# 2) Make sure runtime/libs & caches are correct for this cluster
+unset PYTHONPATH LD_PRELOAD
+export XDG_CACHE_HOME=/SAN/orengolab/cath_plm/.cache
+export PIP_CACHE_DIR=/SAN/orengolab/cath_plm/.cache/pip
+export TMPDIR=/SAN/orengolab/cath_plm/tmp
+export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$CONDA_PREFIX/lib64:${LD_LIBRARY_PATH:-}"
+
+# 3) Run
+colabfold_batch --help   # or: python -m colabfold.batch --help
+
+
 LINENUM=$SGE_TASK_ID
 FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
 
