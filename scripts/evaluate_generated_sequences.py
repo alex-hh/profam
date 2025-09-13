@@ -15,12 +15,14 @@ import numpy as np
 from src.data.objects import Protein
 from src.structure.superimposition import tm_score, lddt
 from src.utils.evaluation_utils import pairwise_sequence_identity
+from statsmodels.nonparametric.smoothers_lowess import lowess
+import matplotlib.pyplot as plt
 
 def evaluate_generated_sequences():
     all_results = []
     generated_fasta_pattern = "../sampling_results/foldseek_*/*/*.fasta"
+    csv_save_path = "../sampling_results/profam_sequence_only_evaluation.csv"
     for generated_fasta in glob.glob(generated_fasta_pattern):
-        csv_save_path = os.path.dirname(generated_fasta) + "/sequence_only_evaluation.csv"
         split  = "val" if "val" in generated_fasta else "test"
         fname = os.path.basename(generated_fasta).replace("_generated.fasta", ".fasta")
         prompt_fasta = f"../data/val_test_v2_fastas/foldseek/{split}/{fname}"
@@ -33,7 +35,23 @@ def evaluate_generated_sequences():
         df.to_csv(csv_save_path, index=False)
         print(results)
 
-    pass
+def evaluate_generated_sequences_poet():
+    all_results = []
+    generated_fasta_pattern = "../sampling_results/poet/poet_foldseek_*/generated_sequences_foldseek_*/*_seed42.fasta"
+    csv_save_path = "../sampling_results/poet/poet_sequence_only_evaluation.csv"
+    for generated_fasta in glob.glob(generated_fasta_pattern):
+        split  = "val" if "val" in generated_fasta else "test"
+        fname = os.path.basename(generated_fasta).replace("_samples20_seed42", "")
+        prompt_fasta = f"../data/val_test_v2_fastas/foldseek/{split}/{fname}"
+        if not os.path.exists(prompt_fasta):
+            print(f"Prompt FASTA not found for {generated_fasta}")
+            continue
+        results = sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=False)
+        all_results.append(results)
+        df = pd.DataFrame(all_results)
+        df.to_csv(csv_save_path, index=False)
+        print(results)
+
 
 def get_pdb_paths_from_fasta_path(fasta_path, gt_pdbs):
     prompt_records = list(SeqIO.parse(fasta_path, "fasta"))
@@ -41,15 +59,50 @@ def get_pdb_paths_from_fasta_path(fasta_path, gt_pdbs):
     pdb_paths = [p for p in gt_pdbs if any(pid in p for pid in prompt_ids)]
     return pdb_paths
 
+def make_structure_sequence_similarity_plots(csv_path):
+    df = pd.read_csv(csv_path)
+    structure_metrics = ['tm_max', 'lddt_max']
+    for mode in ['single', 'ensemble']:
+        df_mode = df[df['generated_pdb'].str.contains(mode)]
+        for structure_metric in structure_metrics:
+            x = df_mode["seq_identity_max"].to_numpy(dtype=float)
+            y = df_mode[structure_metric].to_numpy(dtype=float)
+            mask = np.isfinite(x) & np.isfinite(y)
+            x_valid = x[mask]
+            y_valid = y[mask]
+
+            if x_valid.size == 0:
+                continue
+
+            plt.scatter(x_valid, y_valid, s=12, alpha=0.5, label="samples")
+
+            try:
+                smoothed = lowess(y_valid, x_valid, frac=0.3, return_sorted=True)
+                plt.plot(smoothed[:, 0], smoothed[:, 1], color="crimson", linewidth=2, label="LOWESS")
+            except Exception:
+                pass
+
+            plt.xlabel("Max sequence identity prompt")
+            plt.ylabel(structure_metric)
+            plt.legend(frameon=False)
+            plt.tight_layout()
+            plt.savefig(f"{csv_path.replace('.csv', f'_{mode}_{structure_metric}.png')}")
+            plt.close()
+        
+
+
 
 if __name__ == "__main__":
     # evaluate_generated_sequences()
+    # evaluate_generated_sequences_poet()
     generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
+    # generated_pdb_pattern = "../sampling_results/poet_colabfold_outputs/foldseek_*/generated_9_*_ptm_model_1_seed_000.pdb"
     gt_pdb_pattern = "../data/val_test_v2_pdbs/foldseek/*.pdb"
     generated_pdbs = glob.glob(generated_pdb_pattern)
     gt_pdbs = glob.glob(gt_pdb_pattern)
     rows = []
-    for generated_pdb in generated_pdbs:
+    for i, generated_pdb in enumerate(generated_pdbs):
+        print(f"Processing {i} of {len(generated_pdbs)}")
         if "_test_" in generated_pdb:
             split = "test"
         elif "_val_" in generated_pdb:
@@ -125,7 +178,11 @@ if __name__ == "__main__":
             "seq_identity_max": seq_id_max,
         })
 
-    # Save structural evaluation CSV aggregated across all generated PDBs
-    structural_csv = "../sampling_results/colabfold_outputs/structural_evaluation.csv"
-    os.makedirs(os.path.dirname(structural_csv), exist_ok=True)
-    pd.DataFrame(rows).to_csv(structural_csv, index=False)
+    # Save structural evaluation CSV aggregated across all generated 
+        if "poet" in generated_pdb_pattern:
+            structural_csv = "../sampling_results/poet_colabfold_outputs/structural_evaluation.csv"
+        else:
+            structural_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
+        os.makedirs(os.path.dirname(structural_csv), exist_ok=True)
+        pd.DataFrame(rows).to_csv(structural_csv, index=False)
+    make_structure_sequence_similarity_plots(structural_csv)
