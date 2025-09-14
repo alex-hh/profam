@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument(
         "--checkpoint_path",
         type=str,
-        default="logs/train_single_seq/runs/2025-03-06_21-30-48-576411/checkpoints/last.ckpt",
+        default="logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/checkpoints/last.ckpt",
         help="Path to the model checkpoint",
     )
     parser.add_argument(

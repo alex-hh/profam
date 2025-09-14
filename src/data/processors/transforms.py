@@ -217,6 +217,7 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     rng: Optional[np.random.Generator] = None,
     drop_first: bool = False,
     keep_first: bool = False,
+    allow_partial_sequence: bool = False,
     **kwargs,
 ) -> ProteinDocument:
     """
@@ -282,17 +283,18 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                 leftover_tokens, tokenizer.max_res_pos_in_seq or leftover_tokens
             )
             if leftover_tokens > 0:
-                seq_slice = _get_truncated_slice(len(seq), leftover_tokens, rnd)
-                sampled_protein_ids.append(ix)
-                sampled_protein_sequences.append(seq[seq_slice])
-                sampled_protein_positions.append(pos[seq_slice])
-                if proteins.sequence_similarities is not None:
-                    sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
-                if proteins.coverages is not None:
-                    sampled_protein_coverages.append(proteins.coverages[ix])
-                if proteins.sequence_weights is not None:
-                    sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
-                total_length += len(seq[seq_slice]) + extra_tokens_per_protein
+                if allow_partial_sequence:
+                    seq_slice = _get_truncated_slice(len(seq), leftover_tokens, rnd)
+                    sampled_protein_ids.append(ix)
+                    sampled_protein_sequences.append(seq[seq_slice])
+                    sampled_protein_positions.append(pos[seq_slice])
+                    if proteins.sequence_similarities is not None:
+                        sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
+                    if proteins.coverages is not None:
+                        sampled_protein_coverages.append(proteins.coverages[ix])
+                    if proteins.sequence_weights is not None:
+                        sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
+                    total_length += len(seq[seq_slice]) + extra_tokens_per_protein
             break
         elif (
             tokenizer.max_res_pos_in_seq is not None
@@ -332,6 +334,48 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
         sequence_similarities=sampled_protein_sequence_similarities,
         coverages=sampled_protein_coverages,
         sequence_weights=sampled_protein_sequence_weights,
+    )
+
+
+def prepare_raw_sequences_no_sampling(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    **kwargs,
+) -> ProteinDocument:
+    """
+    Prepare raw sequences without subsampling/truncation.
+
+    - Computes residue positions for all sequences.
+    - Does not change order or count of sequences.
+    - Does not enforce max_tokens.
+    """
+    return proteins.clone(
+        residue_positions=[list(range(1, len(seq) + 1)) for seq in proteins.sequences]
+    )
+
+
+def prepare_aligned_sequences_no_sampling(
+    proteins: ProteinDocument,
+    tokenizer: ProFamTokenizer,
+    sequence_converter: Callable,
+    **kwargs,
+) -> ProteinDocument:
+    """
+    Prepare aligned sequences without subsampling/truncation.
+
+    Applies the provided sequence_converter to each aligned sequence to
+    obtain standardised sequence text and residue positions (alignment-aware),
+    keeping all sequences.
+    """
+    converted_sequences = []
+    converted_positions = []
+    for seq in proteins.sequences:
+        new_seq, pos, _ = sequence_converter(seq)
+        converted_sequences.append(new_seq)
+        converted_positions.append(pos)
+    return proteins.clone(
+        sequences=converted_sequences,
+        residue_positions=converted_positions,
     )
 
 

@@ -110,24 +110,6 @@ class BaseLitModule(LightningModule):
                 betas=(0.9, 0.95),
                 eps=self.eps,
             )
-        elif optimizer_name == "lion":
-            from bitsandbytes.optim import Lion
-
-            optimizer = Lion(
-                self.parameters(),
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(0.9, 0.99),
-            )
-        elif optimizer_name == "lion8bit":
-            from bitsandbytes.optim import Lion8bit
-
-            optimizer = Lion8bit(
-                self.parameters(),
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(0.9, 0.99),
-            )
         else:
             raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
@@ -819,8 +801,10 @@ class BaseFamilyLitModule(BaseLitModule):
         fixed_length: Optional[int] = None,
         greedy: bool = False,
         temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         sample_gaps: bool = False,
         structure_tokens: bool = False,
+        continuous_sampling: bool = False,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -844,6 +828,7 @@ class BaseFamilyLitModule(BaseLitModule):
         if max_generated_length is not None:
             assert max_generated_length <= max_total_length
         generation_kwargs = {}
+        sep_token_id = self.tokenizer.sep_token_id
         if fixed_length is not None:
             if max_total_length is not None:
                 assert input_ids.shape[1] + fixed_length <= max_total_length
@@ -853,12 +838,17 @@ class BaseFamilyLitModule(BaseLitModule):
         elif max_generated_length is not None:
             generation_kwargs["min_new_tokens"] = 3
             generation_kwargs["max_new_tokens"] = max_generated_length
-            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
+            generation_kwargs["eos_token_id"] = None if continuous_sampling else sep_token_id
         else:
             generation_kwargs["min_new_tokens"] = 3  # for esmfold
-            generation_kwargs["eos_token_id"] = self.tokenizer.sep_token_id
+            generation_kwargs["eos_token_id"] = None if continuous_sampling else sep_token_id
             generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
+        if top_p is not None:
+            # nucleus sampling; ensure valid range
+            if not (0.0 < float(top_p) <= 1.0):
+                raise ValueError("top_p must be in the interval (0, 1]")
+            generation_kwargs["top_p"] = float(top_p)
         bad_aas = [
             "X",
             "x",
@@ -1500,6 +1490,7 @@ class BaseFamilyLitModule(BaseLitModule):
             agg = np.sum(stacked * weights_arr.reshape(-1, 1), axis=0)
             final_probs = agg / max(agg.sum(), eps)
         return final_probs.astype(np.float32)
+
 
 
     def _evaluate_and_save_variants_v9(

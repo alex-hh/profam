@@ -51,9 +51,6 @@ from src.models.llama import LlamaLitModule
 from src.sequence import fasta
 from src.utils.utils import get_config_from_cpt_path
 
-# -----------------------------
-# Helper functions
-# -----------------------------
 
 
 def build_prompt_builder(max_tokens: int = 20_000) -> PromptBuilder:
@@ -260,9 +257,6 @@ def mutate_sequence(seq: str, mutation_rate: float) -> str:
     return "".join(out)
 
 
-# -----------------------------
-# Main script
-# -----------------------------
 
 
 def main(args):
@@ -271,9 +265,6 @@ def main(args):
     )
     dtype = torch.bfloat16
 
-    # -----------------------------
-    # Load model
-    # -----------------------------
     print(f"Loading checkpoint from {args.ckpt_path}")
     config = get_config_from_cpt_path(args.ckpt_path)
     print("Loaded model config:\n", OmegaConf.to_yaml(config))
@@ -286,9 +277,6 @@ def main(args):
     model.scoring_max_tokens = 1
     model.use_kv_cache_for_scoring = False
 
-    # -----------------------------
-    # Sampler and evaluator
-    # -----------------------------
     prompt_builder = build_prompt_builder(max_tokens=args.max_tokens)
 
     sampling_kwargs: Dict = {
@@ -310,9 +298,6 @@ def main(args):
         half_precision=args.half_precision,
     )
 
-    # -----------------------------
-    # Load parquet and iterate
-    # -----------------------------
     df = pd.read_parquet(args.parquet_path)
     print(f"Loaded parquet containing {len(df)} families from {args.parquet_path}")
 
@@ -342,7 +327,7 @@ def main(args):
             identifier=fam_id,
         )
 
-        # Generate sequences with checkpoint model
+
         gen_seqs, prompt = sampler.sample_seqs(
             protein_document=protein_doc,
             num_samples=args.num_generations,
@@ -350,9 +335,6 @@ def main(args):
             max_generated_length=args.max_generated_length,
         )
 
-        # --------------------------------------------------
-        # Randomly mutated sequences (baseline control)
-        # --------------------------------------------------
         mutated_seqs: List[str] = []
         for _ in range(args.num_random_mutations):
             # Choose mutation rate uniformly from predefined set
@@ -377,7 +359,7 @@ def main(args):
             output_dir=fam_output_dir,
             device=device,
         )
-        # also evaluate mutated sequences (do NOT save structures to avoid double writing, so separate directory)
+
         mut_metrics = evaluator.evaluate_samples(
             prompt=prompt,
             protein_document=protein_doc,
@@ -386,14 +368,11 @@ def main(args):
             device=device,
         )
 
-        # --------------------------------------------------
-        # Aggregate metrics
-        # --------------------------------------------------
+
         metrics["mean_sample_length"] = np.mean([len(seq) for seq in gen_seqs])
         metrics["max_sample_length"] = np.max([len(seq) for seq in gen_seqs])
         metrics["min_sample_length"] = np.min([len(seq) for seq in gen_seqs])
 
-        # lengths for mutated
         metrics["mut_mean_sample_length"] = np.mean([len(seq) for seq in mutated_seqs])
         metrics["mut_max_sample_length"] = np.max([len(seq) for seq in mutated_seqs])
         metrics["mut_min_sample_length"] = np.min([len(seq) for seq in mutated_seqs])
@@ -403,13 +382,10 @@ def main(args):
         metrics["min_prompt_length"] = np.min([len(seq) for seq in sequences])
         metrics["n_seqs_in_prompt"] = len(sequences)
 
-        # Add structural metrics prefixed with 'mut_'
         for k, v in mut_metrics.items():
             metrics[f"mut_{k}"] = v
 
-        # ------------------------------------------------------------------
-        # Similarity between generated/mutated samples and prompt sequences (BLASTP)
-        # ------------------------------------------------------------------
+
         try:
             min_id, max_id, mean_id = compute_seq_similarity_stats(
                 sample_seqs=gen_seqs,
@@ -458,9 +434,6 @@ def main(args):
         if device.type == "cuda":
             torch.cuda.empty_cache()
 
-        # -----------------------------
-        # Save aggregated metrics
-        # -----------------------------
         timestamp = datetime.now().strftime("%Y%m%d_%H")
         metrics_csv = os.path.join(
             args.output_dir, f"family_sampling_metrics_{timestamp}.csv"

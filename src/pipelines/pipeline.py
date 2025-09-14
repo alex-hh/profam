@@ -282,6 +282,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             )
             fasta_file = os.path.join(outputs_dir, "sequences.fa")
             _, sequences = fasta.read_fasta(fasta_file)
+            sequences = [s.replace("-", "") for s in sequences]
             return sequences
         else:
             sequences = self.generations[sampler_name][instance_id]

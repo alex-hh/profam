@@ -44,6 +44,9 @@ if __name__ == "__main__":
     npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250829_msa_pariformer_exp_2_gym_msas_unfiltered/*v7_lls.npz")
     npz_files = glob.glob("filtered_poet_msas_no_weighting_v9/20250831_154342/*.npz")
     npz_files = glob.glob("filtered_poet_msas_with_weighting_v9/20250831_154342/*.npz")
+    npz_files = glob.glob("filtered_poet_msas_with_no_weighting_v9/20250831_211318/*.npz")
+    npz_files = glob.glob("filtered_poet_msas_with_only_diversity_weighting_v9/20250831_221004/*.npz")
+    save_dir = "gym_spearman_likelihood_plots_subsample_filtered_poet_msas_diversity_weighting_abyoeovl"
     npz_files = glob.glob("logs/saturn_cloud_good_runs/uljreks3_ted_s100_ff50_ff100_openfold_fs100_fs50_ur90_lr0.0004_acc1_wd0.4_pack28000_8GPU_ur90crop320_ur90crop1024-554M/copied_2025-06-30_14-57/2025-06-23_12-25-03-504044/unfiltered_poet_msas_with_only_diversity_weighting_v9/*_v9_lls.npz")
     save_dir = "../spearman_plots/uljreks3_ted_s100_ff50_ff100_openfold_fs100_fs50_ur90_unfiltered_poet_msas_with_only_diversity_weighting_v9"
     os.makedirs(save_dir, exist_ok=True)
