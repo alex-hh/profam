@@ -21,7 +21,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-def generate_randomly_mutated_msas(prompt_fasta, output_dir):
+def generate_randomly_mutated_seqs(prompt_fasta, output_dir):
     """
     For a given input FASTA, pick 2 sequences at random (with replacement),
     independently sample mutation rates, mutate, and write two output FASTAs.
@@ -39,7 +39,7 @@ def generate_randomly_mutated_msas(prompt_fasta, output_dir):
 
     for i in range(1):
         original_record = random.choice(records)
-        original_sequence = str(original_record.seq).upper()
+        original_sequence = str(original_record.seq).upper().replace("-", "")
 
         # Sample mutation rate uniformly from 0.01 to 0.99, independently for each pick
         p_mut = random.uniform(0.01, 0.99)
@@ -73,7 +73,7 @@ if __name__=="__main__":
 
     all_created_basenames = []
     for prompt_fasta in prompt_pattern:
-        created = generate_randomly_mutated_msas(prompt_fasta, output_dir)
+        created = generate_randomly_mutated_seqs(prompt_fasta, output_dir)
         all_created_basenames.extend(created)
 
     # Write list of created FASTA basenames

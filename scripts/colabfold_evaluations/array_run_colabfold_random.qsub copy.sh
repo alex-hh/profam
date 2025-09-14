@@ -9,7 +9,7 @@
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -t 1-10
+#$ -t 1-5
 #$ -j y
 date
 hostname
@@ -41,8 +41,8 @@ FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/randomly_mutated_sequen
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
-BATCHSIZE=26
-NUMTASKS=10
+BATCHSIZE=20
+NUMTASKS=5
 LIST_FILE="$FASTADIR/fasta_file_list.txt"
 TOTAL_LINES=$(wc -l < "$LIST_FILE")
 START_LINE=$(( (LINENUM - 1) * BATCHSIZE + 1 ))
