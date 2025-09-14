@@ -71,7 +71,7 @@ sed -n "${START_LINE},${END_LINE}p" "$LIST_FILE" | while IFS= read -r REL_FASTA_
   echo "$FASTAPATH"
   BASENAME="$(basename "$REL_FASTA_PATH")"
   BASENAME_NOEXT="${BASENAME%%.*}"
-  OUTPUT_DIR="/mnt/disk2/cath_plm/sampling_results/randomly_mutated_sequences/random_colabfold_outputs/${BASENAME_NOEXT}"
+  OUTPUT_DIR="/SAN/orengolab/cath_plm/ProFam/sampling_results/randomly_mutated_sequences/random_colabfold_outputs/${BASENAME_NOEXT}"
   echo "$OUTPUT_DIR"
   mkdir -p "$OUTPUT_DIR"
   # Skip if expected output PDB already exists

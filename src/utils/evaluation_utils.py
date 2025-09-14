@@ -273,17 +273,21 @@ def compute_entropy_correlation(prompt_seqs, gen_seqs, min_depth=10):
     return corr, prompt_e, gen_e, mask
 
 
-def plot_entropy_series(prompt_entropies, gen_entropies, mask, output_path):
+def plot_perplexity_series(prompt_entropies, gen_entropies, mask, output_path):
     """
-    Plot per-column entropy series for prompt and generated subsets over the
-    masked positions and save to output_path. Returns the output_path.
+    Plot per-column perplexity (exp(entropy)) for prompt and generated subsets
+    over the masked positions and save to output_path. Returns the output_path.
     """
+    # Convert entropy (in nats) to perplexity
+    prompt_perplexities = np.exp(prompt_entropies)
+    gen_perplexities = np.exp(gen_entropies)
+
     fig, ax = plt.subplots(figsize=(12, 3))
-    ax.plot(prompt_entropies[mask], label="Prompt entropy", linewidth=1.5)
-    ax.plot(gen_entropies[mask], label="Generation entropy", linewidth=1.5)
+    ax.plot(prompt_perplexities[mask], label="Prompt perplexity", linewidth=1.5)
+    ax.plot(gen_perplexities[mask], label="Generation perplexity", linewidth=1.5)
     ax.set_xlabel("Alignment column")
-    ax.set_ylabel("Entropy (nats)")
-    ax.set_title("Per-column entropy (depth ≥ 10 in both subsets)")
+    ax.set_ylabel("Perplexity")
+    ax.set_title("Per-column perplexity (depth ≥ 10 in both subsets)")
     ax.legend(loc="upper right")
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
@@ -328,7 +332,7 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
 
     # Entropy correlation and plot using the combined alignment to ensure shared columns
     entropy_corr = None
-    entropy_plot_path = None
+    perplexity_plot_path = None
     try:
         combined_alignment = AlignIO.read(aligned_combined_path, "fasta")
         records = list(combined_alignment)
@@ -341,11 +345,11 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
         entropy_corr = corr
         if corr is not None and mask is not None and np.any(mask):
             try:
-                entropy_plot_path = os.path.join(
+                perplexity_plot_path = os.path.join(
                     alignment_directory,
-                    os.path.basename(generated_fasta).replace(".fasta", "combined_entropy.png"),
+                    os.path.basename(generated_fasta).replace(".fasta", "combined_perplexity.png"),
                 )
-                plot_entropy_series(prompt_e, gen_e, mask, entropy_plot_path)
+                plot_perplexity_series(prompt_e, gen_e, mask, perplexity_plot_path)
             except ImportError:
                 pass  # plotting is optional
     except Exception:
@@ -378,7 +382,7 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
         "aligned_prompt_path": aligned_prompt_path,
         "aligned_combined_path": aligned_combined_path,
         "entropy_correlation": round(entropy_corr, 3) if entropy_corr is not None else None,
-        "entropy_plot_path": entropy_plot_path,
+        "perplexity_plot_path": perplexity_plot_path,
         "per_sequence_csv": csv_path,
     }
     for aggregation_strategy in ["min", "max", "mean"]:
