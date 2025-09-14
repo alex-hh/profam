@@ -37,7 +37,7 @@ colabfold_batch --help   # or: python -m colabfold.batch --help
 
 
 LINENUM=$SGE_TASK_ID
-FASTADIR=/mnt/disk2/cath_plm/sampling_results/randomly_mutated_sequences
+FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/randomly_mutated_sequences
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
