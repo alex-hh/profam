@@ -394,8 +394,12 @@ def build_gym_df(
     assert all(
         os.path.exists(msa_file) for msa_file in df["MSA_filename"]
     ), "MSA files do not exist"
+    if "indels" in csv_filename:
+        dms_dir = "DMS_ProteinGym_indels"
+    else:
+        dms_dir = "DMS_ProteinGym_substitutions"
     df["DMS_filename"] = df["DMS_filename"].apply(
-        lambda x: os.path.join(gym_data_dir, "DMS_ProteinGym_substitutions", x)
+        lambda x: os.path.join(gym_data_dir, dms_dir, x)
     )
     df["ds_name"] = "gym"
     return df[
