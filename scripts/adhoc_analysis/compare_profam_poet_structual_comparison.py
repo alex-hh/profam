@@ -8,13 +8,12 @@ profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation
 poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
 random_csv = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/random_structural_evaluation.csv"
 
-profam_seq_csv = "../sampling_results/foldseek_val/ensemble_8_tp0p95_ns20/sequence_only_evaluation.csv"
-poet_seq_csv = "../sampling_results/poet/poet_sequence_only_evaluation.csv"
+
 
 profam_df = pd.read_csv(profam_csv)
 poet_df = pd.read_csv(poet_csv)
-profam_seq_df = pd.read_csv(profam_seq_csv)
-poet_seq_df = pd.read_csv(poet_seq_csv)
+random_df = pd.read_csv(random_csv)
+
 
 def make_structure_sequence_similarity_plots(profam_df: pd.DataFrame, poet_df: pd.DataFrame):
     structure_metrics = ["tm_max", "lddt_max", "mean_plddt"]
@@ -23,6 +22,7 @@ def make_structure_sequence_similarity_plots(profam_df: pd.DataFrame, poet_df: p
         "profam_ensemble": "#1f77b4",  # blue
         "profam_single": "#ff7f0e",    # orange
         "poet": "#2ca02c",            # green
+        "random": "#808080",          # gray
     }
 
     for structure_metric in structure_metrics:
@@ -33,6 +33,7 @@ def make_structure_sequence_similarity_plots(profam_df: pd.DataFrame, poet_df: p
         x = df_mode["seq_identity_max"].to_numpy(dtype=float)
         y = df_mode[structure_metric].to_numpy(dtype=float)
         mask = np.isfinite(x) & np.isfinite(y)
+        print(f"ProFam ensemble: {len(x[mask])} points")
         x_valid, y_valid = x[mask], y[mask]
         if x_valid.size > 0:
             plt.scatter(x_valid, y_valid, s=12, alpha=0.5, label="ProFam ensemble", color=colors["profam_ensemble"], edgecolors="none")
@@ -47,6 +48,7 @@ def make_structure_sequence_similarity_plots(profam_df: pd.DataFrame, poet_df: p
         x = df_mode["seq_identity_max"].to_numpy(dtype=float)
         y = df_mode[structure_metric].to_numpy(dtype=float)
         mask = np.isfinite(x) & np.isfinite(y)
+        print(f"ProFam single: {len(x[mask])} points")
         x_valid, y_valid = x[mask], y[mask]
         if x_valid.size > 0:
             plt.scatter(x_valid, y_valid, s=12, alpha=0.5, label="ProFam single", color=colors["profam_single"], edgecolors="none")
@@ -60,12 +62,27 @@ def make_structure_sequence_similarity_plots(profam_df: pd.DataFrame, poet_df: p
         x = poet_df["seq_identity_max"].to_numpy(dtype=float)
         y = poet_df[structure_metric].to_numpy(dtype=float)
         mask = np.isfinite(x) & np.isfinite(y)
+        print(f"PoET: {len(x[mask])} points")
         x_valid, y_valid = x[mask], y[mask]
         if x_valid.size > 0:
             plt.scatter(x_valid, y_valid, s=12, alpha=0.5, label="PoET", color=colors["poet"], edgecolors="none")
             try:
                 smoothed = lowess(y_valid, x_valid, frac=0.6, return_sorted=True)
                 plt.plot(smoothed[:, 0], smoothed[:, 1], color=colors["poet"], linewidth=2)
+            except Exception:
+                pass
+
+        # Random
+        x = random_df["seq_identity_max"].to_numpy(dtype=float)
+        y = random_df[structure_metric].to_numpy(dtype=float)
+        mask = np.isfinite(x) & np.isfinite(y)
+        print(f"Random: {len(x[mask])} points")
+        x_valid, y_valid = x[mask], y[mask]
+        if x_valid.size > 0:
+            plt.scatter(x_valid, y_valid, s=12, alpha=0.5, label="Random", color=colors["random"], edgecolors="none")
+            try:
+                smoothed = lowess(y_valid, x_valid, frac=0.6, return_sorted=True)
+                plt.plot(smoothed[:, 0], smoothed[:, 1], color=colors["random"], linewidth=2)
             except Exception:
                 pass
 

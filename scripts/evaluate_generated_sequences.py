@@ -108,6 +108,12 @@ if __name__ == "__main__":
     generated_pdbs = glob.glob(generated_pdb_pattern)
     gt_pdbs = glob.glob(gt_pdb_pattern)
     rows = []
+    if os.path.exists(structural_csv):
+        df = pd.read_csv(structural_csv)
+        print(f"Found {len(df)} rows in {structural_csv}")
+        rows = df.to_dict(orient="records")
+    else:
+        df = pd.DataFrame(columns=["generated_id"])  # Ensure df always defined
     for i, generated_pdb in enumerate(generated_pdbs):
         print(f"Processing {i} of {len(generated_pdbs)}")
         if "_test_" in generated_pdb:
@@ -119,6 +125,10 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown split in {generated_pdb}")
         generated_id = generated_pdb.split("/")[-2].split("_")[-1]
+        if generated_pdb in df["generated_pdb"].values:
+
+            print(f"Skipping {generated_id} because it already exists in {structural_csv}")
+            continue
         prompt_fasta_path = glob.glob(f"../data/val_test_v2_fastas/foldseek/*/{generated_id}*.fasta")[0]
         prompt_pdb_paths = get_pdb_paths_from_fasta_path(prompt_fasta_path, gt_pdbs)
         # Load generated protein and compute mean pLDDT
