@@ -96,6 +96,13 @@ if __name__ == "__main__":
     # evaluate_generated_sequences()
     # evaluate_generated_sequences_poet()
     generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
+    # generated_pdb_pattern = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/*/*_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
+    if "poet" in generated_pdb_pattern:
+        structural_csv = "../sampling_results/poet_colabfold_outputs/structural_evaluation.csv"
+    elif "random" in generated_pdb_pattern:
+        structural_csv = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/random_structural_evaluation.csv"
+    elif "/colabfold_outputs/foldseek_" in generated_pdb_pattern:
+        structural_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
     # generated_pdb_pattern = "../sampling_results/poet_colabfold_outputs/foldseek_*/generated_9_*_ptm_model_1_seed_000.pdb"
     gt_pdb_pattern = "../data/val_test_v2_pdbs/foldseek/*.pdb"
     generated_pdbs = glob.glob(generated_pdb_pattern)
@@ -107,10 +114,12 @@ if __name__ == "__main__":
             split = "test"
         elif "_val_" in generated_pdb:
             split = "val"
+        elif "_random_" in generated_pdb:
+            split = "random"
         else:
             raise ValueError(f"Unknown split in {generated_pdb}")
         generated_id = generated_pdb.split("/")[-2].split("_")[-1]
-        prompt_fasta_path = glob.glob(f"../data/val_test_v2_fastas/foldseek/{split}/{generated_id}*.fasta")[0]
+        prompt_fasta_path = glob.glob(f"../data/val_test_v2_fastas/foldseek/*/{generated_id}*.fasta")[0]
         prompt_pdb_paths = get_pdb_paths_from_fasta_path(prompt_fasta_path, gt_pdbs)
         # Load generated protein and compute mean pLDDT
         try:
@@ -179,10 +188,7 @@ if __name__ == "__main__":
         })
 
     # Save structural evaluation CSV aggregated across all generated 
-        if "poet" in generated_pdb_pattern:
-            structural_csv = "../sampling_results/poet_colabfold_outputs/structural_evaluation.csv"
-        else:
-            structural_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
+
         os.makedirs(os.path.dirname(structural_csv), exist_ok=True)
         pd.DataFrame(rows).to_csv(structural_csv, index=False)
     make_structure_sequence_similarity_plots(structural_csv)

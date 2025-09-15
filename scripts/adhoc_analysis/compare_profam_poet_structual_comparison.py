@@ -6,6 +6,7 @@ from statsmodels.nonparametric.smoothers_lowess import lowess
 
 profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
 poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
+random_csv = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/random_structural_evaluation.csv"
 
 profam_seq_csv = "../sampling_results/foldseek_val/ensemble_8_tp0p95_ns20/sequence_only_evaluation.csv"
 poet_seq_csv = "../sampling_results/poet/poet_sequence_only_evaluation.csv"

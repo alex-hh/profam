@@ -391,13 +391,16 @@ def build_gym_df(
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, msa_folder_name, x)
         )
+    
+    if "indels" in csv_filename:
+        dms_dir = "DMS_ProteinGym_indels"
+        df = df[~df.MSA_filename.str.contains("PSAE_PICP2_2023-08-07_b09")]
+    else:
+        dms_dir = "DMS_ProteinGym_substitutions"
     assert all(
         os.path.exists(msa_file) for msa_file in df["MSA_filename"]
     ), "MSA files do not exist"
-    if "indels" in csv_filename:
-        dms_dir = "DMS_ProteinGym_indels"
-    else:
-        dms_dir = "DMS_ProteinGym_substitutions"
+
     df["DMS_filename"] = df["DMS_filename"].apply(
         lambda x: os.path.join(gym_data_dir, dms_dir, x)
     )

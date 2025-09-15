@@ -37,11 +37,12 @@ colabfold_batch --help   # or: python -m colabfold.batch --help
 
 
 LINENUM=$SGE_TASK_ID
-FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
+# FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
+FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/foldseek_gen0
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
-BATCHSIZE=45
+BATCHSIZE=13
 NUMTASKS=10
 LIST_FILE="$FASTADIR/fasta_file_list.txt"
 TOTAL_LINES=$(wc -l < "$LIST_FILE")
