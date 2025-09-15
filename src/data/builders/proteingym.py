@@ -396,7 +396,7 @@ def build_gym_df(
     
     if "indels" in csv_filename:
         dms_dir = "DMS_ProteinGym_indels"
-        df = df[~df.MSA_filename.str.contains("PSAE_PICP2_2023-08-07_b09")]
+        df = df[~df.MSA_filename.str.contains("PSAE_PICP2")]
     else:
         dms_dir = "DMS_ProteinGym_substitutions"
     assert all(
