@@ -290,11 +290,13 @@ def load_msa_for_row(
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     row["MSA"] = proteins.sequences
     row["seq_pos"] = proteins.residue_positions
-    # Also store the coverage and similarity data in the row
-    if proteins.sequence_similarities is not None:
-        row["sequence_similarities"] = proteins.sequence_similarities
-    if proteins.coverages is not None:
-        row["coverages"] = proteins.coverages
+    # Ensure coverage and similarity data are always present for consistent schema
+    if proteins.sequence_similarities is None:
+        proteins.sequence_similarities = [0.0 for _ in proteins.sequences]
+    if proteins.coverages is None:
+        proteins.coverages = [0.0 for _ in proteins.sequences]
+    row["sequence_similarities"] = proteins.sequence_similarities
+    row["coverages"] = proteins.coverages
     if use_msa_seq_weights:
         row["sequence_weights"] = proteins.sequence_weights
     return row
