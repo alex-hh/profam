@@ -884,7 +884,7 @@ class BaseFamilyLitModule(BaseLitModule):
         assert input_residue_index.shape == input_ids.shape
         all_outputs = []
         all_scores: List[float] = []
-        for batch_start in range(0, num_samples, batch_size):
+        for batch_start in tqdm.tqdm(range(0, num_samples, batch_size), "Generating sequences"):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
             forward_kwargs = self.get_forward_kwargs(
