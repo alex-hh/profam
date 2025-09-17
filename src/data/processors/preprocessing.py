@@ -168,7 +168,7 @@ class ProteinDocumentPreprocessor:
         )
         self.single_protein_documents = single_protein_documents
 
-    def apply_transforms(self, proteins, tokenizer):
+    def apply_transforms(self, proteins, tokenizer, rng: Optional[np.random.Generator] = None):
         transform_fns = default_transforms(self.cfg)
         additional_transform_fns = []
         for partial_fn in self.transform_fns:
@@ -186,6 +186,7 @@ class ProteinDocumentPreprocessor:
             proteins,
             tokenizer,
             max_tokens=self.cfg.max_tokens_per_example,
+            rng=rng,
         )
 
     def batched_preprocess_protein_data(

@@ -23,11 +23,13 @@ if __name__ == "__main__":
     # npz_files = glob.glob("logs/proteingym_eval_results/20250808_000300_PoET_MSAs_BO/*.npz")
     # npz_files = glob.glob("logs/proteingym_eval_results/20250810_135739_poet_msas_random_sampling_v4/*.npz")
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_full_gym/*.npz")
-    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_v6_full_gym/*v6_lls.npz")
-    npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/filtered_poet_msas_with_all_weighting_v9/*v9_lls.npz")
+    # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250810_135739_v6_full_gym/*v6_lls.npz")
+    # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/filtered_poet_msas_with_all_weighting_v9/*v9_lls.npz")
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250828_v6_gym_msas/*v6_lls.npz")
     # npz_files = glob.glob("logs/abyoeovl_openfold_fs50_ur90_memmap_251m_copied_2025-06-23_22-18/20250829_v6_gym_msas_filtered/*v6_lls.npz")
-    save_dir = "../v6_gym_msas_evaluating_n_forward"
+    # save_dir = "../v6_gym_msas_evaluating_n_forward"
+    npz_files = glob.glob("logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/unfiltered_poet_msas_with_only_diversity_weighting_v9/*.npz")
+    save_dir = "plots_for_paper/gym_spearman_by_n_samples_and_likelihood_abyoeovl_unfiltered_poet_msas_with_only_diversity_weighting_v9"
     os.makedirs(save_dir, exist_ok=True)
     results_rows = []
     target_score = -1.3

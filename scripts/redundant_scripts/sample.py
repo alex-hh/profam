@@ -18,6 +18,7 @@ from src.data.processors.preprocessing import (
 )
 from src.models.inference import ProFamSampler, PromptBuilder
 from src.models.utils import load_named_model
+from src.utils.utils import seed_all
 
 
 def parse_args():
@@ -73,6 +74,12 @@ def parse_args():
         default="bfloat16",
         help="Data type to use for inference (float32, float16, or bfloat16)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible sampling",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +101,9 @@ def get_config_from_checkpoint(checkpoint_path):
 
 def main():
     args = parse_args()
+
+    # Seed RNGs for reproducibility
+    seed_all(args.seed)
 
     # Create output directory if it doesn't exist
     os.makedirs(args.output_dir, exist_ok=True)
@@ -131,7 +141,7 @@ def main():
 
     # Create a simple prompt builder for unconditional sampling
     preprocessor = ProteinDocumentPreprocessor(cfg=preprocessing_config)
-    prompt_builder = PromptBuilder(preprocessor=preprocessor)
+    prompt_builder = PromptBuilder(preprocessor=preprocessor, seed=args.seed)
 
     # Set up sampling parameters
     sampling_kwargs = {
@@ -153,7 +163,7 @@ def main():
     prompt = ProteinDocument(sequences=["M"])
 
     # Generate sequences
-    sequences, _ = sampler.sample_seqs(
+    sequences, scores, _ = sampler.sample_seqs(
         protein_document=prompt,
         num_samples=args.num_samples,
         max_tokens=args.max_tokens,

@@ -15,6 +15,7 @@ from src.data.objects import ProteinDocument
 from src.data.processors.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor, AlignedProteinPreprocessingConfig
 from src.sequence.fasta import read_fasta
 from src.models.llama import LlamaLitModule
+from src.utils.utils import seed_all
 
 
 def _pick_non_special_token_id(tokenizer) -> int:
@@ -85,7 +86,11 @@ def main():
     parser.add_argument("--continuous_sampling", action="store_true", default=False, help="Ignore [SEP] EOS and generate until token budget; drop final partial segment")
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
     args = parser.parse_args()
+
+    # Seed RNGs for reproducibility
+    seed_all(args.seed)
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
     # Load model (and tokenizer) from checkpoint dir
@@ -135,7 +140,7 @@ def main():
 
     # Build sampler according to selection
     if args.sampler == "ensemble":
-        builder = EnsemblePromptBuilder(preprocessor=preprocessor, shuffle=True)
+        builder = EnsemblePromptBuilder(preprocessor=preprocessor, shuffle=True, seed=args.seed)
         sampler = ProFamEnsembleSampler(
             name="ensemble_sampler",
             model=model,
@@ -148,7 +153,7 @@ def main():
         )
     else:
         
-        builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
+        builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True, seed=args.seed)
         sampling_kwargs = {}
         if args.top_p is not None:
             sampling_kwargs["top_p"] = args.top_p
@@ -181,7 +186,7 @@ def main():
                 # In continuous mode we ignore user-provided max_generated_length and go to token budget
                 max_gen_len = None
             if args.sampler == "ensemble":
-                sequences, _ = sampler.sample_seqs_ensemble(
+                sequences, scores, _ = sampler.sample_seqs_ensemble(
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
@@ -205,7 +210,7 @@ def main():
                     sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
                     add_final_sep=True,
                 )
-                sequences, _ = sampler.sample_seqs(
+                sequences, scores, _ = sampler.sample_seqs(
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
@@ -214,7 +219,7 @@ def main():
                 )
 
 
-            accessions = [f"{base}_sample_{i}" for i in range(len(sequences))]
+            accessions = [f"{base}_sample_{i}_log_likelihood_{score:.3f}" for i, score in enumerate(scores)]
             write_fasta(sequences, accessions, out_path)
             print(f"Wrote {len(sequences)} sequences -> {out_path}")
         except Exception as e:
