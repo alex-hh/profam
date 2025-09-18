@@ -133,7 +133,7 @@ def pairwise_sequence_identity(seq1, seq2):
                 matches += 1
         return (matches / denom) if denom > 0 else 0.0
 
-    if "-" in s1 or "-" in s2 or len(s1) == len(s2):
+    if "-" in s1 or "-" in s2:
         return _aligned_identity(s1, s2)
 
     # Fallback: global alignment maximizing matches
@@ -144,13 +144,7 @@ def pairwise_sequence_identity(seq1, seq2):
         a, b, _score, _start, _end = aln[0]
         return _aligned_identity(a, b)
     except Exception:
-        # Very conservative fallback: compare up to min length
-        min_len = min(len(s1), len(s2))
-        denom = max(len(s1), len(s2))
-        if denom == 0:
-            return 1.0
-        matches = sum(1 for i in range(min_len) if s1[i] == s2[i])
-        return matches / denom
+        return None
 
 def sequence_identity_from_msa(combined_msa, generated_start_idx):
     """

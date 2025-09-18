@@ -68,32 +68,30 @@ def get_pdb_paths_from_fasta_path(fasta_path, gt_pdbs):
 def make_structure_sequence_similarity_plots(csv_path):
     df = pd.read_csv(csv_path)
     structure_metrics = ['tm_max', 'lddt_max']
-    for mode in ['single', 'ensemble']:
-        df_mode = df[df['generated_pdb'].str.contains(mode)]
-        for structure_metric in structure_metrics:
-            x = df_mode["seq_identity_max"].to_numpy(dtype=float)
-            y = df_mode[structure_metric].to_numpy(dtype=float)
-            mask = np.isfinite(x) & np.isfinite(y)
-            x_valid = x[mask]
-            y_valid = y[mask]
+    for structure_metric in structure_metrics:
+        x = df["seq_identity_max"].to_numpy(dtype=float)
+        y = df[structure_metric].to_numpy(dtype=float)
+        mask = np.isfinite(x) & np.isfinite(y)
+        x_valid = x[mask]
+        y_valid = y[mask]
 
-            if x_valid.size == 0:
-                continue
+        if x_valid.size == 0:
+            continue
 
-            plt.scatter(x_valid, y_valid, s=12, alpha=0.5, label="samples")
+        plt.scatter(x_valid, y_valid, s=12, alpha=0.5, label="samples")
 
-            try:
-                smoothed = lowess(y_valid, x_valid, frac=0.3, return_sorted=True)
-                plt.plot(smoothed[:, 0], smoothed[:, 1], color="crimson", linewidth=2, label="LOWESS")
-            except Exception:
-                pass
+        try:
+            smoothed = lowess(y_valid, x_valid, frac=0.5, return_sorted=True)
+            plt.plot(smoothed[:, 0], smoothed[:, 1], color="crimson", linewidth=2, label="LOWESS")
+        except Exception:
+            pass
 
-            plt.xlabel("Max sequence identity prompt")
-            plt.ylabel(structure_metric)
-            plt.legend(frameon=False)
-            plt.tight_layout()
-            plt.savefig(f"{csv_path.replace('.csv', f'_{mode}_{structure_metric}.png')}")
-            plt.close()
+        plt.xlabel("Max sequence identity prompt")
+        plt.ylabel(structure_metric)
+        plt.legend(frameon=False)
+        plt.tight_layout()
+        plt.savefig(f"{csv_path.replace('.csv', f'_{structure_metric}.png')}")
+        plt.close()
         
 
 
@@ -101,18 +99,20 @@ def make_structure_sequence_similarity_plots(csv_path):
 if __name__ == "__main__":
     # generated_fasta_pattern = "../sampling_results/foldseek_*/*/*.fasta",
     # sequence_only_csv_save_path = "../sampling_results/profam_sequence_only_evaluation.csv",
-    generated_fasta_pattern = "../sampling_results/foldseek_combined_val_test_2025_09_17/*.fasta"
+    # generated_fasta_pattern = "../sampling_results/foldseek_combined_val_test_2025_09_17/*.fasta"
     sequence_only_csv_save_path = "../sampling_results/foldseek_combined_val_test_2025_09_17/profam_sequence_only_evaluation.csv"
     generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
-    evaluate_generated_sequences(generated_fasta_pattern, sequence_only_csv_save_path)
+    generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/*/*.pdb"
+    structural_csv = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/structural_evaluation.csv"
+    # evaluate_generated_sequences(generated_fasta_pattern, sequence_only_csv_save_path)
     # evaluate_generated_sequences_poet()
     # generated_pdb_pattern = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/*/*_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
     if "poet" in generated_pdb_pattern:
         structural_csv = "../sampling_results/poet_colabfold_outputs/structural_evaluation.csv"
     elif "random" in generated_pdb_pattern:
         structural_csv = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/random_structural_evaluation.csv"
-    elif "/colabfold_outputs/foldseek_" in generated_pdb_pattern:
-        structural_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
+    # elif "/colabfold_outputs/foldseek_" in generated_pdb_pattern:
+    #     structural_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
     # generated_pdb_pattern = "../sampling_results/poet_colabfold_outputs/foldseek_*/generated_9_*_ptm_model_1_seed_000.pdb"
     gt_pdb_pattern = "../data/val_test_v2_pdbs/foldseek/*.pdb"
     generated_pdbs = glob.glob(generated_pdb_pattern)
@@ -135,7 +135,7 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown split in {generated_pdb}")
         generated_id = generated_pdb.split("/")[-2].split("_")[-1]
-        if generated_pdb in df["generated_pdb"].values:
+        if len(df) > 0 and generated_pdb in df["generated_pdb"].values:
 
             print(f"Skipping {generated_id} because it already exists in {structural_csv}")
             continue
