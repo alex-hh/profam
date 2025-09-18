@@ -38,7 +38,7 @@ colabfold_batch --help   # or: python -m colabfold.batch --help
 
 LINENUM=$SGE_TASK_ID
 # FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
-FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/foldseek_combined_val_test_2025_09_17/foldseek_combined_val_test_ensemble8_single_colabfold_fastas_seq_sim_lt_0p5
+FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/poet/poet_foldseek_combined_val_test_single_colabfold_fastas_seq_sim_lt_0p5
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
@@ -72,19 +72,19 @@ sed -n "${START_LINE},${END_LINE}p" "$LIST_FILE" | while IFS= read -r REL_FASTA_
   echo "$FASTAPATH"
   BASENAME="$(basename "$REL_FASTA_PATH")"
   BASENAME_NOEXT="${BASENAME%%.*}"
-  OUTPUT_DIR="../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/${BASENAME_NOEXT}"
+  OUTPUT_DIR="../sampling_results/poet/poet_colabfold_outputs_seq_sim_lt_0p5/${BASENAME_NOEXT}"
   echo "$OUTPUT_DIR"
   mkdir -p "$OUTPUT_DIR"
   # Skip if expected output PDB already exists
-  TARGET_PDB="gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
-  if [ -f "$OUTPUT_DIR/$TARGET_PDB" ]; then
-    echo "[INFO] Found existing output, skipping: $OUTPUT_DIR/$TARGET_PDB"
+  TARGET_PDB_GLOB="$OUTPUT_DIR/*_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
+  if compgen -G "$TARGET_PDB_GLOB" > /dev/null; then
+    echo "[INFO] Found existing output, skipping: $TARGET_PDB_GLOB"
     continue
   fi
-  A3M_FILE="$OUTPUT_DIR/gen0.a3m"
-  if [ -f "$A3M_FILE" ]; then
-    echo "[INFO] Found gen0.a3m; using as input: $A3M_FILE"
-    INPUT_PATH="$A3M_FILE"
+  A3M_MATCH=$(compgen -G "$OUTPUT_DIR/*.a3m" | head -n 1)
+  if [ -n "$A3M_MATCH" ]; then
+    echo "[INFO] Found *.a3m; using as input: $A3M_MATCH"
+    INPUT_PATH="$A3M_MATCH"
   else
     INPUT_PATH="$FASTAPATH"
   fi
