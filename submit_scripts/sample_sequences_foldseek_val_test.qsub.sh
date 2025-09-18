@@ -23,7 +23,7 @@ cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/scripts/sample_sequences_from_checkpoint_model.py \
 --glob "../data/val_test_v2_fastas/foldseek/combined_val_test/*.fasta" \
---save_dir "../sampling_results/foldseek_combined_val_test_2025_09_17" \
+--save_dir "../sampling_results/foldseek_combined_val_test_ensemble8_2025_09_17" \
 --sampler ensemble \
 --num_samples 20 \
 --max_tokens 8192 \
