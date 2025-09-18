@@ -21,6 +21,12 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
+def get_sequence_identity(seq1, seq2):
+    """
+    Get the sequence identity between two sequences
+    """
+    return sum(1 for a, b in zip(seq1, seq2) if a == b) / len(seq1)
+
 def generate_randomly_mutated_seqs(prompt_fasta, output_dir):
     """
     For a given input FASTA, pick 2 sequences at random (with replacement),
@@ -38,25 +44,30 @@ def generate_randomly_mutated_seqs(prompt_fasta, output_dir):
     allowed_set = set(standard_amino_acids)
 
     for i in range(1):
-        original_record = random.choice(records)
-        original_sequence = str(original_record.seq).upper().replace("-", "")
+        while True:
+            original_record = random.choice(records)
+            original_sequence = str(original_record.seq).upper().replace("-", "")
 
-        # Sample mutation rate uniformly from 0.01 to 0.99, independently for each pick
-        p_mut = random.uniform(0.01, 0.99)
+            # Sample mutation rate uniformly from 0.01 to 0.99, independently for each pick
+            p_mut = random.uniform(0.4, 0.7)
 
-        mutated_chars = []
-        for residue in original_sequence:
-            if residue in allowed_set and random.random() < p_mut:
-                candidates = [aa for aa in standard_amino_acids if aa != residue]
-                mutated_chars.append(random.choice(candidates))
-            else:
-                mutated_chars.append(residue)
+            mutated_chars = []
+            for residue in original_sequence:
+                if residue in allowed_set and random.random() < p_mut:
+                    candidates = [aa for aa in standard_amino_acids if aa != residue]
+                    mutated_chars.append(random.choice(candidates))
+                else:
+                    mutated_chars.append(residue)
 
-        mutated_sequence = "".join(mutated_chars)
+            mutated_sequence = "".join(mutated_chars)
+
+            sequence_identity = get_sequence_identity(original_sequence, mutated_sequence)
+            if 0.3 <=sequence_identity < 0.5:
+                break
 
         mutated_record = SeqRecord(
             Seq(mutated_sequence),
-            id=f"{original_record.id}|random_mutation|p_mut={p_mut:.3f}",
+            id=f"{original_record.id}|random_mutation|p_mut={p_mut:.3f}|seq_id={sequence_identity:.3f}",
             description="",
         )
 
@@ -68,7 +79,7 @@ def generate_randomly_mutated_seqs(prompt_fasta, output_dir):
 
 if __name__=="__main__":
     prompt_pattern = glob.glob(f"../data/val_test_v2_fastas/foldseek/*/*.fasta")
-    output_dir = "../sampling_results/randomly_mutated_sequences"
+    output_dir = "../sampling_results/randomly_mutated_sequences_seq_id_lt_0p5_gt_0p3"
     os.makedirs(output_dir, exist_ok=True)
 
     all_created_basenames = []
