@@ -5,7 +5,7 @@
 #$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N colabfold
+#$ -N CFseed42
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
