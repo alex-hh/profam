@@ -25,7 +25,7 @@ python ${ROOT_DIR}/scripts/sample_sequences_from_checkpoint_model.py \
 --glob "../data/ec/ec_validation_dataset/ec_single_sequences/*.fasta" \
 --save_dir ../sampling_results/profam_ec_single_seq_synthetic_msas \
 --sampler single \
---num_samples 100 \
+--num_samples 50 \
 --task_index $(($SGE_TASK_ID - 1)) \
 --num_tasks 10
 
