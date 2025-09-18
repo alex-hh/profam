@@ -18,14 +18,20 @@ from src.utils.evaluation_utils import pairwise_sequence_identity
 from statsmodels.nonparametric.smoothers_lowess import lowess
 import matplotlib.pyplot as plt
 
-def evaluate_generated_sequences():
+def evaluate_generated_sequences(
+    generated_fasta_pattern,
+    csv_save_path,
+):
     all_results = []
-    generated_fasta_pattern = "../sampling_results/foldseek_*/*/*.fasta"
-    csv_save_path = "../sampling_results/profam_sequence_only_evaluation.csv"
-    for generated_fasta in glob.glob(generated_fasta_pattern):
+    os.makedirs(os.path.dirname(csv_save_path), exist_ok=True)
+    fasta_paths = glob.glob(generated_fasta_pattern)
+    print(f"Found {len(fasta_paths)} generated fasta files")
+    if len(fasta_paths) == 0:
+        raise FileNotFoundError(f"No generated fasta files found for glob: {generated_fasta_pattern}")
+    for generated_fasta in fasta_paths:
         split  = "val" if "val" in generated_fasta else "test"
         fname = os.path.basename(generated_fasta).replace("_generated.fasta", ".fasta")
-        prompt_fasta = f"../data/val_test_v2_fastas/foldseek/{split}/{fname}"
+        prompt_fasta = glob.glob(f"../data/val_test_v2_fastas/foldseek/*/{fname}")[0]
         if not os.path.exists(prompt_fasta):
             print(f"Prompt FASTA not found for {generated_fasta}")
             continue
@@ -93,9 +99,13 @@ def make_structure_sequence_similarity_plots(csv_path):
 
 
 if __name__ == "__main__":
-    # evaluate_generated_sequences()
-    # evaluate_generated_sequences_poet()
+    # generated_fasta_pattern = "../sampling_results/foldseek_*/*/*.fasta",
+    # sequence_only_csv_save_path = "../sampling_results/profam_sequence_only_evaluation.csv",
+    generated_fasta_pattern = "../sampling_results/foldseek_combined_val_test_2025_09_17/*.fasta"
+    sequence_only_csv_save_path = "../sampling_results/foldseek_combined_val_test_2025_09_17/profam_sequence_only_evaluation.csv"
     generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
+    evaluate_generated_sequences(generated_fasta_pattern, sequence_only_csv_save_path)
+    # evaluate_generated_sequences_poet()
     # generated_pdb_pattern = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/*/*_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
     if "poet" in generated_pdb_pattern:
         structural_csv = "../sampling_results/poet_colabfold_outputs/structural_evaluation.csv"
