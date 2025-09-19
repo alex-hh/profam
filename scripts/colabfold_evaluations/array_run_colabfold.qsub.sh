@@ -5,11 +5,11 @@
 #$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N colabfold
+#$ -N CFseed42
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -t 2-10
+#$ -t 1-10
 #$ -j y
 date
 hostname
@@ -37,11 +37,12 @@ colabfold_batch --help   # or: python -m colabfold.batch --help
 
 
 LINENUM=$SGE_TASK_ID
-FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
+# FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
+FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/foldseek_combined_val_test_2025_09_17/foldseek_combined_val_test_ensemble8_single_colabfold_fastas
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
-BATCHSIZE=45
+BATCHSIZE=13
 NUMTASKS=10
 LIST_FILE="$FASTADIR/fasta_file_list.txt"
 TOTAL_LINES=$(wc -l < "$LIST_FILE")
@@ -71,7 +72,7 @@ sed -n "${START_LINE},${END_LINE}p" "$LIST_FILE" | while IFS= read -r REL_FASTA_
   echo "$FASTAPATH"
   BASENAME="$(basename "$REL_FASTA_PATH")"
   BASENAME_NOEXT="${BASENAME%%.*}"
-  OUTPUT_DIR="../sampling_results/colabfold_outputs/${BASENAME_NOEXT}"
+  OUTPUT_DIR="../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17/${BASENAME_NOEXT}"
   echo "$OUTPUT_DIR"
   mkdir -p "$OUTPUT_DIR"
   # Skip if expected output PDB already exists

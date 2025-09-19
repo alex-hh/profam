@@ -49,7 +49,7 @@ from src.evaluators.esmfold import ESMFoldSamplingEvaluator
 from src.models.inference import ProFamSampler, PromptBuilder
 from src.models.llama import LlamaLitModule
 from src.sequence import fasta
-from src.utils.utils import get_config_from_cpt_path
+from src.utils.utils import get_config_from_cpt_path, seed_all
 
 
 
@@ -260,6 +260,8 @@ def mutate_sequence(seq: str, mutation_rate: float) -> str:
 
 
 def main(args):
+    # Seed RNGs
+    seed_all(args.seed)
     device = torch.device(
         "cuda" if torch.cuda.is_available() and not args.cpu else "cpu"
     )
@@ -512,6 +514,12 @@ if __name__ == "__main__":
         type=int,
         default=5,
         help="Number of random mutations to generate for baseline control",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible sampling",
     )
 
     parsed_args = parser.parse_args()

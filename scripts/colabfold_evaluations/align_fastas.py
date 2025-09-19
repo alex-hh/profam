@@ -40,9 +40,10 @@ if __name__=="__main__":
 
     # Inputs (adjust if needed)
     queries = glob.glob("../CASP16/target_fastas/*.fasta")
+    queries = glob.glob("../data/viral_bfvd_logan_individual/*.fasta")
     # sampled_fasta_dir = "../CASP16/ProFam_synthetic_msas"
     # sampled_fasta_dir = "../CASP16/poet_casp16_synthetic_msas"
-    sampled_fasta_dir = "../CASP16/ProFam_synthetic_msas_1200"
+    sampled_fasta_dir = "../data/viral_bfvd_logan_individual/synthetic_msas/"
     threads = int(os.environ.get("MMSEQS_THREADS", "24"))
     hhfilter_binary = os.environ.get("HHFILTER_BINARY", "/mnt/disk2/msa_pairformer/hhsuite/hhfilter")
 

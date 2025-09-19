@@ -5,7 +5,7 @@
 #$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N poetColab
+#$ -N viralSynthCF
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
@@ -37,11 +37,11 @@ colabfold_batch --help   # or: python -m colabfold.batch --help
 
 
 LINENUM=$SGE_TASK_ID
-FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/poet_funfam_foldseek_gen10_combined
+FASTADIR=/SAN/orengolab/cath_plm/ProFam/data/viral_bfvd_logan_individual/synthetic_msas
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
-BATCHSIZE=23
+BATCHSIZE=7
 NUMTASKS=10
 LIST_FILE="$FASTADIR/fasta_file_list.txt"
 TOTAL_LINES=$(wc -l < "$LIST_FILE")
@@ -71,7 +71,7 @@ sed -n "${START_LINE},${END_LINE}p" "$LIST_FILE" | while IFS= read -r REL_FASTA_
   echo "$FASTAPATH"
   BASENAME="$(basename "$REL_FASTA_PATH")"
   BASENAME_NOEXT="${BASENAME%%.*}"
-  OUTPUT_DIR="../sampling_results/poet/poet_colabfold_outputs/${BASENAME_NOEXT}"
+  OUTPUT_DIR="/SAN/orengolab/cath_plm/ProFam/data/viral_bfvd_logan_individual/colabfold_outputs_profam_synth_msas/${BASENAME_NOEXT}"
   echo "$OUTPUT_DIR"
   mkdir -p "$OUTPUT_DIR"
   # Skip if expected output PDB already exists

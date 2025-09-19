@@ -335,7 +335,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 )
                 # TODO: it's a bit awkward that this is a method on evaluator...
                 # it should produce the same output regardless of the evaluator
-                generations, prompt = sampler.sample_seqs(
+                generations, scores, prompt = sampler.sample_seqs(
                     protein_document=protein_document,
                     num_samples=self.num_generations,
                     max_tokens=self.max_tokens,

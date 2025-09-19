@@ -11,7 +11,7 @@ from src.utils.evaluation_utils import pairwise_sequence_identity
 
 profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
 poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
-output_dir = "../sampling_results/inspect_similar_seq_dissimilar_structs"
+output_dir = "../sampling_results/inspect_profam_generations"
 os.makedirs(output_dir, exist_ok=True)
 profam_df = pd.read_csv(profam_csv)
 poet_df = pd.read_csv(poet_csv)
@@ -26,11 +26,11 @@ def get_pdb_paths_from_fasta_path(fasta_path, gt_pdbs_list):
     return pdb_paths
 
 def copy_generated_and_best_prompt(row, root_output_dir):
-    try:
-        if row["seq_identity_max"] <= 0.95 or not (row["tm_max"] < 0.7 or row["lddt_max"] < 0.8):
-            return
-    except Exception:
-        return
+    # try:
+    #     if row["seq_identity_max"] <= 0.95 or not (row["tm_max"] < 0.7 or row["lddt_max"] < 0.8):
+    #         return
+    # except Exception:
+    #     return
 
     generated_pdb_path = row.get("generated_pdb", None)
     prompt_fasta_path = row.get("prompt_fasta", None)

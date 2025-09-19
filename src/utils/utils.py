@@ -12,6 +12,52 @@ from src.utils import pylogger, rich_utils
 log = pylogger.RankedLogger(__name__, rank_zero_only=True)
 
 
+def seed_all(seed: Optional[int] = None, deterministic: bool = False) -> None:
+    """Seed Python, NumPy and Torch RNGs for reproducibility.
+
+    Parameters
+    ----------
+    seed : Optional[int]
+        Seed value. If None, no-op.
+    deterministic : bool, default=False
+        If True, configure PyTorch for deterministic algorithms where possible.
+    """
+    if seed is None:
+        return
+    import os
+    import random
+    import numpy as np
+    try:
+        import torch  # type: ignore
+    except Exception:
+        torch = None  # type: ignore
+
+    os.environ["PYTHONHASHSEED"] = str(int(seed))
+    random.seed(int(seed))
+    try:
+        np.random.seed(int(seed))
+    except Exception:
+        pass
+
+    if torch is not None:
+        try:
+            torch.manual_seed(int(seed))
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(int(seed))
+            if deterministic:
+                try:
+                    torch.backends.cudnn.deterministic = True  # type: ignore[attr-defined]
+                    torch.backends.cudnn.benchmark = False  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                try:
+                    torch.use_deterministic_algorithms(True)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+
 def np_random(seed: Optional[int] = None) -> Any:
     """Returns a numpy random number generator with a given seed.
 

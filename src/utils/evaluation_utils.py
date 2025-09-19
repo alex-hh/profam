@@ -133,7 +133,7 @@ def pairwise_sequence_identity(seq1, seq2):
                 matches += 1
         return (matches / denom) if denom > 0 else 0.0
 
-    if "-" in s1 or "-" in s2 or len(s1) == len(s2):
+    if "-" in s1 or "-" in s2:
         return _aligned_identity(s1, s2)
 
     # Fallback: global alignment maximizing matches
@@ -144,13 +144,7 @@ def pairwise_sequence_identity(seq1, seq2):
         a, b, _score, _start, _end = aln[0]
         return _aligned_identity(a, b)
     except Exception:
-        # Very conservative fallback: compare up to min length
-        min_len = min(len(s1), len(s2))
-        denom = max(len(s1), len(s2))
-        if denom == 0:
-            return 1.0
-        matches = sum(1 for i in range(min_len) if s1[i] == s2[i])
-        return matches / denom
+        return None
 
 def sequence_identity_from_msa(combined_msa, generated_start_idx):
     """
@@ -319,7 +313,7 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
     aligned_combined_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "combined_aln.fasta"))
     if not os.path.exists(aligned_generation_path):
         run_alignment_with_mafft(generated_fasta, aligned_generation_path)
-    if "aligned" in prompt_fasta:
+    if "aligned" in prompt_fasta or "_aln.fasta" in prompt_fasta:
         aligned_prompt_path = prompt_fasta
     else:
         run_alignment_with_mafft(prompt_fasta, aligned_prompt_path)

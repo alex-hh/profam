@@ -30,7 +30,8 @@ class PromptBuilder:
         self.prompt_is_aligned = prompt_is_aligned
 
     def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-        proteins = self.preprocessor.apply_transforms(proteins, tokenizer)
+        rng = np.random.default_rng(self.seed) if self.seed is not None else None
+        proteins = self.preprocessor.apply_transforms(proteins, tokenizer, rng=rng)
         return proteins
 
 
@@ -70,8 +71,9 @@ class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
             self.preprocessor.single_protein_documents
         )
         self.preprocessor.single_protein_documents = True
+        rng = np.random.default_rng(self.seed) if self.seed is not None else None
         representative_doc = self.preprocessor.apply_transforms(
-            representative_doc, tokenizer
+            representative_doc, tokenizer, rng=rng
         )
         self.preprocessor.single_protein_documents = (
             _preprocessor_single_protein_documents
@@ -157,7 +159,7 @@ class ProFamSampler:
                 encoded[key] = torch.from_numpy(encoded[key])
 
         with torch.no_grad():  # prob unnecessary
-            tokens = self.model._sample_seqs(
+            tokens, scores = self.model._sample_seqs(
                 encoded["input_ids"].unsqueeze(0).to(self.model.device),
                 max_tokens=max_tokens,
                 max_generated_length=max_generated_length,
@@ -170,22 +172,24 @@ class ProFamSampler:
                 .to(self.model.device)
                 .to(self.dtype)
                 if self.model.embed_coords
-                else None,  # n.b. preprocessing will produce coords for every input even when missing - careful about this
+                else None,
                 continuous_sampling=continuous_sampling,
                 **sampling_kwargs,
             )
+
             if not continuous_sampling:
                 sequences = self.model.tokenizer.decode_tokens(tokens)
+                return sequences, scores, prompt
             else:
                 # Flatten all completed sequences delimited by [SEP]; drop trailing partial segment
                 sep_id = self.model.tokenizer.sep_token_id
                 sequences = []
+                seq_scores = []
+                score_ix = 0
                 for r in range(tokens.shape[0]):
                     row = tokens[r]
-                    # Determine valid length (exclude any right-side padding)
                     if (row == self.model.tokenizer.pad_token_id).all():
                         continue
-                    # Find last SEP; skip if none
                     sep_positions = (row == sep_id).nonzero(as_tuple=False).flatten().tolist()
                     if len(sep_positions) == 0:
                         continue
@@ -198,8 +202,11 @@ class ProFamSampler:
                             ).replace(" ", "")
                             if text:
                                 sequences.append(text)
+                                # scores list is aligned to emitted segments
+                                seq_scores.append(scores[score_ix])
+                                score_ix += 1
                         prev = sep_pos + 1
-        return sequences, prompt
+                return sequences, seq_scores, prompt
 
     @classmethod
     def from_checkpoint_dir(
@@ -276,14 +283,19 @@ class EnsemblePromptBuilder:
         sample_context_length: bool = True,
     ) -> List[ProteinDocument]:
         # Prepare (normalize) once; do not sample-to-max here
-        prepared = self.preprocessor.apply_transforms(proteins, tokenizer)
+        prepared = self.preprocessor.apply_transforms(proteins, tokenizer, rng=self.rng)
         variants: List[ProteinDocument] = []
         max_context_tokens = max_tokens - int(np.max(prepared.sequence_lengths) * 1.2)
         max_context_tokens = max(max_context_tokens, 0)
         for _ in range(num_variants):
             if sample_context_length:
-                this_context_tokens = np.random.randint(np.max(prepared.sequence_lengths),max_context_tokens + 1)
-                this_context_tokens = max(this_context_tokens, max_context_tokens // 2)
+                low = int(np.max(prepared.sequence_lengths))
+                high = int(max_context_tokens + 1)
+                if high <= low:
+                    this_context_tokens = low
+                else:
+                    this_context_tokens = int(self.rng.integers(low, high))
+                this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
             else:
                 this_context_tokens = max_context_tokens
             idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
@@ -392,6 +404,11 @@ class EnsembleDecoder:
             )
 
         completions: List[int] = []
+        total_logp: float = 0.0
+        token_count: int = 0
+        segment_scores: List[float] = []
+        seg_total: float = 0.0
+        seg_count: int = 0
         step = 0
         while True:
             # Compute per-variant next-token distributions
@@ -424,10 +441,26 @@ class EnsembleDecoder:
                 candidate_probs = candidate_probs / candidate_probs.sum()
                 sampled_local = torch.multinomial(candidate_probs, num_samples=1).squeeze(-1)
                 token_id = int(candidate_indices[sampled_local].item())
+                token_prob = float(candidate_probs[sampled_local].item())
             else:
                 sampled = torch.multinomial(agg_probs, num_samples=1).squeeze(-1)
                 token_id = int(sampled.item())
+                token_prob = float(agg_probs[token_id].item())
             completions.append(token_id)
+
+            # Accumulate per-step log prob (include SEP)
+            token_logp = float(torch.log(torch.tensor(token_prob + 1e-12)).item())
+            if not continuous_sampling:
+                total_logp += token_logp
+                token_count += 1
+            else:
+                seg_total += token_logp
+                seg_count += 1
+                if token_id == eos:
+                    # end segment; record mean log-prob for this segment
+                    segment_scores.append(seg_total / max(seg_count, 1))
+                    seg_total = 0.0
+                    seg_count = 0
 
             # Termination
             step += 1
@@ -456,10 +489,16 @@ class EnsembleDecoder:
                 state["logits"] = outputs_next.logits[0, -1, :]
 
         if len(completions) == 0:
-            return torch.empty((0,), dtype=torch.long, device=device)
-        if (not continuous_sampling) and completions[-1] == eos:
-            completions = completions[:-1]
-        return torch.tensor(completions, dtype=torch.long, device=device)
+            gen = torch.empty((0,), dtype=torch.long, device=device)
+        else:
+            if (not continuous_sampling) and completions[-1] == eos:
+                completions = completions[:-1]
+            gen = torch.tensor(completions, dtype=torch.long, device=device)
+        if not continuous_sampling:
+            mean_logp = total_logp / max(token_count, 1)
+            return gen, mean_logp
+        else:
+            return gen, segment_scores
 
 
 class ProFamEnsembleSampler:
@@ -487,7 +526,6 @@ class ProFamEnsembleSampler:
         self.top_p = top_p
         self.add_final_sep = add_final_sep
 
-        # Enforce embedding constraints eagerly
         if getattr(self.model, "embed_coords", False):
             raise ValueError("embed_coords must be False for ProFamEnsembleSampler")
         if getattr(self.model, "embed_sequence_index", False):
@@ -556,25 +594,30 @@ class ProFamEnsembleSampler:
         )
 
         sequences: List[str] = []
+        scores_out: List[float] = []
         for _ in range(num_samples):
-            gen_ids = decoder.generate(
+            gen_ids, gen_scores = decoder.generate(
                 input_ids=prompt_ids_list,
                 max_generated_length=max_generated_length,
                 eos_token_id=self.model.tokenizer.sep_token_id,
                 continuous_sampling=continuous_sampling,
             )
-            if gen_ids.numel() == 0:
+
+            if isinstance(gen_ids, torch.Tensor) and gen_ids.numel() == 0:
                 sequences.append("")
+                scores_out.append(float("nan"))
             else:
                 if not continuous_sampling:
                     seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[0]
                     sequences.append(seq)
+                    scores_out.append(float(gen_scores))
                 else:
                     # Split on [SEP] and drop trailing partial
                     sep_id = self.model.tokenizer.sep_token_id
                     row = gen_ids
                     sep_positions = (row == sep_id).nonzero(as_tuple=False).flatten().tolist()
                     prev = 0
+                    seg_idx = 0
                     for sep_pos in sep_positions:
                         seg = row[prev:sep_pos]
                         if seg.numel() > 0:
@@ -583,6 +626,9 @@ class ProFamEnsembleSampler:
                             ).replace(" ", "")
                             if text:
                                 sequences.append(text)
+                                if isinstance(gen_scores, list) and seg_idx < len(gen_scores):
+                                    scores_out.append(float(gen_scores[seg_idx]))
+                                    seg_idx += 1
                         prev = sep_pos + 1
 
-        return sequences, variants
+        return sequences, scores_out, variants

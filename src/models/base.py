@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
+import torch.nn.functional as F
 import tqdm
 from lightning import LightningModule
 from omegaconf import OmegaConf
@@ -882,7 +883,8 @@ class BaseFamilyLitModule(BaseLitModule):
 
         assert input_residue_index.shape == input_ids.shape
         all_outputs = []
-        for batch_start in range(0, num_samples, batch_size):
+        all_scores: List[float] = []
+        for batch_start in tqdm.tqdm(range(0, num_samples, batch_size), "Generating sequences"):
             num_return_sequences = min(batch_size, num_samples - batch_start)
             # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
             forward_kwargs = self.get_forward_kwargs(
@@ -897,19 +899,63 @@ class BaseFamilyLitModule(BaseLitModule):
             # if we want to generate multiple sequences in a single family: we either need to restore eos token id
             # or we just do a batched generation like we do here. latter is more explicit.
             # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1908
-            outputs = self.model.generate(
+            gen_out = self.model.generate(
                 input_ids=input_ids,
                 num_return_sequences=num_return_sequences,
-                return_dict_in_generate=False,
+                return_dict_in_generate=True,
+                output_scores=True,
                 do_sample=not greedy,
                 temperature=temperature,
-                # https://huggingface.co/docs/transformers/en/generation_strategies
                 **generation_kwargs,
                 **forward_kwargs,
             )
+            seqs = gen_out.sequences
             if not include_prompt_in_output:
-                outputs = outputs[:, input_ids.shape[1] :]
-            all_outputs.append(outputs)
+                # keep full sequences for indexing step-wise, but compute offset
+                pass
+            all_outputs.append(seqs[:, input_ids.shape[1] :])
+
+            # Accumulate per-sequence mean log-prob over generated tokens
+            # (include SEP if present). Use post-warped logits in gen_out.scores.
+            prompt_len = input_ids.shape[1]
+            scores_list = gen_out.scores  # List[T] of (B, V) logits
+            T = len(scores_list)
+            for i in range(seqs.shape[0]):
+                total_logp = 0.0
+                count = 0
+                seg_total = 0.0
+                seg_count = 0
+                per_seq_segment_scores: List[float] = []
+                finished_non_cont = False
+                for t in range(T):
+                    token_id = int(seqs[i, prompt_len + t].item())
+                    # Some rows might be padded after early EOS; stop accumulation for non-continuous after first SEP
+                    logits_t = scores_list[t]
+                    # safe indexing: logits_t shape matches current batch
+                    log_probs_t = F.log_softmax(logits_t, dim=-1)
+                    token_logp = float(log_probs_t[i, token_id].item())
+                    if not continuous_sampling:
+                        if finished_non_cont:
+                            continue
+                        total_logp += token_logp
+                        count += 1
+                        if token_id == self.tokenizer.sep_token_id:
+                            finished_non_cont = True
+                    else:
+                        # continuous mode: accumulate per-segment until SEP, then record
+                        seg_total += token_logp
+                        seg_count += 1
+                        if token_id == self.tokenizer.sep_token_id:
+                            if seg_count > 0:
+                                per_seq_segment_scores.append(seg_total / max(seg_count, 1))
+                            seg_total = 0.0
+                            seg_count = 0
+                if not continuous_sampling:
+                    # normalise by generated length incl SEP
+                    all_scores.append(total_logp / max(count, 1))
+                else:
+                    # append in-order per complete segment for this sequence
+                    all_scores.extend(per_seq_segment_scores)
 
         max_output_length = max([o.shape[1] for o in all_outputs])
         # TODO: poss just return a list instead of the padded tensor
@@ -922,7 +968,7 @@ class BaseFamilyLitModule(BaseLitModule):
             padded_outputs[start_ix : start_ix + o.shape[0], : o.shape[1]] = o
             start_ix += o.shape[0]
 
-        return padded_outputs
+        return padded_outputs, all_scores
 
 
 
