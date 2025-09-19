@@ -89,7 +89,7 @@ def main():
     override_attn_impl = args.attn_implementation or None
     if override_attn_impl is not None:
         try:
-            ckpt_blob = torch.load(ckpt_path, map_location="cpu")
+            ckpt_blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
             hyper_params = ckpt_blob.get("hyper_parameters", {})
             cfg_obj = hyper_params.get("config", None)
             if cfg_obj is None:
