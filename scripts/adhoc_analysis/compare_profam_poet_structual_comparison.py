@@ -4,15 +4,20 @@ import seaborn as sns
 import numpy as np
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
-poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
+# profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
+# poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
+profam_csv = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/structural_evaluation.csv"
+poet_csv = "../sampling_results/poet/poet_colabfold_outputs_seq_sim_lt_0p5/structural_evaluation.csv"
 random_csv = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/random_structural_evaluation.csv"
 
 
 
 profam_df = pd.read_csv(profam_csv)
+print(f"ProFam df: {profam_df.shape}")
 poet_df = pd.read_csv(poet_csv)
+print(f"PoET df: {poet_df.shape}")
 random_df = pd.read_csv(random_csv)
+print(f"Random df: {random_df.shape}")
 
 def barplot_prop_with_good_tm_score(
     profam_df,
@@ -77,7 +82,7 @@ def barplot_prop_with_good_tm_score(
 
     plt.figure()
     plt.bar(labels, props, color=bar_colors, yerr=yerr, capsize=4)
-    plt.ylim(0, 1)
+    plt.ylim(0, 0.55)
     plt.ylabel(f"Proportion with TM-score ≥ {tm_threshold}")
     plt.title(f"Proportion of good TM-score (seq id < {seq_threshold})")
     plt.tight_layout()
@@ -88,12 +93,15 @@ def barplot_prop_with_good_tm_score(
     plt.close()
 
 def make_structure_sequence_similarity_plots(
-    profam_df: pd.DataFrame, 
+    profam_ensemble_df: pd.DataFrame,
+    profam_single_df: pd.DataFrame,
     poet_df: pd.DataFrame, 
+    random_df: pd.DataFrame,
     plot_ensemble: bool = True,
     plot_single: bool = True,
     plot_poet: bool = True,
     plot_random: bool = True,
+    save_name: str = "",
 ):
     structure_metrics = ["tm_max", "lddt_max", "mean_plddt"]
 
@@ -109,9 +117,8 @@ def make_structure_sequence_similarity_plots(
 
         # ProFam ensemble
         if plot_ensemble:
-            df_mode = profam_df[profam_df["generated_pdb"].astype(str).str.contains("ensemble", na=False)]
-            x = df_mode["seq_identity_max"].to_numpy(dtype=float)
-            y = df_mode[structure_metric].to_numpy(dtype=float)
+            x = profam_ensemble_df["seq_identity_max"].to_numpy(dtype=float)
+            y = profam_ensemble_df[structure_metric].to_numpy(dtype=float)
             mask = np.isfinite(x) & np.isfinite(y)
             print(f"ProFam ensemble: {len(x[mask])} points")
             x_valid, y_valid = x[mask], y[mask]
@@ -125,9 +132,8 @@ def make_structure_sequence_similarity_plots(
 
         # ProFam single
         if plot_single:
-            df_mode = profam_df[profam_df["generated_pdb"].astype(str).str.contains("single", na=False)]
-            x = df_mode["seq_identity_max"].to_numpy(dtype=float)
-            y = df_mode[structure_metric].to_numpy(dtype=float)
+            x = profam_single_df["seq_identity_max"].to_numpy(dtype=float)
+            y = profam_single_df[structure_metric].to_numpy(dtype=float)
             mask = np.isfinite(x) & np.isfinite(y)
             print(f"ProFam single: {len(x[mask])} points")
             x_valid, y_valid = x[mask], y[mask]
@@ -182,11 +188,21 @@ def make_structure_sequence_similarity_plots(
             figname += "_poet"
         if plot_random:
             figname += "_random"
-        plt.savefig(f"plots_for_paper/{figname}_{structure_metric}.png")
+        plt.savefig(f"plots_for_paper/{figname}_{structure_metric}_{save_name}.png")
         plt.close()
 
 
 
 
-make_structure_sequence_similarity_plots(profam_df, poet_df, plot_ensemble=True, plot_single=False, plot_poet=True, plot_random=True)
+make_structure_sequence_similarity_plots(
+    profam_ensemble_df = profam_df, 
+    profam_single_df = None, 
+    poet_df = poet_df, 
+    random_df = random_df, 
+    plot_ensemble=True, 
+    plot_single=False, 
+    plot_poet=True, 
+    plot_random=True,
+    save_name="foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5",
+)
 barplot_prop_with_good_tm_score(profam_df, poet_df, random_df, seq_threshold=0.5, tm_threshold=0.5, include_ci=True, save_path="plots_for_paper/prop_good_tm_seq_lt_0.5_tm_ge_0.5.png")
