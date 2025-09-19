@@ -41,7 +41,7 @@ launch.sh [command]
     valid commands:
 
     pull               - pull an existing container
-    download           - download pre-trained models
+    download           - download pre-trained models (from Hugging Face)
     build              - build a container, only recommended if customization is needed
     run                - launch the docker container in non-dev mode. Code is cloned from git and installed.
     push               - push a container to a registry
