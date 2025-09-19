@@ -3,6 +3,8 @@ import os
 import glob
 import torch
 import torch.nn.functional as F
+import rootutils
+rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 from src.models.base import load_checkpoint
 from src.models.inference import (
