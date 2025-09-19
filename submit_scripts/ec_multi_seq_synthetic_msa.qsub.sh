@@ -22,7 +22,7 @@ ROOT_DIR='/SAN/orengolab/cath_plm/ProFam/profam'
 cd $ROOT_DIR
 export PYTHONPATH=$PYTHONPATH:$ROOT_DIR
 python ${ROOT_DIR}/scripts/sample_sequences_from_checkpoint_model.py \
---glob "../data/ec/ec_validation_dataset/alignments/*aln.fasta" \
+--glob "../data/ec/ec_validation_dataset/alignments/*aln.filtered.fasta" \
 --save_dir ../sampling_results/profam_ec_multi_seq_synthetic_msas \
 --sampler ensemble \
 --num_samples 50 \
