@@ -3,7 +3,9 @@ import pandas as pd
 import seaborn as sns
 import numpy as np
 from statsmodels.nonparametric.smoothers_lowess import lowess
+import os
 
+colors = {"ProFam": "#1f77b4", "PoET": "#2ca02c", "Random": "#808080"}
 # profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
 # poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
 profam_csv = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/structural_evaluation.csv"
@@ -18,6 +20,39 @@ poet_df = pd.read_csv(poet_csv)
 print(f"PoET df: {poet_df.shape}")
 random_df = pd.read_csv(random_csv)
 print(f"Random df: {random_df.shape}")
+
+def entropy_correlation_density_plots():
+    profam_df_path = "../sampling_results/profam_ec_single_seq_synthetic_msas/profam_sequence_only_evaluation_ec_single_sequence.csv"
+    poet_df_path = "../sampling_results/poet/poet_ec_single_seq_synthetic_msas/poet_sequence_only_evaluation_ec_single_sequence.csv"
+    corr_col = "entropy_correlation"
+    save_path = "plots_for_paper/entropy_correlation_ec_single_sequence.png"
+    # Load data
+    profam_seq_df = pd.read_csv(profam_df_path)
+    poet_seq_df = pd.read_csv(poet_df_path)
+
+    # Extract and clean correlation values
+    profam_vals = pd.to_numeric(profam_seq_df.get(corr_col), errors="coerce")
+    poet_vals = pd.to_numeric(poet_seq_df.get(corr_col), errors="coerce")
+    profam_vals = profam_vals[np.isfinite(profam_vals)]
+    poet_vals = poet_vals[np.isfinite(poet_vals)]
+
+    # Plot densities
+    plt.figure()
+    if len(profam_vals) > 1:
+        sns.kdeplot(x=profam_vals, label="ProFam", color=colors["ProFam"], fill=True, common_norm=False, linewidth=2)
+    if len(poet_vals) > 1:
+        sns.kdeplot(x=poet_vals, label="PoET", color=colors["PoET"], fill=True, common_norm=False, linewidth=2)
+    plt.xlabel("Average per-position entropy correlation family vs. generated")
+    plt.ylabel("Density")
+    plt.title("Position-wise correlation of sequence conservation \nbetween family and generated sequences \nconditioning on a single EC sequence")
+    plt.xlim(-1.0, 1.0)
+    plt.legend(frameon=False)
+    plt.tight_layout()
+
+    # Ensure directory exists and save
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path)
+    plt.close()
 
 def barplot_prop_with_good_tm_score(
     profam_df,
@@ -63,7 +98,7 @@ def barplot_prop_with_good_tm_score(
     # Prepare barplot
     labels = [r["name"] for r in results]
     props = [r["prop"] for r in results]
-    colors = {"ProFam": "#1f77b4", "PoET": "#2ca02c", "Random": "#808080"}
+    
     bar_colors = [colors.get(lbl, "#333333") for lbl in labels]
 
     if include_ci:
@@ -193,7 +228,7 @@ def make_structure_sequence_similarity_plots(
 
 
 
-
+entropy_correlation_density_plots()
 # make_structure_sequence_similarity_plots(
 #     profam_ensemble_df = profam_df, 
 #     profam_single_df = None, 

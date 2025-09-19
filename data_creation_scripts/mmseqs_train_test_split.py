@@ -146,8 +146,6 @@ def run_mmseqs_easy_cluster(fasta_file, out_prefix, min_seq_id=0.9, coverage=0.8
     ]
     print(f"Running mmseqs: {' '.join(cmd)}")
     subprocess.run(cmd, check=True)
-    
-    # The representative sequences are in out_prefix + "_rep_seq.fasta"
     rep_seq_fasta = f"{out_prefix}_rep_seq.fasta"
     return rep_seq_fasta
 
@@ -186,7 +184,6 @@ def get_pfam_heldout_sequences():
         for i, row in df.iterrows():
             heldout_sequences.extend([format_sequence(seq) for seq in row["sequences"]])
             heldout_splits.extend([split] * len(row["sequences"]))
-            # Track family information
             selected_families_info.append({
                 "fam_id": row.get("fam_id", f"pfam_{i}"),
                 "dataset": "Pfam",
@@ -226,7 +223,7 @@ def make_funfams_train_test_split():
                     train_drop_indices.append(i)
                     heldout_sequences.extend(row["sequences"])
                     heldout_splits.extend(["val"] * len(row["sequences"]))
-                    # Track family information
+
                     selected_families_info.append({
                         "fam_id": row["fam_id"],
                         "dataset": "FunFams",
@@ -239,7 +236,7 @@ def make_funfams_train_test_split():
                     train_drop_indices.append(i)
                     heldout_sequences.extend(row["sequences"])
                     heldout_splits.extend(["test"] * len(row["sequences"]))
-                    # Track family information
+
                     selected_families_info.append({
                         "fam_id": row["fam_id"],
                         "dataset": "FunFams",
@@ -297,7 +294,7 @@ def make_foldseek_train_test_split():
                 seqs = df.iloc[holdout_index]["sequences"]
                 heldout_sequences.extend(seqs)
                 heldout_splits.extend(["val"] * len(seqs))
-                # Track family information
+
                 selected_families_info.append({
                     "fam_id": df.iloc[holdout_index]["fam_id"],
                     "dataset": "Foldseek",
@@ -311,7 +308,7 @@ def make_foldseek_train_test_split():
                 seqs = df.iloc[holdout_index]["sequences"]
                 heldout_sequences.extend(seqs)
                 heldout_splits.extend(["test"] * len(seqs))
-                # Track family information
+
                 selected_families_info.append({
                     "fam_id": df.iloc[holdout_index]["fam_id"],
                     "dataset": "Foldseek",
@@ -385,7 +382,7 @@ def select_heldout_families(rep_fasta_path):
     if not os.path.exists(heldout_info_path) or not os.path.exists(heldout_sequences_path):
         all_heldout_sequences = []
         all_heldout_splits = []
-        # Get held-out sequences from each dataset
+
         pfam_heldout_sequences, pfam_heldout_splits = get_pfam_heldout_sequences()
         all_heldout_sequences.extend(pfam_heldout_sequences)
         all_heldout_splits.extend(pfam_heldout_splits)
@@ -407,16 +404,14 @@ def select_heldout_families(rep_fasta_path):
         print(f"Pfam held-out sequences: {len(pfam_heldout_sequences)}")
         print(f"Petase held-out sequences: {len(petase_heldout_sequences)}")
         
-        # Remove duplicates
-        all_heldout_sequences = list(set(all_heldout_sequences))
+
+        all_heldout_sequences = list(set(all_heldout_sequences)) # remove duplicates
         print(f"Total unique held-out sequences: {len(all_heldout_sequences)}")
         
-        # Write all heldout sequences to a file
         with open(heldout_sequences_path, "w") as f:
             for seq, split in zip(all_heldout_sequences, all_heldout_splits):
                 f.write(f"{split},{seq}\n")
         
-        # Save the selected families information to a CSV file
         families_df = pd.DataFrame(selected_families_info)
         families_df.to_csv(heldout_info_path, index=False)
         print(f"Saved information about {len(families_df)} selected families to data/selected_heldout_families_info.csv")
@@ -661,20 +656,17 @@ def remove_similar_sequences_from_train_set(rep_fasta_path, datasets_to_filter, 
 
 
 def main():
-    # Parse command line arguments
     parser = argparse.ArgumentParser(description="Create train/test split using MMSEQS filtering")
     parser.add_argument("--task_index", type=int, help="Index of the dataset to process (from datasets_to_filter list)", required=False)
     parser.add_argument("--scratch_dir", type=str, help="Directory to use for temporary MMSeqs files and databases", required=False)
     args = parser.parse_args()
     
-    # Set the global scratch directory if provided
     global SCRATCH_DIR
     if args.scratch_dir:
         SCRATCH_DIR = args.scratch_dir
         os.makedirs(SCRATCH_DIR, exist_ok=True)
         print(f"Using scratch directory: {SCRATCH_DIR}")
 
-    # Make sure data directory exists
     os.makedirs("data", exist_ok=True)
     rep_fasta_path = "data/val_test_heldout_representative_sequences.fasta"
     if not os.path.exists(rep_fasta_path):

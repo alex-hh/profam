@@ -26,7 +26,7 @@ python ${ROOT_DIR}/scripts/sample_sequences_from_checkpoint_model.py \
 --save_dir ../sampling_results/profam_ec_multi_seq_synthetic_msas \
 --sampler ensemble \
 --num_samples 50 \
---num_variants 8 \
+--num_prompts_in_ensemble 8 \
 --task_index $(($SGE_TASK_ID - 1)) \
 --num_tasks 10
 
