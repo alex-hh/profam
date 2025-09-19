@@ -55,4 +55,4 @@ out/
 .zcompdump
 .viminfo
 evo_finetune_gym/
-model_checkpoints/abyoeovl/last.ckpt
+model_checkpoints/abyoeovl/checkpoints/last.ckpt
