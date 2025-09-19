@@ -313,7 +313,7 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
     aligned_combined_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "combined_aln.fasta"))
     if not os.path.exists(aligned_generation_path):
         run_alignment_with_mafft(generated_fasta, aligned_generation_path)
-    if "aligned" in prompt_fasta:
+    if "aligned" in prompt_fasta or "_aln.fasta" in prompt_fasta:
         aligned_prompt_path = prompt_fasta
     else:
         run_alignment_with_mafft(prompt_fasta, aligned_prompt_path)

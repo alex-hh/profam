@@ -179,9 +179,9 @@ def main():
         try:
             pool = build_pool_from_fasta(fasta_path, args.msa)
             if args.max_generated_length is None:
-                max_gen_len = int(max(pool.sequence_lengths) * 1.5)
+                max_gen_len = int(max(pool.sequence_lengths) * 1.2)
             else:
-                max_gen_len = min(args.max_generated_length, int(max(pool.sequence_lengths) * 1.5))
+                max_gen_len = min(args.max_generated_length, int(max(pool.sequence_lengths) * 1.2))
             if args.continuous_sampling:
                 # In continuous mode we ignore user-provided max_generated_length and go to token budget
                 max_gen_len = None
