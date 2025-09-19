@@ -70,15 +70,36 @@ def main():
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
-    parser.add_argument("--use_flash_attention", action="store_true", default=False, help="Use flash attention")
+    parser.add_argument(
+        "--attn_implementation",
+        type=str,
+        default=None,
+        choices=["sdpa", "flash_attention_2", "eager"],
+        help="Override attention implementation before model init (e.g. flash_attention_2)",
+    )
     args = parser.parse_args()
 
     # Seed RNGs for reproducibility
     seed_all(args.seed)
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
-    # Load model (and tokenizer) from checkpoint dir
-    model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path)
+    # Load model (and tokenizer) from checkpoint dir, optionally overriding attention implementation
+    override_attn_impl = args.attn_implementation or None
+    if override_attn_impl is not None:
+        try:
+            ckpt_blob = torch.load(ckpt_path, map_location="cpu")
+            hyper_params = ckpt_blob.get("hyper_parameters", {})
+            cfg_obj = hyper_params.get("config", None)
+            if cfg_obj is None:
+                raise RuntimeError("Could not find 'config' in checkpoint hyper_parameters to override attn implementation")
+            # Set both public and internal fields to be safe across HF versions
+            setattr(cfg_obj, "attn_implementation", override_attn_impl)
+            setattr(cfg_obj, "_attn_implementation", override_attn_impl)
+            model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj)
+        except Exception as e:
+            raise RuntimeError(f"Failed to override attention implementation: {e}")
+    else:
+        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path)
     model.eval()
     dtype_map = {
         "float32": torch.float32,
