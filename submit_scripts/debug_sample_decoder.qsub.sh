@@ -32,7 +32,7 @@ set -euo pipefail
 TOP_P=${TOP_P:-0.95}
 TEMPERATURE=${TEMPERATURE:-}
 NUM_SAMPLES=${NUM_SAMPLES:-20}
-NUM_VARIANTS=${NUM_VARIANTS:-8}
+NUM_PROMPTS_IN_ENSEMBLE=${NUM_PROMPTS_IN_ENSEMBLE:-8}
 MAX_TOKENS=${MAX_TOKENS:-8192}
 MAX_GENERATED_LENGTH=${MAX_GENERATED_LENGTH:-}
 REDUCTION=${REDUCTION:-mean_probs} # mean_probs | sum_log_probs
@@ -76,7 +76,7 @@ if [ -n "${MAX_GENERATED_LENGTH}" ]; then
   MAXLEN_SEG="_maxlen=${MAX_GENERATED_LENGTH}"
 fi
 
-SAVE_DIR="../sampling_results/${DATASET}/sampler=${SAMPLER}_tp=${TOP_P}${TEMP_SEG}_ns=${NUM_SAMPLES}_nv=${NUM_VARIANTS}_red=${REDUCTION}${MAXLEN_SEG}"
+SAVE_DIR="../sampling_results/${DATASET}/sampler=${SAMPLER}_tp=${TOP_P}${TEMP_SEG}_ns=${NUM_SAMPLES}_nv=${NUM_PROMPTS_IN_ENSEMBLE}_red=${REDUCTION}${MAXLEN_SEG}"
 
 echo "[SGE_TASK_ID=${SGE_TASK_ID}] dataset=${DATASET} sampler=${SAMPLER}"
 echo "glob=${GLOB}"
@@ -98,7 +98,7 @@ CMD=(
   --glob "${GLOB}"
   --save_dir "${SAVE_DIR}"
   --sampler "${SAMPLER}"
-  --num_variants "${NUM_VARIANTS}"
+  --num_prompts_in_ensemble "${NUM_PROMPTS_IN_ENSEMBLE}"
   --num_samples "${NUM_SAMPLES}"
   --max_tokens "${MAX_TOKENS}"
   --top_p "${TOP_P}"
