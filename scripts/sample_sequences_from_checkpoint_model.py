@@ -45,7 +45,7 @@ def main():
     parser.add_argument(
         "--checkpoint_dir", 
         type=str, 
-        default="logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/", 
+        default="model_checkpoints/abyoeovl", 
         help="Checkpoint run directory (contains .hydra)"
     )
     parser.add_argument(
@@ -56,9 +56,9 @@ def main():
     )
     parser.add_argument("--save_dir", type=str, required=True, help="Directory to save generated FASTA files")
     parser.add_argument("--msa", default=True, action="store_true", help="Treat inputs as aligned MSAs (a3m/a2m)")
-    parser.add_argument("--sampler", type=str, default="ensemble", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
+    parser.add_argument("--sampler", type=str, default="single", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
     parser.add_argument("--num_variants", type=int, default=8)
-    parser.add_argument("--num_samples", type=int, default=20)
+    parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--max_tokens", type=int, default=8192)
     parser.add_argument("--max_generated_length", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
+    parser.add_argument("--use_flash_attention", action="store_true", default=False, help="Use flash attention")
     args = parser.parse_args()
 
     # Seed RNGs for reproducibility
