@@ -278,7 +278,7 @@ class EnsemblePromptBuilder:
         self,
         proteins: ProteinDocument,
         tokenizer: ProFamTokenizer,
-        num_variants: int,
+        num_prompts_in_ensemble: int,
         max_tokens: int,
         sample_context_length: bool = True,
     ) -> List[ProteinDocument]:
@@ -287,7 +287,7 @@ class EnsemblePromptBuilder:
         variants: List[ProteinDocument] = []
         max_context_tokens = max_tokens - int(np.max(prepared.sequence_lengths) * 1.2)
         max_context_tokens = max(max_context_tokens, 0)
-        for _ in range(num_variants):
+        for _ in range(num_prompts_in_ensemble):
             if sample_context_length:
                 low = int(np.max(prepared.sequence_lengths))
                 high = int(max_context_tokens + 1)
@@ -571,7 +571,7 @@ class ProFamEnsembleSampler:
         protein_document: ProteinDocument,
         num_samples: int,
         max_tokens: int,
-        num_variants: int,
+        num_prompts_in_ensemble: int,
         max_generated_length: Optional[int] = None,
         continuous_sampling: bool = False,
     ) -> Tuple[List[str], List[ProteinDocument]]:
@@ -579,7 +579,7 @@ class ProFamEnsembleSampler:
         variants = self.prompt_builder.build_variants(
             protein_document,
             self.model.tokenizer,
-            num_variants=num_variants,
+            num_prompts_in_ensemble=num_prompts_in_ensemble,
             max_tokens=max_tokens,
         )
         # Encode prompts without padding

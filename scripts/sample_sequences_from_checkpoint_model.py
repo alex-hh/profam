@@ -57,9 +57,9 @@ def main():
         help="Glob pattern for input FASTA/MSA files (e.g. '../data/val/*.fasta')"
     )
     parser.add_argument("--save_dir", type=str, required=True, help="Directory to save generated FASTA files")
-    parser.add_argument("--msa", default=True, action="store_true", help="Treat inputs as aligned MSAs (a3m/a2m)")
+    parser.add_argument("--msa", default=True, action="store_true", help="Treat inputs as aligned MSAs (a3m/a2m)") # this should not be a configurable parameter
     parser.add_argument("--sampler", type=str, default="single", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
-    parser.add_argument("--num_variants", type=int, default=8)
+    parser.add_argument("--num_prompts_in_ensemble", type=int, default=8)
     parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--max_tokens", type=int, default=8192)
     parser.add_argument("--max_generated_length", type=int, default=None)
@@ -197,7 +197,7 @@ def main():
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
-                    num_variants=min(args.num_variants, len(pool.sequences)),
+                    num_prompts_in_ensemble=min(args.num_prompts_in_ensemble, len(pool.sequences)),
                     max_generated_length=max_gen_len,
                     continuous_sampling=args.continuous_sampling,
                 )
