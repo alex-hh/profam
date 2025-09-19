@@ -18,23 +18,6 @@ from src.models.llama import LlamaLitModule
 from src.utils.utils import seed_all
 
 
-def _pick_non_special_token_id(tokenizer) -> int:
-    # Prefer an amino-acid-like token if available
-    for tok in ["A", "L", "G", "S", "T"]:
-        tid = tokenizer.convert_tokens_to_ids(tok)
-        if tid is not None and tid not in getattr(tokenizer, "all_special_ids", []):
-            return int(tid)
-    # Fallback: first non-special id
-    vocab_size = getattr(tokenizer, "vocab_size", None)
-    special = set(getattr(tokenizer, "all_special_ids", []))
-    if vocab_size is None:
-        vocab_size = max([i for i in range(4096)])  # conservative fallback
-    for tid in range(int(vocab_size)):
-        if tid not in special:
-            return int(tid)
-    # As a last resort, return 0
-    return 0
-
 
 def write_fasta(sequences, accessions, fasta_path):
     with open(fasta_path, "w") as f:

@@ -78,6 +78,28 @@ def evaluate_generated_sequences_poet_on_ec_single_sequence():
         df.to_csv(csv_save_path, index=False)
         print(results)
 
+
+def evaluate_generated_sequences_profam_on_ec_single_sequence():
+    all_results = []
+    generated_fasta_pattern = "../sampling_results/profam_ec_single_seq_synthetic_msas/*_generated.fasta"
+    csv_save_path = "../sampling_results/profam_ec_single_seq_synthetic_msas/profam_sequence_only_evaluation_ec_single_sequence.csv"
+    generated_fasta_paths = glob.glob(generated_fasta_pattern)
+    print(f"Found {len(generated_fasta_paths)} generated fasta files")
+    if len(generated_fasta_paths) == 0:
+        raise FileNotFoundError(f"No generated fasta files found for glob: {generated_fasta_pattern}")
+    for generated_fasta in glob.glob(generated_fasta_pattern):
+        ec_num = os.path.basename(generated_fasta).split("_generated")[0]
+        prompt_fasta = f"../data/ec/ec_validation_dataset/alignments/{ec_num}_aln.filtered.fasta"
+        if not os.path.exists(prompt_fasta):
+            print(f"Prompt FASTA not found for {generated_fasta}")
+            continue
+        results = sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=False)
+        all_results.append(results)
+        df = pd.DataFrame(all_results)
+        df.to_csv(csv_save_path, index=False)
+        print(results)
+
+
 def get_pdb_paths_from_fasta_path(fasta_path, gt_pdbs):
     prompt_records = list(SeqIO.parse(fasta_path, "fasta"))
     prompt_ids = [record.id for record in prompt_records]
@@ -120,6 +142,7 @@ if __name__ == "__main__":
     # sequence_only_csv_save_path = "../sampling_results/profam_sequence_only_evaluation.csv",
     # generated_fasta_pattern = "../sampling_results/foldseek_combined_val_test_2025_09_17/*.fasta"
     # evaluate_generated_sequences_poet_on_ec_single_sequence()
+    evaluate_generated_sequences_profam_on_ec_single_sequence()
     sequence_only_csv_save_path = "../sampling_results/foldseek_combined_val_test_2025_09_17/profam_sequence_only_evaluation.csv"
     generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
     generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/*/*.pdb"
