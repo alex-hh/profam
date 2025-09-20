@@ -1,9 +1,15 @@
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import pandas as pd
 import seaborn as sns
 import numpy as np
 from statsmodels.nonparametric.smoothers_lowess import lowess
 import os
+
+# Set Times New Roman as the default font
+mpl.rcParams['font.family'] = 'serif'
+mpl.rcParams['font.serif'] = ['Times New Roman', 'Times', 'DejaVu Serif', 'serif']
+mpl.rcParams['mathtext.fontset'] = 'stix'  # For math text compatibility with Times
 
 colors = {"ProFam": "#1f77b4", "PoET": "#2ca02c", "Random": "#808080"}
 # profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
@@ -29,29 +35,50 @@ def entropy_correlation_density_plots():
     # Load data
     profam_seq_df = pd.read_csv(profam_df_path)
     poet_seq_df = pd.read_csv(poet_df_path)
-
+    if "ec_num" not in poet_seq_df.columns:
+        poet_seq_df['ec_num'] = poet_seq_df['aligned_prompt_path'].apply(lambda x: x.split("/")[-1].split("_samples50")[0])
+    if "ec_num" not in profam_seq_df.columns:
+        profam_seq_df['ec_num'] = profam_seq_df['aligned_prompt_path'].apply(lambda x: x.split("/")[-1].split("_generated")[0])
+    
+    poet_seq_df = poet_seq_df[poet_seq_df.ec_num.isin(profam_seq_df.ec_num)]
+    profam_seq_df = profam_seq_df[profam_seq_df.ec_num.isin(poet_seq_df.ec_num)]
+    print(f"ProFam seq df: {profam_seq_df.shape}")
+    print(f"PoET seq df: {poet_seq_df.shape}")
     # Extract and clean correlation values
     profam_vals = pd.to_numeric(profam_seq_df.get(corr_col), errors="coerce")
     poet_vals = pd.to_numeric(poet_seq_df.get(corr_col), errors="coerce")
     profam_vals = profam_vals[np.isfinite(profam_vals)]
     poet_vals = poet_vals[np.isfinite(poet_vals)]
 
-    # Plot densities
-    plt.figure()
+    # Plot densities with Times New Roman font
+    plt.figure(figsize=(8, 6))
     if len(profam_vals) > 1:
         sns.kdeplot(x=profam_vals, label="ProFam", color=colors["ProFam"], fill=True, common_norm=False, linewidth=2)
     if len(poet_vals) > 1:
         sns.kdeplot(x=poet_vals, label="PoET", color=colors["PoET"], fill=True, common_norm=False, linewidth=2)
-    plt.xlabel("Average per-position entropy correlation family vs. generated")
-    plt.ylabel("Density")
-    plt.title("Position-wise correlation of sequence conservation \nbetween family and generated sequences \nconditioning on a single EC sequence")
+    
+    # Set font properties explicitly for all text elements
+    plt.xlabel("Average per-position entropy correlation family vs. generated", fontfamily='serif', fontsize=12)
+    plt.ylabel("Density", fontfamily='serif', fontsize=12)
+    plt.title("Position-wise correlation of sequence conservation \nbetween family and generated sequences \nconditioning on a single EC sequence", 
+              fontfamily='serif', fontsize=14, pad=20)
     plt.xlim(-1.0, 1.0)
-    plt.legend(frameon=False)
+    
+    # Update legend and tick labels to use Times New Roman
+    legend = plt.legend(frameon=False)
+    for text in legend.get_texts():
+        text.set_fontfamily('serif')
+        text.set_fontsize(12)
+    
+    # Update tick labels
+    plt.xticks(fontfamily='serif', fontsize=10)
+    plt.yticks(fontfamily='serif', fontsize=10)
+    
     plt.tight_layout()
 
-    # Ensure directory exists and save
+    # Ensure directory exists and save with high DPI
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(save_path)
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
 
 def barplot_prop_with_good_tm_score(
