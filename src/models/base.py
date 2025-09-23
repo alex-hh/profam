@@ -988,109 +988,6 @@ class BaseFamilyLitModule(BaseLitModule):
                 out[k] = copy.deepcopy(v)
         return out
 
-    def _generate_context_variants(
-        self,
-        batch: Dict[str, torch.Tensor],
-        sep_tok_id: int,
-        start_tokens: list[int] = [47, 63]
-    ):
-        """Create context-truncated variants (random non-contiguous sampling).
-
-        For each *n* up to the maximum number of sequences that can fit under the
-        `max_tokens`, generate `gym_subsamples_per_n` variants by *randomly*
-        selecting *n* unique sequences **without replacement**.  Sequence order
-        within the prompt is shuffled (randomised).  We attempt several random
-        draws until a set whose combined token count fits under the limit is
-        found; if none is found we fall back to the *contiguous* subset with the
-        smallest token count (still ≤ limit).  This ensures diversity while
-        guaranteeing progress.
-        """
-
-        if batch["input_ids"] is None:
-            raise ValueError("input_ids must be present for context subsampling")
-
-        input_ids = batch["input_ids"]
-        device = input_ids.device
-
-        # Compute start & end token indices for every context sequence
-        seq_ends = (input_ids[0] == sep_tok_id).nonzero(as_tuple=True)[0].cpu()
-        total_seqs = len(seq_ends)
-        seq_starts = torch.zeros_like(seq_ends)
-        seq_starts[1:] = seq_ends[:-1] + 1
-
-        # Pre-compute token lengths for each sequence so we can sum quickly
-        seq_lengths = (seq_ends - seq_starts + 1).tolist()  # python ints
-
-        prefix_token_counts = seq_ends + 1  # inclusive counts (0-based index + 1)
-        max_n_under_limit = int((prefix_token_counts <= self.max_tokens).sum())
-
-        variants = []
-        rng = random.Random()
-        n_forward_search = min(40, max_n_under_limit)
-        n_log_samples = n_forward_search
-        while True:
-            n_vals = [int(s) for s in np.logspace(0, np.log10(max_n_under_limit), n_log_samples)] + [max_n_under_limit + 1]
-            n_vals = list(set(n_vals))
-            if len(n_vals) >= n_forward_search:
-                break
-            n_log_samples += 1
-        n_vals.sort()
-        for n in n_vals:
-            for rep in range(self.gym_subsamples_per_n):
-                # Random permutation of all sequence indices
-                perm = list(range(total_seqs))
-                rng.shuffle(perm)
-
-                chosen_seq_idxs = []
-                slices = []
-                token_count = 0
-
-                # Greedily add sequences in shuffled order until we hit n or limit
-                for idx in perm:
-                    length = seq_lengths[idx]
-                    if len(chosen_seq_idxs) == n:
-                        break
-                    if token_count + length > self.max_tokens:
-                        break
-                    chosen_seq_idxs.append(idx)
-                    start_tok = seq_starts[idx].item()
-                    end_tok = seq_ends[idx].item()
-                    slices.append((start_tok, end_tok))
-                    token_count += length
-
-                if len(chosen_seq_idxs) == 0:
-                    # If even the shortest sequence exceeds the limit (extremely unlikely), skip variant
-                    continue
-
-                # Construct variant prompt
-                var_batch = self._clone_batch(batch)
-
-                def _concat_slices(tensor):
-                    parts = [tensor[..., s : e + 1] for s, e in slices]
-                    return torch.cat(parts, dim=-1)
-
-                var_batch["input_ids"] = _concat_slices(var_batch["input_ids"]).clone()
-                # remove final sep and add start tokens
-                var_batch["input_ids"] = torch.cat([torch.tensor(start_tokens, device=var_batch["input_ids"].device).unsqueeze(0), var_batch["input_ids"]], dim=-1)
-                if var_batch["input_ids"][0, -1] == self.tokenizer.sep_token_id:
-                    var_batch["input_ids"] = var_batch["input_ids"][:, :-1]
-                if "residue_index" in var_batch and var_batch["residue_index"] is not None:
-                    var_batch["residue_index"] = _concat_slices(var_batch["residue_index"]).clone()
-
-                variants.append(
-                    (
-                        var_batch,
-                        {
-                            "variant_type": "random_greedy",
-                            "target_n": n,
-                            "n_seqs": len(chosen_seq_idxs),
-                            "n_tokens": token_count,
-                            "replicate": rep,
-                            "seq_indices": chosen_seq_idxs,
-                        },
-                    )
-                )
-        return variants
 
     @staticmethod
     def _compute_spearman(lls: np.ndarray, dms_scores: np.ndarray):
@@ -1160,9 +1057,7 @@ class BaseFamilyLitModule(BaseLitModule):
             warnings.warn(f"Failed to create scatter plot: {e}")
 
 
-    # ------------------------------------------------------------------
-    # Shared helpers for ProteinGym variant evaluation (used by v3/v4/v5)
-    # ------------------------------------------------------------------
+
     @staticmethod
     def _calculate_entropy_per_prompt(lls_array: np.ndarray) -> np.ndarray:
         exp_log = np.exp(lls_array)
@@ -1389,18 +1284,6 @@ class BaseFamilyLitModule(BaseLitModule):
             )
 
         return ensemble_log_ll, ensemble_spearman
-
-    @staticmethod
-    def _distance_to_band(
-        ll_val: float,
-        min_target_likelihood: float,
-        max_target_likelihood: float,
-    ) -> float:
-        if min_target_likelihood <= ll_val <= max_target_likelihood:
-            return 0.0
-        if ll_val < min_target_likelihood:
-            return min_target_likelihood - ll_val
-        return ll_val - max_target_likelihood
 
 
     def get_sequence_weights(

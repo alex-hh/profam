@@ -92,9 +92,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             gym_subsamples_per_n=gym_subsamples_per_n,
         )
 
-        # Dynamically inject focal loss if requested.
         if use_focal_loss:
-            # Ensure a sensible default if the YAML passes null.
             gamma = focal_gamma if focal_gamma is not None else 2.0
 
             ignore_index = self.ignore_index  # from BaseLitModule
@@ -152,7 +150,6 @@ class LlamaLitModule(BaseFamilyLitModule):
         # Log-likelihood threshold loss (optional)
         # ------------------------------------------------------------------
         if use_ll_threshold_loss:
-            # Ensure we don't apply two custom losses at once.
             if use_focal_loss:
                 raise ValueError("Cannot enable both focal loss and ll_threshold loss simultaneously.")
 
