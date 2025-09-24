@@ -1735,7 +1735,7 @@ class BaseFamilyLitModule(BaseLitModule):
             max_n_by_tokens = max(0, min(int(max_context_tokens // assumed_seq_len) + 2, total_seqs)) if avg_seq_len > 0 else 0
             # find range of n_opt values that are in the target likelihood range:
             lower_bound = max_n_by_tokens // 2
-            upper_bound = min(upper_bound, total_seqs)
+            upper_bound = min(max_n_by_tokens, total_seqs)
             vals_in_range = np.arange(lower_bound, upper_bound + 1)
             n_opt = int(random.choice(vals_in_range))
 
