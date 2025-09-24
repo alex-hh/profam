@@ -517,7 +517,7 @@ class BaseFamilyLitModule(BaseLitModule):
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
         max_tokens: int = 8192,
-        gym_subsamples_per_n: int = 100,
+        gym_subsamples_per_n: int = 5,
         gym_results_save_dir = "proteingym_variants"
     ):
         super().__init__(
