@@ -263,17 +263,18 @@ data:
       name: proteingym
       dms_ids: ${constants.gym_val_assay_list}
       seed: 42
-      max_mutated_sequences: null
       mutant_bos_token: sep
       keep_gaps: false
-      use_filtered_msa: true
+      use_filtered_msa: false
       extra_tokens_per_document: 2
+      max_mutated_sequences: 1000
       use_msa_pos: false
       num_proc: null
-      max_tokens_per_example: 7500
+      max_tokens_per_example: 1_000_000_000
       max_context_seqs: null
       keep_wt: false
       drop_wt: true
+      msa_folder_name: "PoET_DMS_msa_files/DMS_substitutions"
     foldseek_s50_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: foldseek_s50_train
