@@ -1445,7 +1445,8 @@ class BaseFamilyLitModule(BaseLitModule):
         Also permits use of weighting.
         """
         random.seed(42)
-        rng = random.Random()
+        rng = random.Random(42)
+        rng_np = np.random.default_rng(42)
         optimal_likelihood = min_target_likelihood + (max_target_likelihood - min_target_likelihood) / 2
         dms_id = batch["DMS_id"].text[0]
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
@@ -1504,8 +1505,10 @@ class BaseFamilyLitModule(BaseLitModule):
                 lower_bound = max(0, min(best_by_distance))
                 upper_bound = min(max(best_by_distance), max_n_by_tokens + 1)
             upper_bound = min(upper_bound, total_seqs)
-            vals_in_range = np.arange(lower_bound, upper_bound + 1)
-            n_opt = int(random.choice(vals_in_range))
+            vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
+            if len(vals_in_range) == 0:
+                vals_in_range = [0]
+            n_opt = int(rng.choice(vals_in_range))
 
             # compute likelihoods for each n_opt value in the range:
             spearman_list = []
@@ -1543,7 +1546,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 while True:
                     if n_opt == 0 and 0 in n_seqs_list:
                         n_opt = int(random.choice(vals_in_range))
-                    idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
+                    idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
                     # Downweight the probability of re-sampling chosen indices and renormalise
                     weights[idxs] *= resample_downweighter
                     w_sum = weights.sum()
@@ -1631,7 +1634,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 
                 variant_lls.append(lls)
                 spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
-                n_opt = random.choice(vals_in_range)
+                n_opt = rng.choice(vals_in_range)
 
 
             # Stack and persist
@@ -1712,7 +1715,8 @@ class BaseFamilyLitModule(BaseLitModule):
         and restrict minimal n_opt
         """
         random.seed(42)
-        rng = random.Random()
+        rng = random.Random(42)
+        rng_np = np.random.default_rng(42)
         dms_id = batch["DMS_id"].text[0]
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
         if self.gym_results_save_dir is not None:
@@ -1736,8 +1740,10 @@ class BaseFamilyLitModule(BaseLitModule):
             # find range of n_opt values that are in the target likelihood range:
             lower_bound = max_n_by_tokens // 2
             upper_bound = min(max_n_by_tokens, total_seqs)
-            vals_in_range = np.arange(lower_bound, upper_bound + 1)
-            n_opt = int(random.choice(vals_in_range))
+            vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
+            if len(vals_in_range) == 0:
+                vals_in_range = [0]
+            n_opt = int(rng.choice(vals_in_range))
 
             # compute likelihoods for each n_opt value in the range:
             spearman_list = []
@@ -1775,7 +1781,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 while True:
                     if n_opt == 0 and 0 in n_seqs_list:
                         n_opt = int(random.choice(vals_in_range))
-                    idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
+                    idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
                     # Downweight the probability of re-sampling chosen indices and renormalise
                     weights[idxs] *= resample_downweighter
                     w_sum = weights.sum()
@@ -1863,7 +1869,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 
                 variant_lls.append(lls)
                 spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
-                n_opt = random.choice(vals_in_range)
+                n_opt = rng.choice(vals_in_range)
 
 
             # Stack and persist
