@@ -3,7 +3,12 @@
 # ---------------------------------------------------------------
 # This is a copy of the https://wandb.ai/profam/profam/runs/abyoeovl run
 # ---------------------------------------------------------------
-
+defaults:
+  - override /data: null          # we supply a custom data config below
+  - override /model: null
+  - override /trainer: null
+  - override /logger: null
+  - _self_
 task_name: train
 experiment_group: openfold_fs50_ur90_memmap
 tags:
