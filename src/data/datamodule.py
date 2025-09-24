@@ -10,7 +10,6 @@ from torch.utils.data import BatchSampler, DataLoader, Dataset
 from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.builders import (
     BaseProteinDataset,
-    IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
     ProteinFamilyMemmapDataset,
     ProteinFamilyMemmapDatasetBuilder,
@@ -294,19 +293,6 @@ class ProteinDataMixture(LightningDataModule):
                     feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
                     pack_to_max_tokens=self.pack_to_max_tokens,
                 )
-                if world_size > 1:
-                    if isinstance(dataset, IterableHFProteinDataset):
-                        # https://github.com/huggingface/datasets/issues/6623
-                        assert (
-                            dataset.n_shards % world_size == 0
-                            and dataset.n_shards % 8 == 0
-                        )
-                        dataset = split_dataset_by_node(
-                            dataset,
-                            rank=self.trainer.global_rank,
-                            world_size=world_size,
-                        )
-                        dataset = dataset.with_format("numpy")
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(
