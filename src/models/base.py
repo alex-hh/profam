@@ -132,9 +132,12 @@ class BaseLitModule(LightningModule):
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.gym_results_save_dir = os.path.join(gym_results_save_dir, self.timestamp)
-        os.makedirs(self.gym_results_save_dir, exist_ok=True)
-        print("proteinGym results saved in", self.gym_results_save_dir)
+        if gym_results_save_dir is not None:
+            self.gym_results_save_dir = os.path.join(gym_results_save_dir, self.timestamp)
+            os.makedirs(self.gym_results_save_dir, exist_ok=True)
+            print("proteinGym results saved in", self.gym_results_save_dir)
+        else:
+            self.gym_results_save_dir = None
 
 
     def configure_optimizers(self) -> Dict[str, Any]:
@@ -470,7 +473,6 @@ class BaseLitModule(LightningModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
-        print("Entering validation step")
         if "DMS_scores" in batch:
             print("validation step:", batch["DMS_id"].text[0])
             outputs = self.validation_step_proteingym(batch)
@@ -554,8 +556,8 @@ class BaseFamilyLitModule(BaseLitModule):
         embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
         max_tokens: int = 8192,
-        gym_subsamples_per_n: int = 100,
-        gym_results_save_dir = "proteingym_variants"
+        gym_subsamples_per_n: int = 5,
+        gym_results_save_dir = None,
     ):
         super().__init__(
             model,
@@ -1277,34 +1279,33 @@ class BaseFamilyLitModule(BaseLitModule):
         ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
         ensemble_log_ll = float(lls_array.mean())
 
-        # Rank-based diagnostics
-        if getattr(self, "global_rank", 0) == 0:
-            sorted_indices_ll = np.argsort(-mean_per_forward_pass)
-            sorted_indices_entropy = np.argsort(entropy_per_prompt)
-            for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
-                top_k = max(1, int(top_pct * len(sorted_indices_ll)))
-                top_k_ll_mean_ll = lls_array[sorted_indices_ll[:top_k]].mean(axis=0)
-                top_k_entropy_mean_ll = lls_array[sorted_indices_entropy[:top_k]].mean(axis=0)
-                top_k_ll_spearman = self._compute_spearman(top_k_ll_mean_ll, dms_scores_np)
-                top_k_entropy_spearman = self._compute_spearman(top_k_entropy_mean_ll, dms_scores_np)
-                self.log(
-                    f"gym/top_{top_pct}_ll_spearman",
-                    top_k_ll_spearman,
-                    on_step=True,
-                    on_epoch=True,
-                    prog_bar=False,
-                    sync_dist=True,
-                    batch_size=1,
-                )
-                self.log(
-                    f"gym/bottom_{top_pct}_entropy_spearman",
-                    top_k_entropy_spearman,
-                    on_step=True,
-                    on_epoch=True,
-                    prog_bar=False,
-                    sync_dist=True,
-                    batch_size=1,
-                )
+        
+        sorted_indices_ll = np.argsort(-mean_per_forward_pass)
+        sorted_indices_entropy = np.argsort(entropy_per_prompt)
+        for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+            top_k = max(1, int(top_pct * len(sorted_indices_ll)))
+            top_k_ll_mean_ll = lls_array[sorted_indices_ll[:top_k]].mean(axis=0)
+            top_k_entropy_mean_ll = lls_array[sorted_indices_entropy[:top_k]].mean(axis=0)
+            top_k_ll_spearman = self._compute_spearman(top_k_ll_mean_ll, dms_scores_np)
+            top_k_entropy_spearman = self._compute_spearman(top_k_entropy_mean_ll, dms_scores_np)
+            self.log(
+                f"gym/top_{top_pct}_ll_spearman",
+                top_k_ll_spearman,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+                batch_size=1,
+            )
+            self.log(
+                f"gym/bottom_{top_pct}_entropy_spearman",
+                top_k_entropy_spearman,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+                batch_size=1,
+            )
 
         # Mean Spearman across variants
         per_variant_spearman = [self._compute_spearman(lls_array[i], dms_scores_np) for i in range(lls_array.shape[0])]
@@ -1312,44 +1313,45 @@ class BaseFamilyLitModule(BaseLitModule):
 
         # Save artefacts (CSV, NPZ, scatter)
         if getattr(self, "global_rank", 0) == 0:
-            csv_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}.csv")
-            lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}_lls.npz")
-            if rows is not None and len(rows) > 0:
+            if self.gym_results_save_dir is not None:
+                csv_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}.csv")
+                lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}_lls.npz")
+                if rows is not None and len(rows) > 0:
+                    try:
+                        pd.DataFrame(rows).to_csv(csv_path, index=False)
+                    except Exception as e:
+                        warnings.warn(f"Could not save CSV to {csv_path}: {e}")
+                payload = {
+                    "lls": lls_array.astype(np.float32),
+                    "n_prompt_seqs": np.asarray(n_seqs_list, dtype=np.int32),
+                    "entropy_per_prompt": entropy_per_prompt.astype(np.float32),
+                    "dms_scores": dms_scores_np.astype(np.float32),
+                }
+                if extra_npz_payload is not None:
+                    for k, v in extra_npz_payload.items():
+                        payload[k] = np.asarray(v)
                 try:
-                    pd.DataFrame(rows).to_csv(csv_path, index=False)
+                    np.savez_compressed(lls_npz_path, **payload)
                 except Exception as e:
-                    warnings.warn(f"Could not save CSV to {csv_path}: {e}")
-            payload = {
-                "lls": lls_array.astype(np.float32),
-                "n_prompt_seqs": np.asarray(n_seqs_list, dtype=np.int32),
-                "entropy_per_prompt": entropy_per_prompt.astype(np.float32),
-                "dms_scores": dms_scores_np.astype(np.float32),
-            }
-            if extra_npz_payload is not None:
-                for k, v in extra_npz_payload.items():
-                    payload[k] = np.asarray(v)
-            try:
-                np.savez_compressed(lls_npz_path, **payload)
-            except Exception as e:
-                warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
-            if variant_lls is not None:
-                try:
-                    self._save_variant_scatter_plot(n_seqs_list, variant_lls, dms_id)
-                except Exception as e:
-                    warnings.warn(f"Failed to save scatter plot for {dms_id}: {e}")
+                    warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
+                if variant_lls is not None and self.gym_results_save_dir is not None:
+                    try:
+                        self._save_variant_scatter_plot(n_seqs_list, variant_lls, dms_id)
+                    except Exception as e:
+                        warnings.warn(f"Failed to save scatter plot for {dms_id}: {e}")
 
-            # Final summary logs with versioned keys
-            self.log(f"gym/mean_spearman_{file_suffix}", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-            self.log(f"gym/ensemble_spearman_{file_suffix}", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-            self.log(f"gym/ensemble_log_ll_{file_suffix}", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-            self.log(
-                "gym/entropy_and_ll_spearman_correlation",
-                self._compute_spearman(mean_per_forward_pass, entropy_per_prompt),
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
+        # Final summary logs with versioned keys
+        self.log(f"gym/mean_spearman_{file_suffix}", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log(f"gym/ensemble_spearman_{file_suffix}", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log(f"gym/ensemble_log_ll_{file_suffix}", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log(
+            "gym/entropy_and_ll_spearman_correlation",
+            self._compute_spearman(mean_per_forward_pass, entropy_per_prompt),
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
 
         return ensemble_log_ll, ensemble_spearman
 
@@ -1509,13 +1511,16 @@ class BaseFamilyLitModule(BaseLitModule):
         Also permits use of weighting.
         """
         random.seed(42)
-        rng = random.Random()
+        rng = random.Random(42)
+        rng_np = np.random.default_rng(42)
         optimal_likelihood = min_target_likelihood + (max_target_likelihood - min_target_likelihood) / 2
         dms_id = batch["DMS_id"].text[0]
-        lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v9_lls.npz")
         dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
-
-        if os.path.exists(lls_npz_path):
+        if self.gym_results_save_dir is not None:
+            lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v9_lls.npz")
+        else:
+            lls_npz_path = None
+        if lls_npz_path is not None and os.path.exists(lls_npz_path):
             print(f"Loading from {lls_npz_path}")
             data = np.load(lls_npz_path)
             lls_array = data["lls"]
@@ -1566,8 +1571,10 @@ class BaseFamilyLitModule(BaseLitModule):
                 lower_bound = max(0, min(best_by_distance))
                 upper_bound = min(max(best_by_distance), max_n_by_tokens + 1)
             upper_bound = min(upper_bound, total_seqs)
-            vals_in_range = np.arange(lower_bound, upper_bound + 1)
-            n_opt = int(random.choice(vals_in_range))
+            vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
+            if len(vals_in_range) == 0:
+                vals_in_range = [0]
+            n_opt = int(rng.choice(vals_in_range))
 
             # compute likelihoods for each n_opt value in the range:
             spearman_list = []
@@ -1605,7 +1612,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 while True:
                     if n_opt == 0 and 0 in n_seqs_list:
                         n_opt = int(random.choice(vals_in_range))
-                    idxs = np.random.choice(range(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
+                    idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
                     # Downweight the probability of re-sampling chosen indices and renormalise
                     weights[idxs] *= resample_downweighter
                     w_sum = weights.sum()
@@ -1693,7 +1700,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 
                 variant_lls.append(lls)
                 spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
-                n_opt = random.choice(vals_in_range)
+                n_opt = rng.choice(vals_in_range)
 
 
             # Stack and persist
@@ -1712,21 +1719,22 @@ class BaseFamilyLitModule(BaseLitModule):
                     "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
                 }
                 payload_entropy = self._calculate_entropy_per_prompt(lls_array)
-                try:
-                    np.savez_compressed(
-                        lls_npz_path,
-                        lls=lls_array.astype(np.float32),
-                        n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
-                        entropy_per_prompt=payload_entropy.astype(np.float32),
-                        dms_scores=dms_scores_np.astype(np.float32),
-                        **extra_payload,
-                    )
-                except Exception as e:
-                    warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
+                if self.gym_results_save_dir is not None:
+                    try:
+                        np.savez_compressed(
+                            lls_npz_path,
+                            lls=lls_array.astype(np.float32),
+                            n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
+                            entropy_per_prompt=payload_entropy.astype(np.float32),
+                            dms_scores=dms_scores_np.astype(np.float32),
+                            **extra_payload,
+                        )
+                    except Exception as e:
+                        warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
 
         # Centralised logging and returns
         # If we loaded from disk, we have no rows/variant_lls to plot — pass None
-        if os.path.exists(lls_npz_path) and 'variant_lls' not in locals():
+        if lls_npz_path is not None and os.path.exists(lls_npz_path) and 'variant_lls' not in locals():
             return self._log_and_save_variant_results(
                 dms_id=dms_id,
                 lls_array=lls_array,
@@ -1759,6 +1767,242 @@ class BaseFamilyLitModule(BaseLitModule):
                 rows=None,
                 extra_npz_payload=extra_payload,
             )
+    def _evaluate_and_save_variants_v10(
+        self,
+        batch: Dict[str, torch.Tensor],
+        start_tokens: list[int] = [47, 63],
+        coverage_multiplier: float = 0.5,
+        seq_sim_multiplier: float = 0.0,
+        precomputed_multiplier: float = 1.0,
+        resample_downweighter: float = 0.6
+    ):
+        """
+        re-implementation of v9 to remove the log forward search
+        and restrict minimal n_opt
+        """
+        random.seed(42)
+        rng = random.Random(42)
+        rng_np = np.random.default_rng(42)
+        dms_id = batch["DMS_id"].text[0]
+        dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
+        if self.gym_results_save_dir is not None:
+            lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v10_lls.npz")
+        else:
+            lls_npz_path = None
+
+        if lls_npz_path is not None and os.path.exists(lls_npz_path):
+            print(f"Loading from {lls_npz_path}")
+            data = np.load(lls_npz_path)
+            lls_array = data["lls"]
+        else:
+            seq_starts, seq_ends, seq_lengths, total_seqs, completion_length = self._prepare_prompt_and_stats(
+                batch, start_tokens
+            )
+            max_context_tokens = (self.max_tokens - completion_length) - 5
+            avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
+            min_seq_len = min(seq_lengths)
+            assumed_seq_len = (min_seq_len + avg_seq_len) / 2
+            max_n_by_tokens = max(0, min(int(max_context_tokens // assumed_seq_len) + 2, total_seqs)) if avg_seq_len > 0 else 0
+            # find range of n_opt values that are in the target likelihood range:
+            lower_bound = max_n_by_tokens // 2
+            upper_bound = min(max_n_by_tokens, total_seqs)
+            vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
+            if len(vals_in_range) == 0:
+                vals_in_range = [0]
+            n_opt = int(rng.choice(vals_in_range))
+
+            # compute likelihoods for each n_opt value in the range:
+            spearman_list = []
+            variant_lls: List[np.ndarray] = []
+            n_seqs_list = []
+            tok_cnt_list: List[int] = []
+            min_cov_list: List[float] = []
+            # Additional metrics to mirror v5
+            min_length_ratio_list: List[float] = []
+            min_sequence_similarity_list: List[float] = []
+            mean_sequence_similarity_list: List[float] = []
+            max_sequence_similarity_list: List[float] = []
+            min_coverage_list: List[float] = []
+            mean_coverage_list: List[float] = []
+            max_coverage_list: List[float] = []
+            
+            token_count_attempts = 100
+            if completion_length + 2 > self.max_tokens:
+                n_opt = 0
+                repeats = 1
+            else:
+                repeats = min(self.gym_subsamples_per_n, total_seqs)
+            weights = self.get_sequence_weights(
+                batch, 
+                precomputed_sequence_weights=batch.get('sequence_weights', None), 
+                coverage_multiplier=coverage_multiplier,
+                seq_sim_multiplier=seq_sim_multiplier,
+                precomputed_multiplier=precomputed_multiplier,
+                target_seq_sim=0.5,
+                top_p_mass_target=0.6,
+                top_p=0.4
+            )
+            for rep in range(repeats):
+                print(f"processing rep {rep} of {repeats} on device rank {getattr(self, 'global_rank', 'Unknown')}")
+                fail_count = 0
+                while True:
+                    if n_opt == 0 and 0 in n_seqs_list:
+                        n_opt = int(random.choice(vals_in_range))
+                    idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
+                    # Downweight the probability of re-sampling chosen indices and renormalise
+                    weights[idxs] *= resample_downweighter
+                    w_sum = weights.sum()
+                    if w_sum > 0:
+                        weights /= w_sum
+                    else:
+                        weights[:] = 1.0 / len(weights)
+                    rng.shuffle(idxs)
+                    tok_cnt = sum(seq_lengths[i] for i in idxs)
+                    if tok_cnt + completion_length <= self.max_tokens:
+                        fail_count = 0
+                        break
+                    else:
+                        fail_count += 1
+                        if fail_count > token_count_attempts:
+                            n_opt = max(0, n_opt - 1)
+                            fail_count = 0
+                
+                if n_opt == 0:
+                    # No context sequences selected; use empty prompt
+                    idxs = []
+                    tok_cnt = 0
+                    shortest_seq_len = 0
+                    var_batch = self._clone_batch(batch)
+                    var_batch["input_ids"] = None
+                    var_batch["residue_index"] = None
+                    min_completion_coverage = 0
+                    min_length_ratio = 0
+                    min_sequence_similarity = 0
+                    mean_sequence_similarity = 0
+                    max_sequence_similarity = 0
+                    min_coverage = 0
+                    mean_coverage = 0
+                    max_coverage = 0
+                else:
+                    shortest_seq_len = min(seq_lengths[i] for i in idxs)
+                    var_batch = self._make_truncated_batch_from_indices(
+                        batch, idxs, seq_starts, seq_ends, start_tokens, include_optional_meta=True
+                    )
+                    min_completion_coverage = shortest_seq_len / batch["completion_ids"].shape[-1] if batch["completion_ids"].shape[-1] > 0 else 0
+                    # Additional metrics consistent with v5
+                    min_length_ratio = min_completion_coverage
+                    seq_sims = var_batch.get("sequence_similarities", None)
+                    covs = var_batch.get("coverages", None)
+                    if seq_sims is not None:
+                        min_sequence_similarity = seq_sims.min().item()
+                        mean_sequence_similarity = seq_sims.mean().item()
+                        max_sequence_similarity = seq_sims.max().item()
+                    else:
+                        min_sequence_similarity = 0
+                        mean_sequence_similarity = 0
+                        max_sequence_similarity = 0
+                    if covs is not None:
+                        min_coverage = covs.min().item()
+                        mean_coverage = covs.mean().item()
+                        max_coverage = covs.max().item()
+                    else:
+                        min_coverage = 0
+                        mean_coverage = 0
+                        max_coverage = 0
+                n_seqs_list.append(n_opt)
+                tok_cnt_list.append(tok_cnt)
+                min_cov_list.append(min_completion_coverage)
+                # Track additional lists for NPZ logging
+                min_length_ratio_list.append(min_length_ratio)
+                min_sequence_similarity_list.append(min_sequence_similarity)
+                mean_sequence_similarity_list.append(mean_sequence_similarity)
+                max_sequence_similarity_list.append(max_sequence_similarity)
+                min_coverage_list.append(min_coverage)
+                mean_coverage_list.append(mean_coverage)
+                max_coverage_list.append(max_coverage)
+                var_batch_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()}
+                L = var_batch_device["completion_ids"].shape[-1]
+                L_prompt = 0 if var_batch_device["input_ids"] is None else var_batch_device["input_ids"].shape[-1]
+                lls = self.score_seqs(
+                    var_batch_device["input_ids"],
+                    var_batch_device["completion_ids"],
+                    input_residue_index=var_batch_device.get("residue_index", None),
+                    completion_residue_index=var_batch_device.get("completion_residue_index", None),
+                    use_cache=self.use_kv_cache_for_scoring,
+                    batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
+                    if self.use_kv_cache_for_scoring
+                    else 1,
+                )
+                
+                variant_lls.append(lls)
+                spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
+                n_opt = rng.choice(vals_in_range)
+
+
+            # Stack and persist
+            lls_array = np.stack(variant_lls, axis=0)
+            # Persist NPZ here for re-use on subsequent runs
+            if getattr(self, "global_rank", 0) == 0:
+                extra_payload = {
+                    "tok_cnt_list": tok_cnt_list,
+                    "min_cov_list": min_cov_list,
+                    "min_length_ratio_list": np.asarray(min_length_ratio_list, dtype=np.float32),
+                    "min_sequence_similarity_list": np.asarray(min_sequence_similarity_list, dtype=np.float32),
+                    "mean_sequence_similarity_list": np.asarray(mean_sequence_similarity_list, dtype=np.float32),
+                    "max_sequence_similarity_list": np.asarray(max_sequence_similarity_list, dtype=np.float32),
+                    "min_coverage_list": np.asarray(min_coverage_list, dtype=np.float32),
+                    "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
+                    "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
+                }
+                payload_entropy = self._calculate_entropy_per_prompt(lls_array)
+                if self.gym_results_save_dir is not None:
+                    try:
+                        np.savez_compressed(
+                            lls_npz_path,
+                            lls=lls_array.astype(np.float32),
+                            n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
+                            entropy_per_prompt=payload_entropy.astype(np.float32),
+                            dms_scores=dms_scores_np.astype(np.float32),
+                            **extra_payload,
+                        )
+                    except Exception as e:
+                        warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
+
+        # Centralised logging and returns
+        # If we loaded from disk, we have no rows/variant_lls to plot — pass None
+        if lls_npz_path is not None and os.path.exists(lls_npz_path) and 'variant_lls' not in locals():
+            return self._log_and_save_variant_results(
+                dms_id=dms_id,
+                lls_array=lls_array,
+                dms_scores_np=dms_scores_np,
+                n_seqs_list=[],
+                variant_lls=None,
+                file_suffix="v10",
+                rows=None,
+                extra_npz_payload=None,
+            )
+        else:
+            extra_payload = {
+                "tok_cnt_list": tok_cnt_list,
+                "min_cov_list": min_cov_list,
+                "min_length_ratio_list": min_length_ratio_list,
+                "min_sequence_similarity_list": min_sequence_similarity_list,
+                "mean_sequence_similarity_list": mean_sequence_similarity_list,
+                "max_sequence_similarity_list": max_sequence_similarity_list,
+                "min_coverage_list": min_coverage_list,
+                "mean_coverage_list": mean_coverage_list,
+                "max_coverage_list": max_coverage_list,
+            }
+            return self._log_and_save_variant_results(
+                dms_id=dms_id,
+                lls_array=lls_array,
+                dms_scores_np=dms_scores_np,
+                n_seqs_list=n_seqs_list,
+                variant_lls=variant_lls,
+                file_suffix="v10",
+                rows=None,
+                extra_npz_payload=extra_payload,
+            )
 
     def validation_step_proteingym(
         self,
@@ -1769,7 +2013,7 @@ class BaseFamilyLitModule(BaseLitModule):
         if batch_idx is None:
             batch_idx = -1  # fallback when Lightning doesn't supply the index
 
-        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v9(
+        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v10(
             batch
         )
 

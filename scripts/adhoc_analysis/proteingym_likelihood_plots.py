@@ -2,9 +2,27 @@ import os
 import glob
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 import numpy as np
-from scipy.interpolate import UnivariateSpline, LSQUnivariateSpline
 from scipy.stats import spearmanr
+from statsmodels.nonparametric.smoothers_lowess import lowess
+from itertools import cycle, islice
+
+# Configure global font to Times New Roman or similar serif fallback
+rcParams['font.family'] = 'serif'
+rcParams['font.serif'] = [
+    'Times New Roman',
+    'Times',
+    'Nimbus Roman',
+    'TeX Gyre Termes',
+    'DejaVu Serif',
+    'Computer Modern Roman',
+]
+# Use STIX for math text to match Times-like appearance
+rcParams['mathtext.fontset'] = 'stix'
+# Ensure text is embedded as TrueType for vector exports
+rcParams['pdf.fonttype'] = 42
+rcParams['ps.fonttype'] = 42
 
 def get_top_k_spearman_vals(lls, k, dms_scores):
     lls_mean = lls.mean(axis=0)
@@ -24,6 +42,8 @@ np.random.seed(42)
 csv_files = np.random.choice(csv_files, size=50, replace=False)
 # Generate a distinct color for each CSV using a continuous colormap
 colors = plt.cm.rainbow(np.linspace(0, 1, len(csv_files)))
+marker_choices = ['o','s','^','D','v','p','*','h','8','<','>','P','X']
+markers = list(islice(cycle(marker_choices), len(csv_files)))
 
 # Containers to reuse data in the subplot section
 all_likelihood_vals = []  # list of np.ndarray
@@ -86,7 +106,7 @@ for i, csv_file in enumerate(csv_files):
         spearman_norm = np.zeros_like(spearman_vals)
 
     # Scatter plot for this CSV (no legend, semi-transparent points)
-    plt.scatter(likelihood_vals, spearman_norm, color=colors[i], alpha=0.3, s=10)
+    plt.scatter(likelihood_vals, spearman_norm, color=colors[i], alpha=0.3, s=10, marker=markers[i])
 
     # Collect arrays for later subplot visualization
     all_likelihood_vals.append(likelihood_vals)
@@ -132,33 +152,21 @@ combined_y = np.concatenate(all_spearman_norm_vals)
 sort_idx_global = np.argsort(combined_x)
 xs_g, ys_g = combined_x[sort_idx_global], combined_y[sort_idx_global]
 
-# Determine internal knots (reuse logic from subplots)
-unique_x_g = np.unique(xs_g)
-internal_knots_g = []
-if len(unique_x_g) > 15:
-    internal_knots_g = np.quantile(unique_x_g, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-elif len(unique_x_g) > 7:
-    internal_knots_g = [np.median(unique_x_g)]
-
 try:
-    if len(internal_knots_g) > 0:
-        global_spline = LSQUnivariateSpline(xs_g, ys_g, t=internal_knots_g, k=2)
-    else:
-        global_spline = UnivariateSpline(xs_g, ys_g, k=3, s=0)
-
-    x_global_smooth = np.linspace(xs_g.min(), xs_g.max(), 400)
-    y_global_smooth = global_spline(x_global_smooth)
-    plt.plot(x_global_smooth, y_global_smooth, color="black", linewidth=2)
+    sm_g = lowess(ys_g, xs_g, frac=0.6, return_sorted=True)
+    plt.plot(sm_g[:, 0], sm_g[:, 1], color="black", linewidth=2)
 except Exception as e:
-    print(f"Global spline fitting failed: {e}")
+    print(f"Global LOWESS fitting failed: {e}")
 
 # Final plot aesthetics
-plt.xlabel("Mean log likelihood")
-plt.ylabel("Normalised spearman")
+plt.xlabel("Mean log likelihood of variants")
+plt.ylabel("Normalised Spearman Correlation")
 plt.title("Spearman vs Likelihood across CSVs")
 plt.grid(True, alpha=0.2)
 plt.tight_layout()
-plt.savefig(f"{csv_dir}/spearman_vs_likelihood.png")
+save_path = f"{csv_dir}/normalised_spearman_vs_likelihood.png"
+plt.savefig(save_path)
+print(f"Saved plot to {save_path}")
 plt.show()
 
 # -----------------------------------------------------------------------------
@@ -169,33 +177,20 @@ plt.figure(figsize=(8, 6))
 
 # Scatter points for each CSV
 for i in range(len(csv_files)):
-    plt.scatter(all_n_prompt_vals[i], all_spearman_norm_vals[i], color=colors[i], alpha=0.3, s=10)
+    plt.scatter(all_n_prompt_vals[i], all_spearman_norm_vals[i], color=colors[i], alpha=0.3, s=10, marker=markers[i])
 
-# Fit global spline across all points (limited knots)
+# Fit global LOWESS across all points
 combined_x_np = np.concatenate(all_n_prompt_vals)
 combined_y_np = np.concatenate(all_spearman_norm_vals)
 
 sort_idx_np = np.argsort(combined_x_np)
 xs_np, ys_np = combined_x_np[sort_idx_np], combined_y_np[sort_idx_np]
 
-unique_x_np = np.unique(xs_np)
-internal_knots_np = []
-if len(unique_x_np) > 15:
-    internal_knots_np = np.quantile(unique_x_np, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-elif len(unique_x_np) > 7:
-    internal_knots_np = [np.median(unique_x_np)]
-
 try:
-    if len(internal_knots_np) > 0:
-        spline_np = LSQUnivariateSpline(xs_np, ys_np, t=internal_knots_np, k=2)
-    else:
-        spline_np = UnivariateSpline(xs_np, ys_np, k=3, s=0)
-
-    x_np_smooth = np.linspace(xs_np.min(), xs_np.max(), 400)
-    y_np_smooth = spline_np(x_np_smooth)
-    plt.plot(x_np_smooth, y_np_smooth, color="black", linewidth=2)
+    sm_np = lowess(ys_np, xs_np, frac=0.6, return_sorted=True)
+    plt.plot(sm_np[:, 0], sm_np[:, 1], color="black", linewidth=2)
 except Exception as e:
-    print(f"Global n_prompt spline fitting failed: {e}")
+    print(f"Global n_prompt LOWESS fitting failed: {e}")
 
 plt.xlabel("n_prompt_seqs")
 plt.ylabel("Normalised spearman")
@@ -236,46 +231,26 @@ for i in range(n_rows * n_cols):
 
     ax = axes_flat[i]
     # Scatter points in purple
-    ax.scatter(x, y, color="purple", alpha=0.3, s=10)
+    ax.scatter(x, y, color="purple", alpha=0.3, s=10, marker=markers[i])
     # Subtitle = basename of the CSV
     ax.set_title(os.path.basename(csv_files[i]), fontsize=7)
 
-    # Fit a spline with at most 2 internal knots to reduce wiggling
+    # Fit LOWESS smoothing
     try:
-        # Sort to ensure strictly increasing x for spline routines
         sort_idx = np.argsort(x)
         xs, ys = x[sort_idx], y[sort_idx]
+        sm_loc = lowess(ys, xs, frac=1.0, return_sorted=True)
+        ax.plot(sm_loc[:, 0], sm_loc[:, 1], color="blue")
 
-        # Determine internal knot positions (≤2) based on data availability
-        unique_x = np.unique(xs)
-        internal_knots = []
-        if len(unique_x) > 12:
-            # Use two interior knots at 33% and 67% quantiles
-            internal_knots = np.quantile(unique_x, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-        elif len(unique_x) > 6:
-            # Use a single interior knot at the median
-            internal_knots = [np.median(unique_x)]
-
-        if len(internal_knots) > 0:
-            spline = LSQUnivariateSpline(xs, ys, t=internal_knots, k=2)
-        else:
-            # Fall back to simple cubic spline without interior knots
-            spline = UnivariateSpline(xs, ys, k=3, s=0)
-
-        x_smooth = np.linspace(xs.min(), xs.max(), 200)
-        y_smooth = spline(x_smooth)
-        # Plot spline in blue
-        ax.plot(x_smooth, y_smooth, color="blue")
-
-        # Horizontal line at spline maximum
-        y_max = y_smooth.max()
+        # Horizontal line at LOWESS maximum
+        y_max = sm_loc[:, 1].max()
         ax.axhline(y_max, linestyle="--", color="grey", alpha=0.5)
 
         # Vertical dashed line at exclusion_threshold
         ax.axvline(exclusion_threshold, linestyle="--", color="grey", alpha=0.5)
     except Exception as e:
-        # In case spline fitting fails (e.g., not enough unique points), skip
-        print(f"Spline fitting failed for CSV index {i}: {e}")
+        # In case LOWESS fitting fails, skip
+        print(f"LOWESS fitting failed for CSV index {i}: {e}")
 
     # Minimal axis ticks to keep the plot clean
     ax.tick_params(axis='both', which='major', labelsize=6)
@@ -285,7 +260,7 @@ for ax in axes_flat[: len(csv_files)]:
     ax.set_xlim(global_x_min, global_x_max)
 
 # Global figure adjustments and save
-fig.tight_layout()
+# fig.tight_layout()
 subplot_path = f"{csv_dir}/spearman_vs_likelihood_subplots.png"
 fig.savefig(subplot_path)
 plt.show()
@@ -317,36 +292,22 @@ for i in range(n_rows * n_cols):
     y_np = all_spearman_norm_vals[i]
 
     ax_np = axes_np_flat[i]
-    ax_np.scatter(x_np, y_np, color="purple", alpha=0.3, s=10)
+    ax_np.scatter(x_np, y_np, color="purple", alpha=0.3, s=10, marker=markers[i])
     # Subtitle = basename of the CSV
     ax_np.set_title(os.path.basename(csv_files[i]), fontsize=7)
 
-    # Fit spline with ≤2 internal knots
+    # Fit LOWESS smoothing
     try:
         sort_idx_local = np.argsort(x_np)
         xs_l, ys_l = x_np[sort_idx_local], y_np[sort_idx_local]
+        sm_np_loc = lowess(ys_l, xs_l, frac=0.6, return_sorted=True)
+        ax_np.plot(sm_np_loc[:, 0], sm_np_loc[:, 1], color="blue")
 
-        unique_x_l = np.unique(xs_l)
-        int_knots_l = []
-        if len(unique_x_l) > 12:
-            int_knots_l = np.quantile(unique_x_l, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-        elif len(unique_x_l) > 6:
-            int_knots_l = [np.median(unique_x_l)]
-
-        if len(int_knots_l) > 0:
-            spline_l = LSQUnivariateSpline(xs_l, ys_l, t=int_knots_l, k=2)
-        else:
-            spline_l = UnivariateSpline(xs_l, ys_l, k=3, s=0)
-
-        xs_smooth = np.linspace(xs_l.min(), xs_l.max(), 200)
-        ys_smooth = spline_l(xs_smooth)
-        ax_np.plot(xs_smooth, ys_smooth, color="blue")
-
-        # Horizontal line at spline maximum
-        y_max_l = ys_smooth.max()
+        # Horizontal line at LOWESS maximum
+        y_max_l = sm_np_loc[:, 1].max()
         ax_np.axhline(y_max_l, linestyle="--", color="grey", alpha=0.5)
     except Exception as e:
-        print(f"Spline (n_prompt) failed for CSV index {i}: {e}")
+        print(f"LOWESS (n_prompt) failed for CSV index {i}: {e}")
 
     ax_np.tick_params(axis='both', which='major', labelsize=6)
 
@@ -405,12 +366,12 @@ for b_idx, ((low, high), label) in enumerate(zip(bin_ranges, bin_labels)):
             x_bin = all_n_prompt_vals[i][mask]
             y_bin = all_spearman_norm_vals[i][mask]
             # Scatter individual CSV points in their colour
-            ax.scatter(x_bin, y_bin, color=colors[i], alpha=0.4, s=10)
+            ax.scatter(x_bin, y_bin, color=colors[i], alpha=0.4, s=10, marker=markers[i])
 
             combined_x_bin.append(x_bin)
             combined_y_bin.append(y_bin)
 
-    # Fit a smoothing spline across all gathered points in this bin, if enough data
+    # Fit LOWESS across all gathered points in this bin, if enough data
     if len(combined_x_bin) > 0:
         xs_bin = np.concatenate(combined_x_bin)
         ys_bin = np.concatenate(combined_y_bin)
@@ -418,25 +379,11 @@ for b_idx, ((low, high), label) in enumerate(zip(bin_ranges, bin_labels)):
         try:
             sort_idx_bin = np.argsort(xs_bin)
             xs_sorted, ys_sorted = xs_bin[sort_idx_bin], ys_bin[sort_idx_bin]
-
-            unique_x_bin = np.unique(xs_sorted)
-            internal_knots_bin = []
-            if len(unique_x_bin) > 15:
-                internal_knots_bin = np.quantile(unique_x_bin, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-            elif len(unique_x_bin) > 7:
-                internal_knots_bin = [np.median(unique_x_bin)]
-
-            if len(internal_knots_bin) > 0:
-                spline_bin = LSQUnivariateSpline(xs_sorted, ys_sorted, t=internal_knots_bin, k=2)
-            else:
-                spline_bin = UnivariateSpline(xs_sorted, ys_sorted, k=3, s=0)
-
-            xs_smooth_bin = np.linspace(xs_sorted.min(), xs_sorted.max(), 300)
-            ys_smooth_bin = spline_bin(xs_smooth_bin)
-            ax.plot(xs_smooth_bin, ys_smooth_bin, color="black", linewidth=2)
+            sm_bin = lowess(ys_sorted, xs_sorted, frac=0.6, return_sorted=True)
+            ax.plot(sm_bin[:, 0], sm_bin[:, 1], color="black", linewidth=2)
         except Exception as e:
             # In case fitting fails (e.g., insufficient unique points) skip
-            print(f"Spline fitting failed for bin {label}: {e}")
+            print(f"LOWESS fitting failed for bin {label}: {e}")
     ax.set_title(label)
     ax.set_xlabel("n_prompt_seqs")
     if b_idx == 0:
@@ -471,32 +418,18 @@ for i in range(n_rows * n_cols):
     y_ll = all_likelihood_vals[i]
 
     ax_ll = axes_ll_vs_np_flat[i]
-    ax_ll.scatter(x_np, y_ll, color="purple", alpha=0.3, s=10)
+    ax_ll.scatter(x_np, y_ll, color="purple", alpha=0.3, s=10, marker=markers[i])
     # Subtitle = basename of the CSV
     ax_ll.set_title(os.path.basename(csv_files[i]), fontsize=7)
 
-    # Fit spline with ≤2 internal knots
+    # Fit LOWESS smoothing
     try:
         sort_idx_local = np.argsort(x_np)
         xs_l, ys_l = x_np[sort_idx_local], y_ll[sort_idx_local]
-
-        unique_x_l = np.unique(xs_l)
-        int_knots_l = []
-        if len(unique_x_l) > 12:
-            int_knots_l = np.quantile(unique_x_l, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-        elif len(unique_x_l) > 6:
-            int_knots_l = [np.median(unique_x_l)]
-
-        if len(int_knots_l) > 0:
-            spline_l = LSQUnivariateSpline(xs_l, ys_l, t=int_knots_l, k=2)
-        else:
-            spline_l = UnivariateSpline(xs_l, ys_l, k=3, s=0)
-
-        xs_smooth = np.linspace(xs_l.min(), xs_l.max(), 200)
-        ys_smooth = spline_l(xs_smooth)
-        ax_ll.plot(xs_smooth, ys_smooth, color="blue")
+        sm_llnp = lowess(ys_l, xs_l, frac=0.6, return_sorted=True)
+        ax_ll.plot(sm_llnp[:, 0], sm_llnp[:, 1], color="blue")
     except Exception as e:
-        print(f"Spline (LL vs n_prompt) failed for CSV index {i}: {e}")
+        print(f"LOWESS (LL vs n_prompt) failed for CSV index {i}: {e}")
 
     ax_ll.tick_params(axis='both', which='major', labelsize=6)
 
@@ -535,38 +468,24 @@ for i in range(n_rows_raw * n_cols_raw):
     y_rs = all_spearman_vals[i]
 
     ax_rs = axes_raw_shared_flat[i]
-    ax_rs.scatter(x_rs, y_rs, color="purple", alpha=0.3, s=10)
+    ax_rs.scatter(x_rs, y_rs, color="purple", alpha=0.3, s=10, marker=markers[i])
 
-    # Fit spline (same logic as before)
+    # Fit LOWESS smoothing
     try:
         sort_idx_rs = np.argsort(x_rs)
         xs_rs, ys_rs = x_rs[sort_idx_rs], y_rs[sort_idx_rs]
+        sm_rs = lowess(ys_rs, xs_rs, frac=0.6, return_sorted=True)
+        ax_rs.plot(sm_rs[:, 0], sm_rs[:, 1], color="blue")
 
-        unique_x_rs = np.unique(xs_rs)
-        internal_knots_rs = []
-        if len(unique_x_rs) > 12:
-            internal_knots_rs = np.quantile(unique_x_rs, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-        elif len(unique_x_rs) > 6:
-            internal_knots_rs = [np.median(unique_x_rs)]
-
-        if len(internal_knots_rs) > 0:
-            spline_rs = LSQUnivariateSpline(xs_rs, ys_rs, t=internal_knots_rs, k=2)
-        else:
-            spline_rs = UnivariateSpline(xs_rs, ys_rs, k=3, s=0)
-
-        xs_rs_smooth = np.linspace(xs_rs.min(), xs_rs.max(), 200)
-        ys_rs_smooth = spline_rs(xs_rs_smooth)
-        ax_rs.plot(xs_rs_smooth, ys_rs_smooth, color="blue")
-
-        # Horizontal line at spline maximum
-        y_max_rs = ys_rs_smooth.max()
-        x_max_rs = xs_rs_smooth[np.argmax(ys_rs_smooth)]
+        # Horizontal line at LOWESS maximum
+        y_max_rs = sm_rs[:, 1].max()
+        x_max_rs = sm_rs[np.argmax(sm_rs[:, 1]), 0]
         ax_rs.axhline(y_max_rs, linestyle="--", color="grey", alpha=0.5)
         # Vertical dashed line at exclusion_threshold
         # ax_rs.axvline(exclusion_threshold, linestyle="--", color="grey", alpha=0.5)
         ax_rs.axvline(x_max_rs, linestyle="--", color="grey", alpha=0.5)
     except Exception as e:
-        print(f"Spline (raw shared) failed for CSV index {i}: {e}")
+        print(f"LOWESS (raw shared) failed for CSV index {i}: {e}")
 
     ax_rs.tick_params(axis='both', which='major', labelsize=6)
     ax_rs.set_title(os.path.basename(csv_files[i]), fontsize=7)
@@ -614,35 +533,21 @@ for i in range(n_rows_raw * n_cols_raw):
     y_r = all_spearman_vals[i]
 
     ax_r = axes_raw_flat[i]
-    ax_r.scatter(x_r, y_r, color="purple", alpha=0.3, s=10)
+    ax_r.scatter(x_r, y_r, color="purple", alpha=0.3, s=10, marker=markers[i])
 
-    # Fit spline (same logic as before)
+    # Fit LOWESS smoothing
     try:
         sort_idx_r = np.argsort(x_r)
         xs_r, ys_r = x_r[sort_idx_r], y_r[sort_idx_r]
+        sm_r = lowess(ys_r, xs_r, frac=0.6, return_sorted=True)
+        ax_r.plot(sm_r[:, 0], sm_r[:, 1], color="blue")
 
-        unique_x_r = np.unique(xs_r)
-        internal_knots_r = []
-        if len(unique_x_r) > 12:
-            internal_knots_r = np.quantile(unique_x_r, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-        elif len(unique_x_r) > 6:
-            internal_knots_r = [np.median(unique_x_r)]
-
-        if len(internal_knots_r) > 0:
-            spline_r = LSQUnivariateSpline(xs_r, ys_r, t=internal_knots_r, k=2)
-        else:
-            spline_r = UnivariateSpline(xs_r, ys_r, k=3, s=0)
-
-        xs_r_smooth = np.linspace(xs_r.min(), xs_r.max(), 200)
-        ys_r_smooth = spline_r(xs_r_smooth)
-        ax_r.plot(xs_r_smooth, ys_r_smooth, color="blue")
-
-        y_max_r = ys_r_smooth.max()
-        x_max_r = xs_r_smooth[np.argmax(ys_r_smooth)]
+        y_max_r = sm_r[:, 1].max()
+        x_max_r = sm_r[np.argmax(sm_r[:, 1]), 0]
         ax_r.axhline(y_max_r, linestyle="--", color="grey", alpha=0.5)
         ax_r.axvline(x_max_r, linestyle="--", color="grey", alpha=0.5)
     except Exception as e:
-        print(f"Spline (raw) failed for CSV index {i}: {e}")
+        print(f"LOWESS (raw) failed for CSV index {i}: {e}")
 
     ax_r.tick_params(axis='both', which='major', labelsize=6)
     ax_r.set_title(os.path.basename(csv_files[i]), fontsize=7)
@@ -681,30 +586,16 @@ for metric_list, x_label, fname_stub in metric_configs:
         y_m = all_spearman_vals[i]  # RAW spearman values
 
         ax_m = axes_m_flat[i]
-        ax_m.scatter(x_m, y_m, color="purple", alpha=0.3, s=10)
+        ax_m.scatter(x_m, y_m, color="purple", alpha=0.3, s=10, marker=markers[i])
 
-        # Fit smoothing spline (≤2 internal knots)
+        # Fit LOWESS smoothing
         try:
             sort_idx_m = np.argsort(x_m)
             xs_m, ys_m = x_m[sort_idx_m], y_m[sort_idx_m]
-
-            unique_x_m = np.unique(xs_m)
-            int_knots_m = []
-            if len(unique_x_m) > 12:
-                int_knots_m = np.quantile(unique_x_m, [0.1, 0.2, 0.4, 0.8, 0.9]).tolist()
-            elif len(unique_x_m) > 6:
-                int_knots_m = [np.median(unique_x_m)]
-
-            if len(int_knots_m) > 0:
-                spline_m = LSQUnivariateSpline(xs_m, ys_m, t=int_knots_m, k=2)
-            else:
-                spline_m = UnivariateSpline(xs_m, ys_m, k=3, s=0)
-
-            xs_smooth_m = np.linspace(xs_m.min(), xs_m.max(), 200)
-            ys_smooth_m = spline_m(xs_smooth_m)
-            ax_m.plot(xs_smooth_m, ys_smooth_m, color="blue")
+            sm_m = lowess(ys_m, xs_m, frac=0.6, return_sorted=True)
+            ax_m.plot(sm_m[:, 0], sm_m[:, 1], color="blue")
         except Exception as e:
-            print(f"Spline ({fname_stub}) failed for CSV index {i}: {e}")
+            print(f"LOWESS ({fname_stub}) failed for CSV index {i}: {e}")
 
         ax_m.tick_params(axis='both', which='major', labelsize=6)
         ax_m.set_title(os.path.basename(csv_files[i]), fontsize=7)

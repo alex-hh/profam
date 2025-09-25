@@ -38,11 +38,11 @@ class LlamaLitModule(BaseFamilyLitModule):
         override_optimizer_on_load: bool = False,
         use_focal_loss: bool = False,
         focal_gamma: float = 2.0,
-        gym_results_save_dir = "proteingym_variants",
+        gym_results_save_dir = None,
         # New loss: zero gradients for samples whose mean log-likelihood exceeds a threshold
         use_ll_threshold_loss: bool = False,
         ll_threshold: float = -1.3,
-        gym_subsamples_per_n: int = 200,
+        gym_subsamples_per_n: int = 5,
     ) -> None:
         """
         From the paper:

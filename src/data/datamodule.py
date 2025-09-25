@@ -6,11 +6,11 @@ from datasets.distributed import split_dataset_by_node
 from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
 from torch.utils.data import BatchSampler, DataLoader, Dataset
+from torch.utils.data.distributed import DistributedSampler
 
 from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.builders import (
     BaseProteinDataset,
-    IterableHFProteinDataset,
     MemoryMappedHFProteinDataset,
     ProteinFamilyMemmapDataset,
     ProteinFamilyMemmapDatasetBuilder,
@@ -294,19 +294,6 @@ class ProteinDataMixture(LightningDataModule):
                     feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
                     pack_to_max_tokens=self.pack_to_max_tokens,
                 )
-                if world_size > 1:
-                    if isinstance(dataset, IterableHFProteinDataset):
-                        # https://github.com/huggingface/datasets/issues/6623
-                        assert (
-                            dataset.n_shards % world_size == 0
-                            and dataset.n_shards % 8 == 0
-                        )
-                        dataset = split_dataset_by_node(
-                            dataset,
-                            rank=self.trainer.global_rank,
-                            world_size=world_size,
-                        )
-                        dataset = dataset.with_format("numpy")
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(
@@ -359,6 +346,8 @@ class ProteinDataMixture(LightningDataModule):
         )
 
     def val_dataloader(self) -> List[DataLoader]:
+
+        
         loaders = [
             DataLoader(
                 val_ds,
@@ -372,6 +361,37 @@ class ProteinDataMixture(LightningDataModule):
             )
             for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
         ]
+
+        world_size = self.trainer.world_size if self.trainer is not None else 1
+        rank = self.trainer.global_rank if self.trainer is not None else 0
+        loaders = []
+        for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names):
+            # Explicitly shard non-iterable validation datasets across devices
+            # to avoid each rank evaluating the full set.
+            sampler = None
+            if world_size > 1 and not isinstance(val_ds, IterableDataset) and val_ds_name == "proteingym":
+                print(f"Using distributed sampler for {val_ds_name} on device rank {rank}")
+                sampler = DistributedSampler(
+                    val_ds,
+                    num_replicas=world_size,
+                    rank=rank,
+                    shuffle=False,
+                    drop_last=False,
+                )
+
+            loaders.append(
+                DataLoader(
+                    val_ds,
+                    batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
+                    collate_fn=self.val_collator,
+                    shuffle=False,
+                    sampler=sampler,
+                    num_workers=self.num_workers,
+                    persistent_workers=self.num_workers is not None
+                    and self.num_workers > 1,
+                    prefetch_factor=self.prefetch_factor,
+                )
+            )
         return loaders
 
     def test_dataloader(self) -> List[DataLoader]:

@@ -52,9 +52,9 @@ class MaxTokensDynamicBatchSampler(BatchSampler):
         Yields:
             List[int]: Next batch of sample indices assigned to this process.
         """
+        batch = []
         if self.max_tokens is not None:
             # If max_tokens is specified, yield batches based on token counts
-            batch = []
             current_tokens = 0
             for idx in range(self.rank, len(self.dataset), self.world_size):
                 tokens = self.size_fn(self.dataset[idx])  # compute tokens on-the-fly

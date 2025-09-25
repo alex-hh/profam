@@ -95,12 +95,6 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
-          - _target_: src.data.processors.transforms.repeat_and_mutate_protein
-            _partial_: true
-            repeat_prob: 0.06
-            mutation_prob: 0.005
-            deletion_prob: 0.002
-            insertion_prob: 0.002
 
 
     uniref90_train:
@@ -123,12 +117,6 @@ data:
           - _target_: src.data.processors.transforms.replace_nans_in_coords
             _partial_: true
             fill_value: 0.0
-          - _target_: src.data.processors.transforms.repeat_and_mutate_protein
-            _partial_: true
-            repeat_prob: 0.06
-            mutation_prob: 0.005
-            deletion_prob: 0.002
-            insertion_prob: 0.002
 
 
     uniref90_val:
