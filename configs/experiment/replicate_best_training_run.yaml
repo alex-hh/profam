@@ -201,36 +201,36 @@ constants:
   - aa_mask
   - plddts
   - structure_mask
-extra_callbacks:
-  unconditional_sampling_callback:
-    prompt_builder:
-      preprocessor:
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-      _target_: src.models.inference.PromptBuilder
-    _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
-    pipeline:
-      _target_: src.pipelines.unconditional_sequence.UnconditionalSequenceEvaluationPipeline
-      num_generations: 5
-      max_tokens: 20000
-      max_generated_length: 300
-      pipeline_id: unconditional_sampling
-      save_results_to_file: false
-    evaluators:
-      _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-      name: esmfold_example
+extra_callbacks: null
+  # unconditional_sampling_callback:
+  #   prompt_builder:
+  #     preprocessor:
+  #       cfg:
+  #         _target_: src.data.processors.PreprocessingConfig
+  #         document_token: '[RAW]'
+  #         drop_first_protein: false
+  #         keep_first_protein: false
+  #         allow_unk: false
+  #         max_tokens_per_example: 8192
+  #         shuffle_proteins_in_document: true
+  #         padding: do_not_pad
+  #       transform_fns:
+  #       - _target_: src.data.processors.transforms.replace_nans_in_coords
+  #         _partial_: true
+  #         fill_value: 0.0
+  #       _target_: src.data.processors.ProteinDocumentPreprocessor
+  #     _target_: src.models.inference.PromptBuilder
+  #   _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
+  #   pipeline:
+  #     _target_: src.pipelines.unconditional_sequence.UnconditionalSequenceEvaluationPipeline
+  #     num_generations: 5
+  #     max_tokens: 20000
+  #     max_generated_length: 300
+  #     pipeline_id: unconditional_sampling
+  #     save_results_to_file: false
+  #   evaluators:
+  #     _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
+  #     name: esmfold_example
 data:
   _target_: src.data.datamodule.ProteinDataMixture
   dataset_builders:
