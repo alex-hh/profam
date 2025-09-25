@@ -35,9 +35,20 @@ pip install flash-attn --no-build-isolation
 
 # if on a development machine, install the follow post-commit hook to track git hash
 echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit
-
 ```
-
+Note 2025-09-25: flash-attn install is no longer working as expected
+Requires installing cuda-toolkit (best done in conda) like so:
+```
+conda create -n pf11 python=3.11
+conda activate pf11
+conda install -c conda-forge ninja packaging
+conda install -c nvidia cuda-toolkit=12.4
+pip install -r requirements.txt
+pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+pip install flash-attn==2.5.6 --no-build-isolation
+```
+check it's working:
+`python -c "import flash_attn; print(flash_attn.__version__)"`
 #### Transferring repo to new filesystems
 
 commit_hash.txt will only be updated locally when commits are made. The post commit hook requires that commit_hash is gitignore. Having installed the git hook one way to upload files to e.g. a cluster that ensures that the commit hash is preserved is therefore to do e.g.:
