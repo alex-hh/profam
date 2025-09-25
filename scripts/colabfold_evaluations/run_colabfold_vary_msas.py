@@ -84,24 +84,26 @@ if __name__=="__main__":
             print(f"Skipping {input_fasta} (no MSA) as output directory already exists")
 
 
-        output_dir_with_synthetic = f"../CASP16/colabfold_outputs/{casp_id}/{casp_id}_with_synthetic_MSA"
-        if not os.path.exists(output_dir_with_synthetic) or len(os.listdir(output_dir_with_synthetic)) == 0:
+        output_dir_with_synthetic = f"../CASP16/colabfold_outputs/{casp_id}/{casp_id}_with_synthetic_MSA_round2"
+        # if not os.path.exists(output_dir_with_synthetic) or len(os.listdir(output_dir_with_synthetic)) == 0:
+        if True:
             a3m_path = f"../CASP16/ProFam_synthetic_msas/{casp_id}.a3m"
             if not os.path.exists(a3m_path):
                 print(f"Skipping {input_fasta} (with synthetic MSA) as a3m file does not exist")
                 continue
-            command = f"colabfold_batch {a3m_path} {output_dir_with_synthetic} --num-models 1"
+            command = f"colabfold_batch {a3m_path} {output_dir_with_synthetic}"
             os.system(command)
         else:
             print(f"Skipping {input_fasta} (with synthetic MSA) as output directory already exists")
 
-        output_dir_with_synthetic_1200 = f"../CASP16/colabfold_outputs/{casp_id}/{casp_id}_with_synthetic_MSA_1200"
-        if not os.path.exists(output_dir_with_synthetic_1200) or len(os.listdir(output_dir_with_synthetic_1200)) == 0:
+        output_dir_with_synthetic_1200 = f"../CASP16/colabfold_outputs/{casp_id}/{casp_id}_with_synthetic_MSA_1200_round2"
+        # if not os.path.exists(output_dir_with_synthetic_1200) or len(os.listdir(output_dir_with_synthetic_1200)) == 0:
+        if True:
             a3m_path = f"../CASP16/ProFam_synthetic_msas_1200/{casp_id}.a3m"
             if not os.path.exists(a3m_path):
                 print(f"Skipping {input_fasta} (with synthetic MSA 1200) as a3m file does not exist")
                 continue
-            command = f"colabfold_batch {a3m_path} {output_dir_with_synthetic_1200} --num-models 1"
+            command = f"colabfold_batch {a3m_path} {output_dir_with_synthetic_1200}"
             os.system(command)
         else:
             print(f"Skipping {input_fasta} (with synthetic MSA) as output directory already exists")

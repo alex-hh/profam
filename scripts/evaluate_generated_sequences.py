@@ -82,8 +82,16 @@ def evaluate_generated_sequences_poet_on_ec_single_sequence():
 def evaluate_generated_sequences_profam_on_ec_single_sequence():
     all_results = []
     completed_ec_nums = []
-    generated_fasta_pattern = "../sampling_results/profam_ec_single_seq_synthetic_msas/*_generated.fasta"
-    csv_save_path = "../sampling_results/profam_ec_single_seq_synthetic_msas/profam_sequence_only_evaluation_ec_single_sequence.csv"
+    
+    # generated_fasta_pattern = "../sampling_results/profam_ec_single_seq_synthetic_msas/*_generated.fasta"
+    # csv_save_path = "../sampling_results/profam_ec_single_seq_synthetic_msas/profam_sequence_only_evaluation_ec_single_sequence.csv"
+
+    # generated_fasta_pattern = "../sampling_results/profam_ec_multi_seq_synthetic_msas_no_ensemble/*_generated.fasta"
+    # csv_save_path = "../sampling_results/profam_ec_multi_seq_synthetic_msas_no_ensemble/profam_sequence_only_evaluation_ec_multi_sequence.csv"
+
+    generated_fasta_pattern = "../sampling_results/profam_ec_multi_seq_synthetic_msas/*_generated.fasta"
+    csv_save_path = "../sampling_results/profam_ec_multi_seq_synthetic_msas/profam_sequence_only_evaluation_ec_multi_sequence_with_ensemble.csv"
+
     if os.path.exists(csv_save_path):
         df = pd.read_csv(csv_save_path)
         print(f"Found {len(df)} rows in {csv_save_path}")
@@ -95,7 +103,7 @@ def evaluate_generated_sequences_profam_on_ec_single_sequence():
         raise FileNotFoundError(f"No generated fasta files found for glob: {generated_fasta_pattern}")
     for i, generated_fasta in enumerate(generated_fasta_paths):
         print(f"Processing {i} of {len(generated_fasta_paths)}")
-        ec_num = os.path.basename(generated_fasta).split("_generated")[0]
+        ec_num = os.path.basename(generated_fasta).split("_generated")[0].replace("_aln.filtered", "")
         if ec_num in completed_ec_nums:
             print(f"Skipping {ec_num} because it already exists in {csv_save_path}")
             continue
