@@ -1777,6 +1777,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 top_p=0.4
             )
             for rep in range(repeats):
+                print(f"processing rep {rep} of {repeats} on device rank {getattr(self, 'global_rank', 'Unknown')}")
                 fail_count = 0
                 while True:
                     if n_opt == 0 and 0 in n_seqs_list:

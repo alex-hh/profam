@@ -42,7 +42,7 @@ model:
     num_key_value_heads: 8
     rope_theta: 500000
     max_position_embeddings: 131072
-    scoring_max_tokens: 10240
+    scoring_max_tokens: 128000
     attn_implementation: flash_attention_2
     attention_bias: false
     attention_dropout: 0.0
@@ -146,7 +146,7 @@ trainer:
   use_distributed_sampler: false
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
-  data_dir: /home/jovyan/shared/judewells2/profam/data
+  data_dir: /home/jovyan/shared/Jude1B/profamdata
   log_dir: ${paths.root_dir}/logs/${experiment_group}
   output_dir: ${hydra:runtime.output_dir}
   work_dir: ${hydra:runtime.cwd}
@@ -316,51 +316,51 @@ data:
         - _target_: src.data.processors.transforms.replace_nans_in_coords
           _partial_: true
           fill_value: 0.0
-    uniref90_val:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-      name: uniref90_val
-      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_filtered
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 320
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
-    funfams_s50_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-      name: funfams_s50_train
-      dataset_root: ${paths.data_dir}/funfams/s50_text/train_test_split_v2/train_filtered
-      tokenizer: ${tokenizer}
-      seed: ${seed}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.AlignedProteinPreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-          keep_gaps: false
-          keep_insertions: true
-          to_upper: true
-          use_msa_pos: false
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+    # uniref90_val:
+    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+    #   name: uniref90_val
+    #   dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_filtered
+    #   tokenizer: ${tokenizer}
+    #   preprocessor:
+    #     _target_: src.data.processors.ProteinDocumentPreprocessor
+    #     cfg:
+    #       _target_: src.data.processors.PreprocessingConfig
+    #       document_token: '[RAW]'
+    #       drop_first_protein: false
+    #       keep_first_protein: false
+    #       allow_unk: false
+    #       max_tokens_per_example: 320
+    #       shuffle_proteins_in_document: true
+    #       padding: do_not_pad
+    #     transform_fns:
+    #     - _target_: src.data.processors.transforms.replace_nans_in_coords
+    #       _partial_: true
+    #       fill_value: 0.0
+    # funfams_s50_train:
+    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+    #   name: funfams_s50_train
+    #   dataset_root: ${paths.data_dir}/funfams/s50_text/train_test_split_v2/train_filtered
+    #   tokenizer: ${tokenizer}
+    #   seed: ${seed}
+    #   preprocessor:
+    #     _target_: src.data.processors.ProteinDocumentPreprocessor
+    #     cfg:
+    #       _target_: src.data.processors.AlignedProteinPreprocessingConfig
+    #       document_token: '[RAW]'
+    #       drop_first_protein: false
+    #       keep_first_protein: false
+    #       allow_unk: false
+    #       max_tokens_per_example: 8192
+    #       shuffle_proteins_in_document: true
+    #       padding: do_not_pad
+    #       keep_gaps: false
+    #       keep_insertions: true
+    #       to_upper: true
+    #       use_msa_pos: false
+    #     transform_fns:
+    #     - _target_: src.data.processors.transforms.replace_nans_in_coords
+    #       _partial_: true
+    #       fill_value: 0.0
     funfams_s50_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: funfams_s50_val
@@ -408,14 +408,14 @@ data:
           fill_value: 0.0
   data_weights:
     foldseek_s50_train: 1
-    uniref90_train: 1
+    # uniref90_train: 1
     openfold_train: 1
     funfams_s50_train: 0.03
   val_dataset_batch_sizes:
     funfams_s50_val: 1
     proteingym: 1
     foldseek_s50_val: 1
-    uniref90_val: 1
+    # uniref90_val: 1
   batch_size: 100
   data_dir: ${paths.data_dir}
   num_workers: 32
