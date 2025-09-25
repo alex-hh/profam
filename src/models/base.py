@@ -436,7 +436,7 @@ class BaseLitModule(LightningModule):
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
         # we check whether we are in proteingym loader by looking at keys in batch
-        print("Entering validation step")
+        print(f"Entering validation step on device rank {getattr(self, 'global_rank', 'unknown')}")
         if "DMS_scores" in batch:
             print("validation step:", batch["DMS_id"].text[0])
             outputs = self.validation_step_proteingym(batch)
@@ -1212,34 +1212,33 @@ class BaseFamilyLitModule(BaseLitModule):
         ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
         ensemble_log_ll = float(lls_array.mean())
 
-        # Rank-based diagnostics
-        if getattr(self, "global_rank", 0) == 0:
-            sorted_indices_ll = np.argsort(-mean_per_forward_pass)
-            sorted_indices_entropy = np.argsort(entropy_per_prompt)
-            for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
-                top_k = max(1, int(top_pct * len(sorted_indices_ll)))
-                top_k_ll_mean_ll = lls_array[sorted_indices_ll[:top_k]].mean(axis=0)
-                top_k_entropy_mean_ll = lls_array[sorted_indices_entropy[:top_k]].mean(axis=0)
-                top_k_ll_spearman = self._compute_spearman(top_k_ll_mean_ll, dms_scores_np)
-                top_k_entropy_spearman = self._compute_spearman(top_k_entropy_mean_ll, dms_scores_np)
-                self.log(
-                    f"gym/top_{top_pct}_ll_spearman",
-                    top_k_ll_spearman,
-                    on_step=True,
-                    on_epoch=True,
-                    prog_bar=False,
-                    sync_dist=True,
-                    batch_size=1,
-                )
-                self.log(
-                    f"gym/bottom_{top_pct}_entropy_spearman",
-                    top_k_entropy_spearman,
-                    on_step=True,
-                    on_epoch=True,
-                    prog_bar=False,
-                    sync_dist=True,
-                    batch_size=1,
-                )
+        
+        sorted_indices_ll = np.argsort(-mean_per_forward_pass)
+        sorted_indices_entropy = np.argsort(entropy_per_prompt)
+        for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+            top_k = max(1, int(top_pct * len(sorted_indices_ll)))
+            top_k_ll_mean_ll = lls_array[sorted_indices_ll[:top_k]].mean(axis=0)
+            top_k_entropy_mean_ll = lls_array[sorted_indices_entropy[:top_k]].mean(axis=0)
+            top_k_ll_spearman = self._compute_spearman(top_k_ll_mean_ll, dms_scores_np)
+            top_k_entropy_spearman = self._compute_spearman(top_k_entropy_mean_ll, dms_scores_np)
+            self.log(
+                f"gym/top_{top_pct}_ll_spearman",
+                top_k_ll_spearman,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+                batch_size=1,
+            )
+            self.log(
+                f"gym/bottom_{top_pct}_entropy_spearman",
+                top_k_entropy_spearman,
+                on_step=True,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+                batch_size=1,
+            )
 
         # Mean Spearman across variants
         per_variant_spearman = [self._compute_spearman(lls_array[i], dms_scores_np) for i in range(lls_array.shape[0])]
@@ -1274,18 +1273,18 @@ class BaseFamilyLitModule(BaseLitModule):
                     except Exception as e:
                         warnings.warn(f"Failed to save scatter plot for {dms_id}: {e}")
 
-            # Final summary logs with versioned keys
-            self.log(f"gym/mean_spearman_{file_suffix}", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-            self.log(f"gym/ensemble_spearman_{file_suffix}", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-            self.log(f"gym/ensemble_log_ll_{file_suffix}", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-            self.log(
-                "gym/entropy_and_ll_spearman_correlation",
-                self._compute_spearman(mean_per_forward_pass, entropy_per_prompt),
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-            )
+        # Final summary logs with versioned keys
+        self.log(f"gym/mean_spearman_{file_suffix}", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log(f"gym/ensemble_spearman_{file_suffix}", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log(f"gym/ensemble_log_ll_{file_suffix}", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
+        self.log(
+            "gym/entropy_and_ll_spearman_correlation",
+            self._compute_spearman(mean_per_forward_pass, entropy_per_prompt),
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+            sync_dist=True,
+        )
 
         return ensemble_log_ll, ensemble_spearman
 
