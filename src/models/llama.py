@@ -42,7 +42,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         # New loss: zero gradients for samples whose mean log-likelihood exceeds a threshold
         use_ll_threshold_loss: bool = False,
         ll_threshold: float = -1.3,
-        gym_subsamples_per_n: int = 10,
+        gym_subsamples_per_n: int = 5,
     ) -> None:
         """
         From the paper:

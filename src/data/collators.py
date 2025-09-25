@@ -293,7 +293,7 @@ class DocumentBatchCollator:
                     chosen.append(ex)
                     current_tokens += n_tokens
                 else:
-                    print("Warning too many tokens in batch")
+                    # print("Warning too many tokens in batch")
                     break
 
             combined_examples = chosen
