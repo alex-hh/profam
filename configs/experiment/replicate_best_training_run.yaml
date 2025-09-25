@@ -201,36 +201,36 @@ constants:
   - aa_mask
   - plddts
   - structure_mask
-extra_callbacks:
-  unconditional_sampling_callback:
-    prompt_builder:
-      preprocessor:
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-      _target_: src.models.inference.PromptBuilder
-    _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
-    pipeline:
-      _target_: src.pipelines.unconditional_sequence.UnconditionalSequenceEvaluationPipeline
-      num_generations: 5
-      max_tokens: 20000
-      max_generated_length: 300
-      pipeline_id: unconditional_sampling
-      save_results_to_file: false
-    evaluators:
-      _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-      name: esmfold_example
+extra_callbacks: null
+  # unconditional_sampling_callback:
+  #   prompt_builder:
+  #     preprocessor:
+  #       cfg:
+  #         _target_: src.data.processors.PreprocessingConfig
+  #         document_token: '[RAW]'
+  #         drop_first_protein: false
+  #         keep_first_protein: false
+  #         allow_unk: false
+  #         max_tokens_per_example: 8192
+  #         shuffle_proteins_in_document: true
+  #         padding: do_not_pad
+  #       transform_fns:
+  #       - _target_: src.data.processors.transforms.replace_nans_in_coords
+  #         _partial_: true
+  #         fill_value: 0.0
+  #       _target_: src.data.processors.ProteinDocumentPreprocessor
+  #     _target_: src.models.inference.PromptBuilder
+  #   _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
+  #   pipeline:
+  #     _target_: src.pipelines.unconditional_sequence.UnconditionalSequenceEvaluationPipeline
+  #     num_generations: 5
+  #     max_tokens: 20000
+  #     max_generated_length: 300
+  #     pipeline_id: unconditional_sampling
+  #     save_results_to_file: false
+  #   evaluators:
+  #     _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
+  #     name: esmfold_example
 data:
   _target_: src.data.datamodule.ProteinDataMixture
   dataset_builders:
@@ -337,26 +337,26 @@ data:
         - _target_: src.data.processors.transforms.replace_nans_in_coords
           _partial_: true
           fill_value: 0.0
-    uniref90_val:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-      name: uniref90_val
-      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_filtered
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 320
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+    # uniref90_val:
+    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+    #   name: uniref90_val
+    #   dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_filtered
+    #   tokenizer: ${tokenizer}
+    #   preprocessor:
+    #     _target_: src.data.processors.ProteinDocumentPreprocessor
+    #     cfg:
+    #       _target_: src.data.processors.PreprocessingConfig
+    #       document_token: '[RAW]'
+    #       drop_first_protein: false
+    #       keep_first_protein: false
+    #       allow_unk: false
+    #       max_tokens_per_example: 320
+    #       shuffle_proteins_in_document: true
+    #       padding: do_not_pad
+    #     transform_fns:
+    #     - _target_: src.data.processors.transforms.replace_nans_in_coords
+    #       _partial_: true
+    #       fill_value: 0.0
     funfams_s50_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: funfams_s50_train
@@ -415,7 +415,7 @@ data:
     foldseek_s50_val: 1
     funfams_s50_val: 1
     proteingym: 1
-    uniref90_val: 1
+    # uniref90_val: 1
   batch_size: 100
   data_dir: ${paths.data_dir}
   num_workers: 32
