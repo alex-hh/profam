@@ -3,6 +3,7 @@
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
 #$ -N copyTEDarray
+#$ -l hostname=!(*saunders*)
 #$ -t 1-12
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
@@ -44,36 +45,36 @@ else
   mkdir -p "${destination}"
 fi
 
-# Compute files that are missing at destination via rsync dry-run
-missing_list=$(mktemp)
-missing_for_task=$(mktemp)
+# Build list of all source files (relative paths)
+file_list=$(mktemp)
+assigned_for_task=$(mktemp)
 
-echo "Computing missing files via rsync dry-run..."
-rsync -avnr --out-format='%n' "${source_dir}/" "${destination}" | grep -v '/$' > "${missing_list}"
+echo "Listing source files..."
+( cd "${source_dir}" && find . -type f -print | sed 's|^\./||' ) > "${file_list}"
 
-num_missing=$(wc -l < "${missing_list}" | tr -d ' ')
-echo "Total missing files: ${num_missing}"
+num_total=$(wc -l < "${file_list}" | tr -d ' ')
+echo "Total source files: ${num_total}"
 
-if [[ ${num_missing} -eq 0 ]]; then
+if [[ ${num_total} -eq 0 ]]; then
   echo "No files to copy. Exiting."
-  rm -f "${missing_list}" "${missing_for_task}"
+  rm -f "${file_list}" "${assigned_for_task}"
   exit 0
 fi
 
 # Split work across tasks using round-robin assignment
-awk -v m="${TOTAL_TASKS}" -v t="${TASK_ID}" '((NR-1) % m) == (t-1) {print}' "${missing_list}" > "${missing_for_task}"
+awk -v m="${TOTAL_TASKS}" -v t="${TASK_ID}" '((NR-1) % m) == (t-1) {print}' "${file_list}" > "${assigned_for_task}"
 
-num_assigned=$(wc -l < "${missing_for_task}" | tr -d ' ')
+num_assigned=$(wc -l < "${assigned_for_task}" | tr -d ' ')
 if [[ ${num_assigned} -eq 0 ]]; then
   echo "Task ${TASK_ID}: no assigned files. Exiting."
-  rm -f "${missing_list}" "${missing_for_task}"
+  rm -f "${file_list}" "${assigned_for_task}"
   exit 0
 fi
 
 echo "Task ${TASK_ID}/${TOTAL_TASKS}: copying ${num_assigned} files..."
 
-# Transfer only assigned files
-rsync -av --files-from="${missing_for_task}" "${source_dir}/" "${destination}"
+# Transfer assigned files, skipping any that already exist at destination
+rsync -av --ignore-existing --files-from="${assigned_for_task}" "${source_dir}/" "${destination}"
 
-rm -f "${missing_list}" "${missing_for_task}"
+rm -f "${file_list}" "${assigned_for_task}"
 echo "Task ${TASK_ID}/${TOTAL_TASKS} completed."
