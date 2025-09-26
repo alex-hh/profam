@@ -191,7 +191,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_index", type=int, default=None, help="Task index (0-based) for partitioned processing")
     parser.add_argument("--num_tasks", type=int, default=None, help="Total number of tasks to partition files")
-    parser.add_argument("--pattern", type=str, default="../data/ted/s100_parquets/train_test_split_v2/train_filtered/*.parquet", help="Glob pattern for parquet files")
+    parser.add_argument("--pattern", type=str, default="../data/ted/s100_parquets/train_test_split_v3_debug/train_filtered/train_train*.parquet", help="Glob pattern for parquet files")
     parser.add_argument("--output_dir", type=str, default="../data/ted/s100_text_min_20_max_90/train_test_split_v2/train_filtered", help="Output directory root")
     args = parser.parse_args()
 
