@@ -2,9 +2,9 @@
 #$ -l h_vmem=8G
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
-#$ -N TED1_4_final
-# -l hostname=!(burns*|fry*)
-#$ -t 1-4
+#$ -N TED1_8_round2
+# -l hostname=!(saunders*|fry*|larry*)
+#$ -t 1-8
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -32,7 +32,7 @@ source_dir="/SAN/orengolab/cath_plm/ProFam/data/ted/s100_text_min_20_max_90/trai
 
 # Resolve task indexing
 TASK_ID=${SGE_TASK_ID:-1}
-TOTAL_TASKS=4
+TOTAL_TASKS=8
 
 echo "Task ${TASK_ID}/${TOTAL_TASKS} starting on $(hostname)"
 echo "Source: ${source_dir}"
