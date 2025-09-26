@@ -288,7 +288,7 @@ class ProFamSampler:
                     # Identity via mmseqs on those that passed length
                     idents: List[float] = [0.0] * len(batch_seqs)
                     idx_map: List[int] = [i for i, ok in enumerate(len_ok_mask) if ok]
-                    if len(idx_map) > 0 and (minimum_sequence_identity is not None):
+                    if len(idx_map) > 0 and ((minimum_sequence_identity is not None) and (minimum_sequence_identity > 0)):
                         queries = [batch_seqs[i] for i in idx_map]
                         id_vals = _mmseqs_best_identity(prompt_sequences, queries, threads=1)
                         for j, i in enumerate(idx_map):
@@ -296,7 +296,7 @@ class ProFamSampler:
                     # Accept
                     for i, seq in enumerate(batch_seqs):
                         passes_len = len_ok_mask[i]
-                        passes_id = True if minimum_sequence_identity is None else (idents[i] >= float(minimum_sequence_identity))
+                        passes_id = True if (minimum_sequence_identity is None or minimum_sequence_identity == 0) else (idents[i] >= float(minimum_sequence_identity))
                         if passes_len and passes_id:
                             accepted_sequences.append(seq)
                             accepted_scores.append(float(scores[i] if isinstance(scores, list) else scores))
@@ -366,7 +366,7 @@ class ProFamSampler:
                         min_len = int(min_prompt_len * float(minimum_sequence_length_proportion))
                         keep_idxs = [i for i in keep_idxs if len(seg_texts[i]) >= min_len]
                     # Identity batch via mmseqs
-                    if len(keep_idxs) > 0 and (minimum_sequence_identity is not None):
+                    if len(keep_idxs) > 0 and (minimum_sequence_identity is not None) and (minimum_sequence_identity > 0):
                         id_vals = _mmseqs_best_identity(prompt_sequences, [seg_texts[i] for i in keep_idxs], threads=1)
                         keep_idxs = [i for i, idv in zip(keep_idxs, id_vals) if idv >= float(minimum_sequence_identity)]
                     for i in keep_idxs:
@@ -471,185 +471,29 @@ class EnsemblePromptBuilder:
         num_prompts_in_ensemble: int,
         max_tokens: int,
         sample_context_length: bool = True,
-        use_clustering: bool = True,
     ) -> List[ProteinDocument]:
-        # Helper to cluster sequences using mmseqs easy-cluster
-        def _cluster_with_mmseqs(seqs: List[str], min_seq_id: float = 0.3, coverage: float = 0.7, threads: int = 1) -> Dict[int, int]:
-            mapping: Dict[int, int] = {}
-            mmseqs_bin = shutil.which("mmseqs")
-            if mmseqs_bin is None:
-                return mapping  # empty indicates no clustering available
-            with tempfile.TemporaryDirectory() as tmpdir:
-                fasta_path = os.path.join(tmpdir, "input.fasta")
-                with open(fasta_path, "w") as f:
-                    for i, s in enumerate(seqs):
-                        f.write(f">s{i}\n{s}\n")
-                out_prefix = os.path.join(tmpdir, "cluster")
-                cmd = [
-                    mmseqs_bin, "easy-cluster",
-                    fasta_path,
-                    out_prefix,
-                    out_prefix,
-                    "--min-seq-id", str(float(min_seq_id)),
-                    "-c", str(float(coverage)),
-                    "--threads", str(int(threads)),
-                    "--remove-tmp-files", "1",
-                    "--cluster-mode", "1",
-                ]
-                try:
-                    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                except subprocess.CalledProcessError:
-                    return {}
-                cluster_tsv = f"{out_prefix}_cluster.tsv"
-                if not os.path.exists(cluster_tsv):
-                    return {}
-                rep_to_cid: Dict[str, int] = {}
-                next_cid = 0
-                with open(cluster_tsv, "r") as fr:
-                    for line in fr:
-                        parts = line.strip().split("\t")
-                        if len(parts) < 2:
-                            continue
-                        rep, mem = parts[0], parts[1]
-                        if rep not in rep_to_cid:
-                            rep_to_cid[rep] = next_cid
-                            next_cid += 1
-                        cid = rep_to_cid[rep]
-                        if mem.startswith("s"):
-                            try:
-                                idx = int(mem[1:])
-                            except Exception:
-                                continue
-                            mapping[idx] = cid
-                        # also map representative itself if present as rep id style "sX"
-                        if rep.startswith("s"):
-                            try:
-                                idx_r = int(rep[1:])
-                                mapping.setdefault(idx_r, cid)
-                            except Exception:
-                                pass
-                # Any sequences not present in mapping -> singleton clusters
-                for i in range(len(seqs)):
-                    mapping.setdefault(i, next_cid)
-                    if mapping[i] == next_cid:
-                        next_cid += 1
-                return mapping
-
         # Prepare (normalize) once; do not sample-to-max here
         prepared = self.preprocessor.apply_transforms(proteins, tokenizer, rng=self.rng)
         variants: List[ProteinDocument] = []
         max_context_tokens = max_tokens - int(np.max(prepared.sequence_lengths) * 1.2)
         max_context_tokens = max(max_context_tokens, 0)
-
-        if not use_clustering:
-            for _ in range(num_prompts_in_ensemble):
-                if sample_context_length:
-                    low = int(np.max(prepared.sequence_lengths))
-                    high = int(max_context_tokens + 1)
-                    if high <= low:
-                        this_context_tokens = low
-                    else:
-                        this_context_tokens = int(self.rng.integers(low, high))
-                    this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
+        # Note: clustering is intentionally disabled; we keep the argument for API compatibility.
+        for _ in range(num_prompts_in_ensemble):
+            if sample_context_length:
+                low = int(np.max(prepared.sequence_lengths))
+                high = int(max_context_tokens + 1)
+                if high <= low:
+                    this_context_tokens = low
                 else:
-                    this_context_tokens = max_context_tokens
-                idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
-                perm = np.array(idxs)
-                if self.shuffle:
-                    self.rng.shuffle(perm)
-                variants.append(prepared[perm.tolist()])
-            return variants
-
-        # Simplified selection prioritizing equal max length across variants
-        seqs = list(prepared.sequences)
-        lengths = np.array([len(s) for s in seqs], dtype=int)
-        idx_to_cluster: Dict[int, int] = _cluster_with_mmseqs(seqs, min_seq_id=0.3, coverage=0.7, threads=1) if use_clustering else {}
-
-        # Choose a shared per-variant token budget
-        if sample_context_length:
-            low = int(np.max(prepared.sequence_lengths))
-            high = int(max_context_tokens + 1)
-            if high <= low:
-                this_context_tokens = low
+                    this_context_tokens = int(self.rng.integers(low, high))
+                this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
             else:
-                this_context_tokens = int(self.rng.integers(low, high))
-            this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
-        else:
-            this_context_tokens = max_context_tokens
-
-        # Target the anchor length near the 90th percentile but within budget
-        target_len = int(np.percentile(lengths, 90)) if len(lengths) > 0 else 0
-        target_len = min(target_len, max(1, this_context_tokens - 1))
-
-        # Pick anchors: closest to target_len, prefer different clusters if available
-        order = np.argsort(np.abs(lengths - target_len)).tolist()
-        used_anchor_clusters: set = set()
-        anchors: List[int] = []
-        for i in order:
-            if len(anchors) >= num_prompts_in_ensemble:
-                break
-            cid = idx_to_cluster.get(int(i), None)
-            if len(idx_to_cluster) > 0:
-                if cid in used_anchor_clusters:
-                    continue
-                used_anchor_clusters.add(cid)
-            anchors.append(int(i))
-        # If not enough unique-cluster anchors, fill remaining by closeness
-        if len(anchors) < num_prompts_in_ensemble:
-            for i in order:
-                if len(anchors) >= num_prompts_in_ensemble:
-                    break
-                if int(i) not in anchors:
-                    anchors.append(int(i))
-
-        # Build each variant starting from its anchor, then greedily fill under budget
-        for k in range(num_prompts_in_ensemble):
-            total = int(tokenizer.num_start_tokens)
-            chosen: List[int] = []
-            used_clusters: set = set()
-
-            anchor_idx = anchors[min(k, len(anchors) - 1)] if len(anchors) > 0 else None
-            if anchor_idx is not None:
-                anchor_tokens = int(lengths[anchor_idx] + 1)
-                if total + anchor_tokens <= this_context_tokens:
-                    chosen.append(int(anchor_idx))
-                    total += anchor_tokens
-                    if len(idx_to_cluster) > 0:
-                        used_clusters.add(idx_to_cluster.get(int(anchor_idx)))
-
-            # Greedy fill: prioritize unseen clusters, shortest-first to pack more
-            pool = np.argsort(lengths).tolist()
-            # First pass: distinct clusters
-            if len(idx_to_cluster) > 0:
-                for i in pool:
-                    if i in chosen:
-                        continue
-                    cid = idx_to_cluster.get(int(i))
-                    if cid in used_clusters:
-                        continue
-                    tokens_i = int(lengths[i] + 1)
-                    if total + tokens_i > this_context_tokens:
-                        continue
-                    chosen.append(int(i))
-                    used_clusters.add(cid)
-                    total += tokens_i
-            # Second pass: allow repeats if budget remains
-            for i in pool:
-                if total >= this_context_tokens:
-                    break
-                if i in chosen:
-                    continue
-                tokens_i = int(lengths[i] + 1)
-                if total + tokens_i > this_context_tokens:
-                    continue
-                chosen.append(int(i))
-                total += tokens_i
-
-            perm = np.array(chosen)
+                this_context_tokens = max_context_tokens
+            idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
+            perm = np.array(idxs)
             if self.shuffle:
                 self.rng.shuffle(perm)
             variants.append(prepared[perm.tolist()])
-
         return variants
 
 
@@ -1021,14 +865,14 @@ class ProFamEnsembleSampler:
                 # Identity batch via mmseqs
                 idents: List[float] = [0.0] * len(cand_seqs)
                 idx_map = [i for i, ok in enumerate(len_ok) if ok]
-                if len(idx_map) > 0 and (minimum_sequence_identity is not None):
+                if len(idx_map) > 0 and (minimum_sequence_identity is not None) and (minimum_sequence_identity > 0):
                     id_vals = _mmseqs_best_identity(prompt_sequences, [cand_seqs[i] for i in idx_map], threads=1)
                     for j, i in enumerate(idx_map):
                         idents[i] = id_vals[j]
                 # Accept
                 for i, seq in enumerate(cand_seqs):
                     passes_len = len_ok[i]
-                    passes_id = True if minimum_sequence_identity is None else (idents[i] >= float(minimum_sequence_identity))
+                    passes_id = True if (minimum_sequence_identity is None or minimum_sequence_identity == 0) else (idents[i] >= float(minimum_sequence_identity))
                     if passes_len and passes_id:
                         sequences.append(seq)
                         scores_out.append(cand_scores[i])
@@ -1093,7 +937,7 @@ class ProFamEnsembleSampler:
                     min_len = int(min_prompt_len * float(minimum_sequence_length_proportion))
                     keep = [i for i in keep if len(segs[i]) >= min_len]
                 # Identity via mmseqs in batch
-                if len(keep) > 0 and (minimum_sequence_identity is not None):
+                if len(keep) > 0 and (minimum_sequence_identity is not None) and (minimum_sequence_identity > 0):
                     id_vals = _mmseqs_best_identity(prompt_sequences, [segs[i] for i in keep], threads=1)
                     keep = [i for i, idv in zip(keep, id_vals) if idv >= float(minimum_sequence_identity)]
                 for i in keep:

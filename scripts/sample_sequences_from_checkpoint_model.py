@@ -77,7 +77,7 @@ def main():
     parser.add_argument(
         "--minimum_sequence_length_proportion",
         type=float,
-        default=0.8,
+        default=0,
         help=(
             "Discard sequences that end with length < this proportion times the minimum "
             "sequence length in the prompt"
@@ -86,7 +86,7 @@ def main():
     parser.add_argument(
         "--minimum_sequence_identity",
         type=float,
-        default=0.14,
+        default=None,
         help=(
             "Discard sequences that have an aligned identity fraction less than this quantity"
         ),
