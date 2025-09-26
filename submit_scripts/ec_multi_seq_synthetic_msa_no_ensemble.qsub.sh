@@ -27,7 +27,7 @@ python ${ROOT_DIR}/scripts/sample_sequences_from_checkpoint_model.py \
 --sampler single \
 --num_samples 100 \
 --task_index $(($SGE_TASK_ID - 1)) \
---minimum_sequence_identity null \
+--minimum_sequence_identity 0 \
 --num_tasks 10
 
 date
