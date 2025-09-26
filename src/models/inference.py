@@ -258,7 +258,7 @@ class ProFamSampler:
 
         accepted_sequences: List[str] = []
         accepted_scores: List[float] = []
-
+        max_sequence_identities: List[float] = []
         target = int(num_samples)
         rounds = 0
         with torch.no_grad():
@@ -300,6 +300,7 @@ class ProFamSampler:
                         if passes_len and passes_id:
                             accepted_sequences.append(seq)
                             accepted_scores.append(float(scores[i] if isinstance(scores, list) else scores))
+                            max_sequence_identities.append(idents[i])
                             if len(accepted_sequences) >= target:
                                 break
                     rounds += 1
@@ -322,6 +323,7 @@ class ProFamSampler:
                     for i, seq in enumerate(batch_seqs):
                         accepted_sequences.append(seq)
                         accepted_scores.append(float(scores[i] if isinstance(scores, list) else scores))
+                        max_sequence_identities.append(idents[i])
                         if len(accepted_sequences) >= target:
                             break
             else:
@@ -469,30 +471,185 @@ class EnsemblePromptBuilder:
         num_prompts_in_ensemble: int,
         max_tokens: int,
         sample_context_length: bool = True,
+        use_clustering: bool = True,
     ) -> List[ProteinDocument]:
+        # Helper to cluster sequences using mmseqs easy-cluster
+        def _cluster_with_mmseqs(seqs: List[str], min_seq_id: float = 0.3, coverage: float = 0.7, threads: int = 1) -> Dict[int, int]:
+            mapping: Dict[int, int] = {}
+            mmseqs_bin = shutil.which("mmseqs")
+            if mmseqs_bin is None:
+                return mapping  # empty indicates no clustering available
+            with tempfile.TemporaryDirectory() as tmpdir:
+                fasta_path = os.path.join(tmpdir, "input.fasta")
+                with open(fasta_path, "w") as f:
+                    for i, s in enumerate(seqs):
+                        f.write(f">s{i}\n{s}\n")
+                out_prefix = os.path.join(tmpdir, "cluster")
+                cmd = [
+                    mmseqs_bin, "easy-cluster",
+                    fasta_path,
+                    out_prefix,
+                    out_prefix,
+                    "--min-seq-id", str(float(min_seq_id)),
+                    "-c", str(float(coverage)),
+                    "--threads", str(int(threads)),
+                    "--remove-tmp-files", "1",
+                    "--cluster-mode", "1",
+                ]
+                try:
+                    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except subprocess.CalledProcessError:
+                    return {}
+                cluster_tsv = f"{out_prefix}_cluster.tsv"
+                if not os.path.exists(cluster_tsv):
+                    return {}
+                rep_to_cid: Dict[str, int] = {}
+                next_cid = 0
+                with open(cluster_tsv, "r") as fr:
+                    for line in fr:
+                        parts = line.strip().split("\t")
+                        if len(parts) < 2:
+                            continue
+                        rep, mem = parts[0], parts[1]
+                        if rep not in rep_to_cid:
+                            rep_to_cid[rep] = next_cid
+                            next_cid += 1
+                        cid = rep_to_cid[rep]
+                        if mem.startswith("s"):
+                            try:
+                                idx = int(mem[1:])
+                            except Exception:
+                                continue
+                            mapping[idx] = cid
+                        # also map representative itself if present as rep id style "sX"
+                        if rep.startswith("s"):
+                            try:
+                                idx_r = int(rep[1:])
+                                mapping.setdefault(idx_r, cid)
+                            except Exception:
+                                pass
+                # Any sequences not present in mapping -> singleton clusters
+                for i in range(len(seqs)):
+                    mapping.setdefault(i, next_cid)
+                    if mapping[i] == next_cid:
+                        next_cid += 1
+                return mapping
+
         # Prepare (normalize) once; do not sample-to-max here
         prepared = self.preprocessor.apply_transforms(proteins, tokenizer, rng=self.rng)
         variants: List[ProteinDocument] = []
         max_context_tokens = max_tokens - int(np.max(prepared.sequence_lengths) * 1.2)
         max_context_tokens = max(max_context_tokens, 0)
-        for _ in range(num_prompts_in_ensemble):
-            if sample_context_length:
-                low = int(np.max(prepared.sequence_lengths))
-                high = int(max_context_tokens + 1)
-                if high <= low:
-                    this_context_tokens = low
+
+        if not use_clustering:
+            for _ in range(num_prompts_in_ensemble):
+                if sample_context_length:
+                    low = int(np.max(prepared.sequence_lengths))
+                    high = int(max_context_tokens + 1)
+                    if high <= low:
+                        this_context_tokens = low
+                    else:
+                        this_context_tokens = int(self.rng.integers(low, high))
+                    this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
                 else:
-                    this_context_tokens = int(self.rng.integers(low, high))
-                this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
+                    this_context_tokens = max_context_tokens
+                idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
+                perm = np.array(idxs)
+                if self.shuffle:
+                    self.rng.shuffle(perm)
+                variants.append(prepared[perm.tolist()])
+            return variants
+
+        # Simplified selection prioritizing equal max length across variants
+        seqs = list(prepared.sequences)
+        lengths = np.array([len(s) for s in seqs], dtype=int)
+        idx_to_cluster: Dict[int, int] = _cluster_with_mmseqs(seqs, min_seq_id=0.3, coverage=0.7, threads=1) if use_clustering else {}
+
+        # Choose a shared per-variant token budget
+        if sample_context_length:
+            low = int(np.max(prepared.sequence_lengths))
+            high = int(max_context_tokens + 1)
+            if high <= low:
+                this_context_tokens = low
             else:
-                this_context_tokens = max_context_tokens
-            idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
-            # Preserve order within chosen set but randomly permute for diversity
-            perm = np.array(idxs)
+                this_context_tokens = int(self.rng.integers(low, high))
+            this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
+        else:
+            this_context_tokens = max_context_tokens
+
+        # Target the anchor length near the 90th percentile but within budget
+        target_len = int(np.percentile(lengths, 90)) if len(lengths) > 0 else 0
+        target_len = min(target_len, max(1, this_context_tokens - 1))
+
+        # Pick anchors: closest to target_len, prefer different clusters if available
+        order = np.argsort(np.abs(lengths - target_len)).tolist()
+        used_anchor_clusters: set = set()
+        anchors: List[int] = []
+        for i in order:
+            if len(anchors) >= num_prompts_in_ensemble:
+                break
+            cid = idx_to_cluster.get(int(i), None)
+            if len(idx_to_cluster) > 0:
+                if cid in used_anchor_clusters:
+                    continue
+                used_anchor_clusters.add(cid)
+            anchors.append(int(i))
+        # If not enough unique-cluster anchors, fill remaining by closeness
+        if len(anchors) < num_prompts_in_ensemble:
+            for i in order:
+                if len(anchors) >= num_prompts_in_ensemble:
+                    break
+                if int(i) not in anchors:
+                    anchors.append(int(i))
+
+        # Build each variant starting from its anchor, then greedily fill under budget
+        for k in range(num_prompts_in_ensemble):
+            total = int(tokenizer.num_start_tokens)
+            chosen: List[int] = []
+            used_clusters: set = set()
+
+            anchor_idx = anchors[min(k, len(anchors) - 1)] if len(anchors) > 0 else None
+            if anchor_idx is not None:
+                anchor_tokens = int(lengths[anchor_idx] + 1)
+                if total + anchor_tokens <= this_context_tokens:
+                    chosen.append(int(anchor_idx))
+                    total += anchor_tokens
+                    if len(idx_to_cluster) > 0:
+                        used_clusters.add(idx_to_cluster.get(int(anchor_idx)))
+
+            # Greedy fill: prioritize unseen clusters, shortest-first to pack more
+            pool = np.argsort(lengths).tolist()
+            # First pass: distinct clusters
+            if len(idx_to_cluster) > 0:
+                for i in pool:
+                    if i in chosen:
+                        continue
+                    cid = idx_to_cluster.get(int(i))
+                    if cid in used_clusters:
+                        continue
+                    tokens_i = int(lengths[i] + 1)
+                    if total + tokens_i > this_context_tokens:
+                        continue
+                    chosen.append(int(i))
+                    used_clusters.add(cid)
+                    total += tokens_i
+            # Second pass: allow repeats if budget remains
+            for i in pool:
+                if total >= this_context_tokens:
+                    break
+                if i in chosen:
+                    continue
+                tokens_i = int(lengths[i] + 1)
+                if total + tokens_i > this_context_tokens:
+                    continue
+                chosen.append(int(i))
+                total += tokens_i
+
+            perm = np.array(chosen)
             if self.shuffle:
                 self.rng.shuffle(perm)
-            variant_doc = prepared[perm.tolist()]
-            variants.append(variant_doc)
+            variants.append(prepared[perm.tolist()])
+
         return variants
 
 

@@ -36,11 +36,14 @@ class RepeatStoppingCriteria(StoppingCriteria):
         generated_only = input_ids[0, self.prompt_length :]
         if generated_only.numel() == 0:
             return False
-        seq = self.tokenizer.decode(generated_only, skip_special_tokens=True)
+        seq = self.tokenizer.decode(generated_only, skip_special_tokens=True).replace(" ", "")
         if len(seq) < self.repeat_length * self.repeat_count:
             return False
         substring = seq[-self.repeat_length:]
-        return seq.count(substring) >= self.repeat_count
+        is_repeaty = seq.count(substring) >= self.repeat_count
+        if is_repeaty:
+            bp=1
+        return is_repeaty
 import random
 import warnings
 import copy
@@ -845,8 +848,10 @@ class BaseFamilyLitModule(BaseLitModule):
         sample_gaps: bool = False,
         structure_tokens: bool = False,
         continuous_sampling: bool = False,
-        repeat_length: int = 9,
-        repeat_count: int = 9,
+        repeat_guard: bool = True,
+        repeat_length: int = 3,
+        repeat_count: int = 3,
+        repeat_guard_max_restarts: int = 3,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -925,10 +930,9 @@ class BaseFamilyLitModule(BaseLitModule):
         assert input_residue_index.shape == input_ids.shape
         all_outputs: List[torch.Tensor] = []
         all_scores: List[float] = []
-        # We generate sequences in groups, but we will do retries per sequence if the stopping criteria triggers early
-        for batch_start in tqdm.tqdm(range(0, num_samples, batch_size), "Generating sequences"):
-            target_in_batch = min(batch_size, num_samples - batch_start)
-            remaining = int(target_in_batch)
+        # Always generate exactly one sequence at a time
+        for batch_start in tqdm.tqdm(range(num_samples), "Generating sequences"):
+            remaining = 1
             attempt = 0
             max_topups = 3
             batch_collected: List[torch.Tensor] = []
@@ -942,14 +946,14 @@ class BaseFamilyLitModule(BaseLitModule):
                 )
                 # Build stopping criteria that knows prompt length (non-continuous only)
                 stopping = None
-                if not continuous_sampling:
+                if not continuous_sampling and repeat_guard:
                     prompt_len = input_ids.shape[1]
                     stopping = StoppingCriteriaList([
                         RepeatStoppingCriteria(self.tokenizer, repeat_length=repeat_length, repeat_count=repeat_count, prompt_length=prompt_len)
                     ])
                 gen_out = self.model.generate(
                     input_ids=input_ids,
-                    num_return_sequences=remaining,
+                    num_return_sequences=1,
                     return_dict_in_generate=True,
                     output_scores=True,
                     do_sample=not greedy,
@@ -975,7 +979,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     text = self.tokenizer.decode(row[:valid_len].tolist(), skip_special_tokens=True).replace(" ", "")
                     ends_with_sep = (last_tok == self.tokenizer.sep_token_id)
                     is_repeaty = has_too_many_repeats(text, repeat_length=repeat_length, repeat_count=repeat_count)
-                    if (not ends_with_sep) and is_repeaty and (not continuous_sampling):
+                    if (not ends_with_sep) or (is_repeaty and (not continuous_sampling)):
                         failed_indices.append(i)
                     else:
                         # accept and score
