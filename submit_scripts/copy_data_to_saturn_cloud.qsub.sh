@@ -2,9 +2,9 @@
 #$ -l h_vmem=8G
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
-#$ -N TED19_24
-#$ -l hostname=!(burns*|fry*)
-#$ -t 19-24
+#$ -N TED1_4_final
+# -l hostname=!(burns*|fry*)
+#$ -t 1-4
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
@@ -12,8 +12,8 @@
 # destination="w-judew-1a100v1-41deece431bd432a8eec695a0a230e43@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/judewells2/profam/data/"
 # destination="w-jude1-twoa100pf-2f931b6f99ee47fcb0a4e8fefa909fc8@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text_min_20_max_90/train_test_split_v2/"
 # destination="w-jude1-eighta100pf-48b6046641214c58a5ecdd30a0eb7144@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text_min_20_max_90/train_test_split_v2/"
-# destination="w-jude1-eighta100pfv2-6650768276514ccbb9bedc0e6d5b675e@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text_min_20_max_90/train_test_split_v2/"
-destination="w-jude1-eighta100pfv3-1e7716e2fbae425cbc66d8f76aae1f7d@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text_min_20_max_90/train_test_split_v2/"
+destination="w-jude1-eighta100pfv2-6650768276514ccbb9bedc0e6d5b675e@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text_min_20_max_90/train_test_split_v2/"
+# destination="w-jude1-eighta100pfv3-1e7716e2fbae425cbc66d8f76aae1f7d@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text_min_20_max_90/train_test_split_v2/"
 #rsync -av /SAN/orengolab/cath_plm/ProFam/data/openfold/uniclust30_clustered_shuffled_final_text $destination
 #rsync -av /SAN/orengolab/cath_plm/ProFam/data/foldseek/foldseek_s50_seq_only_text $destination
 # rsync -av /SAN/orengolab/cath_plm/ProFam/data/foldseek/foldseek_s100_raw_text $destination
@@ -32,7 +32,7 @@ source_dir="/SAN/orengolab/cath_plm/ProFam/data/ted/s100_text_min_20_max_90/trai
 
 # Resolve task indexing
 TASK_ID=${SGE_TASK_ID:-1}
-TOTAL_TASKS=24
+TOTAL_TASKS=4
 
 echo "Task ${TASK_ID}/${TOTAL_TASKS} starting on $(hostname)"
 echo "Source: ${source_dir}"
