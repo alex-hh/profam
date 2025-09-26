@@ -3,14 +3,14 @@
 #$ -l h_rt=71:55:30
 #$ -S /bin/bash
 #$ -N copyTEDarray
-#$ -l hostname=!(*saunders*)
-#$ -t 1-12
+# -l hostname=!(*saunders*)
+#$ -t 1-6
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
 #$ -j y
 
 # destination="w-judew-1a100v1-41deece431bd432a8eec695a0a230e43@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/judewells2/profam/data/"
-destination="w-jude1-twoa100pf-2f931b6f99ee47fcb0a4e8fefa909fc8@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text/train_test_split_v2/"
+destination="w-jude1-twoa100pf-2f931b6f99ee47fcb0a4e8fefa909fc8@ssh.nvidia-oci.saturnenterprise.io:/home/jovyan/shared/Jude1B/profamdata/ted/s100_text_min_20_max_90/train_test_split_v2/"
 #rsync -av /SAN/orengolab/cath_plm/ProFam/data/openfold/uniclust30_clustered_shuffled_final_text $destination
 #rsync -av /SAN/orengolab/cath_plm/ProFam/data/foldseek/foldseek_s50_seq_only_text $destination
 # rsync -av /SAN/orengolab/cath_plm/ProFam/data/foldseek/foldseek_s100_raw_text $destination
@@ -24,11 +24,12 @@ destination="w-jude1-twoa100pf-2f931b6f99ee47fcb0a4e8fefa909fc8@ssh.nvidia-oci.s
 set -euo pipefail
 
 # Source directory to copy from (was previously copied as a whole)
-source_dir="/SAN/orengolab/cath_plm/ProFam/data/ted/s100_text/train_test_split_v2/train_filtered"
+# source_dir="/SAN/orengolab/cath_plm/ProFam/data/ted/s100_text/train_test_split_v2/train_filtered"
+source_dir="/SAN/orengolab/cath_plm/ProFam/data/ted/s100_text_min_20_max_90/train_test_split_v2/train_filtered"
 
 # Resolve task indexing
 TASK_ID=${SGE_TASK_ID:-1}
-TOTAL_TASKS=${SGE_TASK_LAST:-${TOTAL_TASKS:-1}}
+TOTAL_TASKS=24
 
 echo "Task ${TASK_ID}/${TOTAL_TASKS} starting on $(hostname)"
 echo "Source: ${source_dir}"
