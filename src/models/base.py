@@ -21,29 +21,6 @@ from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 from transformers import StoppingCriteria, StoppingCriteriaList
 import torch
-
-class RepeatStoppingCriteria(StoppingCriteria):
-    def __init__(self, tokenizer, repeat_length=9, repeat_count=9, prompt_length: int = 0):
-        self.tokenizer = tokenizer
-        self.repeat_length = repeat_length
-        self.repeat_count = repeat_count
-        self.prompt_length = int(prompt_length)
-
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
-        # Consider only the portion generated beyond the original prompt
-        if input_ids.ndim != 2 or input_ids.shape[0] == 0:
-            return False
-        generated_only = input_ids[0, self.prompt_length :]
-        if generated_only.numel() == 0:
-            return False
-        seq = self.tokenizer.decode(generated_only, skip_special_tokens=True).replace(" ", "")
-        if len(seq) < self.repeat_length * self.repeat_count:
-            return False
-        substring = seq[-self.repeat_length:]
-        is_repeaty = seq.count(substring) >= self.repeat_count
-        if is_repeaty:
-            bp=1
-        return is_repeaty
 import random
 import warnings
 import copy
@@ -54,6 +31,7 @@ from src.data.tokenizers import ProFamTokenizer
 from src.models import metrics
 from src.models.utils import InputAwareDynamicCache, log_likelihood_from_outputs
 from src.utils import RankedLogger
+from src.utils.sampling_utils import RepeatStoppingCriteria, has_too_many_repeats
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -67,21 +45,6 @@ def calc_grad_norm(params):
     )
 
     return grad_norm
-
-    
-def has_too_many_repeats(seq: str, repeat_length: int = 9, repeat_count: int = 9) -> bool:
-    """
-    Heuristic to detect failed sampling by checking for repeated trailing substrings.
-    Returns True if the last `repeat_length` chars appear at least `repeat_count` times in seq.
-    """
-    if not seq:
-        return False
-    if len(seq) < repeat_length * repeat_count:
-        return False
-    substring = seq[-repeat_length:]
-    return seq.count(substring) >= repeat_count
-
-
 
 
 def load_checkpoint(checkpoint_dir, **kwargs):
@@ -849,8 +812,8 @@ class BaseFamilyLitModule(BaseLitModule):
         structure_tokens: bool = False,
         continuous_sampling: bool = False,
         repeat_guard: bool = True,
-        repeat_length: int = 3,
-        repeat_count: int = 3,
+        repeat_length: int = 9,
+        repeat_count: int = 9,
         repeat_guard_max_restarts: int = 3,
     ):
         """
@@ -1000,8 +963,7 @@ class BaseFamilyLitModule(BaseLitModule):
                                 if token_id == self.tokenizer.sep_token_id:
                                     finished_non_cont = True
                             else:
-                                total_logp += float(lp)
-                                count += 1
+                                raise ValueError("Continuous sampling is not supported for base model")
                         batch_scores.append(total_logp / max(count, 1))
 
                 if len(failed_indices) == 0:

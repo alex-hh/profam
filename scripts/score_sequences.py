@@ -16,9 +16,7 @@ outputs are saved to output_path as a csv file
 from src.models.base import load_checkpoint
 from src.models.inference import (
     EnsemblePromptBuilder,
-    ProFamEnsembleSampler,
     PromptBuilder,
-    ProFamSampler
 )
 from src.data.objects import ProteinDocument
 from src.data.processors.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor, AlignedProteinPreprocessingConfig
@@ -63,15 +61,12 @@ def main():
     parser.add_argument("--save_dir", type=str, required=True, help="Directory to save generated FASTA files")
     parser.add_argument("--sampler", type=str, default="single", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
     parser.add_argument("--num_prompts_in_ensemble", type=int, default=8)
-    parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--max_tokens", type=int, default=8192)
-    parser.add_argument("--max_generated_length", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument("--top_p", type=float, default=0.95, help="Nucleus sampling probability mass (0<p<=1)")
     parser.add_argument("--reduction", type=str, default="mean_probs", choices=["mean_probs", "sum_log_probs"])
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dtype", type=str, default="bfloat16", choices=["float32", "float16", "bfloat16"])
-    parser.add_argument("--continuous_sampling", action="store_true", default=False, help="Ignore [SEP] EOS and generate until token budget; drop final partial segment")
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
