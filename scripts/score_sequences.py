@@ -6,12 +6,17 @@ import torch.nn.functional as F
 import rootutils
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
+"""
+Script for scoring sequences from a checkpoint model
+input: conditioning_sequences.fasta, candidate_sequences.fasta
+optional_input: ground_truth_scores.csv # if provided, will compute Spearman rank correlation between ground truth scores and model scores
+outputs are saved to output_path as a csv file
+"""
+
 from src.models.base import load_checkpoint
 from src.models.inference import (
     EnsemblePromptBuilder,
-    ProFamEnsembleSampler,
     PromptBuilder,
-    ProFamSampler
 )
 from src.data.objects import ProteinDocument
 from src.data.processors.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor, AlignedProteinPreprocessingConfig
@@ -56,50 +61,12 @@ def main():
     parser.add_argument("--save_dir", type=str, required=True, help="Directory to save generated FASTA files")
     parser.add_argument("--sampler", type=str, default="single", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
     parser.add_argument("--num_prompts_in_ensemble", type=int, default=8)
-    parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--max_tokens", type=int, default=8192)
-    parser.add_argument("--max_generated_length", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument("--top_p", type=float, default=0.95, help="Nucleus sampling probability mass (0<p<=1)")
     parser.add_argument("--reduction", type=str, default="mean_probs", choices=["mean_probs", "sum_log_probs"])
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dtype", type=str, default="bfloat16", choices=["float32", "float16", "bfloat16"])
-    parser.add_argument("--continuous_sampling", action="store_true", default=False, help="Ignore [SEP] EOS and generate until token budget; drop final partial segment")
-    parser.add_argument(
-        "--max_sequence_length_multiplier",
-        type=float,
-        default=1.2,
-        help=(
-            "Limits the maximum generated length to be no longer than this factor "
-            "longer than the longest sequence in the prompt"
-        ),
-    )
-    parser.add_argument(
-        "--minimum_sequence_length_proportion",
-        type=float,
-        default=0,
-        help=(
-            "Discard sequences that end with length < this proportion times the minimum "
-            "sequence length in the prompt"
-        ),
-    )
-    parser.add_argument(
-        "--minimum_sequence_identity",
-        type=float,
-        default=None,
-        help=(
-            "Discard sequences that have an aligned identity fraction less than this quantity"
-        ),
-    )
-    parser.add_argument(
-        "--maximum_retries",
-        type=int,
-        default=5,
-        help=(
-            "If a sequence is aborted by filters, retry up to this many times before "
-            "returning the last attempt"
-        ),
-    )
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
@@ -111,8 +78,7 @@ def main():
         help="Override attention implementation before model init (e.g. flash_attention_2)",
     )
     args = parser.parse_args()
-    if args.max_tokens > 8192:
-        raise ValueError("Max tokens must be less than or equal to 8192: model was only trained up to 8192 tokens, not likely to work at lengths above this")
+
     # Seed RNGs for reproducibility
     seed_all(args.seed)
 
@@ -193,84 +159,6 @@ def main():
     else:
         
         builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True, seed=args.seed)
-        sampling_kwargs = {}
-        if args.top_p is not None:
-            sampling_kwargs["top_p"] = args.top_p
-        if args.temperature is not None:
-            sampling_kwargs["temperature"] = args.temperature
-        sampler = ProFamSampler(
-            name="single_sampler",
-            model=model,
-            prompt_builder=builder,
-            document_token=doc_token,
-            sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
-            add_final_sep=True,
-        )
-    sampler.to(args.device)
-
-    # Process each file
-    for fasta_path in input_files:
-        base = os.path.splitext(os.path.basename(fasta_path))[0]
-        out_path = os.path.join(args.save_dir, f"{base}_generated.fasta")
-        if os.path.exists(out_path):
-            print(f"Skipping {fasta_path} because {out_path} already exists")
-            continue
-        try:
-            pool = build_pool_from_fasta(fasta_path)
-            longest_prompt_len = int(max(pool.sequence_lengths))
-            default_cap = int(longest_prompt_len * float(args.max_sequence_length_multiplier))
-            if args.max_generated_length is None:
-                max_gen_len = default_cap
-            else:
-                max_gen_len = min(int(args.max_generated_length), default_cap)
-            if args.continuous_sampling:
-                # In continuous mode we ignore user-provided max_generated_length and go to token budget
-                max_gen_len = None
-            if args.sampler == "ensemble":
-                sequences, scores, _ = sampler.sample_seqs_ensemble(
-                    protein_document=pool,
-                    num_samples=args.num_samples,
-                    max_tokens=args.max_tokens,
-                    num_prompts_in_ensemble=min(args.num_prompts_in_ensemble, len(pool.sequences)),
-                    max_generated_length=max_gen_len,
-                    continuous_sampling=args.continuous_sampling,
-                    minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
-                    minimum_sequence_identity=args.minimum_sequence_identity,
-                    maximum_retries=args.maximum_retries,
-                )
-            else:
-                preprocessor.cfg.max_tokens_per_example = args.max_tokens - max_gen_len
-                builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
-                sampling_kwargs = {}
-                if args.top_p is not None:
-                    sampling_kwargs["top_p"] = args.top_p
-                if args.temperature is not None:
-                    sampling_kwargs["temperature"] = args.temperature
-                sampler = ProFamSampler(
-                    name="single_sampler",
-                    model=model,
-                    prompt_builder=builder,
-                    document_token=doc_token,
-                    sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
-                    add_final_sep=True,
-                )
-                sequences, scores, _ = sampler.sample_seqs(
-                    protein_document=pool,
-                    num_samples=args.num_samples,
-                    max_tokens=args.max_tokens,
-                    max_generated_length=max_gen_len,
-                    continuous_sampling=args.continuous_sampling,
-                    minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
-                    minimum_sequence_identity=args.minimum_sequence_identity,
-                    maximum_retries=args.maximum_retries,
-                )
-
-
-            accessions = [f"{base}_sample_{i}_log_likelihood_{score:.3f}" for i, score in enumerate(scores)]
-            write_fasta(sequences, accessions, out_path)
-            print(f"Wrote {len(sequences)} sequences -> {out_path}")
-        except Exception as e:
-            print(f"Error processing {fasta_path}: {e}")
 
 
 if __name__ == "__main__":

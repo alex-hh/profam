@@ -1,5 +1,9 @@
 import copy
 import functools
+import os
+import shutil
+import subprocess
+import tempfile
 from typing import Dict, Optional, List, Tuple
 
 import numpy as np
@@ -15,6 +19,73 @@ from src.data.processors.preprocessing import (
 from src.data.tokenizers import ProFamTokenizer
 from src.models.base import BaseFamilyLitModule
 from src.constants import aa_letters, aa_letters_lower
+from src.utils.sampling_utils import has_too_many_repeats
+
+
+def _mmseqs_best_identity(prompt_sequences: List[str], query_sequences: List[str], threads: int = 1) -> List[float]:
+    """Compute best identity per query sequence against prompt sequences using mmseqs easy-search.
+
+    Returns a list of floats in [0,1], one per query, representing the maximum percent identity
+    (converted to fraction) across all target prompt sequences. Queries with no hits get 0.0.
+    """
+    if len(query_sequences) == 0:
+        return []
+    mmseqs_bin = shutil.which("mmseqs")
+    if mmseqs_bin is None:
+        raise RuntimeError("mmseqs binary not found in PATH; required for identity filtering")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        target_fa = os.path.join(tmpdir, "targets.fasta")
+        query_fa = os.path.join(tmpdir, "queries.fasta")
+        result_tsv = os.path.join(tmpdir, "res.tsv")
+        # Write FASTAs with unique IDs
+        with open(target_fa, "w") as ft:
+            for i, seq in enumerate(prompt_sequences):
+                ft.write(f">t{i}\n{seq}\n")
+        with open(query_fa, "w") as fq:
+            for i, seq in enumerate(query_sequences):
+                fq.write(f">q{i}\n{seq}\n")
+
+        # Run mmseqs easy-search; outputs TSV
+        # Fields: query,target,pident (we only need these)
+        cmd = [
+            mmseqs_bin,
+            "easy-search",
+            query_fa,
+            target_fa,
+            result_tsv,
+            tmpdir,
+            "--threads",
+            str(int(threads)),
+            "--format-output",
+            "query,target,pident",
+        ]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"mmseqs easy-search failed: {e}")
+
+        # Parse results; mmseqs may output multiple hits per query -> take max pident
+        best: Dict[str, float] = {}
+        if os.path.exists(result_tsv):
+            with open(result_tsv, "r") as fr:
+                for line in fr:
+                    parts = line.strip().split("\t")
+                    if len(parts) < 3:
+                        continue
+                    qid, _tid, pident = parts[0], parts[1], parts[2]
+                    try:
+                        pid = float(pident) / 100.0
+                    except ValueError:
+                        continue
+                    prev = best.get(qid, 0.0)
+                    if pid > prev:
+                        best[qid] = pid
+        # Map back to query order
+        out: List[float] = []
+        for i in range(len(query_sequences)):
+            out.append(float(best.get(f"q{i}", 0.0)))
+        return out
 
 
 class PromptBuilder:
@@ -136,7 +207,15 @@ class ProFamSampler:
         document_is_prompt=False,
         max_generated_length: int = None,
         continuous_sampling: bool = False,
+        minimum_sequence_length_proportion: Optional[float] = None,
+        minimum_sequence_identity: Optional[float] = None,
+        maximum_retries: int = 5,
+        repeat_guard: bool = True,
+        repeat_length: int = 9,
+        repeat_count: int = 9,
+        repeat_guard_max_restarts: int = 3,
     ):
+        assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
         sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
         if self.match_representative_length:
             sampling_kwargs["fixed_length"] = len(
@@ -158,55 +237,86 @@ class ProFamSampler:
             if isinstance(encoded[key], np.ndarray):
                 encoded[key] = torch.from_numpy(encoded[key])
 
-        with torch.no_grad():  # prob unnecessary
-            tokens, scores = self.model._sample_seqs(
-                encoded["input_ids"].unsqueeze(0).to(self.model.device),
-                max_tokens=max_tokens,
-                max_generated_length=max_generated_length,
-                num_samples=num_samples,
-                input_residue_index=encoded["residue_index"]
-                .unsqueeze(0)
-                .to(self.model.device),
-                input_coords=encoded["coords"]
-                .unsqueeze(0)
-                .to(self.model.device)
-                .to(self.dtype)
-                if self.model.embed_coords
-                else None,
-                continuous_sampling=continuous_sampling,
-                **sampling_kwargs,
-            )
+        # Prepare filter thresholds
+        prompt_sequences = list(prompt.sequences)
+        min_prompt_len = min((len(s) for s in prompt_sequences), default=0)
 
+        # Identity/length filtering handled in mmseqs batch per round below
+
+        accepted_sequences: List[str] = []
+        accepted_scores: List[float] = []
+        max_sequence_identities: List[float] = []
+        target = int(num_samples)
+        rounds = 0
+        with torch.no_grad():
             if not continuous_sampling:
-                sequences = self.model.tokenizer.decode_tokens(tokens)
-                return sequences, scores, prompt
+                while len(accepted_sequences) < target and rounds <= int(maximum_retries):
+                    need = target - len(accepted_sequences)
+                    tokens, scores = self.model._sample_seqs(
+                        encoded["input_ids"].unsqueeze(0).to(self.model.device),
+                        max_tokens=max_tokens,
+                        max_generated_length=max_generated_length,
+                        num_samples=need,
+                        input_residue_index=encoded["residue_index"].unsqueeze(0).to(self.model.device),
+                        input_coords=encoded["coords"].unsqueeze(0).to(self.model.device).to(self.dtype) if self.model.embed_coords else None,
+                        continuous_sampling=False,
+                        repeat_guard=repeat_guard,
+                        repeat_length=repeat_length,
+                        repeat_count=repeat_count,
+                        repeat_guard_max_restarts=repeat_guard_max_restarts,
+                        **sampling_kwargs,
+                    )
+                    batch_seqs = self.model.tokenizer.decode_tokens(tokens)
+                    # Length pre-filter
+                    len_ok_mask = [True] * len(batch_seqs)
+                    if minimum_sequence_length_proportion is not None:
+                        min_len = int(min_prompt_len * float(minimum_sequence_length_proportion))
+                        len_ok_mask = [len(s) >= min_len for s in batch_seqs]
+                    # Identity via mmseqs on those that passed length
+                    idents: List[float] = [0.0] * len(batch_seqs)
+                    idx_map: List[int] = [i for i, ok in enumerate(len_ok_mask) if ok]
+                    if len(idx_map) > 0 and ((minimum_sequence_identity is not None) and (minimum_sequence_identity > 0)):
+                        queries = [batch_seqs[i] for i in idx_map]
+                        id_vals = _mmseqs_best_identity(prompt_sequences, queries, threads=1)
+                        for j, i in enumerate(idx_map):
+                            idents[i] = id_vals[j]
+                    # Accept
+                    for i, seq in enumerate(batch_seqs):
+                        passes_len = len_ok_mask[i]
+                        passes_id = True if (minimum_sequence_identity is None or minimum_sequence_identity == 0) else (idents[i] >= float(minimum_sequence_identity))
+                        if passes_len and passes_id:
+                            accepted_sequences.append(seq)
+                            accepted_scores.append(float(scores[i] if isinstance(scores, list) else scores))
+                            max_sequence_identities.append(idents[i])
+                            if len(accepted_sequences) >= target:
+                                break
+                    rounds += 1
+
+                # Fallback: generate remaining without filters
+                if len(accepted_sequences) < target:
+                    need = target - len(accepted_sequences)
+                    tokens, scores = self.model._sample_seqs(
+                        encoded["input_ids"].unsqueeze(0).to(self.model.device),
+                        max_tokens=max_tokens,
+                        max_generated_length=max_generated_length,
+                        num_samples=need,
+                        input_residue_index=encoded["residue_index"].unsqueeze(0).to(self.model.device),
+                        input_coords=encoded["coords"].unsqueeze(0).to(self.model.device).to(self.dtype) if self.model.embed_coords else None,
+                        continuous_sampling=False,
+                        repeat_guard=False,
+                        **sampling_kwargs,
+                    )
+                    batch_seqs = self.model.tokenizer.decode_tokens(tokens)
+                    for i, seq in enumerate(batch_seqs):
+                        accepted_sequences.append(seq)
+                        accepted_scores.append(float(scores[i] if isinstance(scores, list) else scores))
+                        max_sequence_identities.append(idents[i])
+                        if len(accepted_sequences) >= target:
+                            break
             else:
-                # Flatten all completed sequences delimited by [SEP]; drop trailing partial segment
-                sep_id = self.model.tokenizer.sep_token_id
-                sequences = []
-                seq_scores = []
-                score_ix = 0
-                for r in range(tokens.shape[0]):
-                    row = tokens[r]
-                    if (row == self.model.tokenizer.pad_token_id).all():
-                        continue
-                    sep_positions = (row == sep_id).nonzero(as_tuple=False).flatten().tolist()
-                    if len(sep_positions) == 0:
-                        continue
-                    prev = 0
-                    for sep_pos in sep_positions:
-                        seg = row[prev:sep_pos]
-                        if seg.numel() > 0:
-                            text = self.model.tokenizer.decode(
-                                seg.tolist(), skip_special_tokens=True
-                            ).replace(" ", "")
-                            if text:
-                                sequences.append(text)
-                                # scores list is aligned to emitted segments
-                                seq_scores.append(scores[score_ix])
-                                score_ix += 1
-                        prev = sep_pos + 1
-                return sequences, seq_scores, prompt
+                raise ValueError("Continuous sampling is not supported for ProFamSampler")
+
+        return accepted_sequences, accepted_scores, prompt
 
     @classmethod
     def from_checkpoint_dir(
@@ -287,6 +397,7 @@ class EnsemblePromptBuilder:
         variants: List[ProteinDocument] = []
         max_context_tokens = max_tokens - int(np.max(prepared.sequence_lengths) * 1.2)
         max_context_tokens = max(max_context_tokens, 0)
+        # Note: clustering is intentionally disabled; we keep the argument for API compatibility.
         for _ in range(num_prompts_in_ensemble):
             if sample_context_length:
                 low = int(np.max(prepared.sequence_lengths))
@@ -299,12 +410,10 @@ class EnsemblePromptBuilder:
             else:
                 this_context_tokens = max_context_tokens
             idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
-            # Preserve order within chosen set but randomly permute for diversity
             perm = np.array(idxs)
             if self.shuffle:
                 self.rng.shuffle(perm)
-            variant_doc = prepared[perm.tolist()]
-            variants.append(variant_doc)
+            variants.append(prepared[perm.tolist()])
         return variants
 
 
@@ -370,38 +479,46 @@ class EnsembleDecoder:
         max_generated_length: Optional[int] = None,
         eos_token_id: Optional[int] = None,
         continuous_sampling: bool = False,
+        # Repeat-guard parameters
+        repeat_guard: bool = True,
+        repeat_length: int = 9,
+        repeat_count: int = 9,
+        repeat_guard_max_restarts: int = 3,
     ) -> torch.Tensor:
         device = self.model.device
         # Ensure tensors are on device
         input_ids = [ids.to(device) for ids in input_ids]
         eos = self.model.tokenizer.sep_token_id if eos_token_id is None else eos_token_id
-
-        # Prepare per-variant state: independent KV caches and lengths (no padding)
+        assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
+        # Helper to prepare per-variant state: independent KV caches and lengths (no padding)
         B = len(input_ids)
-        variant_states: List[Dict] = []
+        def _init_states() -> List[Dict]:
+            variant_states_local: List[Dict] = []
+            for b in range(B):
+                ids_b_full = input_ids[b]
+                eff_len = int(ids_b_full.shape[-1])
+                ids_b = ids_b_full.unsqueeze(0)  # (1, L_b)
+                am_b = torch.ones((1, eff_len), dtype=torch.long, device=device)
+                pos_b = am_b.long().cumsum(dim=-1) - 1
 
-        for b in range(B):
-            ids_b_full = input_ids[b]
-            eff_len = int(ids_b_full.shape[-1])
-            ids_b = ids_b_full.unsqueeze(0)  # (1, L_b)
-            am_b = torch.ones((1, eff_len), dtype=torch.long, device=device)
-            pos_b = am_b.long().cumsum(dim=-1) - 1
+                outputs_b = self.model.model(
+                    input_ids=ids_b,
+                    attention_mask=am_b,
+                    position_ids=pos_b,
+                    use_cache=True,
+                )
+                pkv_b = outputs_b.past_key_values
+                logits_last_b = outputs_b.logits[0, eff_len - 1, :]  # (V)
+                variant_states_local.append(
+                    {
+                        "length": eff_len,
+                        "past": pkv_b,
+                        "logits": logits_last_b,
+                    }
+                )
+            return variant_states_local
 
-            outputs_b = self.model.model(
-                input_ids=ids_b,
-                attention_mask=am_b,
-                position_ids=pos_b,
-                use_cache=True,
-            )
-            pkv_b = outputs_b.past_key_values
-            logits_last_b = outputs_b.logits[0, eff_len - 1, :]  # (V)
-            variant_states.append(
-                {
-                    "length": eff_len,
-                    "past": pkv_b,
-                    "logits": logits_last_b,
-                }
-            )
+        variant_states: List[Dict] = _init_states()
 
         completions: List[int] = []
         total_logp: float = 0.0
@@ -410,6 +527,8 @@ class EnsembleDecoder:
         seg_total: float = 0.0
         seg_count: int = 0
         step = 0
+        restarts_done: int = 0
+        guard_active: bool = bool(repeat_guard)
         while True:
             # Compute per-variant next-token distributions
             probs_list: List[torch.Tensor] = []
@@ -454,13 +573,32 @@ class EnsembleDecoder:
                 total_logp += token_logp
                 token_count += 1
             else:
-                seg_total += token_logp
-                seg_count += 1
-                if token_id == eos:
-                    # end segment; record mean log-prob for this segment
-                    segment_scores.append(seg_total / max(seg_count, 1))
-                    seg_total = 0.0
-                    seg_count = 0
+                raise ValueError("Continuous sampling is not supported for EnsembleDecoder")
+
+            # Repeat-guard: check for excessive repeats and optionally restart rollout
+            if guard_active:
+                # Decode current completion as AA string
+                try:
+                    seq_so_far = self.model.tokenizer.decode(completions, skip_special_tokens=True).replace(" ", "")
+                except Exception:
+                    seq_so_far = ""
+                if seq_so_far and has_too_many_repeats(seq_so_far, repeat_length=repeat_length, repeat_count=repeat_count):
+                    restarts_done += 1
+                    if restarts_done <= int(repeat_guard_max_restarts):
+                        # Reset rollout state and start again from scratch
+                        completions = []
+                        total_logp = 0.0
+                        token_count = 0
+                        segment_scores = []
+                        seg_total = 0.0
+                        seg_count = 0
+                        step = 0
+                        variant_states = _init_states()
+                        # Continue with fresh rollout
+                        continue
+                    else:
+                        # Exhausted restarts; disable guard and continue sampling to completion
+                        guard_active = False
 
             # Termination
             step += 1
@@ -498,7 +636,7 @@ class EnsembleDecoder:
             mean_logp = total_logp / max(token_count, 1)
             return gen, mean_logp
         else:
-            return gen, segment_scores
+            raise ValueError("Continuous sampling is not supported for EnsembleDecoder")
 
 
 class ProFamEnsembleSampler:
@@ -574,7 +712,16 @@ class ProFamEnsembleSampler:
         num_prompts_in_ensemble: int,
         max_generated_length: Optional[int] = None,
         continuous_sampling: bool = False,
-    ) -> Tuple[List[str], List[ProteinDocument]]:
+        minimum_sequence_length_proportion: Optional[float] = None,
+        minimum_sequence_identity: Optional[float] = None,
+        maximum_retries: int = 5,
+        # Repeat-guard parameters
+        repeat_guard: bool = True,
+        repeat_length: int = 9,
+        repeat_count: int = 9,
+        repeat_guard_max_restarts: int = 3,
+    ) -> Tuple[List[str], List[float], List[ProteinDocument]]:
+        assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
         # Build prompt variants
         variants = self.prompt_builder.build_variants(
             protein_document,
@@ -582,6 +729,10 @@ class ProFamEnsembleSampler:
             num_prompts_in_ensemble=num_prompts_in_ensemble,
             max_tokens=max_tokens,
         )
+        # Also prepare prompt sequences (post-transforms) for filtering thresholds
+        prepared = self.prompt_builder.preprocessor.apply_transforms(protein_document, self.model.tokenizer, rng=self.prompt_builder.rng)
+        prompt_sequences = list(prepared.sequences)
+        min_prompt_len = min((len(s) for s in prompt_sequences), default=0)
         # Encode prompts without padding
         prompt_ids_list = self._encode_variants(variants)
 
@@ -593,42 +744,74 @@ class ProFamEnsembleSampler:
             top_p=self.top_p,
         )
 
+        # Identity/length filtering handled in mmseqs batch per round below
+
         sequences: List[str] = []
         scores_out: List[float] = []
-        for _ in range(num_samples):
-            gen_ids, gen_scores = decoder.generate(
-                input_ids=prompt_ids_list,
-                max_generated_length=max_generated_length,
-                eos_token_id=self.model.tokenizer.sep_token_id,
-                continuous_sampling=continuous_sampling,
-            )
-
-            if isinstance(gen_ids, torch.Tensor) and gen_ids.numel() == 0:
-                sequences.append("")
-                scores_out.append(float("nan"))
-            else:
-                if not continuous_sampling:
+        target = int(num_samples)
+        rounds = 0
+        if not continuous_sampling:
+            while len(sequences) < target and rounds <= int(maximum_retries):
+                need = target - len(sequences)
+                cand_seqs: List[str] = []
+                cand_scores: List[float] = []
+                for _ in range(need):
+                    gen_ids, gen_scores = decoder.generate(
+                        input_ids=prompt_ids_list,
+                        max_generated_length=max_generated_length,
+                        eos_token_id=self.model.tokenizer.sep_token_id,
+                        continuous_sampling=False,
+                        repeat_guard=repeat_guard,
+                        repeat_length=repeat_length,
+                        repeat_count=repeat_count,
+                        repeat_guard_max_restarts=repeat_guard_max_restarts,
+                    )
+                    if isinstance(gen_ids, torch.Tensor) and gen_ids.numel() == 0:
+                        continue
                     seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[0]
-                    sequences.append(seq)
-                    scores_out.append(float(gen_scores))
-                else:
-                    # Split on [SEP] and drop trailing partial
-                    sep_id = self.model.tokenizer.sep_token_id
-                    row = gen_ids
-                    sep_positions = (row == sep_id).nonzero(as_tuple=False).flatten().tolist()
-                    prev = 0
-                    seg_idx = 0
-                    for sep_pos in sep_positions:
-                        seg = row[prev:sep_pos]
-                        if seg.numel() > 0:
-                            text = self.model.tokenizer.decode(
-                                seg.tolist(), skip_special_tokens=True
-                            ).replace(" ", "")
-                            if text:
-                                sequences.append(text)
-                                if isinstance(gen_scores, list) and seg_idx < len(gen_scores):
-                                    scores_out.append(float(gen_scores[seg_idx]))
-                                    seg_idx += 1
-                        prev = sep_pos + 1
+                    cand_seqs.append(seq)
+                    cand_scores.append(float(gen_scores if isinstance(gen_scores, (int, float)) else gen_scores))
+                # Length filter
+                len_ok = [True] * len(cand_seqs)
+                if minimum_sequence_length_proportion is not None:
+                    min_len = int(min_prompt_len * float(minimum_sequence_length_proportion))
+                    len_ok = [len(s) >= min_len for s in cand_seqs]
+                # Identity batch via mmseqs
+                idents: List[float] = [0.0] * len(cand_seqs)
+                idx_map = [i for i, ok in enumerate(len_ok) if ok]
+                if len(idx_map) > 0 and (minimum_sequence_identity is not None) and (minimum_sequence_identity > 0):
+                    id_vals = _mmseqs_best_identity(prompt_sequences, [cand_seqs[i] for i in idx_map], threads=1)
+                    for j, i in enumerate(idx_map):
+                        idents[i] = id_vals[j]
+                # Accept
+                for i, seq in enumerate(cand_seqs):
+                    passes_len = len_ok[i]
+                    passes_id = True if (minimum_sequence_identity is None or minimum_sequence_identity == 0) else (idents[i] >= float(minimum_sequence_identity))
+                    if passes_len and passes_id:
+                        sequences.append(seq)
+                        scores_out.append(cand_scores[i])
+                        if len(sequences) >= target:
+                            break
+                rounds += 1
 
+            # Fallback: fill remaining with last-round generations ignoring filters
+            if len(sequences) < target:
+                need = target - len(sequences)
+                for _ in range(need):
+                    gen_ids, gen_scores = decoder.generate(
+                        input_ids=prompt_ids_list,
+                        max_generated_length=max_generated_length,
+                        eos_token_id=self.model.tokenizer.sep_token_id,
+                        continuous_sampling=False,
+                        repeat_guard=False,
+                    )
+                    if isinstance(gen_ids, torch.Tensor) and gen_ids.numel() == 0:
+                        sequences.append("")
+                        scores_out.append(float("nan"))
+                    else:
+                        seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[0]
+                        sequences.append(seq)
+                        scores_out.append(float(gen_scores if isinstance(gen_scores, (int, float)) else gen_scores))
+        else:
+            raise ValueError("Continuous sampling is not supported for ProFamEnsembleSampler")
         return sequences, scores_out, variants

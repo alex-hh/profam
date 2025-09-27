@@ -267,6 +267,145 @@ def compute_entropy_correlation(prompt_seqs, gen_seqs, min_depth=10):
     return corr, prompt_e, gen_e, mask
 
 
+def divergences_from_combined_alignment(combined_msa_path, generated_start_idx, min_depth=10, pseudocount=1e-9, kl_alpha_total=2.0):
+    """
+    Compute per-position divergences between natural (prompt) and synthetic (generated)
+    subsets using a pre-aligned combined MSA (FASTA with gaps).
+
+    Definitions (all logs are natural; results are in nats):
+    - Let P be the empirical amino-acid distribution per column for the natural subset
+      (prompt sequences), and Q for the synthetic subset (generated sequences).
+    - KL(P || Q) = sum_i P_i * log(P_i / Q_i). Returned as the non-symmetric KL from
+      natural to synthetic.
+    - Symmetric KL (reported here) = 0.5 * (KL(P || Q) + KL(Q || P)).
+    - Jensen–Shannon divergence (JSD) = 0.5 * KL(P || M) + 0.5 * KL(Q || M), where
+      M = 0.5 * (P + Q).
+
+    Assumptions:
+    - Columns are evaluated only when both subsets have non-gap depth >= min_depth.
+    - Gaps ('-') are excluded from counts; all other characters are treated as distinct
+      residue symbols (including ambiguous codes) and included in the per-column union
+      alphabet.
+    - Pseudocount smoothing with value `pseudocount` is applied symmetrically to both
+      P and Q over the union alphabet of observed residues at the column, to avoid
+      zeros and ensure finite KL values.
+
+    Additional smoothing (asymmetric, affects only KL(natural || synthetic)):
+    - An optional Dirichlet-style prior of total mass `kl_alpha_total` is added to the
+      synthetic counts, distributed uniformly over residues that appear in the natural
+      column. This only affects KL(natural || synthetic); JSD and symmetric KL use
+      the baseline (pseudocount-only) smoothing.
+
+    Returns:
+      (js_mean, skl_mean, kl_nat_to_syn_mean, js_per_position, skl_per_position,
+       kl_nat_to_syn_per_position, mask)
+    where mask selects the positions used for averaging.
+    """
+    alignment = AlignIO.read(combined_msa_path, "fasta")
+    records = list(alignment)
+    prompt_records = records[:generated_start_idx]
+    generated_records = records[generated_start_idx:]
+
+    prompt_seqs = [str(r.seq) for r in prompt_records]
+    gen_seqs = [str(r.seq) for r in generated_records]
+
+    if len(prompt_seqs) == 0 or len(gen_seqs) == 0:
+        return None, None, None, None, None
+
+    length = len(prompt_seqs[0])
+    # Safety: ensure all sequences are the same length
+    if any(len(s) != length for s in prompt_seqs + gen_seqs):
+        # Not aligned properly
+        return None, None, None, None, None
+
+    js_values = np.full(length, np.nan, dtype=float)
+    skl_values = np.full(length, np.nan, dtype=float)
+    kl_nat_to_syn_values = np.full(length, np.nan, dtype=float)
+    mask = np.zeros(length, dtype=bool)
+
+    for col in range(length):
+        # Collect non-gap residues in this column
+        prompt_col = [s[col] for s in prompt_seqs]
+        gen_col = [s[col] for s in gen_seqs]
+
+        prompt_residues = [c for c in prompt_col if c != "-"]
+        gen_residues = [c for c in gen_col if c != "-"]
+
+        prompt_depth = len(prompt_residues)
+        gen_depth = len(gen_residues)
+
+        if prompt_depth < min_depth or gen_depth < min_depth:
+            continue
+
+        # Build empirical distributions over the union of observed residues
+        pr_unique, pr_counts = np.unique(prompt_residues, return_counts=True)
+        ge_unique, ge_counts = np.unique(gen_residues, return_counts=True)
+
+        union_residues = list(sorted(set(pr_unique.tolist()) | set(ge_unique.tolist())))
+        if len(union_residues) == 0:
+            continue
+
+        pr_map = {res: cnt for res, cnt in zip(pr_unique, pr_counts)}
+        ge_map = {res: cnt for res, cnt in zip(ge_unique, ge_counts)}
+
+        # Raw count vectors over the union alphabet
+        p_counts = np.array([pr_map.get(res, 0.0) for res in union_residues], dtype=float)
+        q_counts = np.array([ge_map.get(res, 0.0) for res in union_residues], dtype=float)
+
+        # Baseline pseudocount smoothing used for JSD and symmetric KL
+        k = float(len(union_residues))
+        p_probs = (p_counts + pseudocount) / (p_counts.sum() + pseudocount * k)
+        q_probs = (q_counts + pseudocount) / (q_counts.sum() + pseudocount * k)
+
+        # Helper: KL divergence in nats
+        def _kl(a, b):
+            return float(np.sum(a * (np.log(a) - np.log(b))))
+
+        # JSD and symmetric KL computed on baseline-smoothed distributions
+        m = 0.5 * (p_probs + q_probs)
+        js = 0.5 * _kl(p_probs, m) + 0.5 * _kl(q_probs, m)
+        skl = 0.5 * (_kl(p_probs, q_probs) + _kl(q_probs, p_probs))
+
+        # KL(natural || synthetic) with optional asymmetric alpha smoothing on Q
+        if kl_alpha_total is not None and kl_alpha_total > 0:
+            # Distribute alpha mass uniformly over residues observed in natural (support of P)
+            natural_support_mask = p_counts > 0
+            support_size = int(np.sum(natural_support_mask))
+            if support_size > 0:
+                increment = kl_alpha_total / float(support_size)
+                q_counts_alpha = q_counts.copy()
+                q_counts_alpha[natural_support_mask] += increment
+                q_probs_for_kl = (q_counts_alpha + pseudocount) / (q_counts_alpha.sum() + pseudocount * k)
+            else:
+                # Fallback to baseline if no natural support is detected (shouldn't happen due to depth check)
+                q_probs_for_kl = q_probs
+        else:
+            q_probs_for_kl = q_probs
+
+        kl_pq = _kl(p_probs, q_probs_for_kl)  # KL(natural || synthetic) with asymmetric smoothing
+
+        js_values[col] = js
+        skl_values[col] = skl
+        kl_nat_to_syn_values[col] = kl_pq
+        mask[col] = True
+
+    if not np.any(mask):
+        return None, None, None, js_values, skl_values, kl_nat_to_syn_values, mask
+
+    js_mean = float(np.nanmean(js_values[mask]))
+    skl_mean = float(np.nanmean(skl_values[mask]))
+    kl_nat_to_syn_mean = float(np.nanmean(kl_nat_to_syn_values[mask]))
+    return (
+        js_mean,
+        skl_mean,
+        kl_nat_to_syn_mean,
+        js_values,
+        skl_values,
+        kl_nat_to_syn_values,
+        mask,
+    )
+
+
 def plot_perplexity_series(prompt_entropies, gen_entropies, mask, output_path):
     """
     Plot per-column perplexity (exp(entropy)) for prompt and generated subsets
@@ -327,6 +466,7 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
     # Entropy correlation and plot using the combined alignment to ensure shared columns
     entropy_corr = None
     perplexity_plot_path = None
+    js_mean, skl_mean, kl_nat_to_syn_mean = None, None, None
     try:
         combined_alignment = AlignIO.read(aligned_combined_path, "fasta")
         records = list(combined_alignment)
@@ -346,6 +486,13 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
                 plot_perplexity_series(prompt_e, gen_e, mask, perplexity_plot_path)
             except ImportError:
                 pass  # plotting is optional
+        # Divergences (JSD, symmetric KL, and KL(natural||synthetic)) over positions with depth >= 10 in both subsets
+        try:
+            js_mean, skl_mean, kl_nat_to_syn_mean, _js_vals, _skl_vals, _kl_pq_vals, _mask = divergences_from_combined_alignment(
+                aligned_combined_path, prompt_count, min_depth=10
+            )
+        except Exception:
+            js_mean, skl_mean, kl_nat_to_syn_mean = None, None, None
     except Exception:
         pass  # entropy from combined alignment is best-effort
 
@@ -379,6 +526,12 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
         "perplexity_plot_path": perplexity_plot_path,
         "per_sequence_csv": csv_path,
     }
+    # Add averaged divergences if available
+    results["js_divergence_mean"] = round(js_mean, 3) if js_mean is not None else None
+    results["symmetric_kl_divergence_mean"] = round(skl_mean, 3) if skl_mean is not None else None
+    results["kl_natural_to_synthetic_mean"] = (
+        round(kl_nat_to_syn_mean, 3) if kl_nat_to_syn_mean is not None else None
+    )
     for aggregation_strategy in ["min", "max", "mean"]:
         if aggregation_strategy == "mean":
             agg_func = np.mean

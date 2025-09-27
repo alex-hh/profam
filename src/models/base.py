@@ -19,6 +19,8 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
+from transformers import StoppingCriteria, StoppingCriteriaList
+import torch
 import random
 import warnings
 import copy
@@ -29,6 +31,7 @@ from src.data.tokenizers import ProFamTokenizer
 from src.models import metrics
 from src.models.utils import InputAwareDynamicCache, log_likelihood_from_outputs
 from src.utils import RankedLogger
+from src.utils.sampling_utils import RepeatStoppingCriteria, has_too_many_repeats
 
 log = RankedLogger(__name__, rank_zero_only=True)
 
@@ -808,6 +811,10 @@ class BaseFamilyLitModule(BaseLitModule):
         sample_gaps: bool = False,
         structure_tokens: bool = False,
         continuous_sampling: bool = False,
+        repeat_guard: bool = True,
+        repeat_length: int = 9,
+        repeat_count: int = 9,
+        repeat_guard_max_restarts: int = 3,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -884,80 +891,107 @@ class BaseFamilyLitModule(BaseLitModule):
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
         assert input_residue_index.shape == input_ids.shape
-        all_outputs = []
+        all_outputs: List[torch.Tensor] = []
         all_scores: List[float] = []
-        for batch_start in tqdm.tqdm(range(0, num_samples, batch_size), "Generating sequences"):
-            num_return_sequences = min(batch_size, num_samples - batch_start)
-            # TODO: understand how this gets reshaped...within prepare inputs for generation it already is expanded
-            forward_kwargs = self.get_forward_kwargs(
-                {
-                    "residue_index": input_residue_index,
-                    "coords": input_coords,
-                }
-            )
-            # TemperatureLogitsWarper
-            # TODO: migrate to model.sample
-            # N.B. we need to be careful about generationconfig -- in particular eos token id
-            # if we want to generate multiple sequences in a single family: we either need to restore eos token id
-            # or we just do a batched generation like we do here. latter is more explicit.
-            # https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py#L1908
-            gen_out = self.model.generate(
-                input_ids=input_ids,
-                num_return_sequences=num_return_sequences,
-                return_dict_in_generate=True,
-                output_scores=True,
-                do_sample=not greedy,
-                temperature=temperature,
-                **generation_kwargs,
-                **forward_kwargs,
-            )
-            seqs = gen_out.sequences
-            if not include_prompt_in_output:
-                # keep full sequences for indexing step-wise, but compute offset
-                pass
-            all_outputs.append(seqs[:, input_ids.shape[1] :])
+        # Always generate exactly one sequence at a time
+        for batch_start in tqdm.tqdm(range(num_samples), "Generating sequences"):
+            remaining = 1
+            attempt = 0
+            max_topups = 3
+            batch_collected: List[torch.Tensor] = []
+            batch_scores: List[float] = []
+            while remaining > 0:
+                forward_kwargs = self.get_forward_kwargs(
+                    {
+                        "residue_index": input_residue_index,
+                        "coords": input_coords,
+                    }
+                )
+                # Build stopping criteria that knows prompt length (non-continuous only)
+                stopping = None
+                if not continuous_sampling and repeat_guard:
+                    prompt_len = input_ids.shape[1]
+                    stopping = StoppingCriteriaList([
+                        RepeatStoppingCriteria(self.tokenizer, repeat_length=repeat_length, repeat_count=repeat_count, prompt_length=prompt_len)
+                    ])
+                gen_out = self.model.generate(
+                    input_ids=input_ids,
+                    num_return_sequences=1,
+                    return_dict_in_generate=True,
+                    output_scores=True,
+                    do_sample=not greedy,
+                    temperature=temperature,
+                    stopping_criteria=stopping,
+                    **generation_kwargs,
+                    **forward_kwargs,
+                )
+                seqs_full = gen_out.sequences  # (remaining, L_total)
+                scores_list = gen_out.scores  # List[T] of (remaining, V)
+                # Slice off prompt
+                prompt_len = input_ids.shape[1]
+                seqs = seqs_full[:, prompt_len:]
 
-            # Accumulate per-sequence mean log-prob over generated tokens
-            # (include SEP if present). Use post-warped logits in gen_out.scores.
-            prompt_len = input_ids.shape[1]
-            scores_list = gen_out.scores  # List[T] of (B, V) logits
-            T = len(scores_list)
-            for i in range(seqs.shape[0]):
-                total_logp = 0.0
-                count = 0
-                seg_total = 0.0
-                seg_count = 0
-                per_seq_segment_scores: List[float] = []
-                finished_non_cont = False
-                for t in range(T):
-                    token_id = int(seqs[i, prompt_len + t].item())
-                    # Some rows might be padded after early EOS; stop accumulation for non-continuous after first SEP
-                    logits_t = scores_list[t]
-                    # safe indexing: logits_t shape matches current batch
-                    log_probs_t = F.log_softmax(logits_t, dim=-1)
-                    token_logp = float(log_probs_t[i, token_id].item())
-                    if not continuous_sampling:
-                        if finished_non_cont:
-                            continue
-                        total_logp += token_logp
-                        count += 1
-                        if token_id == self.tokenizer.sep_token_id:
-                            finished_non_cont = True
+                # Evaluate which are acceptable vs need retry
+                failed_indices: List[int] = []
+                for i in range(seqs.shape[0]):
+                    row = seqs[i]
+                    # find last non-pad token index
+                    pad_id = self.tokenizer.pad_token_id
+                    valid_len = int((row != pad_id).sum().item())
+                    last_tok = int(row[valid_len - 1].item()) if valid_len > 0 else pad_id
+                    text = self.tokenizer.decode(row[:valid_len].tolist(), skip_special_tokens=True).replace(" ", "")
+                    ends_with_sep = (last_tok == self.tokenizer.sep_token_id)
+                    is_repeaty = has_too_many_repeats(text, repeat_length=repeat_length, repeat_count=repeat_count)
+                    if (not ends_with_sep) or (is_repeaty and (not continuous_sampling)):
+                        failed_indices.append(i)
                     else:
-                        # continuous mode: accumulate per-segment until SEP, then record
-                        seg_total += token_logp
-                        seg_count += 1
-                        if token_id == self.tokenizer.sep_token_id:
-                            if seg_count > 0:
-                                per_seq_segment_scores.append(seg_total / max(seg_count, 1))
-                            seg_total = 0.0
-                            seg_count = 0
-                if not continuous_sampling:
-                    # normalise by generated length incl SEP
-                    all_scores.append(total_logp / max(count, 1))
+                        # accept and score
+                        batch_collected.append(row.unsqueeze(0))
+                        # compute mean logp up to SEP if present
+                        total_logp = 0.0
+                        count = 0
+                        finished_non_cont = False
+                        T = len(scores_list)
+                        for t in range(T):
+                            token_id = int(seqs[i, t].item()) if t < seqs.shape[1] else pad_id
+                            lp = F.log_softmax(scores_list[t], dim=-1)[i, token_id].item()
+                            if not continuous_sampling:
+                                if finished_non_cont:
+                                    continue
+                                total_logp += float(lp)
+                                count += 1
+                                if token_id == self.tokenizer.sep_token_id:
+                                    finished_non_cont = True
+                            else:
+                                raise ValueError("Continuous sampling is not supported for base model")
+                        batch_scores.append(total_logp / max(count, 1))
+
+                if len(failed_indices) == 0:
+                    remaining = 0
                 else:
-                    # append in-order per complete segment for this sequence
-                    all_scores.extend(per_seq_segment_scores)
+                    attempt += 1
+                    if attempt >= max_topups:
+                        # accept remaining failed ones as-is (score them) to avoid infinite loop
+                        for i in failed_indices:
+                            row = seqs[i]
+                            batch_collected.append(row.unsqueeze(0))
+                            total_logp = 0.0
+                            count = 0
+                            T = len(scores_list)
+                            for t in range(T):
+                                token_id = int(seqs[i, t].item()) if t < seqs.shape[1] else pad_id
+                                lp = F.log_softmax(scores_list[t], dim=-1)[i, token_id].item()
+                                total_logp += float(lp)
+                                count += 1
+                            batch_scores.append(total_logp / max(count, 1))
+                        remaining = 0
+                    else:
+                        remaining = len(failed_indices)
+
+            # Commit collected from this batch
+            if len(batch_collected) > 0:
+                all_outputs.append(torch.cat(batch_collected, dim=0))
+                all_scores.extend(batch_scores)
 
         max_output_length = max([o.shape[1] for o in all_outputs])
         # TODO: poss just return a list instead of the padded tensor
