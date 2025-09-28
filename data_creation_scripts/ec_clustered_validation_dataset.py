@@ -6,7 +6,7 @@ import tempfile
 from Bio import SeqIO
 import numpy as np
 import random
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 """
 Created by Jude Wells 2025-09-26
@@ -98,13 +98,12 @@ def _run(cmd):
 
 
 
-def align_all_to_longest_with_mafft(input_fasta, output_aln_fasta, threads=12):
+def align_with_mafft(input_fasta, output_aln_fasta, threads=12):
     """
-    Align all sequences to the longest (by ungapped length) using MAFFT, keeping
-    the longest sequence ungapped (a3m-style anchor). Others are added full-length.
+    Align all sequences with MAFFT.
 
     Command pattern:
-      mafft --thread N --keeplength --addfull others.fa longest.fa > output.fasta
+      mafft --thread N input.fasta > output.fasta
     """
     records = list(SeqIO.parse(input_fasta, "fasta"))
     if len(records) == 0:
@@ -150,6 +149,7 @@ def write_many_one_line_fastas(records, output_path, strip_gaps=True):
             f.write(f">{r.id}\n")
             f.write(seq_str + "\n")
     return output_path
+
 
 
 if __name__ == "__main__":
@@ -231,7 +231,7 @@ if __name__ == "__main__":
                 msa_path = os.path.join(align_dir, f"{ec_id}_cluster_aln.fasta")
                 if not os.path.exists(msa_path):
                     try:
-                        align_all_to_longest_with_mafft(cluster_fa, msa_path, threads=threads)
+                        align_with_mafft(cluster_fa, msa_path, threads=threads)
                     except subprocess.CalledProcessError as e:
                         print(e.stdout)
                         print(e.stderr)
