@@ -5,7 +5,7 @@
 #$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l h_rt=23:55:30
 #$ -S /bin/bash
-#$ -N SampFS
+#$ -N SampFSnoEns
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
