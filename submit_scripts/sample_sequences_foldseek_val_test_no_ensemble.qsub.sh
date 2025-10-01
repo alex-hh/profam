@@ -9,7 +9,7 @@
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -t 6-8
+#$ -t 1-8
 #$ -j y
 
 date

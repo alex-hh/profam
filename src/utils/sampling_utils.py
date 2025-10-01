@@ -1,3 +1,7 @@
+from transformers import StoppingCriteria
+import torch
+
+
 def has_too_many_repeats(seq: str, repeat_length:int = 9, repeat_count:int = 9) -> bool:
     """
     Heuristic to detect failed sampling by checking for repeated trailing substrings.

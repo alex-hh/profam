@@ -19,7 +19,7 @@ from torch import nn
 from transformers import PreTrainedTokenizerFast
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
-from transformers import StoppingCriteria, StoppingCriteriaList
+from transformers import StoppingCriteriaList
 import torch
 import random
 import warnings
