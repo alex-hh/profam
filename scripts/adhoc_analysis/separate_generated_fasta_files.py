@@ -34,11 +34,12 @@ import pandas as pd
 
 # pattern = "../sampling_results/foldseek_combined_val_test_2025_09_17/*.fasta"
 # output_dir = "../sampling_results/foldseek_combined_val_test_ensemble8_single_colabfold_fastas_seq_sim_lt_0p5"
-pattern = "../sampling_results/poet/poet_foldseek_*/generated_sequences_foldseek_*/*_samples20_seed42.fasta"
-output_dir = "../sampling_results/poet/poet_foldseek_combined_val_test_single_colabfold_fastas_seq_sim_lt_0p5"
-
-pattern = "../sampling_results/foldseek_combined_val_test_no_ensemble_2025_10_01/*.fasta"
+# pattern = "../sampling_results/poet/poet_foldseek_*/generated_sequences_foldseek_*/*_samples20_seed42.fasta"
+# output_dir = "../sampling_results/poet/poet_foldseek_combined_val_test_single_colabfold_fastas_seq_sim_lt_0p5"
+# pattern = "../sampling_results/foldseek_combined_val_test_no_ensemble_2025_10_01/*.fasta"
+pattern = "../sampling_results/foldseek_combined_val_test_poet_exact_prompts_no_ensemble_2025_10_01/*.fasta"
 output_dir = f"{os.path.dirname(pattern)}/median_only"
+
 seq_sim_upper_bound = None
 os.makedirs(output_dir, exist_ok=True)
 fasta_paths = glob.glob(pattern)

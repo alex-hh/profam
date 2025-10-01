@@ -5,7 +5,7 @@
 #$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N CFnoEns
+#$ -N CFnoEnsPoet
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
@@ -38,7 +38,7 @@ colabfold_batch --help   # or: python -m colabfold.batch --help
 
 LINENUM=$SGE_TASK_ID
 # FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
-FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/foldseek_combined_val_test_no_ensemble_2025_10_01/median_only
+FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/foldseek_combined_val_test_poet_exact_prompts_no_ensemble_2025_10_01/median_only
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
@@ -84,7 +84,7 @@ sed -n "${START_LINE},${END_LINE}p" "$LIST_FILE" | while IFS= read -r REL_FASTA_
   echo "$FASTAPATH"
   BASENAME="$(basename "$REL_FASTA_PATH")"
   BASENAME_NOEXT="${BASENAME%%.*}"
-  OUTPUT_DIR="../sampling_results/colabfold_outputs/foldseek_combined_val_test_no_ensemble_2025_10_01/${BASENAME_NOEXT}"
+  OUTPUT_DIR="../sampling_results/colabfold_outputs/foldseek_combined_val_test_poet_exact_prompts_no_ensemble_2025_10_01/${BASENAME_NOEXT}"
   echo "$OUTPUT_DIR"
   mkdir -p "$OUTPUT_DIR"
   # Skip if expected output PDB already exists
