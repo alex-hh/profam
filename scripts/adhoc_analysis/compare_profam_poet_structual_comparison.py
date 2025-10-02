@@ -12,10 +12,11 @@ mpl.rcParams['font.serif'] = ['Times New Roman', 'Times', 'DejaVu Serif', 'serif
 mpl.rcParams['mathtext.fontset'] = 'stix'  # For math text compatibility with Times
 
 colors = {"ProFam": "#1f77b4", "PoET": "#2ca02c", "Random": "#808080"}
-# profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
+profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
+
 # poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
-profam_csv = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/structural_evaluation.csv"
-poet_csv = "../sampling_results/poet/poet_colabfold_outputs_seq_sim_lt_0p5/structural_evaluation.csv"
+# profam_csv = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/structural_evaluation.csv"
+# poet_csv = "../sampling_results/poet/poet_colabfold_outputs_seq_sim_lt_0p5/structural_evaluation.csv"
 random_csv = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/random_structural_evaluation.csv"
 
 
@@ -256,15 +257,15 @@ def make_structure_sequence_similarity_plots(
 
 
 entropy_correlation_density_plots()
-# make_structure_sequence_similarity_plots(
-#     profam_ensemble_df = profam_df, 
-#     profam_single_df = None, 
-#     poet_df = poet_df, 
-#     random_df = random_df, 
-#     plot_ensemble=True, 
-#     plot_single=False, 
-#     plot_poet=True, 
-#     plot_random=True,
-#     save_name="foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5",
-# )
+make_structure_sequence_similarity_plots(
+    profam_ensemble_df = profam_df, 
+    profam_single_df = None, 
+    poet_df = poet_df, 
+    random_df = random_df, 
+    plot_ensemble=True, 
+    plot_single=False, 
+    plot_poet=True, 
+    plot_random=True,
+    save_name="foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5",
+)
 barplot_prop_with_good_tm_score(profam_df, poet_df, random_df, seq_threshold=0.4, tm_threshold=0.5, include_ci=True, save_path="plots_for_paper/prop_good_tm_seq_lt_0.4_tm_ge_0.5.png")

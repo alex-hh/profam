@@ -5,11 +5,11 @@
 #$ -l gpu_type=(a40|a10|a100|a100_80)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N CFseed42
+#$ -N CFnoEnsPoet
 #$ -P cath
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
-#$ -t 1-10
+#$ -t 1-8
 #$ -j y
 date
 hostname
@@ -38,13 +38,25 @@ colabfold_batch --help   # or: python -m colabfold.batch --help
 
 LINENUM=$SGE_TASK_ID
 # FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/funfam_foldseek_gen0_combined
-FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/foldseek_combined_val_test_2025_09_17/foldseek_combined_val_test_ensemble8_single_colabfold_fastas
+FASTADIR=/SAN/orengolab/cath_plm/ProFam/sampling_results/foldseek_combined_val_test_poet_exact_prompts_no_ensemble_2025_10_01/median_only
 
 # Batch selection: choose $BATCHSIZE FASTA entries for this job index ($LINENUM)
 # across $NUMTASKS jobs, with no overlap and no misses (contiguous blocks).
-BATCHSIZE=13
-NUMTASKS=10
+BATCHSIZE=16
+NUMTASKS=8
 LIST_FILE="$FASTADIR/fasta_file_list.txt"
+# If the FASTA list file does not exist, create it from files in FASTADIR
+if [ ! -f "$LIST_FILE" ]; then
+  echo "[INFO] FASTA list file not found; generating: $LIST_FILE"
+  if [ ! -d "$FASTADIR" ]; then
+    echo "[ERROR] FASTADIR does not exist: $FASTADIR"
+    exit 1
+  fi
+  (
+    cd "$FASTADIR" && \
+    ls | grep ".fasta" > "fasta_file_list.txt"
+  )
+fi
 TOTAL_LINES=$(wc -l < "$LIST_FILE")
 START_LINE=$(( (LINENUM - 1) * BATCHSIZE + 1 ))
 END_LINE=$(( START_LINE + BATCHSIZE - 1 ))
@@ -72,7 +84,7 @@ sed -n "${START_LINE},${END_LINE}p" "$LIST_FILE" | while IFS= read -r REL_FASTA_
   echo "$FASTAPATH"
   BASENAME="$(basename "$REL_FASTA_PATH")"
   BASENAME_NOEXT="${BASENAME%%.*}"
-  OUTPUT_DIR="../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17/${BASENAME_NOEXT}"
+  OUTPUT_DIR="../sampling_results/colabfold_outputs/foldseek_combined_val_test_poet_exact_prompts_no_ensemble_2025_10_01/${BASENAME_NOEXT}"
   echo "$OUTPUT_DIR"
   mkdir -p "$OUTPUT_DIR"
   # Skip if expected output PDB already exists

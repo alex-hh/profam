@@ -102,6 +102,7 @@ def main():
     )
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
+    parser.add_argument("--disable_repeat_guard", action="store_true", default=False, help="Disable repeat guard")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
     parser.add_argument(
         "--attn_implementation",
@@ -111,6 +112,7 @@ def main():
         help="Override attention implementation before model init (e.g. flash_attention_2)",
     )
     args = parser.parse_args()
+    repeat_guard = not args.disable_repeat_guard
     if args.max_tokens > 8192:
         raise ValueError("Max tokens must be less than or equal to 8192: model was only trained up to 8192 tokens, not likely to work at lengths above this")
     # Seed RNGs for reproducibility
@@ -142,10 +144,8 @@ def main():
     }
     model.to(args.device, dtype=dtype_map[args.dtype])
 
-    # Prepare save directory
     os.makedirs(args.save_dir, exist_ok=True)
 
-    # Collect input files
     input_files = sorted(glob.glob(args.glob))
     if args.task_index is not None and args.num_tasks is not None:
         batch_size = len(input_files) // args.num_tasks
@@ -177,7 +177,6 @@ def main():
     )
     preprocessor = ProteinDocumentPreprocessor(cfg=cfg)
 
-    # Build sampler according to selection
     if args.sampler == "ensemble":
         builder = EnsemblePromptBuilder(preprocessor=preprocessor, shuffle=True, seed=args.seed)
         sampler = ProFamEnsembleSampler(
@@ -237,6 +236,7 @@ def main():
                     minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
                     minimum_sequence_identity=args.minimum_sequence_identity,
                     maximum_retries=args.maximum_retries,
+                    repeat_guard=repeat_guard,
                 )
             else:
                 preprocessor.cfg.max_tokens_per_example = args.max_tokens - max_gen_len
@@ -263,6 +263,7 @@ def main():
                     minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
                     minimum_sequence_identity=args.minimum_sequence_identity,
                     maximum_retries=args.maximum_retries,
+                    repeat_guard=repeat_guard,
                 )
 
 
