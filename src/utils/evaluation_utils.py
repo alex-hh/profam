@@ -445,17 +445,9 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
     """
     alignment_directory = os.path.dirname(generated_fasta) + "/alignments"
     os.makedirs(alignment_directory, exist_ok=True)
-    aligned_generation_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "_aln.fasta"))
-    aligned_prompt_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "prompt_aln.fasta"))
     combined_fasta_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "combined.fasta"))
     prompt_count = make_combined_fasta(prompt_fasta, generated_fasta, combined_fasta_path)
     aligned_combined_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "combined_aln.fasta"))
-    if not os.path.exists(aligned_generation_path):
-        run_alignment_with_mafft(generated_fasta, aligned_generation_path)
-    if "aligned" in prompt_fasta or "_aln.fasta" in prompt_fasta:
-        aligned_prompt_path = prompt_fasta
-    else:
-        run_alignment_with_mafft(prompt_fasta, aligned_prompt_path)
     if not os.path.exists(aligned_combined_path):
         run_alignment_with_mafft(combined_fasta_path, aligned_combined_path)
 
@@ -496,18 +488,6 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
     except Exception:
         pass  # entropy from combined alignment is best-effort
 
-    # Create sequence logos (optional)
-    if generate_logos:
-        try:
-            prompt_logo = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "prompt_logo.png"))
-            gen_logo = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "_logo.png"))
-            create_logo_from_fasta(aligned_prompt_path, prompt_logo)
-            create_logo_from_fasta(aligned_generation_path, gen_logo)
-        except Exception:
-            # Logo creation is best-effort
-            pass
-
-
     # Save per-sequence stats CSV
     csv_path = os.path.join(
         alignment_directory,
@@ -519,13 +499,32 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
         csv_path = None
 
     results = {
-        "aligned_generation_path": aligned_generation_path,
-        "aligned_prompt_path": aligned_prompt_path,
         "aligned_combined_path": aligned_combined_path,
         "entropy_correlation": round(entropy_corr, 3) if entropy_corr is not None else None,
         "perplexity_plot_path": perplexity_plot_path,
         "per_sequence_csv": csv_path,
     }
+    # Create sequence logos (optional)
+    if generate_logos:
+        aligned_generation_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "_aln.fasta"))
+        aligned_prompt_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "prompt_aln.fasta"))
+        if not os.path.exists(aligned_generation_path):
+            run_alignment_with_mafft(generated_fasta, aligned_generation_path)
+        if "aligned" in prompt_fasta or "_aln.fasta" in prompt_fasta:
+            aligned_prompt_path = prompt_fasta
+        else:
+            run_alignment_with_mafft(prompt_fasta, aligned_prompt_path)
+        results["aligned_generation_path"] = aligned_generation_path
+        results["aligned_prompt_path"] = aligned_prompt_path
+        try:
+            prompt_logo = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "prompt_logo.png"))
+            gen_logo = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "_logo.png"))
+            create_logo_from_fasta(aligned_prompt_path, prompt_logo)
+            create_logo_from_fasta(aligned_generation_path, gen_logo)
+        except Exception:
+            # Logo creation is best-effort
+            pass
+
     # Add averaged divergences if available
     results["js_divergence_mean"] = round(js_mean, 3) if js_mean is not None else None
     results["symmetric_kl_divergence_mean"] = round(skl_mean, 3) if skl_mean is not None else None
