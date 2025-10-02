@@ -4,8 +4,10 @@ import shutil
 import subprocess
 import tempfile
 from Bio import SeqIO
+from Bio.Seq import Seq
 import numpy as np
 import random
+import pandas as pd
 from typing import Dict, List, Optional, Tuple
 from data_creation_scripts.ec_clustered_validation_dataset import align_with_mafft, run_hhfilter
 
@@ -13,8 +15,7 @@ from data_creation_scripts.ec_clustered_validation_dataset import align_with_maf
 # SCA / covariance utilities
 # =========================
 
-# 20 standard amino acids plus gap
-ALPHABET_21 = "ACDEFGHIKLMNPQRSTVWY-"
+# 20 standard amino acids; gaps are ignored for correlation purposes
 ALPHABET_20 = "ACDEFGHIKLMNPQRSTVWY"
 
 
@@ -24,7 +25,8 @@ def parse_aligned_fasta_to_indices(
 ) -> Tuple[np.ndarray, List[str]]:
     """
     Parse an aligned FASTA into an integer array of shape (num_sequences, L),
-    using 0..20 for the 20 amino acids plus gap ('-'), and -1 for unknown tokens.
+    using 0..19 for the 20 natural amino acids. Gaps ('-') and unknown tokens
+    are encoded as -1 and excluded from correlation/counting.
 
     Returns (indices, sequence_ids).
     """
@@ -53,13 +55,13 @@ def compute_symbol_covariances(
     dtype: np.dtype = np.float32,
 ) -> Dict[str, np.ndarray]:
     """
-    Compute SCA-style covariances for an aligned MSA, treating gap as the 21st state.
+    Compute SCA-style covariances for an aligned MSA over a 20-state alphabet.
 
-    For each position i, j and symbols a, b in the 21-state alphabet:
+    For each position i, j and symbols a, b in the 20-state alphabet:
       covariance[i, j, a, b] = P_ij(a, b) - P_i(a) * P_j(b)
 
     where probabilities are estimated by relative frequencies across sequences that
-    have valid symbols at both positions (unknown/non-standard residues are excluded).
+      have valid non-gap symbols at both positions (gaps/unknown residues are excluded).
 
     Returns a dict with:
       - 'covariance': (L, L, S, S) float32 array
@@ -72,7 +74,7 @@ def compute_symbol_covariances(
       - 'alphabet': str
 
     Notes:
-      - S = len(alphabet) = 21 by default.
+      - S = len(alphabet) = 20 by default.
       - The support for each (i, j, a, b) entry is the same across (a, b) and equals support_pair[i, j].
     """
     x, _ = parse_aligned_fasta_to_indices(aligned_fasta_path, alphabet=alphabet)
@@ -127,31 +129,31 @@ def assess_correlation_preservation(
     synthetic_aligned_fastas: List[str],
     min_support: int = 10,
     include_diagonal: bool = False,
-    min_symbol_counts: Optional[Tuple[int, int]] = None,
-    # e.g., (min_count_pos_i, min_count_pos_j). If set, require that for each (i,j)
-    # the most constrained symbols at i and j (max over symbols actually used in r)
-    # have at least these counts in both natural and synthetic.
-    require_non_gap: bool = False,
+    min_symbol_counts: Optional[Tuple[int, int]] = (10,0),
 ) -> Dict[str, Dict[str, np.ndarray]]:
     """
     Compare SCA covariances between a natural MSA and one or more synthetic MSAs.
 
     For each synthetic MSA, returns metrics including:
       - 'global_r': Pearson correlation across all (i, j, a, b) entries passing support filters
-      - 'pair_r_matrix': (L, L) matrix of Pearson r per position pair across 21x21 entries
+      - 'pair_r_matrix': (L, L) matrix of Pearson r per position pair across symbol entries
       - 'mean_pair_r', 'median_pair_r': summary stats of pairwise r values (ignoring NaNs)
       - 'coverage': fraction of position pairs (i, j) passing the support filter
 
-    Filtering: a pair (i, j) is included if both natural and synthetic support_pair[i, j] >= min_support.
+    Filtering:
+      - Position-pair base filter: both natural and synthetic support_pair[i, j] >= min_support.
+      - Non-symmetric row-wise filter: for each (i, j), keep only entries (a, b) where
+        amino acid a at position i has count >= min_support in both natural and synthetic.
+        No filter is applied on amino acid b at position j. If require_non_gap=True and
+        the alphabet includes '-', gap rows/cols are excluded as well.
     """
     # Natural
     nat = compute_symbol_covariances(natural_aligned_fasta, return_probabilities=False)
     cov_nat = nat["covariance"].astype(np.float64)
     sup_nat = nat["support_pair"]
     cnt_single_nat = nat["counts_single"]  # (L, S)
-    alphabet = "".join(nat["alphabet"].tolist()) if isinstance(nat["alphabet"], np.ndarray) else nat["alphabet"]
-    gap_index = alphabet.find("-") if "-" in alphabet else -1
     L = cov_nat.shape[0]
+    S = cov_nat.shape[2]
 
     results: Dict[str, Dict[str, np.ndarray]] = {}
 
@@ -166,7 +168,7 @@ def assess_correlation_preservation(
                 f"Shape mismatch between natural {cov_nat.shape} and synthetic {syn_path} {cov_syn.shape}. Alignments must have same length and alphabet."
             )
 
-        # Mask by column-pair support and diagonal
+        # Base mask by column-pair support and diagonal handling
         mask_pairs = (sup_nat >= min_support) & (sup_syn >= min_support)
         if not include_diagonal:
             diag = np.eye(L, dtype=bool)
@@ -175,19 +177,14 @@ def assess_correlation_preservation(
         # Optional: symbol-aware constraints at each single column
         if min_symbol_counts is not None:
             min_i, min_j = int(min_symbol_counts[0]), int(min_symbol_counts[1])
-            # We do not know in advance which symbols will dominate the covariance at a pair,
-            # so use a conservative filter: require that the maximum count across non-gap symbols
-            # at i (and j) is at least min_i (min_j) in both nat and syn.
-            def best_non_gap_count(counts_per_pos: np.ndarray) -> np.ndarray:
-                if require_non_gap and gap_index >= 0:
-                    mask = np.ones(counts_per_pos.shape[1], dtype=bool)
-                    mask[gap_index] = False
-                    return counts_per_pos[:, mask].max(axis=1)
+            # Conservative filter: require that the maximum-residue count at i (and j)
+            # is at least min_i (min_j) in both nat and syn.
+            def best_count(counts_per_pos: np.ndarray) -> np.ndarray:
                 return counts_per_pos.max(axis=1)
 
-            best_i_nat = best_non_gap_count(cnt_single_nat)
+            best_i_nat = best_count(cnt_single_nat)
             best_j_nat = best_i_nat  # same array, re-index per column later
-            best_i_syn = best_non_gap_count(cnt_single_syn)
+            best_i_syn = best_count(cnt_single_syn)
             best_j_syn = best_i_syn
 
             # Build a (L, L) mask from per-column thresholds
@@ -197,41 +194,41 @@ def assess_correlation_preservation(
             col_ok_syn_j = best_j_syn[None, :] >= min_j
             mask_pairs &= col_ok_nat_i & col_ok_nat_j & col_ok_syn_i & col_ok_syn_j
 
-        # Pairwise r per (i, j) across 21x21 entries; optionally exclude gap rows/cols
-        if require_non_gap and gap_index >= 0:
-            # Remove gap row/col from the (S, S) block before flattening
-            X = np.delete(np.delete(cov_nat, gap_index, axis=2), gap_index, axis=3).reshape(L, L, -1)
-            Y = np.delete(np.delete(cov_syn, gap_index, axis=2), gap_index, axis=3).reshape(L, L, -1)
-        else:
-            X = cov_nat.reshape(L, L, -1)
-            Y = cov_syn.reshape(L, L, -1)
+        # Build non-symmetric amino-acid specific row mask at position i
+        # Only include rows (amino acid a) at position i if count >= min_support in BOTH nat and syn
+        row_ok_nat = (cnt_single_nat >= min_support)  # (L, S)
+        row_ok_syn = (cnt_single_syn >= min_support)  # (L, S)
+        row_ok = row_ok_nat & row_ok_syn  # (L, S)
+
+        # Entry-wise mask: (L, L, S, S). Depends on i via row_ok, not on j (non-symmetric)
+        # Ensure mask has full (S, S) per-pair shape to match X_full[ii, jj, :, :]
+        b_ok = np.ones(S, dtype=bool)  # keep all column symbols (20-state, no gap)
+        mask_entries = mask_pairs[:, :, None, None] & row_ok[:, None, :, None] & b_ok[None, None, None, :]
+
+        # We'll compute correlations directly from the full tensors using the entry-wise mask
+        X_full = cov_nat
+        Y_full = cov_syn
 
         # Initialize r matrix with NaNs
         pair_r = np.full((L, L), np.nan, dtype=np.float64)
 
-        valid_i, valid_j = np.where(mask_pairs)
+        # Determine which (i, j) have at least one valid (a, b) entry after masking
+        has_features = np.any(mask_entries, axis=(2, 3))  # (L, L)
+        valid_i, valid_j = np.where(has_features)
         if valid_i.size > 0:
-            # Compute means and stds along the 441-dim feature axis
-            x_sel = X[valid_i, valid_j, :]
-            y_sel = Y[valid_i, valid_j, :]
-            x_mean = x_sel.mean(axis=1)
-            y_mean = y_sel.mean(axis=1)
-            x_center = x_sel - x_mean[:, None]
-            y_center = y_sel - y_mean[:, None]
-            x_std = np.sqrt((x_center * x_center).sum(axis=1))
-            y_std = np.sqrt((y_center * y_center).sum(axis=1))
-            denom = x_std * y_std
-            # Avoid division by zero
-            with np.errstate(divide="ignore", invalid="ignore"):
-                num = (x_center * y_center).sum(axis=1)
-                r_vals = np.where(denom > 0, num / denom, np.nan)
-            pair_r[valid_i, valid_j] = r_vals
+            for ii, jj in zip(valid_i, valid_j):
+                mask_ab = mask_entries[ii, jj, :, :]
+                x_vec = X_full[ii, jj, :, :][mask_ab]
+                y_vec = Y_full[ii, jj, :, :][mask_ab]
+                if x_vec.size == 0 or y_vec.size == 0:
+                    continue
+                r_val = np.corrcoef(x_vec, y_vec)[0, 1]
+                pair_r[ii, jj] = r_val
 
         # Global r over all entries that pass the pair mask
-        if mask_pairs.any():
-            mask_entries = np.repeat(mask_pairs[:, :, None], X.shape[-1], axis=2)
-            x_all = X[mask_entries]
-            y_all = Y[mask_entries]
+        if np.any(mask_entries):
+            x_all = X_full[mask_entries]
+            y_all = Y_full[mask_entries]
             if x_all.size > 0 and y_all.size > 0:
                 # Pearson correlation of flattened vectors
                 x_all_center = x_all - x_all.mean()
@@ -243,7 +240,14 @@ def assess_correlation_preservation(
         else:
             global_r = float("nan")
 
-        coverage = float(mask_pairs.sum()) / float((L * L) - (0 if include_diagonal else L)) if L > 0 else 0.0
+        # Coverage: fraction of (i, j) with at least one valid (a, b) entry
+        cover_mask = has_features.copy()
+        if not include_diagonal:
+            # Ensure diagonal is excluded from the denominator and numerator
+            diag = np.eye(L, dtype=bool)
+            cover_mask &= ~diag
+        denom_pairs = float((L * L) - (0 if include_diagonal else L)) if L > 0 else 0.0
+        coverage = float(cover_mask.sum()) / denom_pairs if denom_pairs > 0 else 0.0
 
         results[syn_path] = {
             "global_r": np.array(global_r),
@@ -267,16 +271,85 @@ def make_aligned_filtered_fasta(fasta_path: str):
     return filtered_fasta_path
 
 
+def make_combined_aligned_fastas(natural_fasta: str, synthetic_fasta: str) -> Tuple[str, str, str]:
+    """
+    Create a combined FASTA (natural followed by synthetic), run a single MAFFT alignment,
+    then split the aligned combined MSA back into aligned natural and aligned synthetic FASTAs.
+
+    Returns (natural_aligned_path, synthetic_aligned_path, combined_aligned_path).
+    """
+    align_dir = os.path.join(os.path.dirname(synthetic_fasta), "alignments")
+    os.makedirs(align_dir, exist_ok=True)
+
+    base = os.path.basename(synthetic_fasta).replace(".fasta", "")
+    combined_fasta_path = os.path.join(align_dir, f"{base}_combined.fasta")
+    combined_aln_path = os.path.join(align_dir, f"{base}_combined_aln.fasta")
+    nat_aln_path = os.path.join(align_dir, f"{base}_natural_aln.fasta")
+    syn_aln_path = os.path.join(align_dir, f"{base}_synthetic_aln.fasta")
+
+    # Write combined FASTA if missing and remember split index
+    if not os.path.exists(combined_fasta_path):
+        nat_records = list(SeqIO.parse(natural_fasta, "fasta"))
+        # Natural FASTAs may already be aligned; strip gap characters before combining
+        for r in nat_records:
+            # Remove common gap characters from natural sequences
+            r.seq = Seq(str(r.seq).replace("-", "").replace(".", ""))
+
+        syn_records = list(SeqIO.parse(synthetic_fasta, "fasta"))
+        with open(combined_fasta_path, "w") as fout:
+            SeqIO.write(nat_records + syn_records, fout, "fasta")
+        nat_count = len(nat_records)
+    else:
+        # If combined exists, derive nat_count from natural file
+        nat_count = sum(1 for _ in SeqIO.parse(natural_fasta, "fasta"))
+
+    # Align combined once
+    if not os.path.exists(combined_aln_path):
+        align_with_mafft(combined_fasta_path, combined_aln_path)
+
+    # Split aligned combined into aligned natural/synthetic
+    need_split = (not os.path.exists(nat_aln_path)) or (not os.path.exists(syn_aln_path))
+    if need_split:
+        aligned_records = list(SeqIO.parse(combined_aln_path, "fasta"))
+        nat_aligned = aligned_records[:nat_count]
+        syn_aligned = aligned_records[nat_count:]
+        with open(nat_aln_path, "w") as f_nat:
+            SeqIO.write(nat_aligned, f_nat, "fasta")
+        with open(syn_aln_path, "w") as f_syn:
+            SeqIO.write(syn_aligned, f_syn, "fasta")
+
+    return nat_aln_path, syn_aln_path, combined_aln_path
+
+
 if __name__ == "__main__":
     synthetic_fasta_pattern = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_with_ensemble/*.fasta"
     synthetic_fasta_paths = glob.glob(synthetic_fasta_pattern)
     synthetic_ec_nums = [os.path.basename(f).split("_cluster")[0] for f in synthetic_fasta_paths]
-    natural_fasta_pattern = "../data/ec/ec_validation_dataset_clustered_c70_pid_30/alignments/*_cluster_aln.filtered.fasta"
+    natural_fasta_pattern = "../data/ec/ec_validation_dataset_clustered_c70_pid_30/alignments/*filtered.fasta"
     natural_fasta_paths = glob.glob(natural_fasta_pattern)
     natural_ec_nums = [os.path.basename(f).split("_cluster")[0] for f in natural_fasta_paths]
+    # Keep only ECs that have synthetic generations
+    all_rows = []
     natural_fasta_paths = [f for f in natural_fasta_paths if os.path.basename(f).split("_cluster")[0] in synthetic_ec_nums]
     for synthetic_fasta in synthetic_fasta_paths:
-        aligned_filtered_fasta = make_aligned_filtered_fasta(synthetic_fasta)
-        natural_fasta = [f for f in natural_fasta_paths if os.path.basename(f).split("_cluster")[0] == os.path.basename(synthetic_fasta).split("_cluster")[0]][0]
-        results = assess_correlation_preservation(natural_fasta, [aligned_filtered_fasta])
-        print(results)
+        ec_id_from_synth = os.path.basename(synthetic_fasta).split("_cluster")[0]
+        matching_natural = [f for f in natural_fasta_paths if os.path.basename(f).split("_cluster")[0] == ec_id_from_synth]
+        if len(matching_natural) == 0:
+            continue
+        natural_eval_fasta = matching_natural[0]
+
+        # Build combined alignment and split into aligned natural and aligned synthetic
+        nat_aln_path, syn_aln_path, _combined_aln = make_combined_aligned_fastas(natural_eval_fasta, synthetic_fasta)
+
+        # Compute covariance correlations on synchronized columns
+        results = assess_correlation_preservation(nat_aln_path, [syn_aln_path])
+        for k, v in results.items():
+            new_row = {
+                "ec_id": ec_id_from_synth,
+                "natural_fasta": natural_eval_fasta,
+                "synthetic_fasta": k
+                }
+            new_row.update(v)
+        all_rows.append(new_row)
+        df = pd.DataFrame(all_rows)
+        df.to_csv("../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_with_ensemble/covariance_analysis.csv", index=False)

@@ -78,26 +78,6 @@ def evaluate_generated_sequences_poet_on_ec_single_sequence():
         df.to_csv(csv_save_path, index=False)
         print(results)
 
-def evaluate_generated_sequences_poet_on_ec_clustered_multi_sequence():
-    all_results = []
-    generated_fasta_pattern = "../sampling_results/poet/ec_multi_clustered_c70_pid_30_poet/*/*_samples100_seed42.fasta"
-    csv_save_path = "../sampling_results/poet/ec_multi_clustered_c70_pid_30_poet/poet_sequence_only_evaluation_ec_multi_sequence.csv"
-    generated_fasta_paths = glob.glob(generated_fasta_pattern)
-    print(f"Found {len(generated_fasta_paths)} generated fasta files")
-    if len(generated_fasta_paths) == 0:
-        raise FileNotFoundError(f"No generated fasta files found for glob: {generated_fasta_pattern}")
-    for generated_fasta in glob.glob(generated_fasta_pattern):
-        ec_num = os.path.basename(generated_fasta).split("_samples100_seed42")[0]
-        prompt_fasta = f"../data/ec/ec_validation_dataset_clustered_c70_pid_30/alignments/{ec_num}.fasta"
-        if not os.path.exists(prompt_fasta):
-            print(f"Prompt FASTA not found for {generated_fasta}")
-            continue
-        results = sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=False)
-        all_results.append(results)
-        df = pd.DataFrame(all_results)
-        df.to_csv(csv_save_path, index=False)
-        print(results)
-
 
 def evaluate_generated_sequences_profam_on_ec_multi_sequence():
     all_results = []
@@ -109,8 +89,8 @@ def evaluate_generated_sequences_profam_on_ec_multi_sequence():
     # generated_fasta_pattern = "../sampling_results/profam_ec_multi_seq_synthetic_msas_no_ensemble/*_generated.fasta"
     # csv_save_path = "../sampling_results/profam_ec_multi_seq_synthetic_msas_no_ensemble/profam_sequence_only_evaluation_ec_multi_sequence.csv"
 
-    generated_fasta_pattern = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_no_ensemble/*_generated.fasta"
-    csv_save_path = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_no_ensemble/profam_sequence_only_evaluation_ec_multi_sequence_no_ensemble.csv"
+    generated_fasta_pattern = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_with_ensemble/*_generated.fasta"
+    csv_save_path = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_with_ensemble/profam_sequence_only_evaluation_ec_multi_sequence_with_ensemble.csv"
 
     if os.path.exists(csv_save_path):
         df = pd.read_csv(csv_save_path)
@@ -219,8 +199,7 @@ if __name__ == "__main__":
     # generated_fasta_pattern = "../sampling_results/foldseek_combined_val_test_2025_09_17/*.fasta"
     # evaluate_generated_sequences_poet_on_ec_single_sequence()
     # evaluate_generated_sequences_profam_on_ec_single_sequence()
-    # evaluate_generated_sequences_profam_on_ec_multi_sequence()
-    evaluate_generated_sequences_poet_on_ec_clustered_multi_sequence()
+    evaluate_generated_sequences_profam_on_ec_multi_sequence()
     # sequence_only_csv_save_path = "../sampling_results/foldseek_combined_val_test_2025_09_17/profam_sequence_only_evaluation.csv"
     # generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
     # generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/*/*.pdb"
