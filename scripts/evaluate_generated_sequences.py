@@ -217,10 +217,10 @@ if __name__ == "__main__":
     # generated_fasta_pattern = "../sampling_results/foldseek_*/*/*.fasta",
     # sequence_only_csv_save_path = "../sampling_results/profam_sequence_only_evaluation.csv",
     # generated_fasta_pattern = "../sampling_results/foldseek_combined_val_test_2025_09_17/*.fasta"
-    # evaluate_generated_sequences_poet_on_ec_single_sequence()
+    evaluate_generated_sequences_poet_on_ec_single_sequence()
     # evaluate_generated_sequences_profam_on_ec_single_sequence()
     # evaluate_generated_sequences_profam_on_ec_multi_sequence()
-    evaluate_generated_sequences_poet_on_ec_clustered_multi_sequence()
+    # evaluate_generated_sequences_poet_on_ec_clustered_multi_sequence()
     # sequence_only_csv_save_path = "../sampling_results/foldseek_combined_val_test_2025_09_17/profam_sequence_only_evaluation.csv"
     # generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_*/gen0_unrelaxed_rank_001_alphafold2_ptm_model_1_seed_000.pdb"
     # generated_pdb_pattern = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_2025_09_17_seq_sim_lt_0p5/*/*.pdb"

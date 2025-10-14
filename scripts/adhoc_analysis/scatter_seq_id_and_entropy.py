@@ -77,14 +77,27 @@ def make_info_theory_scatter_overlay(csv_paths, labels, colors, output_prefix):
 
 
 if __name__ == "__main__":
-    profam_ensemble_path = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_with_ensemble/profam_sequence_only_evaluation_ec_multi_sequence_with_ensemble.csv"
-    profam_no_ensemble_path = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_no_ensemble/profam_sequence_only_evaluation_ec_multi_sequence_no_ensemble.csv"
-    poet_path = "../sampling_results/poet/ec_multi_clustered_c70_pid_30_poet/poet_sequence_only_evaluation_ec_multi_sequence.csv"
+    # profam_ensemble_path = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_with_ensemble/profam_sequence_only_evaluation_ec_multi_sequence_with_ensemble.csv"
+    # profam_no_ensemble_path = "../sampling_results/profam_ec_multi_seq_clustered_c70_pid_30_no_ensemble/profam_sequence_only_evaluation_ec_multi_sequence_no_ensemble.csv"
+    # poet_path = "../sampling_results/poet/ec_multi_clustered_c70_pid_30_poet/poet_sequence_only_evaluation_ec_multi_sequence.csv"
     
-    # Generate overlaid plots for all three datasets
+
+    # # Generate overlaid plots for all three datasets
+    # make_info_theory_scatter_overlay(
+    #     csv_paths=[profam_ensemble_path, profam_no_ensemble_path, poet_path],
+    #     labels=["ProFam ensemble", "ProFam single", "POET"],
+    #     colors=["#1f77b4", "#ff7f0e", "#2ca02c"],  # Blue, orange, green
+    #     output_prefix="plots_for_paper/seq_id_vs_info_theory_comparison"
+    # )
+    
+    
+    profam_single_path = "../sampling_results/profam_ec_single_seq_synthetic_msas/profam_sequence_only_evaluation_ec_single_sequence.csv"
+    poet_single_path = "../sampling_results/poet/poet_ec_single_seq_synthetic_msas/poet_sequence_only_evaluation_ec_single_sequence.csv"
+        # Generate overlaid plots for all three datasets
     make_info_theory_scatter_overlay(
-        csv_paths=[profam_ensemble_path, profam_no_ensemble_path, poet_path],
-        labels=["ProFaM ensemble", "ProFaM single", "POET"],
-        colors=["#1f77b4", "#ff7f0e", "#2ca02c"],  # Blue, orange, green
-        output_prefix="plots_for_paper/seq_id_vs_info_theory_comparison"
+        csv_paths=[profam_single_path, poet_single_path],
+        labels=["ProFam single", "PoET"],
+        colors=["#ff7f0e", "#2ca02c"],  # Blue, orange, green
+        output_prefix="plots_for_paper/seq_id_vs_info_theory_comparison_EC_single_sequence"
     )
+    
