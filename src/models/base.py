@@ -1570,8 +1570,8 @@ class BaseFamilyLitModule(BaseLitModule):
                 seq_sim_multiplier=seq_sim_multiplier,
                 precomputed_multiplier=precomputed_multiplier,
                 target_seq_sim=0.5,
-                top_p_mass_target=0.7,
-                top_p=0.3
+                top_p_mass_target=0.5,
+                top_p=0.5,
             )
             for rep in range(repeats):
                 fail_count = 0
@@ -1737,7 +1737,7 @@ class BaseFamilyLitModule(BaseLitModule):
         self,
         batch: Dict[str, torch.Tensor],
         start_tokens: list[int] = [47, 63],
-        coverage_multiplier: float = 0.5,
+        coverage_multiplier: float = 0.0,
         seq_sim_multiplier: float = 0.0,
         precomputed_multiplier: float = 1.0,
         resample_downweighter: float = 0.6
@@ -1919,6 +1919,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     "min_coverage_list": np.asarray(min_coverage_list, dtype=np.float32),
                     "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
                     "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
+                    "spearman_list": np.asarray(spearman_list, dtype=np.float32),
                 }
                 payload_entropy = self._calculate_entropy_per_prompt(lls_array)
                 if self.gym_results_save_dir is not None:
@@ -1958,6 +1959,7 @@ class BaseFamilyLitModule(BaseLitModule):
                 "min_coverage_list": min_coverage_list,
                 "mean_coverage_list": mean_coverage_list,
                 "max_coverage_list": max_coverage_list,
+                "spearman_list": spearman_list,
             }
             return self._log_and_save_variant_results(
                 dms_id=dms_id,
