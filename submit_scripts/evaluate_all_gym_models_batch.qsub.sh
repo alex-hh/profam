@@ -35,6 +35,7 @@ DIR_REL="logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/cop
 DIR="${ROOT_DIR}/${DIR_REL}"
 NAME="${DIR_REL#logs/saturn_cloud_good_runs/}_GYM_ONLY"
 GYM_RESULTS_SAVE_DIR="2025_10_14_v10_poet_unfiltered_"
+mkdir -p "${DIR}/${GYM_RESULTS_SAVE_DIR}"
 cat "$0" > "${DIR}/${GYM_RESULTS_SAVE_DIR}/qsub_script.sh"
 echo "Selected directory: $DIR"
 echo "Experiment group : $NAME"
