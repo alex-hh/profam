@@ -6,7 +6,7 @@
 #SBATCH --error=logs/slurm/%x-%j.err
 #SBATCH --time=24:00:00
 #SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=128
+#SBATCH --cpus-per-task=64
 #SBATCH --mem=256G
 
 set -euo pipefail
