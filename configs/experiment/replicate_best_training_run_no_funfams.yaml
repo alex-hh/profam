@@ -360,7 +360,7 @@ data:
   data_weights:
     foldseek_s50_train: 1
     uniref90_train: 1
-    openfold_train: 1
+    openfold_train: 0
   val_dataset_batch_sizes:
     foldseek_s50_val: 1
     proteingym: 1

@@ -82,7 +82,7 @@ class TextMemMapDataset(torch.utils.data.Dataset):
         dataset_paths: List[str],
         newline_int: Optional[int] = 10,
         header_lines: Optional[int] = 0,
-        workers: Optional[int] = 10,
+        workers: Optional[int] = None,
         tokenizer: Optional[Type["TokenizerSpec"]] = None,
         build_index_fn: Optional[
             Callable[[str, Optional[int]], bool]
@@ -620,7 +620,6 @@ def build_index_files(
 
     if workers is None:
         workers = max(1, os.cpu_count() // 2)
-    print(f"Using {workers} workers")
     logger.info(f"Processing {len(dataset_paths)} data files using {workers} workers")
     # load all files into memmap
     start_time = time.time()
