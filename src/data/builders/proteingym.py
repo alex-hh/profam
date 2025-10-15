@@ -240,7 +240,7 @@ def load_msa_for_row(
             npz_data["sequence_similarities"], nan=0.0
         ).tolist()
         coverages = np.nan_to_num(npz_data["coverages"], nan=0.0).tolist()
-        # Ensure we have the same number of sequences
+        print(f"mean sequence similarity to wt: {np.mean(sequence_similarities)}, num_seqs: {len(sequence_similarities)}")
         if len(sequence_similarities) != len(seqs):
             print(f"Warning: Number of sequences in MSA ({len(seqs)}) doesn't match number in .npz file ({len(sequence_similarities)})")
             sequence_similarities = None

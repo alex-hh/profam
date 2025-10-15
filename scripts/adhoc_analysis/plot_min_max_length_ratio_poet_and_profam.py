@@ -11,7 +11,12 @@ mpl.rcParams['font.family'] = 'serif'
 mpl.rcParams['font.serif'] = ['Times New Roman', 'Times', 'DejaVu Serif', 'serif']
 mpl.rcParams['mathtext.fontset'] = 'stix'
 
-colors = {"ProFam": "#1f77b4", "PoET": "#2ca02c", "Random": "#808080"}
+colors = {
+    "ProFam (single)": "#17becf",   # teal
+    "ProFam (ensemble)": "#1f77b4", # blue
+    "PoET": "#2ca02c",             # green
+    "Random": "#808080",
+}
 
 # profam_df = pd.read_csv("/mnt/disk2/cath_plm/sampling_results/profam_sequence_only_evaluation.csv")
 # profam_df = profam_df[profam_df['aligned_generation_path'].str.contains("ensemble")]
@@ -35,12 +40,14 @@ colors = {"ProFam": "#1f77b4", "PoET": "#2ca02c", "Random": "#808080"}
 # bp=1
 
 def make_barplot_proportion_within_length_range(
-    profam_df,
+    profam_single_df,
+    profam_ensemble_df,
     poet_df,
     min_proportion=0.66,
     max_proportion=1.5,
     include_ci=True,
     save_path=None,
+    title_suffix=None,
 ):
     """
     Plot the proportion of generated sequences whose lengths fall within
@@ -70,7 +77,11 @@ def make_barplot_proportion_within_length_range(
         return low, high
 
     results = []
-    for name, df in [("ProFam", profam_df), ("PoET", poet_df)]:
+    for name, df in [
+        ("ProFam (single)", profam_single_df),
+        ("ProFam (ensemble)", profam_ensemble_df),
+        ("PoET", poet_df),
+    ]:
         df_filt = df.copy()
         # Ensure finite values
         df_filt = df_filt[np.isfinite(df_filt.get("coverage_min", np.nan)) & np.isfinite(df_filt.get("coverage_max", np.nan))]
@@ -99,59 +110,69 @@ def make_barplot_proportion_within_length_range(
     plt.bar(labels, props, color=bar_colors, yerr=yerr, capsize=4)
     plt.ylim(0, 1.0)
     plt.ylabel(f"Proportion within length range [{min_proportion}, {max_proportion}]")
-    plt.title("Proportion of sequences within length range", pad=12)
+    title_text = "Proportion of sequences within length range"
+    if title_suffix:
+        title_text = f"{title_text} — {title_suffix}"
+    plt.title(title_text, pad=12)
     plt.tight_layout()
 
     if save_path is None:
         min_str = str(min_proportion).replace(".", "p")
         max_str = str(max_proportion).replace(".", "p")
-        save_path = f"plots_for_paper/proportion_within_length_range_{min_str}_{max_str}_no_ensemble.png"
+        save_path = f"plots_for_paper/proportion_within_length_range_{min_str}_{max_str}.png"
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path, dpi=300, bbox_inches="tight")
     plt.close()
 
-pattern = "../sampling_results/foldseek_*/*ensemble*/alignments/*generated_seq_stats.csv"
-csv_paths = glob.glob(pattern)
-df = pd.concat([pd.read_csv(csv_path) for csv_path in csv_paths])
-min_ratio_profam = np.clip((df.coverage_max ** -1).to_numpy(), 0, 4)
+pattern_ensemble = "../sampling_results/foldseek_*/*ensemble*/alignments/*generated_seq_stats.csv"
+pattern_single = "../sampling_results/foldseek_*/*single*/alignments/*generated_seq_stats.csv"
+csv_paths = glob.glob(pattern_ensemble)
+df_ensemble = pd.concat([pd.read_csv(csv_path) for csv_path in csv_paths]) if csv_paths else pd.DataFrame()
+csv_paths = glob.glob(pattern_single)
+df_single = pd.concat([pd.read_csv(csv_path) for csv_path in csv_paths]) if csv_paths else pd.DataFrame()
+df_combined = pd.concat([df_ensemble, df_single], ignore_index=True) if not df_ensemble.empty or not df_single.empty else pd.DataFrame()
+min_ratio_profam = np.clip((df_combined.coverage_max ** -1).to_numpy(), 0, 4) if not df_combined.empty else np.array([])
 poet_pattern = "../sampling_results/poet/poet_foldseek_*/generated_sequences_foldseek_*/alignments/*_seq_stats.csv"
 poet_csv_paths = glob.glob(poet_pattern)
-poet_df = pd.concat([pd.read_csv(csv_path) for csv_path in poet_csv_paths])
+poet_df = pd.concat([pd.read_csv(csv_path) for csv_path in poet_csv_paths]) if poet_csv_paths else pd.DataFrame()
 
 # Barplot of proportion within specified length range (with error bars)
 make_barplot_proportion_within_length_range(
-    profam_df=df,
+    profam_single_df=df_single,
+    profam_ensemble_df=df_ensemble,
     poet_df=poet_df,
     min_proportion=0.66,
     max_proportion=1.5,
     include_ci=True,
 )
 
-min_ratio_poet = np.clip((poet_df.coverage_max ** -1).to_numpy(), 0, 4)
-edges_min = np.linspace(
-    min(min_ratio_profam.min(), min_ratio_poet.min()),
-    max(min_ratio_profam.max(), min_ratio_poet.max()),
-    101,
-)
-plt.hist(min_ratio_profam, bins=edges_min, label="ProFam", alpha=0.5, density=True)
-plt.hist(min_ratio_poet, bins=edges_min, label="PoET", alpha=0.5, density=True)
-plt.xlabel("min(prompt len) / generated seq len")
-plt.legend()
-plt.savefig("length_ratio_min_prompt_len_over_generated_len_poet_and_profam.png")
-plt.clf()
-bp=1
-len_ratio_profam = np.clip(df.coverage_min.to_numpy(), 0, 4)
-len_ratio_poet = np.clip(poet_df.coverage_min.to_numpy(), 0, 4)
-edges_max = np.linspace(
-    min(len_ratio_profam.min(), len_ratio_poet.min()),
-    max(len_ratio_profam.max(), len_ratio_poet.max()),
-    101,
-)
-plt.hist(len_ratio_profam, bins=edges_max, label="ProFam", alpha=0.5, density=True)
-plt.hist(len_ratio_poet, bins=edges_max, label="PoET", alpha=0.5, density=True)
-plt.xlabel("generated seq len / max(prompt len)")
-plt.legend()
-plt.savefig("length_ratio_generated_over_max_prompt_len_poet_and_profam.png")
-plt.clf()
+min_ratio_poet = np.clip((poet_df.coverage_max ** -1).to_numpy(), 0, 4) if not poet_df.empty else np.array([])
+if min_ratio_profam.size > 0 and min_ratio_poet.size > 0:
+    edges_min = np.linspace(
+        min(min_ratio_profam.min(), min_ratio_poet.min()),
+        max(min_ratio_profam.max(), min_ratio_poet.max()),
+        101,
+    )
+    plt.hist(min_ratio_profam, bins=edges_min, label="ProFam", alpha=0.5, density=True)
+    plt.hist(min_ratio_poet, bins=edges_min, label="PoET", alpha=0.5, density=True)
+    plt.xlabel("min(prompt len) / generated seq len")
+    plt.legend()
+    plt.savefig("length_ratio_min_prompt_len_over_generated_len_poet_and_profam.png")
+    plt.clf()
+
+len_ratio_profam = np.clip(df_combined.coverage_min.to_numpy(), 0, 4) if not df_combined.empty else np.array([])
+len_ratio_poet = np.clip(poet_df.coverage_min.to_numpy(), 0, 4) if not poet_df.empty else np.array([])
+if len_ratio_profam.size > 0 and len_ratio_poet.size > 0:
+    edges_max = np.linspace(
+        min(len_ratio_profam.min(), len_ratio_poet.min()),
+        max(len_ratio_profam.max(), len_ratio_poet.max()),
+        101,
+    )
+    plt.hist(len_ratio_profam, bins=edges_max, label="ProFam", alpha=0.5, density=True)
+    plt.hist(len_ratio_poet, bins=edges_max, label="PoET", alpha=0.5, density=True)
+    plt.xlabel("generated seq len / max(prompt len)")
+    plt.legend()
+    plt.savefig("length_ratio_generated_over_max_prompt_len_poet_and_profam.png")
+    plt.clf()
 
 

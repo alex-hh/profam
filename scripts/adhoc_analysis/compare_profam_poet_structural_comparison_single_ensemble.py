@@ -117,13 +117,16 @@ def make_structure_sequence_similarity_plots(
 
 if __name__ == "__main__":
     profam_csv = "../sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
+    # profam_csv_single = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_no_ensemble_2025_10_01/structural_evaluation.csv"
+    profam_csv_single = "../sampling_results/colabfold_outputs/foldseek_combined_val_test_poet_exact_prompts_no_ensemble_2025_10_01//structural_evaluation.csv"
     poet_csv = "../sampling_results/colabfold_outputs/poet_structural_eval/poet_structural_evaluation.csv"
     random_csv = "../sampling_results/randomly_mutated_sequences/random_colabfold_outputs/random_structural_evaluation.csv"
     profam_csv = "/mnt/disk2/cath_plm/sampling_results/colabfold_outputs/profam_structural_evaluation.csv"
 
     profam_df = pd.read_csv(profam_csv)
     print(f"ProFam df: {profam_df.shape}")
-    profam_df_single = profam_df[profam_df.generated_pdb.str.contains("single")]
+    # profam_df_single = profam_df[profam_df.generated_pdb.str.contains("single")]
+    profam_df_single = pd.read_csv(profam_csv_single)
     profam_df_ensemble = profam_df[profam_df.generated_pdb.str.contains("ensemble")]
     print(f"ProFam single df: {profam_df_single.shape}")
     print(f"ProFam ensemble df: {profam_df_ensemble.shape}")
