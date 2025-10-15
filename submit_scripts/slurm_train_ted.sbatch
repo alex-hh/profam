@@ -53,7 +53,7 @@ apptainer exec --nv \
       logger.wandb.log_hydra_config_file=false \
       trainer.devices=auto \
       trainer.val_check_interval=100 \
-      "hydra.run.dir=/logs/runs/${now:%Y-%m-%d}_${now:%H-%M-%S-%f}"
+      "hydra.run.dir=/logs/runs/\${now:%Y-%m-%d}_\${now:%H-%M-%S-%f}"
   '
 
 
