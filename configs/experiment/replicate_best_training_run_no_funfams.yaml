@@ -146,7 +146,7 @@ trainer:
   use_distributed_sampler: false
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
-  data_dir: /home/jovyan/shared/Jude1B/profamdata
+  data_dir: ../data
   log_dir: ${paths.root_dir}/logs/${experiment_group}
   output_dir: ${hydra:runtime.output_dir}
   work_dir: ${hydra:runtime.cwd}
