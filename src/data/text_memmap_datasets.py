@@ -82,7 +82,7 @@ class TextMemMapDataset(torch.utils.data.Dataset):
         dataset_paths: List[str],
         newline_int: Optional[int] = 10,
         header_lines: Optional[int] = 0,
-        workers: Optional[int] = None,
+        workers: Optional[int] = 10,
         tokenizer: Optional[Type["TokenizerSpec"]] = None,
         build_index_fn: Optional[
             Callable[[str, Optional[int]], bool]
