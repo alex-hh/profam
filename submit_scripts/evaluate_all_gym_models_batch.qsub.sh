@@ -8,7 +8,7 @@
 # -l hostname=!(bubba-213-1*)
 #$ -l h_rt=47:55:30
 #$ -S /bin/bash
-#$ -N GYM16_v6_filt
+#$ -N GYM_v10_r2
 #$ -t 1-10
 #$ -o /SAN/orengolab/cath_plm/ProFam/qsub_logs/
 #$ -wd /SAN/orengolab/cath_plm/ProFam/profam
@@ -19,7 +19,7 @@ hostname
 nvidia-smi
 echo "#################### QSUB SCRIPT START ####################"
 cat "$0"
-echo "####################  QSUB SCRIPT END  ####################"
+echo "####################  QSUB SCRIPT END  ####################"6````````````````````````````````````````````````````````````````````````````````````````````````````````````````````` 
 
 conda activate venvPF
 
@@ -59,6 +59,7 @@ data.dataset_builders.proteingym.use_filtered_msa=false \
 +model.gym_subsamples_per_n=120 \
 +data.dataset_builders.proteingym.task_index=$((SGE_TASK_ID - 1)) \
 +data.dataset_builders.proteingym.num_tasks=10 \
+trainer.devices=1 \
 ckpt_path="${DIR}/checkpoints/last.ckpt"
 
 date

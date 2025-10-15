@@ -99,7 +99,8 @@ class BaseLitModule(LightningModule):
         self.ignore_index = ignore_index
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if gym_results_save_dir is not None:
-            self.gym_results_save_dir = os.path.join(gym_results_save_dir, self.timestamp)
+            # self.gym_results_save_dir = os.path.join(gym_results_save_dir, self.timestamp)
+            self.gym_results_save_dir = gym_results_save_dir
             os.makedirs(self.gym_results_save_dir, exist_ok=True)
             print("proteinGym results saved in", self.gym_results_save_dir)
         else:
