@@ -22,7 +22,7 @@ class MappingProteinFamilyMemmapDataset(TextMemMapDataset):
     def __init__(
         self,
         dataset_root: str,
-        workers=None,
+        workers=10,
         sort_dataset_paths=True,
         index_mapping_dir=None,
     ):
@@ -79,7 +79,7 @@ class SequencesProteinFamilyMemmapDataset(Dataset):
     def __init__(
         self,
         dataset_root: str,
-        workers=None,
+        workers=10,
         sort_dataset_paths=True,
         index_mapping_dir=None,
     ):

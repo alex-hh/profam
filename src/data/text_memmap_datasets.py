@@ -620,7 +620,7 @@ def build_index_files(
 
     if workers is None:
         workers = max(1, os.cpu_count() // 2)
-
+    print(f"Using {workers} workers")
     logger.info(f"Processing {len(dataset_paths)} data files using {workers} workers")
     # load all files into memmap
     start_time = time.time()
