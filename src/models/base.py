@@ -82,7 +82,7 @@ class BaseLitModule(LightningModule):
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
         ignore_index: int = -100,
-        gym_results_save_dir = "proteingym_variants"
+        gym_results_save_dir = None
     ) -> None:
         super().__init__()
         self.model = model
@@ -1234,6 +1234,7 @@ class BaseFamilyLitModule(BaseLitModule):
         file_suffix: str,
         rows: Optional[List[Dict[str, Any]]] = None,
         extra_npz_payload: Optional[Dict[str, Any]] = None,
+        plot=False§
     ) -> Tuple[float, float]:
         """Centralised logging, plotting and artefact saving for v3/v4/v5.
 
@@ -1301,7 +1302,7 @@ class BaseFamilyLitModule(BaseLitModule):
                     np.savez_compressed(lls_npz_path, **payload)
                 except Exception as e:
                     warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
-                if variant_lls is not None and self.gym_results_save_dir is not None:
+                if variant_lls is not None and self.gym_results_save_dir is not None and plot:
                     try:
                         self._save_variant_scatter_plot(n_seqs_list, variant_lls, dms_id)
                     except Exception as e:
