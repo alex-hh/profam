@@ -4,10 +4,10 @@
 #SBATCH --job-name=profam-train
 #SBATCH --output=logs/slurm/%x-%j.out
 #SBATCH --error=logs/slurm/%x-%j.err
-#SBATCH --time=25:00:00
+#SBATCH --time=24:00:00
 #SBATCH --gres=gpu:4
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=128
+#SBATCH --mem=512G
 
 set -euo pipefail
 

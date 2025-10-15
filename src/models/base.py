@@ -1234,7 +1234,7 @@ class BaseFamilyLitModule(BaseLitModule):
         file_suffix: str,
         rows: Optional[List[Dict[str, Any]]] = None,
         extra_npz_payload: Optional[Dict[str, Any]] = None,
-        plot=False§
+        plot=False
     ) -> Tuple[float, float]:
         """Centralised logging, plotting and artefact saving for v3/v4/v5.
 
