@@ -4,7 +4,7 @@
 #SBATCH --job-name=profam-train
 #SBATCH --output=logs/slurm/%x-%j.out
 #SBATCH --error=logs/slurm/%x-%j.err
-#SBATCH --time=2-00:00:00
+#SBATCH --time=02:00:00
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
