@@ -41,6 +41,7 @@ apptainer exec --nv \
   bash -lc '
     set -euo pipefail
     echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+    nvidia-smi
     mkdir -p /logs/tmp /logs/.wandb_cache /logs/.hf /logs/.torch /logs/.mpl /logs/.cache
     cd /workspace
     python src/train.py \
