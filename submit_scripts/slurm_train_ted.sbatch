@@ -1,4 +1,6 @@
 #!/bin/bash
+#SBATCH -A hai_1116
+#SBATCH -p dc-hwai
 #SBATCH --job-name=profam-train
 #SBATCH --output=logs/slurm/%x-%j.out
 #SBATCH --error=logs/slurm/%x-%j.err
