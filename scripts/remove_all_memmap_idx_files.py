@@ -13,7 +13,7 @@ base_dirs = [
     "../data/funfams/s50_text/train_test_split_v2",
     "../data/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2",
     "../data/uniref/uniref90_text_shuffled/train_test_split_v2",
-    "../data/uniref/uniref90_text_shuffled/train_test_split_v2",
+    "../data/foldseek/foldseek_s50_seq_only_text/train_test_split_v2",
 ]  # sys.argv[1]
 for base_dir in base_dirs:
     assert os.path.exists(base_dir)
