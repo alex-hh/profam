@@ -3,7 +3,7 @@
 #SBATCH --output=logs/slurm/%x-%j.out
 #SBATCH --error=logs/slurm/%x-%j.err
 #SBATCH --time=2-00:00:00
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
 
@@ -49,7 +49,7 @@ apptainer exec --nv \
       logger.wandb.save_dir=/logs \
       logger.wandb.log_hydra_config_file=false \
       trainer.devices=auto \
-      trainer.val_check_interval=10 \
+      trainer.val_check_interval=100 \
       "hydra.run.dir=/logs/runs/${now:%Y-%m-%d}_${now:%H-%M-%S-%f}"
   '
 
