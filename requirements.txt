@@ -141,9 +141,9 @@ tokenizers==0.21.0
 tomli==2.0.1
 toolz==1.0.0
 torch==2.6.0
-torchaudio
+torchvision==0.21.0
+torchaudio==2.6.0
 torchmetrics
-torchvision
 tornado==6.4.2
 tqdm
 traitlets==5.14.3

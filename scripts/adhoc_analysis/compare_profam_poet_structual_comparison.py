@@ -54,7 +54,7 @@ def entropy_correlation_density_plots():
     # Plot densities with Times New Roman font
     plt.figure(figsize=(8, 6))
     if len(profam_vals) > 1:
-        sns.kdeplot(x=profam_vals, label="ProFam", color=colors["ProFam"], fill=True, common_norm=False, linewidth=2)
+        sns.kdeplot(x=profam_vals, label="ProFam Single", color="#ff7f0e", fill=True, common_norm=False, linewidth=2)
     if len(poet_vals) > 1:
         sns.kdeplot(x=poet_vals, label="PoET", color=colors["PoET"], fill=True, common_norm=False, linewidth=2)
     

@@ -52,8 +52,8 @@ if __name__ == "__main__":
     npz_files = glob.glob("logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/unfiltered_poet_msas_with_only_diversity_weighting_v9/*.npz")
     save_dir = "plots_for_paper/gym_spearman_by_n_samples_and_likelihood_abyoeovl_unfiltered_poet_msas_with_only_diversity_weighting_v9"
 
-    npz_files = glob.glob("logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/indels_poet_msa_diversity_weighting_only/*.npz")
-    save_dir = "plots_for_paper/INDELS_gym_spearman_by_n_samples_and_likelihood_abyoeovl_poet_msa_diversity_weighting_only"
+    # npz_files = glob.glob("logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/indels_poet_msa_diversity_weighting_only/*.npz")
+    # save_dir = "plots_for_paper/INDELS_gym_spearman_by_n_samples_and_likelihood_abyoeovl_poet_msa_diversity_weighting_only"
 
     os.makedirs(save_dir, exist_ok=True)
     target_scores = [-1.2, -1.3, -1.4]
