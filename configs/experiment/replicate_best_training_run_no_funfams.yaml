@@ -117,7 +117,7 @@ trainer:
   batch_size: ${data.batch_size}
   deterministic: false
   log_every_n_steps: 10
-  timeout: 120
+  timeout: 1800
   profiler:
     name: null
     log_tensorboard: false
