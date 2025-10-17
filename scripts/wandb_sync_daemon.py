@@ -55,7 +55,7 @@ def monitor_directory(path_to_monitor):
 
     try:
         while True:
-            time.sleep(1)
+            time.sleep(180)
     except KeyboardInterrupt:
         logger.info("Stopping observer due to keyboard interrupt")
         observer.stop()
