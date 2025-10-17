@@ -80,8 +80,9 @@ def write_rows_to_text_s20(df: pd.DataFrame, output_prefix: str, excluded_access
     seq_path = f"{output_prefix}.sequences"
     coords_path = f"{output_prefix}.coords" if has_coords else None
 
-    seq_fh = open(seq_path, "w")
-    coords_fh = open(coords_path, "w") if has_coords and coords_path is not None else None
+    # Lazily open files on first write to avoid creating empty outputs
+    seq_fh = None
+    coords_fh = None
 
     # Collect mapping entries as (fam_or_group_id, mapping_line)
     mapping_entries: List[Tuple[str, str]] = []
@@ -130,6 +131,11 @@ def write_rows_to_text_s20(df: pd.DataFrame, output_prefix: str, excluded_access
             s90_new = s90_map[s90[i]]
             extended_id = f"{accession}/{s20_new}.{s90_new}"
 
+            if seq_fh is None:
+                seq_fh = open(seq_path, "w")
+                if has_coords and coords_path is not None:
+                    coords_fh = open(coords_path, "w")
+
             seq_fh.write(f">{extended_id}\n{seq}\n")
 
             if coords_fh is not None:
@@ -165,21 +171,24 @@ def write_rows_to_text_s20(df: pd.DataFrame, output_prefix: str, excluded_access
             mapping_line = f"{seq_file_name}:{inds_str}"
             mapping_entries.append((f"{fam_id}.{gix}", mapping_line))
 
-    seq_fh.close()
+    if seq_fh is not None:
+        seq_fh.close()
     if coords_fh is not None:
         coords_fh.close()
 
     # Write single S20 mapping file
-    mapping_path = os.path.join(os.path.dirname(seq_path), f"{basename_prefix}_min20_max90.mapping")
-    with open(mapping_path, "w") as mf:
-        current_key = None
-        for i, (key, mline) in enumerate(mapping_entries):
-            if key != current_key:
-                if i != 0:
-                    mf.write("\n")
-                mf.write(f">{key}\n")
-                current_key = key
-            mf.write(mline)
+    # Only write mapping file if there is at least one entry
+    if mapping_entries:
+        mapping_path = os.path.join(os.path.dirname(seq_path), f"{basename_prefix}_min20_max90.mapping")
+        with open(mapping_path, "w") as mf:
+            current_key = None
+            for i, (key, mline) in enumerate(mapping_entries):
+                if key != current_key:
+                    if i != 0:
+                        mf.write("\n")
+                    mf.write(f">{key}\n")
+                    current_key = key
+                mf.write(mline)
 
 
 def convert_parquet_to_text_s20(parquet_file: str, output_dir: str, excluded_accessions: Optional[Set[str]] = None) -> None:

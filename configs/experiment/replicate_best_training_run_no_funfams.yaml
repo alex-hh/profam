@@ -21,7 +21,7 @@ float32_matmul_precision: high
 model:
   _target_: src.models.llama.LlamaLitModule
   scheduler_name: constant_with_warmup
-  num_warmup_steps: 200
+  num_warmup_steps: 1000
   num_training_steps: 1000000
   lr: 0.001
   embed_coords: false
@@ -254,10 +254,28 @@ data:
           keep_insertions: true
           to_upper: true
           use_msa_pos: false
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+        transform_fns: null
+    ted_90_20_train:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      name: ted_90_20_train
+      dataset_root: ${paths.data_dir}/ted/s100_text_min_20_max_90/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.AlignedProteinPreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 8192
+          shuffle_proteins_in_document: true
+          padding: do_not_pad
+          keep_gaps: false
+          keep_insertions: true
+          to_upper: true
+          use_msa_pos: false
+        transform_fns: null
     proteingym:
       _target_: src.data.builders.proteingym.ProteinGymDataset
       name: proteingym
@@ -292,10 +310,7 @@ data:
           max_tokens_per_example: 8192
           shuffle_proteins_in_document: true
           padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+        transform_fns: null
     foldseek_s50_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: foldseek_s50_val
@@ -313,10 +328,7 @@ data:
           max_tokens_per_example: 8192
           shuffle_proteins_in_document: true
           padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+        transform_fns: null
     uniref90_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: uniref90_train
@@ -330,13 +342,10 @@ data:
           drop_first_protein: false
           keep_first_protein: false
           allow_unk: false
-          max_tokens_per_example: 320
+          max_tokens_per_example: 512
           shuffle_proteins_in_document: true
           padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+        transform_fns: null
     # uniref90_val:
     #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
     #   name: uniref90_val
@@ -361,6 +370,7 @@ data:
     foldseek_s50_train: 1
     uniref90_train: 1
     openfold_train: 1
+    ted_90_20_train: 1
   val_dataset_batch_sizes:
     foldseek_s50_val: 1
     proteingym: 1
@@ -370,7 +380,7 @@ data:
   num_workers: 32
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 52000
+  pack_to_max_tokens: 104000
   prefetch_factor: 4
   shuffle: true
   interleaved: true

@@ -50,7 +50,9 @@ if __name__ == "__main__":
     # save_dir = "gym_spearman_likelihood_plots_subsample_filtered_poet_msas_diversity_weighting_abyoeovl"
     npz_files = glob.glob("logs/saturn_cloud_good_runs/uljreks3_ted_s100_ff50_ff100_openfold_fs100_fs50_ur90_lr0.0004_acc1_wd0.4_pack28000_8GPU_ur90crop320_ur90crop1024-554M/copied_2025-06-30_14-57/2025-06-23_12-25-03-504044/unfiltered_poet_msas_with_only_diversity_weighting_v9/*_v9_lls.npz")
     npz_files = glob.glob("logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/unfiltered_poet_msas_with_only_diversity_weighting_v9/*.npz")
-    save_dir = "plots_for_paper/gym_spearman_by_n_samples_and_likelihood_abyoeovl_unfiltered_poet_msas_with_only_diversity_weighting_v9"
+    
+    npz_files = glob.glob("logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/2025_10_14_v10_poet_unfiltered_/*.npz")
+    save_dir = "plots_for_paper/gym_spearman_by_n_samples_and_likelihood_abyoeovl_v10_poet_unfiltered_"
 
     # npz_files = glob.glob("logs/saturn_cloud_good_runs/abyoeovl_openfold_fs50_ur90_memmap_251m/copied_2025-06-23_22-18/2025-06-10_22-48-14-455325/indels_poet_msa_diversity_weighting_only/*.npz")
     # save_dir = "plots_for_paper/INDELS_gym_spearman_by_n_samples_and_likelihood_abyoeovl_poet_msa_diversity_weighting_only"
@@ -74,9 +76,6 @@ if __name__ == "__main__":
                 data = np.load(npz_file)
                 dms_scores = data["dms_scores"]
                 assert len(dms_scores) == data["lls"].shape[1], "Number of lls and dms scores must match"
-                if data["lls"].shape[0] < 50:
-                    print(f"Skipping {npz_file} because it has {data['lls'].shape[0]} reps")
-                    continue
                 lls_to_use = data["lls"][:i]
                 lls_mean = lls_to_use.mean(axis=0)
                 spearman_score = spearmanr(lls_mean, dms_scores)[0]
