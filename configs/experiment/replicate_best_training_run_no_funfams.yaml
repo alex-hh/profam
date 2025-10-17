@@ -368,7 +368,7 @@ data:
   num_workers: 32
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 104000
+  pack_to_max_tokens: 75000
   prefetch_factor: 4
   shuffle: true
   interleaved: true
