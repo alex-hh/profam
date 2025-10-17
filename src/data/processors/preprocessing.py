@@ -171,7 +171,7 @@ class ProteinDocumentPreprocessor:
     def apply_transforms(self, proteins, tokenizer, rng: Optional[np.random.Generator] = None):
         transform_fns = default_transforms(self.cfg)
         additional_transform_fns = []
-        for partial_fn in self.transform_fns:
+        for partial_fn in self.transform_fns or []:
             additional_transform_fns.append(partial_fn)
         transform_fns += additional_transform_fns
 

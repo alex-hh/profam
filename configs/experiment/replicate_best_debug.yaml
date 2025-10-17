@@ -222,27 +222,6 @@ extra_callbacks: null
 data:
   _target_: src.data.datamodule.ProteinDataMixture
   dataset_builders:
-    openfold_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-      name: openfold_train
-      dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.AlignedProteinPreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-          keep_gaps: false
-          keep_insertions: true
-          to_upper: true
-          use_msa_pos: false
-        transform_fns: null
     ted_20_90_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
       name: ted_20_90_train
@@ -317,23 +296,6 @@ data:
           shuffle_proteins_in_document: true
           padding: do_not_pad
         transform_fns: null
-    uniref90_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-      name: uniref90_train
-      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 512
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns: null
     # uniref90_val:
     #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
     #   name: uniref90_val
@@ -356,19 +318,17 @@ data:
     #       fill_value: 0.0
   data_weights:
     foldseek_s50_train: 1
-    uniref90_train: 1
-    openfold_train: 1
     ted_20_90_train: 1
   val_dataset_batch_sizes:
     foldseek_s50_val: 1
     proteingym: 1
     # uniref90_val: 1
-  batch_size: 100
+  batch_size: 1
   data_dir: ${paths.data_dir}
   num_workers: 32
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 104000
+  pack_to_max_tokens: 100000
   prefetch_factor: 4
   shuffle: true
   interleaved: true
