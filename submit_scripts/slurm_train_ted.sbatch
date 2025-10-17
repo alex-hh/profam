@@ -8,17 +8,14 @@
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=256G
-#SBATCH --requeue
 #SBATCH --signal=B:USR1@300
 
 set -euo pipefail
 
 # Requeue on pre-timeout and forward TERM to child so it can checkpoint
-cleanup_and_requeue() {
-  echo "[$(date)] SIGUSR1 received: requeueing job $SLURM_JOB_ID"
-  scontrol requeue "$SLURM_JOB_ID" || true
+pre_timeout_handler() {
+  echo "[$(date)] SIGUSR1 received: pre-timeout; asking child to checkpoint and exit"
   if [ -n "${APP_PID:-}" ]; then
-    echo "[$(date)] Sending SIGTERM to child process group -$APP_PID for graceful checkpoint"
     kill -TERM "-\$APP_PID" 2>/dev/null || true
   fi
 }
@@ -32,7 +29,7 @@ propagate_term() {
   exit 0
 }
 
-trap cleanup_and_requeue USR1
+trap pre_timeout_handler USR1
 trap propagate_term TERM
 
 # Create host-side log dir for Slurm stdout/err if not present
