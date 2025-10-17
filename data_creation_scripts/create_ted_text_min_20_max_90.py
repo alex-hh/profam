@@ -12,7 +12,8 @@ Behavior:
 import glob
 import argparse
 import os
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple, Optional, Set
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -37,15 +38,22 @@ def _remap_ids_preserve_order(ids: Iterable) -> Dict:
     return mapping
 
 
-def _filtered_indices_by_s20_s90(row: pd.Series) -> List[int]:
-    """Select indices keeping at most one representative per S90 within each S20 cluster."""
+def _filtered_indices_by_s20_s90(row: pd.Series, excluded_accessions: Optional[Set[str]] = None) -> List[int]:
+    """Select indices keeping at most one representative per S90 within each S20 cluster.
+
+    If excluded_accessions is provided, skip any index whose accession is in the set. This ensures
+    that we still choose the first non-excluded representative for each S90 within each S20.
+    """
     s20 = row["cluster_ids_0_2"]
     s90 = row["cluster_ids_0_9"]
+    accessions = row["accessions"]
     n = len(row["sequences"]) if "sequences" in row else len(row["msta_seqs"])  # type: ignore
 
     seen_by_s20: Dict[object, set] = {}
     selected: List[int] = []
     for i in range(n):
+        if excluded_accessions is not None and accessions[i] in excluded_accessions:
+            continue
         k20 = s20[i]
         k90 = s90[i]
         if k20 not in seen_by_s20:
@@ -57,7 +65,7 @@ def _filtered_indices_by_s20_s90(row: pd.Series) -> List[int]:
     return selected
 
 
-def write_rows_to_text_s20(df: pd.DataFrame, output_prefix: str) -> None:
+def write_rows_to_text_s20(df: pd.DataFrame, output_prefix: str, excluded_accessions: Optional[Set[str]] = None) -> None:
     """Write filtered .sequences/.coords and a single S20 mapping file.
 
     The mapping file name is '<output_prefix>_min0.2.mapping' and contains one entry per S20 group,
@@ -92,20 +100,29 @@ def write_rows_to_text_s20(df: pd.DataFrame, output_prefix: str) -> None:
             print(f"Warning: {fam_id} has different lengths: {len(sequences)} != {len(accessions)} != {len(s20)} != {len(s90)}")
             continue
 
-        # Choose filtered indices: one per S90 within each S20
-        selected = _filtered_indices_by_s20_s90(row)
+        # Choose filtered indices: one per S90 within each S20 (skipping excluded accessions)
+        selected = _filtered_indices_by_s20_s90(row, excluded_accessions)
         if not selected:
             continue
 
+        # Keep only S20 groups that have at least 2 selected members (i.e., >=2 distinct S90 reps)
+        selected_by_s20: Dict[object, List[int]] = {}
+        for i in selected:
+            selected_by_s20.setdefault(s20[i], []).append(i)
+        eligible_s20_ids = {k for k, inds in selected_by_s20.items() if len(inds) >= 2}
+        filtered_selected = [i for i in selected if s20[i] in eligible_s20_ids]
+        if not filtered_selected:
+            continue
+
         # Build per-level remapping for readable headers (only S20 and S90)
-        s20_map = _remap_ids_preserve_order(s20[i] for i in selected)
-        s90_map = _remap_ids_preserve_order(s90[i] for i in selected)
+        s20_map = _remap_ids_preserve_order(s20[i] for i in filtered_selected)
+        s90_map = _remap_ids_preserve_order(s90[i] for i in filtered_selected)
 
         # Track global indices for the filtered entries of this row
         global_indices_for_row: List[int] = []
         s20_of_selected: List[object] = []
 
-        for i in selected:
+        for i in filtered_selected:
             accession = accessions[i]
             seq = sequences[i]
 
@@ -165,7 +182,7 @@ def write_rows_to_text_s20(df: pd.DataFrame, output_prefix: str) -> None:
             mf.write(mline)
 
 
-def convert_parquet_to_text_s20(parquet_file: str, output_dir: str) -> None:
+def convert_parquet_to_text_s20(parquet_file: str, output_dir: str, excluded_accessions: Optional[Set[str]] = None) -> None:
     base = os.path.splitext(os.path.basename(parquet_file))[0]
     out_prefix = os.path.join(output_dir, base)
     _ensure_output_dir(out_prefix)
@@ -179,12 +196,55 @@ def convert_parquet_to_text_s20(parquet_file: str, output_dir: str) -> None:
     print(f"Reading parquet: {parquet_file}")
     df = pd.read_parquet(parquet_file)
     print(f"Loaded {len(df)} rows")
-    required = ["accessions", "cluster_ids_0_2", "cluster_ids_0_9"]
-    for col in required:
-        if col not in df.columns:
-            raise ValueError(f"Required column '{col}' not found in {parquet_file}")
+    write_rows_to_text_s20(df, out_prefix, excluded_accessions)
 
-    write_rows_to_text_s20(df, out_prefix)
+
+def _load_excluded_accessions(list_path: Optional[str]) -> Optional[Set[str]]:
+    """Load a set of accession strings to exclude. Returns None if list_path is None.
+
+    The file is expected to contain one accession per line. Empty lines and whitespace are ignored.
+    """
+    excluded: Set[str] = set()
+    with open(list_path, "r") as fh:
+        for line in fh:
+            acc = line.strip()
+            if acc:
+                excluded.add(acc)
+    return excluded
+
+
+def _write_readme(output_dir: str, args: argparse.Namespace, exclusion_list_path: Optional[str], excluded_count: Optional[int]) -> None:
+    """Write a README.md into output_dir describing how the dataset was created.
+
+    If README.md already exists, do nothing.
+    """
+    readme_path = os.path.join(output_dir, "README.md")
+    if os.path.exists(readme_path):
+        return
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    script_path = os.path.relpath(__file__, start=os.getcwd()) if os.path.exists(__file__) else __file__
+    lines: List[str] = []
+    lines.append(f"Dataset created by {script_path} on {timestamp}\n")
+    lines.append("Inputs/parameters:\n")
+    lines.append(f"- Parquet glob pattern: {args.pattern}\n")
+    if args.task_index is not None and args.num_tasks is not None:
+        lines.append(f"- Task partition: task_index={args.task_index}, num_tasks={args.num_tasks}\n")
+    lines.append(f"- Output directory: {output_dir}\n")
+    if exclusion_list_path is not None:
+        excl_count_str = "unknown" if excluded_count is None else str(excluded_count)
+        lines.append(f"- Excluded accessions list: {exclusion_list_path} (loaded {excl_count_str})\n")
+    else:
+        lines.append("- Excluded accessions list: none\n")
+    lines.append("\nMethod:\n")
+    lines.append("- For each family row, within each S20 cluster, keep at most one sequence for each S90 label (first non-excluded occurrence).\n")
+    lines.append("- Only S20 groups with at least two selected members (>=2 distinct S90 representatives) are retained.\n")
+    lines.append("- Sequences are written to '<basename>.sequences' with headers in the form 'accession/s20.s90'.\n")
+    lines.append("- If present, per-residue coordinates (N, CA, C, O) and pLDDTs are written to '<basename>.coords'.\n")
+    lines.append("- A mapping file '<basename>_min20_max90.mapping' groups indices by S20, referencing the .sequences file.\n")
+    lines.append("\nReproducibility:\n")
+    lines.append("- This README was auto-generated by the script at runtime to document dataset provenance.\n")
+    with open(readme_path, "w") as rh:
+        rh.write("".join(lines))
 
 
 if __name__ == "__main__":
@@ -193,6 +253,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_tasks", type=int, default=None, help="Total number of tasks to partition files")
     parser.add_argument("--pattern", type=str, default="../data/ted/s100_parquets/train_test_split_v3_debug/train_filtered/train_train*.parquet", help="Glob pattern for parquet files")
     parser.add_argument("--output_dir", type=str, default="../data/ted/s100_text_min_20_max_90/train_test_split_v2/train_filtered", help="Output directory root")
+    parser.add_argument("--exclude_accessions", type=str, default="../data/ted/ted_discontinuous_domains.list", help="Path to a file listing accessions to exclude (one per line)")
     args = parser.parse_args()
 
     parquet_path_pattern = args.pattern
@@ -201,6 +262,11 @@ if __name__ == "__main__":
     parquet_files = sorted(glob.glob(parquet_path_pattern))
     total_files = len(parquet_files)
     print(f"Found {total_files} parquet files matching pattern")
+
+    # Load exclusions if provided
+    excluded_accessions = _load_excluded_accessions(args.exclude_accessions)
+    if excluded_accessions is not None:
+        print(f"Loaded {len(excluded_accessions)} excluded accessions from {args.exclude_accessions}")
 
     # Validate task partitioning args
     if (args.task_index is None) ^ (args.num_tasks is None):
@@ -225,4 +291,6 @@ if __name__ == "__main__":
         out_root = output_dir if os.path.basename(output_dir) == subdir else os.path.join(output_dir, subdir)
         if not os.path.exists(out_root):
             os.makedirs(out_root, exist_ok=True)
-        convert_parquet_to_text_s20(pq, out_root)
+        # Write a README once per output directory
+        _write_readme(out_root, args, args.exclude_accessions, None if excluded_accessions is None else len(excluded_accessions))
+        convert_parquet_to_text_s20(pq, out_root, excluded_accessions)
