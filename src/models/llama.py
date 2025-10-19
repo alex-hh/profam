@@ -95,7 +95,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         if use_focal_loss:
             gamma = focal_gamma if focal_gamma is not None else 2.0
 
-            ignore_index = self.ignore_index  # from BaseLitModule
+            ignore_index = self.ignore_index
 
             def _focal_loss(
                 logits,
@@ -154,7 +154,7 @@ class LlamaLitModule(BaseFamilyLitModule):
                 raise ValueError("Cannot enable both focal loss and ll_threshold loss simultaneously.")
 
             threshold = ll_threshold if ll_threshold is not None else -1.3
-            ignore_index = self.ignore_index  # from BaseLitModule
+            ignore_index = self.ignore_index
 
             def _ll_threshold_loss(
                 logits,

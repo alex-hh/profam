@@ -1,11 +1,7 @@
 import os
 from typing import Dict, List, Optional
-
-from datasets import interleave_datasets
-from datasets.distributed import split_dataset_by_node
-from datasets.iterable_dataset import IterableDataset
 from lightning import LightningDataModule
-from torch.utils.data import BatchSampler, DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
 from src.constants import SEQUENCE_FEATURE_NAMES
@@ -13,7 +9,6 @@ from src.data.builders import (
     BaseProteinDataset,
     MemoryMappedHFProteinDataset,
     ProteinFamilyMemmapDataset,
-    ProteinFamilyMemmapDatasetBuilder,
     ProteinGymDataset,
 )
 from src.data.collators import DocumentBatchCollator
@@ -112,23 +107,15 @@ class ProteinDataMixture(LightningDataModule):
                             f"Skipping dataset {data_key} with weight {dataset_weight}"
                         )
                         continue
+                    # If this is a PyTorch Dataset already (e.g., ProteinFamilyMemmapDataset, ProteinGymDataset),
+                    # use it directly; otherwise fall back to legacy builder API.
+                    
+                    # Inject tokenizer into ProteinGymDataset if needed
+                    if isinstance(dataset_builder, ProteinGymDataset):
+                        if getattr(dataset_builder, "_tokenizer", None) is None:
+                            dataset_builder._tokenizer = self.tokenizer
+                    dataset = dataset_builder
 
-                    dataset = dataset_builder.load(
-                        data_dir=self.data_dir,
-                        world_size=world_size,
-                        verbose=False,
-                    )
-                    dataset = dataset_builder.process(
-                        dataset,
-                        tokenizer=self.tokenizer,
-                        feature_names=self.feature_names,
-                        pack_to_max_tokens=self.pack_to_max_tokens,
-                    )
-                    # unclear how to get a sharded dataset for use with num workers?
-                    # actually when using data_files n_shards is equal to n_files
-                    # https://huggingface.co/docs/datasets/about_mapstyle_vs_iterable
-                    # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
-                    # https://github.com/huggingface/datasets/pull/5735
                     print(
                         f"Dataset {data_key} example batch types",
                         {k: type(v) for k, v in next(iter(dataset)).items()},
@@ -147,30 +134,21 @@ class ProteinDataMixture(LightningDataModule):
                 assert (
                     len(set([type(ds) for ds in train_datasets])) == 1
                 ), "All train datasets must be same type"
-                if isinstance(train_datasets[0], IterableDataset):
-                    self.train_dataset = interleave_datasets(
-                        train_datasets,
-                        probabilities=train_data_weights,
-                        stopping_strategy="all_exhausted",
-                        split="train",
-                        seed=42,
-                    )
-                else:
-                    print(
-                        f"Using interleaved train dataset with {len(train_datasets)} datasets, shuffle = {self.shuffle}, interleaved = {self.interleaved}"
-                    )
-                    print(f"num_samples = {self.total_num_train_samples}")
-                    print(f"train_dataset_names = {train_dataset_names}")
-                    print(f"train_data_weights = {train_data_weights}")
-                    self.train_dataset = WeightedConcatOnlineDataset(
-                        datasets=train_datasets,
-                        num_samples=self.total_num_train_samples,
-                        weights=train_data_weights,
-                        seed=42,
-                        shuffle=self.shuffle,
-                        interleaved=self.interleaved,
-                        interleaved_block_size=self.interleaved_block_size,
-                    )
+                print(
+                    f"Using interleaved train dataset with {len(train_datasets)} datasets, shuffle = {self.shuffle}, interleaved = {self.interleaved}"
+                )
+                print(f"num_samples = {self.total_num_train_samples}")
+                print(f"train_dataset_names = {train_dataset_names}")
+                print(f"train_data_weights = {train_data_weights}")
+                self.train_dataset = WeightedConcatOnlineDataset(
+                    datasets=train_datasets,
+                    num_samples=self.total_num_train_samples,
+                    weights=train_data_weights,
+                    seed=42,
+                    shuffle=self.shuffle,
+                    interleaved=self.interleaved,
+                    interleaved_block_size=self.interleaved_block_size,
+                )
                 print(
                     "Interleaved train dataset example types",
                     {k: type(v) for k, v in next(iter(self.train_dataset)).items()},
@@ -208,56 +186,9 @@ class ProteinDataMixture(LightningDataModule):
                 # end = time.time()
                 # print(f"=======> Loaded {N} samples in {end - start:.2f} seconds, {N / (end - start):.2f} samples/sec")
 
-                if isinstance(self.train_dataset, IterableDataset):
-                    # c.f. iterable dataset examples...
-                    # will shuffle the shards order and use a shuffle buffer when you start iterating
-                    # n.b. set_epoch is required in order for shuffling to be correctly randomised
-                    # - this is handled by ShuffleCallback
-                    # TODO: configure seed - although non-null seed prob important for ddp?
-                    # or does split_dataset_by_node synchronise the state of the data?
-                    # no - seeding is required. in face an error will be raised if not.
-                    # split dataset by node sets distributed config.
-                    # https://github.com/huggingface/datasets/blob/2eb4edb97e1a6af2ea62738ec58afbd3812fc66e/src/datasets/iterable_dataset.py#L1707
-                    self.train_dataset = self.train_dataset.shuffle(
-                        buffer_size=1000, seed=42
-                    )
-                    print("Num shards", self.train_dataset.n_shards)
-                    if self.num_workers is None:
-                        # number of workers should be less than available GPUs to prevent a computation bottleneck
-                        self.num_workers = min(
-                            os.cpu_count() * 3 // 4, self.train_dataset.n_shards
-                        )
-                        print(f"Using {self.num_workers} workers for data loading")
-                    # TODO: verify that non-iterable datasets are split automatically (e.g. by lightning...)
-                    if world_size > 1:
-                        assert (
-                            self.train_dataset.n_shards % world_size == 0
-                        )  # handled in load_protein_dataset
-                        # If the dataset has a number of shards that is a factor of world_size (i.e. if
-                        # dataset.n_shards % world_size == 0), then the shards are evenly assigned across
-                        # the nodes, which is the most optimized. Otherwise, each node keeps 1 example out of
-                        # world_size, skipping the other examples.
-                        # https://huggingface.co/docs/datasets/en/package_reference/main_classes#datasets.distributed.split_dataset_by_node
-                        self.train_dataset = split_dataset_by_node(
-                            self.train_dataset,
-                            rank=self.trainer.global_rank,
-                            world_size=world_size,
-                        )
-                        self.train_dataset = self.train_dataset.with_format(
-                            "numpy"
-                        )  # otherwise they gen converted to lists
-                        assert (
-                            self.total_num_train_samples is not None
-                        ), "total_num_train_samples must be set for distributed iterable datasets"
-                        print(
-                            f"Using {self.total_num_train_samples//world_size} samples for training on each device"
-                        )
-                    elif self.total_num_train_samples is None:
-                        print(
-                            "Warning: total_num_train_samples not needed for world size 1 and will be ignored"
-                        )
             if self.num_workers is None:
-                self.num_workers = int(os.cpu_count() * 3 // 4)
+                self.num_workers = max(int(os.cpu_count() * 3 // 4), 1)
+                print(f"Setting num_workers to {self.num_workers}")
 
             self.val_datasets = []
             self.val_dataset_names = []
@@ -272,28 +203,12 @@ class ProteinDataMixture(LightningDataModule):
                 ), f"Dataset builder name {dataset_builder.name} must match data key {v_ds_name}"
                 # n.b. this is still going to produce val metrics that are somewhat world-size dependent
                 # because of repeating samples to ensure even number of samples per device
-                # TODO: ProteinGymDataset should inherit from MemoryMappedHFProteinDataset
-                assert isinstance(
-                    dataset_builder,
-                    (
-                        MemoryMappedHFProteinDataset,
-                        ProteinGymDataset,
-                        ProteinFamilyMemmapDataset,
-                        ProteinFamilyMemmapDatasetBuilder,
-                    ),
-                ), f"Only (MemoryMappedHFProteinDataset, ProteinGymDataset, ProteinFamilyMemmapDataset, ProteinFamilyMemmapDatasetBuilder) supported for val: {v_ds_name} {type(dataset_builder)}"
-                dataset = dataset_builder.load(
-                    data_dir=self.data_dir,
-                    world_size=world_size,
-                    verbose=False,
-                )
-                # N.B. processing (map) will happen once up front for val datasets, not on the fly
-                dataset = dataset_builder.process(
-                    dataset,
-                    tokenizer=self.tokenizer,
-                    feature_names=self.feature_names,  # Actually only needed for train bc of interleaving
-                    pack_to_max_tokens=self.pack_to_max_tokens,
-                )
+                # Build validation dataset: use direct dataset for memmap and ProteinGym
+                if isinstance(dataset_builder, ProteinGymDataset):
+                    if getattr(dataset_builder, "_tokenizer", None) is None:
+                        dataset_builder._tokenizer = self.tokenizer
+                dataset = dataset_builder
+
                 self.val_datasets.append(dataset)
                 self.val_dataset_names.append(v_ds_name)
                 print(
@@ -324,21 +239,18 @@ class ProteinDataMixture(LightningDataModule):
         dataset = self.train_dataset
         world_size = self.trainer.world_size
         rank = self.trainer.global_rank
-        if not isinstance(dataset, IterableDataset):
-            batch_sampler = MaxTokensDynamicBatchSampler(
-                dataset=dataset,
-                size_fn=lambda x: len(x["input_ids"]) if "input_ids" in x else 0,
-                world_size=world_size,
-                rank=rank,
-                max_tokens=self.pack_to_max_tokens if self.pack_to_max_tokens else None,
-                batch_size=self.batch_size if not self.pack_to_max_tokens else None,
-            )
-        else:
-            batch_sampler = None
+        batch_sampler = MaxTokensDynamicBatchSampler(
+            dataset=dataset,
+            size_fn=lambda x: len(x["input_ids"]) if "input_ids" in x else 0,
+            world_size=world_size,
+            rank=rank,
+            max_tokens=self.pack_to_max_tokens if self.pack_to_max_tokens else None,
+            batch_size=self.batch_size if not self.pack_to_max_tokens else None,
+        )
 
         return DataLoader(
             dataset,
-            batch_sampler=batch_sampler,  # <== requires: no sampler, no batch_size
+            batch_sampler=batch_sampler,
             collate_fn=self.train_collator,
             num_workers=self.num_workers,
             persistent_workers=self.num_workers is not None and self.num_workers > 1,
@@ -369,7 +281,7 @@ class ProteinDataMixture(LightningDataModule):
             # Explicitly shard non-iterable validation datasets across devices
             # to avoid each rank evaluating the full set.
             sampler = None
-            if world_size > 1 and not isinstance(val_ds, IterableDataset) and val_ds_name == "proteingym":
+            if world_size > 1 and val_ds_name == "proteingym":
                 print(f"Using distributed sampler for {val_ds_name} on device rank {rank}")
                 sampler = DistributedSampler(
                     val_ds,
@@ -407,112 +319,6 @@ class ProteinDataMixture(LightningDataModule):
                     num_workers=self.num_workers,
                     persistent_workers=self.num_workers is not None
                     and self.num_workers > 1,
-                    prefetch_factor=self.prefetch_factor,
-                )
-            ]
-            return loaders
-
-
-class ProteinMemmapDataModule(LightningDataModule):
-    """Data module for training on text memmap datasets."""
-
-    def __init__(
-        self,
-        train_dataset: Dataset,
-        val_dataset: Dataset,
-        data_dir: str,
-        val_dataset_batch_sizes: Dict[str, int],
-        batch_size: int = 8,
-        num_workers: Optional[int] = None,
-        ignore_gaps: bool = False,
-        total_num_train_samples: Optional[int] = None,
-        feature_names: Optional[List[str]] = None,
-        pack_to_max_tokens: Optional[int] = None,
-        prefetch_factor: Optional[int] = None,
-        test_dataset: Optional[Dataset] = None,
-        tokenizer: Optional[ProFamTokenizer] = None,
-    ):
-        super().__init__()
-        print("\n\n\n\n THIS CLASS SHOULD BE USED FOR DEBUGGING ONLY \n\n\n\n\n")
-        self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
-        self.test_dataset = test_dataset
-        self.tokenizer = tokenizer
-        self.data_dir = data_dir
-        self.val_dataset_batch_sizes = val_dataset_batch_sizes
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.prefetch_factor = prefetch_factor
-        self.feature_names = feature_names
-        self.pack_to_max_tokens = pack_to_max_tokens
-        self.ignore_gaps = ignore_gaps
-        self.total_num_train_samples = total_num_train_samples
-        self.tokenizer = tokenizer
-        self.train_collator = DocumentBatchCollator(
-            self.tokenizer,
-            ignore_gaps=ignore_gaps,
-            feature_names=self.feature_names,
-            pack_to_max_tokens=self.pack_to_max_tokens,
-        )
-        self.val_collator = DocumentBatchCollator(
-            self.tokenizer,
-            ignore_gaps=ignore_gaps,
-            feature_names=None,
-            pack_to_max_tokens=self.pack_to_max_tokens,
-        )
-
-    def setup(self, stage: Optional[str] = None) -> None:
-        self.val_datasets = [self.val_dataset]
-        self.val_dataset_names = ["val"]
-
-    def train_dataloader(self) -> DataLoader:
-        # Get samples_seen from trainer if available
-        samples_seen = (
-            getattr(self.trainer, "samples_seen", 0) if self.trainer is not None else 0
-        )
-        if samples_seen > 0:
-            print(
-                f"Checkpoint state has {samples_seen} samples seen: RESUMING NOT YET IMPLEMENTED"
-            )
-
-        return DataLoader(
-            self.train_dataset,
-            batch_size=self.batch_size,
-            collate_fn=self.train_collator,
-            num_workers=self.num_workers,
-            persistent_workers=self.num_workers
-            > 0,  # https://lightning.ai/docs/pytorch/stable/advanced/speed.html
-            prefetch_factor=self.prefetch_factor,
-        )
-
-    def val_dataloader(self) -> List[DataLoader]:
-        loaders = [
-            DataLoader(
-                val_ds,
-                batch_size=1,
-                # batch_size=int(self.val_dataset_batch_sizes[val_ds_name]),
-                collate_fn=self.val_collator,
-                shuffle=False,
-                num_workers=self.num_workers // 2,
-                persistent_workers=self.num_workers > 1,
-                prefetch_factor=self.prefetch_factor,
-            )
-            for val_ds, val_ds_name in zip(self.val_datasets, self.val_dataset_names)
-        ]
-        return loaders
-
-    def test_dataloader(self) -> List[DataLoader]:
-        if self.test_dataset is None:
-            return self.val_dataloader()
-        else:
-            loaders = [
-                DataLoader(
-                    self.test_dataset,
-                    batch_size=self.batch_size,
-                    collate_fn=self.val_collator,
-                    shuffle=False,
-                    num_workers=self.num_workers // 2,
-                    persistent_workers=self.num_workers > 1,
                     prefetch_factor=self.prefetch_factor,
                 )
             ]

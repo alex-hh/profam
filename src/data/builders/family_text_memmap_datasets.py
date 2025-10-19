@@ -11,7 +11,6 @@ from src.data.processors import ProteinDocumentPreprocessor
 from src.data.tokenizers import ProFamTokenizer
 
 from ..text_memmap_datasets import TextMemMapDataset
-from .base import BaseProteinDataset
 
 
 class MappingProteinFamilyMemmapDataset(TextMemMapDataset):
@@ -271,89 +270,4 @@ class ProteinFamilyMemmapDataset(Dataset):
         return processed
 
 
-class ProteinFamilyMemmapDatasetBuilder(ProteinFamilyMemmapDataset, BaseProteinDataset):
-    """A builder that wraps :class:`ProteinFamilyMemmapDataset` so it can be used
-    interchangeably with existing HF-style dataset builders inside
-    :class:`ProteinDataMixture`.  The builder inherits from both
-    ``ProteinFamilyMemmapDataset`` (so it *is* a PyTorch dataset) and
-    ``BaseProteinDataset`` (so it exposes the ``load``/``process`` interface
-    expected by the trainer).
-
-    No additional preprocessing is required because the underlying
-    ``ProteinFamilyMemmapDataset`` already performs tokenisation on-the-fly via
-    the supplied ``ProteinDocumentPreprocessor``.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        dataset_root: str,
-        preprocessor: ProteinDocumentPreprocessor,
-        tokenizer: ProFamTokenizer,
-        **kwargs,
-    ):
-        # Initialise BaseProteinDataset first (sets attributes used elsewhere)
-        BaseProteinDataset.__init__(self, name=name, preprocessor=preprocessor)
-
-        # Now initialise the actual mem-mapped dataset
-        ProteinFamilyMemmapDataset.__init__(
-            self,
-            name=name,
-            dataset_root=dataset_root,
-            preprocessor=preprocessor,
-            tokenizer=tokenizer,
-            **kwargs,
-        )
-
-        # Keep a reference to root for relative path resolution in load()
-        self._dataset_root = dataset_root
-
-    # ------------------------------------------------------------------
-    # The following methods implement the *builder* API expected by
-    # ProteinDataMixture.  Because the dataset is already constructed in
-    # __init__, these mostly do nothing or are simple wrappers.
-    # ------------------------------------------------------------------
-
-    def load(self, data_dir: str = "data", world_size: int = 1, verbose: bool = False):
-        """Return the constructed dataset.  If ``dataset_root`` was given as a
-        relative path we resolve it with respect to ``data_dir`` the first
-        time ``load`` is called.  This mirrors the behaviour of the HF
-        builders which resolve file patterns relative to *data_dir*.
-        """
-
-        # # Resolve the path only once (important when called on every GPU)
-        # if not os.path.isabs(self._dataset_root):
-        #     abs_root = os.path.join(data_dir, self._dataset_root)
-        #     # If the resolved path is different, rebuild the internal dataset
-        #     if abs_root != self._dataset_root:
-        #         self._dataset_root = abs_root
-        #         ProteinFamilyMemmapDataset.__init__(
-        #             self,
-        #             name=self.name,
-        #             dataset_root=self._dataset_root,
-        #             preprocessor=self.preprocessor,
-        #             tokenizer=self.tokenizer,
-        #         )
-
-        return self  # the dataset itself
-
-    def process(
-        self,
-        dataset: Any,
-        tokenizer: ProFamTokenizer,
-        feature_names: Optional[List[str]] = None,
-        pack_to_max_tokens: Optional[int] = None,
-    ):
-        """No offline processing necessary – everything happens on-the-fly.
-
-        The method exists purely to satisfy the builder interface.
-        """
-
-        # No dataset-level packing; packing handled in collator ring buffer
-        return dataset  # already tokenised on access
-
-    # We never call _build_document for this builder.
-    def _build_document(self, example):  # pragma: no cover – defensive only
-        raise NotImplementedError(
-            "ProteinFamilyMemmapDatasetBuilder performs preprocessing internally and does not use _build_document()."
-        )
+# Removed ProteinFamilyMemmapDataset: datasets are now instantiated directly

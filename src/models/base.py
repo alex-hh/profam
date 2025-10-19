@@ -65,26 +65,28 @@ def load_checkpoint(checkpoint_dir, **kwargs):
     return model
 
 
-class BaseLitModule(LightningModule):
-    """Assumes signature of CausalLM: e.g. labels is a kwarg"""
-
+class BaseFamilyLitModule(LightningModule):
     def __init__(
         self,
-        model: nn.Module,
-        tokenizer: PreTrainedTokenizerFast,
+        model,
+        tokenizer: ProFamTokenizer,
         lr: float = 1e-4,
         weight_decay: float = 0.1,
         eps: float = 1e-5,
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 32000,
-        optimizer: str = "adamw",
-        override_optimizer_on_load: bool = False,  # if True overwrite lr params from checkpoint w config params
+        scoring_max_tokens: int = 32_000,
+        use_kv_cache_for_scoring: bool = True,
+        embed_coords: bool = False,
+        override_optimizer_on_load: bool = False,
+        max_tokens: int = 8192,
+        gym_subsamples_per_n: int = 5,
+        gym_results_save_dir = None,
         ignore_index: int = -100,
-        gym_results_save_dir = None
-    ) -> None:
+    ):
         super().__init__()
+        
         self.model = model
         self.tokenizer = tokenizer
         self.save_hyperparameters(logger=False, ignore=["model"])
@@ -97,86 +99,25 @@ class BaseLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
+        
+        
+        
+        self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
+        self.embed_residue_index = self.tokenizer.embed_residue_index
+        self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
+        self.embed_coords = embed_coords
+        self.embed_sequence_index = self.model.embed_sequence_index
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if gym_results_save_dir is not None:
-            # self.gym_results_save_dir = os.path.join(gym_results_save_dir, self.timestamp)
             self.gym_results_save_dir = gym_results_save_dir
             os.makedirs(self.gym_results_save_dir, exist_ok=True)
             print("proteinGym results saved in", self.gym_results_save_dir)
         else:
             self.gym_results_save_dir = None
-
-
-    def configure_optimizers(self) -> Dict[str, Any]:
-        optimizer_name = self.hparams.get("optimizer", "adamw")
-        log.info(f"Using optimizer {optimizer_name}")
-        if optimizer_name == "adamw":
-            optimizer = torch.optim.AdamW(
-                self.parameters(),
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                betas=(0.9, 0.95),
-                eps=self.eps,
-            )
-        else:
-            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
-
-        optim_dict = {"optimizer": optimizer}
-        if self.scheduler_name is not None:
-            if self.scheduler_name == "cosine_with_min_lr":
-                scheduler = get_scheduler(
-                    self.scheduler_name,
-                    optimizer,
-                    num_warmup_steps=self.num_warmup_steps,
-                    num_training_steps=self.num_training_steps,
-                    scheduler_specific_kwargs={"min_lr_rate": 0.1},
-                )
-            else:
-                scheduler = get_scheduler(
-                    self.scheduler_name,
-                    optimizer,
-                    num_warmup_steps=self.num_warmup_steps,
-                    num_training_steps=self.num_training_steps,
-                )
-            optim_dict["lr_scheduler"] = {
-                "scheduler": scheduler,
-                "interval": "step",
-            }
-        return optim_dict
-
-    # def compute_consumed_samples(self, steps_since_resume=0):
-    #     app_state = AppState()
-
-    #     if self.cfg.get('rampup_batch_size', None):
-    #         current_global_batch_size = get_current_global_batch_size() if get_current_global_batch_size() else 1
-    #         consumed_samples = self.prev_consumed_samples + self.if_first_step * current_global_batch_size
-    #     else:
-    #         consumed_samples = (
-    #             self.init_consumed_samples
-    #             + steps_since_resume
-    #             * app_state.data_parallel_size
-    #             * self.cfg.micro_batch_size
-    #             * get_num_microbatches()
-    #         )
-    #     return int(consumed_samples)
-
-    # def _compute_consumed_samples_after_training_step(self):
-    #     # Add +1 to account for the current batch, which is not counted yet in `trainer.global_step`.
-    #     if not hasattr(self, 'init_global_step'):
-    #         self.init_global_step = 0  # in case this method is called before training starts.
-    #     return self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step)
-
-    # def _extract_consumed_samples_from_ckpt(self, ckpt_path):
-    #     try:
-    #         init_consumed_samples = int(float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", ckpt_path)[0]))
-    #     except (ValueError, TypeError, IndexError):
-    #         logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
-    #         init_consumed_samples = 0
-
-    #     return init_consumed_samples
-
-    def get_forward_kwargs(self, batch):
-        return {}
+        # NEW FOR EVALUATING PROTEIN GYM OFFLINE ONLY-------------------------
+        self.max_tokens = max_tokens
+        self.gym_subsamples_per_n = gym_subsamples_per_n
+        # ---------------------------------------------------------------------
 
     def forward(
         self,
@@ -220,196 +161,6 @@ class BaseLitModule(LightningModule):
             on_step=True,
             prog_bar=True,
         )
-
-    @torch.no_grad()
-    def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
-        # N.B. actually val logging is a bit different because of this ds name thing
-        loss = outputs.loss
-        n_tokens = batch["input_ids"].shape[-1]
-        if step_name == "train":
-            ds_names = None
-        else:
-            ds_names = batch["ds_name"].text
-        dataset_accuracies = metrics.accuracy_from_outputs(
-            batch["input_ids"],
-            outputs,
-            batch["labels"],
-            ignore_index=self.ignore_index,
-            dataset_names=ds_names,  # a list of dataset names (StringObject.text)
-            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                ["-", "X", "x", "[start-of-document]"]
-                + aa_letters_lower
-                + self.tokenizer.all_special_tokens
-            ),
-            sep_token_id=self.tokenizer.sep_token_id,
-            bos_token_id=self.tokenizer.bos_token_id,
-            calc_full_no_context_accuracies=True,
-        )
-        has_3di = False
-
-        global_metrics = {
-            "loss": loss,
-            "ppl": torch.exp(loss),
-            "aa_accuracy": dataset_accuracies.pop("global"),
-            "aa_accuracy_first_sequence": dataset_accuracies.pop("first_sequence"),
-            "aa_accuracy_last_sequence": dataset_accuracies.pop("last_sequence"),
-            "n_tokens_in_batch": n_tokens,
-        }
-        if "coords" in batch:
-            global_metrics["has_coords_frac"] = metrics.has_coords_frac(**batch)
-            if "plddts" in batch:
-                global_metrics.update(metrics.plddt_metrics(**batch))
-            is_interleaved = (
-                batch["input_ids"] == self.tokenizer.seq_struct_sep_token_id
-            ).any()
-            if is_interleaved:
-                # accuracy where coordinates are available
-                aa_has_coords_mask = batch["interleaved_coords_mask"].any((-1, -2))
-                has_coords_dataset_accuracies = metrics.accuracy_from_outputs(
-                    batch["input_ids"],
-                    outputs,
-                    batch["labels"],
-                    ignore_index=self.ignore_index,
-                    dataset_names=batch[
-                        "ds_name"
-                    ].text,  # a list of dataset names (StringObject.text)
-                    ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                        ["-", "X", "x"]
-                        + aa_letters_lower
-                        + self.tokenizer.all_special_tokens
-                    ),
-                    sep_token_id=self.tokenizer.sep_token_id,
-                    bos_token_id=self.tokenizer.bos_token_id,
-                    calc_full_no_context_accuracies=True,
-                    mask=(aa_has_coords_mask & batch["aa_mask"]),
-                )
-                global_metrics[
-                    "has_coords_aa_accuracy"
-                ] = has_coords_dataset_accuracies.pop("global")
-                global_metrics[
-                    "has_coords_aa_accuracy_first_sequence"
-                ] = has_coords_dataset_accuracies.pop("first_sequence")
-                global_metrics[
-                    "has_coords_aa_accuracy_last_sequence"
-                ] = has_coords_dataset_accuracies.pop("last_sequence")
-                global_metrics["aa_has_coords_frac"] = (
-                    aa_has_coords_mask & batch["aa_mask"]
-                ).float().sum() / batch["aa_mask"].float().sum()
-            global_metrics["aa_count"] = batch["aa_mask"].float().sum()
-
-        if has_3di:
-            dataset_accuracies_3di = metrics.accuracy_from_outputs(
-                batch["input_ids"],
-                outputs,
-                batch["labels"],
-                ignore_index=self.ignore_index,
-                dataset_names=batch["ds_name"].text,
-                ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
-                    ["-", "X", "x"] + aa_letters + self.tokenizer.all_special_tokens
-                ),
-                sep_token_id=self.tokenizer.sep_token_id,
-                bos_token_id=self.tokenizer.bos_token_id,
-                calc_full_no_context_accuracies=True,
-            )
-            global_metrics["3di_accuracy"] = dataset_accuracies_3di.pop("global")
-            global_metrics["3di_accuracy_first_sequence"] = dataset_accuracies_3di.pop(
-                "first_sequence"
-            )
-            global_metrics["3di_accuracy_last_sequence"] = dataset_accuracies_3di.pop(
-                "last_sequence"
-            )
-
-        if log_global:
-            self.log_dict(
-                {f"{step_name}/{k}": v for k, v in global_metrics.items()},
-                on_step=step_name == "train",
-                on_epoch=step_name != "train",
-                prog_bar=True,
-                add_dataloader_idx=False,
-                sync_dist=step_name != "train",
-            )
-
-        # n.b. this assumes a batch only contains a single dataset - only true during val!
-        # assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])
-        assert isinstance(batch["ds_name"], StringObject)
-
-        is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
-        for ds_name in set(batch["ds_name"].text):
-            if ds_name not in dataset_accuracies:
-                continue
-            ds_metrics = {
-                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name],
-                f"{step_name}/{ds_name}/aa_accuracy_first_sequence": dataset_accuracies[
-                    ds_name + "_first_sequence"
-                ],
-                f"{step_name}/{ds_name}/aa_accuracy_last_sequence": dataset_accuracies[
-                    ds_name + "_last_sequence"
-                ],
-            }
-            # TODO: coords frac for each dataset
-            if is_single_dataset_batch:
-                # global metrics are dataset specific
-                ds_metrics[f"{step_name}/{ds_name}/loss"] = loss
-            if has_3di:
-                ds_metrics[
-                    f"{step_name}/{ds_name}/3di_accuracy"
-                ] = dataset_accuracies_3di[ds_name]
-                ds_metrics[
-                    f"{step_name}/{ds_name}/3di_accuracy_first_sequence"
-                ] = dataset_accuracies_3di[ds_name + "_first_sequence"]
-                ds_metrics[
-                    f"{step_name}/{ds_name}/3di_accuracy_last_sequence"
-                ] = dataset_accuracies_3di[ds_name + "_last_sequence"]
-            if "coords" in batch and is_interleaved:
-                ds_metrics[
-                    f"{step_name}/{ds_name}/has_coords_aa_accuracy"
-                ] = has_coords_dataset_accuracies[ds_name]
-            self.log_dict(
-                ds_metrics,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                add_dataloader_idx=False,
-                sync_dist=step_name != "train",  # Q: what happens if sync_dist is False
-            )
-        add_dataloader_idx = step_name != "train"
-        seq_len_stats = metrics.sequence_lengths(
-            batch["labels"], self.tokenizer.sep_token_id
-        )
-        sep_tokens_in_batch = (
-            (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
-        )
-        start_of_doc_tokens_in_batch = (
-            (batch["labels"] == self.tokenizer.bos_token_id).sum().item()
-        )
-        for reduce_fx in ["min", "max", "mean"]:
-            self.log(
-                name=f"{step_name}/token_stats/{reduce_fx}_seq_len_in_batch",
-                value=seq_len_stats[f"{reduce_fx}_seq_length"],
-                on_step=True,
-                on_epoch=False,
-                prog_bar=False,
-                reduce_fx=reduce_fx,
-                add_dataloader_idx=add_dataloader_idx,
-            )
-            self.log(
-                name=f"{step_name}/token_stats/{reduce_fx}_sep_tokens_in_batch",
-                value=sep_tokens_in_batch,
-                on_step=True,
-                on_epoch=False,
-                prog_bar=False,
-                reduce_fx=reduce_fx,
-                add_dataloader_idx=add_dataloader_idx,
-            )
-            self.log(
-                name=f"{step_name}/token_stats/{reduce_fx}_start_of_doc_tokens_in_batch",
-                value=start_of_doc_tokens_in_batch,
-                on_step=True,
-                on_epoch=False,
-                prog_bar=False,
-                reduce_fx=reduce_fx,
-                add_dataloader_idx=add_dataloader_idx,
-            )
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -507,48 +258,43 @@ class BaseLitModule(LightningModule):
             checkpoint["optimizer_states"] = []
             checkpoint["lr_schedulers"] = []
 
+    def configure_optimizers(self) -> Dict[str, Any]:
+        optimizer_name = self.hparams.get("optimizer", "adamw")
+        log.info(f"Using optimizer {optimizer_name}")
+        if optimizer_name == "adamw":
+            optimizer = torch.optim.AdamW(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+                betas=(0.9, 0.95),
+                eps=self.eps,
+            )
+        else:
+            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
-class BaseFamilyLitModule(BaseLitModule):
-    def __init__(
-        self,
-        model,
-        tokenizer: ProFamTokenizer,
-        lr: float = 1e-4,
-        weight_decay: float = 0.1,
-        scheduler_name: Optional[str] = None,
-        num_warmup_steps: int = 1000,
-        num_training_steps: Optional[int] = None,
-        scoring_max_tokens: int = 32_000,
-        use_kv_cache_for_scoring: bool = True,
-        embed_coords: bool = False,
-        override_optimizer_on_load: bool = False,
-        max_tokens: int = 8192,
-        gym_subsamples_per_n: int = 5,
-        gym_results_save_dir = None,
-    ):
-        super().__init__(
-            model,
-            tokenizer,
-            lr=lr,
-            weight_decay=weight_decay,
-            scheduler_name=scheduler_name,
-            num_warmup_steps=num_warmup_steps,
-            num_training_steps=num_training_steps,
-            scoring_max_tokens=scoring_max_tokens,
-            optimizer="adamw",
-            override_optimizer_on_load=override_optimizer_on_load,
-            gym_results_save_dir=gym_results_save_dir
-        )
-        self.scoring_max_tokens = scoring_max_tokens
-        self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
-        self.embed_residue_index = self.tokenizer.embed_residue_index
-        self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
-        self.embed_coords = embed_coords
-        self.embed_sequence_index = self.model.embed_sequence_index
-        # NEW FOR EVALUATING PROTEIN GYM OFFLINE ONLY-------------------------
-        self.max_tokens = max_tokens
-        self.gym_subsamples_per_n = gym_subsamples_per_n
-        # ---------------------------------------------------------------------
+        optim_dict = {"optimizer": optimizer}
+        if self.scheduler_name is not None:
+            if self.scheduler_name == "cosine_with_min_lr":
+                scheduler = get_scheduler(
+                    self.scheduler_name,
+                    optimizer,
+                    num_warmup_steps=self.num_warmup_steps,
+                    num_training_steps=self.num_training_steps,
+                    scheduler_specific_kwargs={"min_lr_rate": 0.1},
+                )
+            else:
+                scheduler = get_scheduler(
+                    self.scheduler_name,
+                    optimizer,
+                    num_warmup_steps=self.num_warmup_steps,
+                    num_training_steps=self.num_training_steps,
+                )
+            optim_dict["lr_scheduler"] = {
+                "scheduler": scheduler,
+                "interval": "step",
+            }
+        return optim_dict
+
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
@@ -1006,6 +752,121 @@ class BaseFamilyLitModule(BaseLitModule):
             start_ix += o.shape[0]
 
         return padded_outputs, all_scores
+
+
+
+    @torch.no_grad()
+    def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
+        # N.B. actually val logging is a bit different because of this ds name thing
+        loss = outputs.loss
+        n_tokens = batch["input_ids"].shape[-1]
+        if step_name == "train":
+            ds_names = None
+        else:
+            ds_names = batch["ds_name"].text
+        dataset_accuracies = metrics.accuracy_from_outputs(
+            batch["input_ids"],
+            outputs,
+            batch["labels"],
+            ignore_index=self.ignore_index,
+            dataset_names=ds_names,  # a list of dataset names (StringObject.text)
+            ignore_token_ids=self.tokenizer.convert_tokens_to_ids(
+                ["-", "X", "x", "[start-of-document]"]
+                + aa_letters_lower
+                + self.tokenizer.all_special_tokens
+            ),
+            sep_token_id=self.tokenizer.sep_token_id,
+            bos_token_id=self.tokenizer.bos_token_id,
+            calc_full_no_context_accuracies=True,
+        )
+        has_3di = False
+
+        global_metrics = {
+            "loss": loss,
+            "ppl": torch.exp(loss),
+            "aa_accuracy": dataset_accuracies.pop("global"),
+            "aa_accuracy_first_sequence": dataset_accuracies.pop("first_sequence"),
+            "aa_accuracy_last_sequence": dataset_accuracies.pop("last_sequence"),
+            "n_tokens_in_batch": n_tokens,
+        }
+
+        if log_global:
+            self.log_dict(
+                {f"{step_name}/{k}": v for k, v in global_metrics.items()},
+                on_step=step_name == "train",
+                on_epoch=step_name != "train",
+                prog_bar=True,
+                add_dataloader_idx=False,
+                sync_dist=step_name != "train",
+            )
+
+        # n.b. this assumes a batch only contains a single dataset - only true during val!
+        # assert all([ds_name == batch["ds_name"][0] for ds_name in batch["ds_name"]])
+        assert isinstance(batch["ds_name"], StringObject)
+
+        is_single_dataset_batch = len(set(batch["ds_name"].text)) == 1
+        for ds_name in set(batch["ds_name"].text):
+            if ds_name not in dataset_accuracies:
+                continue
+            ds_metrics = {
+                f"{step_name}/{ds_name}/aa_accuracy": dataset_accuracies[ds_name],
+                f"{step_name}/{ds_name}/aa_accuracy_first_sequence": dataset_accuracies[
+                    ds_name + "_first_sequence"
+                ],
+                f"{step_name}/{ds_name}/aa_accuracy_last_sequence": dataset_accuracies[
+                    ds_name + "_last_sequence"
+                ],
+            }
+            # TODO: coords frac for each dataset
+            if is_single_dataset_batch:
+                # global metrics are dataset specific
+                ds_metrics[f"{step_name}/{ds_name}/loss"] = loss
+            self.log_dict(
+                ds_metrics,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                add_dataloader_idx=False,
+                sync_dist=step_name != "train",  # Q: what happens if sync_dist is False
+            )
+        add_dataloader_idx = step_name != "train"
+        seq_len_stats = metrics.sequence_lengths(
+            batch["labels"], self.tokenizer.sep_token_id
+        )
+        sep_tokens_in_batch = (
+            (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
+        )
+        start_of_doc_tokens_in_batch = (
+            (batch["labels"] == self.tokenizer.bos_token_id).sum().item()
+        )
+        for reduce_fx in ["min", "max", "mean"]:
+            self.log(
+                name=f"{step_name}/token_stats/{reduce_fx}_seq_len_in_batch",
+                value=seq_len_stats[f"{reduce_fx}_seq_length"],
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=add_dataloader_idx,
+            )
+            self.log(
+                name=f"{step_name}/token_stats/{reduce_fx}_sep_tokens_in_batch",
+                value=sep_tokens_in_batch,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=add_dataloader_idx,
+            )
+            self.log(
+                name=f"{step_name}/token_stats/{reduce_fx}_start_of_doc_tokens_in_batch",
+                value=start_of_doc_tokens_in_batch,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                reduce_fx=reduce_fx,
+                add_dataloader_idx=add_dataloader_idx,
+            )
 
 
 

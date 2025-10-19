@@ -2,11 +2,10 @@ import functools
 import os
 import re
 import warnings
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from datasets import Dataset
 from transformers import PreTrainedTokenizerFast
 
 from src.data.objects import ProteinDocument
@@ -17,13 +16,8 @@ from src.data.processors.transforms import (
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
 
-from .base import BaseProteinDataset
+from src.data.builders.base import BaseProteinDataset  # type: ignore
 
-# New imports for homology weight computation
-import numpy as np
-import pandas as pd
-from datasets import Dataset
-from transformers import PreTrainedTokenizerFast
 
 from src.data.msa_subsampling import compute_homology_weights
 
@@ -444,6 +438,7 @@ class ProteinGymDataset(BaseProteinDataset):
         task_index: Optional[int] = None,
         num_tasks: Optional[int] = None,
         csv_filename: str = "DMS_substitutions.csv",
+        tokenizer: Optional[ProFamTokenizer] = None,
     ):
         """Thing that's a bit different about Gym (and family classification)
         is that we have this prompt/completions structure.
@@ -485,6 +480,91 @@ class ProteinGymDataset(BaseProteinDataset):
             # this is necessary because the first completion sequence token cannot be
             # and AA otherwise we can't extract the likelihood for the first AA
         self.print_settings()
+        self._tokenizer = tokenizer
+
+        # Build static table of assays to evaluate. We keep rows in-memory as dicts.
+        effective_gym_dir = (
+            self.gym_data_dir
+            if self.gym_data_dir is not None
+            else os.path.join("../data", "ProteinGym")
+        )
+        df = build_gym_df(
+            self.dms_ids,
+            gym_data_dir=effective_gym_dir,
+            use_foldseek_msa=self.use_foldseek_msa,
+            max_completion_length=self.max_completion_length,
+            msa_folder_name=self.msa_folder_name,
+            task_index=self.task_index,
+            num_tasks=self.num_tasks,
+            csv_filename=self.csv_filename,
+        )
+        # Store as list of dicts for fast indexing in __getitem__
+        self._rows: List[Dict[str, Any]] = df.to_dict("records")
+
+    def __len__(self):
+        return len(self._rows)
+
+    def __getitem__(self, idx):
+        # Copy row to avoid mutating cached list
+        row = dict(self._rows[idx])
+
+        # Prepare MSA context (lazy, per-sample); uses on-disk caches where available
+        row = load_msa_for_row(
+            row=row,
+            seed=self.seed,
+            tokenizer=None,  # tokenizer not needed for this step
+            max_tokens=self.max_tokens_per_example,
+            keep_gaps=self.keep_gaps,
+            use_filtered_msa=self.use_filtered_msa,
+            extra_tokens_per_document=self.extra_tokens_per_document,
+            use_msa_pos=self.use_msa_pos,
+            max_context_seqs=self.max_context_seqs,
+            keep_wt=self.keep_wt,
+            drop_wt=self.drop_wt,
+            use_msa_seq_weights=self.use_msa_seq_weights,
+        )
+
+        # Load completion (mutant) sequences and positions
+        row = load_comp_seq_dms_for_row(
+            row=row,
+            seed=self.seed,
+            tokenizer=None,  # tokenizer not needed for this step
+            use_msa_pos=self.use_msa_pos,
+            keep_gaps=self.keep_gaps,
+            max_mutated_sequences=self.max_mutated_sequences,
+        )
+
+        # Tokenize MSA prompt and completions
+        if self._tokenizer is None:
+            raise RuntimeError(
+                "ProteinGymDataset requires a tokenizer; pass tokenizer=... in config or let the datamodule set it."
+            )
+        row = tokenize(
+            sample=row,
+            tokenizer=self._tokenizer,
+            mutant_bos_token=self.mutant_bos_token,
+            document_token=self.document_token,
+        )
+
+        # Select and return the fields expected downstream
+        out = {
+            "input_ids": row["input_ids"],
+            "completion_ids": row["completion_ids"],
+            "DMS_scores": row["DMS_scores"],
+            "ds_name": row.get("ds_name", "gym"),
+            "DMS_id": row["DMS_id"],
+        }
+        if self._tokenizer.embed_residue_index:
+            out["residue_index"] = row.get("residue_index")
+            out["completion_residue_index"] = row.get("completion_residue_index")
+        # Optional metadata
+        if "sequence_similarities" in row:
+            out["sequence_similarities"] = row["sequence_similarities"]
+        if "coverages" in row:
+            out["coverages"] = row["coverages"]
+        if "sequence_weights" in row:
+            out["sequence_weights"] = row["sequence_weights"]
+        return out
 
     @property
     def document_token(self):
@@ -515,98 +595,9 @@ class ProteinGymDataset(BaseProteinDataset):
         print(f"  dms_ids: {self.dms_ids}")
         print(f"  msa_folder_name: {self.msa_folder_name}")
 
-    def process(
-        self,
-        dataset: Dataset,
-        tokenizer: ProFamTokenizer,
-        feature_names: Optional[List[str]] = None,
-        **kwargs,
-    ):
-        """mutant_bos_token should almost always be sep.
+    # Deprecated HF-style API retained for backward compatibility, but unused.
+    def process(self, *args, **kwargs):  # pragma: no cover
+        raise NotImplementedError("ProteinGymDataset is now a PyTorch Dataset; no process().")
 
-        n.b. we just ignore pack_to_max_tokens here.
-        """
-        remove_columns = [
-            "completion_seqs",
-            "DMS_filename",
-            "MSA_filename",
-        ]
-        if self.max_context_seqs is None or self.max_context_seqs > 0:
-            remove_columns.append("MSA")
-            dataset = dataset.map(
-                functools.partial(
-                    load_msa_for_row,
-                    tokenizer=tokenizer,
-                    seed=self.seed,  # For what?
-                    max_tokens=self.max_tokens_per_example,
-                    keep_gaps=self.keep_gaps,
-                    use_filtered_msa=self.use_filtered_msa,
-                    extra_tokens_per_document=self.extra_tokens_per_document,
-                    use_msa_pos=self.use_msa_pos,
-                    max_context_seqs=self.max_context_seqs,
-                    keep_wt=self.keep_wt,
-                    drop_wt=self.drop_wt,
-                    use_msa_seq_weights=self.use_msa_seq_weights,
-                ),
-                batched=False,
-                num_proc=self.num_proc,
-            )
-        dataset = dataset.map(
-            functools.partial(
-                load_comp_seq_dms_for_row,
-                seed=self.seed,
-                tokenizer=tokenizer,
-                use_msa_pos=self.use_msa_pos,
-                keep_gaps=self.keep_gaps,
-                max_mutated_sequences=self.max_mutated_sequences,
-            ),
-            batched=False,
-            num_proc=self.num_proc,
-        )
-        dataset = dataset.map(
-            functools.partial(
-                tokenize,
-                tokenizer=tokenizer,
-                mutant_bos_token=self.mutant_bos_token,
-                document_token=self.document_token,
-            ),
-            batched=False,
-            remove_columns=remove_columns,
-            num_proc=self.num_proc,  # https://huggingface.co/docs/datasets/v2.20.0/en/process#multiprocessing
-        )
-        # https://discuss.huggingface.co/t/dataset-map-return-only-list-instead-torch-tensors/15767
-        columns = ["input_ids", "completion_ids", "DMS_scores", "ds_name", "DMS_id"]
-
-        if tokenizer.embed_residue_index:
-            columns += ["residue_index", "completion_residue_index"]
-
-        # Add coverage and similarity fields if they exist in the dataset
-        if "sequence_similarities" in dataset.column_names:
-            columns.append("sequence_similarities")
-        if "coverages" in dataset.column_names:
-            columns.append("coverages")
-        if "sequence_weights" in dataset.column_names:
-            columns.append("sequence_weights")
-        # TODO: what is right here?
-        dataset.set_format(
-            type="torch",
-            columns=columns,
-        )
-        return dataset
-
-    def load(self, data_dir="../data", world_size: int = 1, verbose: bool = False):
-        df = build_gym_df(
-            self.dms_ids,
-            gym_data_dir=os.path.join(data_dir, "ProteinGym")
-            if self.gym_data_dir is None
-            else self.gym_data_dir,
-            use_foldseek_msa=self.use_foldseek_msa,
-            max_completion_length=self.max_completion_length,
-            msa_folder_name=self.msa_folder_name,
-            task_index=self.task_index,
-            num_tasks=self.num_tasks,
-            csv_filename=self.csv_filename,
-        )
-        # n.b. this isn't streamed
-        dataset = Dataset.from_pandas(df, preserve_index=False)
-        return dataset
+    def load(self, *args, **kwargs):  # pragma: no cover
+        raise NotImplementedError("ProteinGymDataset is now a PyTorch Dataset; no load().")

@@ -88,57 +88,6 @@ def default_transforms(cfg: PreprocessingConfig):
     ]
 
 
-def backbone_coords_from_example(
-    example,
-    selected_ids: Optional[List[int]] = None,
-    sequence_col="sequences",
-    use_pdb_if_available_prob: float = 0.0,
-):
-    ns = example["N"]
-    cas = example["CA"]
-    cs = example["C"]
-    oxys = example["O"]
-    sequences = example[sequence_col]
-    prot_has_pdb = (
-        example["pdb_index_mask"] if "pdb_index_mask" in example else [False] * len(ns)
-    )
-    coords = []
-    is_pdb = []
-    if selected_ids is None:
-        selected_ids = range(len(ns))
-
-    for ix in selected_ids:
-        seq = sequences[ix]
-        has_pdb = prot_has_pdb[ix]
-        use_pdb = has_pdb and np_random().rand() < use_pdb_if_available_prob
-
-        if use_pdb:
-            # I guess test that this is working is that lengths line up
-            pdb_index = list(np.argwhere(example["extra_pdb_mask"]).reshape(-1)).index(
-                ix
-            )
-            n = example["pdb_N"][pdb_index]
-            ca = example["pdb_CA"][pdb_index]
-            c = example["pdb_C"][pdb_index]
-            o = example["pdb_O"][pdb_index]
-            is_pdb.append(True)
-        else:
-            n = ns[ix]
-            ca = cas[ix]
-            c = cs[ix]
-            o = oxys[ix]
-            is_pdb.append(False)
-
-        recons_coords = np.zeros((len(seq), 4, 3))
-        recons_coords[:, 0] = np.array(n).reshape(-1, 3)
-        recons_coords[:, 1] = np.array(ca).reshape(-1, 3)
-        recons_coords[:, 2] = np.array(c).reshape(-1, 3)
-        recons_coords[:, 3] = np.array(o).reshape(-1, 3)
-        coords.append(recons_coords)
-
-    return coords, is_pdb
-
-
 class ProteinDocumentPreprocessor:
     """
     Preprocesses protein documents by applying a set of transforms to protein data.
