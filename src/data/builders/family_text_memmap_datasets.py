@@ -193,7 +193,7 @@ class ProteinFamilyMemmapDataset(Dataset):
             tokenizer: tokenizer to use to convert sequences to tokens.
             kwargs: additional arguments to pass to the dataset
         """
-        super().__init__(name=name)
+        super().__init__()
         self.name = name
         self.preprocessor = preprocessor
         self.tokenizer = tokenizer

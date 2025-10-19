@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 from transformers import PreTrainedTokenizerFast
+from torch.utils.data import Dataset
 
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
@@ -16,7 +17,6 @@ from src.data.processors.transforms import (
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
 
-from src.data.builders.base import BaseProteinDataset  # type: ignore
 
 
 from src.data.msa_subsampling import compute_homology_weights
@@ -411,7 +411,7 @@ def build_gym_df(
     ]
 
 
-class ProteinGymDataset(BaseProteinDataset):
+class ProteinGymDataset(Dataset):
     def __init__(
         self,
         name: str,
@@ -449,7 +449,7 @@ class ProteinGymDataset(BaseProteinDataset):
         We can still train on these datasets - just by setting seed None and
         not setting val dataset name. In this case, model will ignore completions.
         """
-        super().__init__(name=name, preprocessor=None)
+        self.name = name
         self.dms_ids = dms_ids
         self.seed = seed
         self.max_mutated_sequences = max_mutated_sequences
@@ -512,7 +512,7 @@ class ProteinGymDataset(BaseProteinDataset):
         row = load_msa_for_row(
             row=row,
             seed=self.seed,
-            tokenizer=None,  # tokenizer not needed for this step
+            tokenizer=self._tokenizer,  # tokenizer not needed for this step
             max_tokens=self.max_tokens_per_example,
             keep_gaps=self.keep_gaps,
             use_filtered_msa=self.use_filtered_msa,
@@ -528,17 +528,12 @@ class ProteinGymDataset(BaseProteinDataset):
         row = load_comp_seq_dms_for_row(
             row=row,
             seed=self.seed,
-            tokenizer=None,  # tokenizer not needed for this step
+            tokenizer=self._tokenizer,  # tokenizer not needed for this step
             use_msa_pos=self.use_msa_pos,
             keep_gaps=self.keep_gaps,
             max_mutated_sequences=self.max_mutated_sequences,
         )
 
-        # Tokenize MSA prompt and completions
-        if self._tokenizer is None:
-            raise RuntimeError(
-                "ProteinGymDataset requires a tokenizer; pass tokenizer=... in config or let the datamodule set it."
-            )
         row = tokenize(
             sample=row,
             tokenizer=self._tokenizer,
@@ -564,6 +559,13 @@ class ProteinGymDataset(BaseProteinDataset):
             out["coverages"] = row["coverages"]
         if "sequence_weights" in row:
             out["sequence_weights"] = row["sequence_weights"]
+        # Ensure metadata fields are numpy arrays so default collate produces tensors
+        for _k in ("sequence_similarities", "coverages", "sequence_weights", "DMS_scores"):
+            if _k in out and out[_k] is not None:
+                try:
+                    out[_k] = np.asarray(out[_k], dtype=np.float32)
+                except Exception:
+                    pass
         return out
 
     @property

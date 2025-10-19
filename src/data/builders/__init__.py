@@ -1,4 +1,3 @@
-from .base import BaseProteinDataset
 from .family_text_memmap_datasets import (
     ProteinFamilyMemmapDataset,
 )

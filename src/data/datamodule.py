@@ -6,9 +6,6 @@ from torch.utils.data.distributed import DistributedSampler
 
 from src.constants import SEQUENCE_FEATURE_NAMES
 from src.data.builders import (
-    BaseProteinDataset,
-    MemoryMappedHFProteinDataset,
-    ProteinFamilyMemmapDataset,
     ProteinGymDataset,
 )
 from src.data.collators import DocumentBatchCollator
@@ -36,7 +33,7 @@ class ProteinDataMixture(LightningDataModule):
 
     def __init__(
         self,
-        dataset_builders: Dict[str, BaseProteinDataset],
+        dataset_builders: Dict[str, Dataset],
         data_weights: Dict[str, float],
         tokenizer: ProFamTokenizer,
         data_dir: str,
