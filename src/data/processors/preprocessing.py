@@ -70,9 +70,7 @@ def default_transforms(cfg: PreprocessingConfig):
             )
     else:
         if cfg.defer_sampling:
-            preprocess_sequences_fn = functools.partial(
-                transforms.prepare_raw_sequences_no_sampling,
-            )
+            preprocess_sequences_fn = lambda x: x
         else:
             preprocess_sequences_fn = functools.partial(
                 transforms.preprocess_raw_sequences_sampling_to_max_tokens,

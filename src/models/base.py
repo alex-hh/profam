@@ -160,12 +160,10 @@ class BaseFamilyLitModule(LightningModule):
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
-        forward_kwargs = self.get_forward_kwargs(batch)
         outputs = self(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],
             labels=batch["labels"],
-            **forward_kwargs,
         )
         loss = outputs.loss
         self.log_metrics(batch, outputs, "train", log_global=True)
@@ -194,12 +192,10 @@ class BaseFamilyLitModule(LightningModule):
             outputs = self.validation_step_family_classification(batch)
             return outputs
         else:
-            forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
                 input_ids=batch["input_ids"],
                 attention_mask=batch["attention_mask"],
                 labels=batch["labels"],
-                **forward_kwargs,
             )
         loss = outputs.loss
         self.log_metrics(
@@ -218,12 +214,10 @@ class BaseFamilyLitModule(LightningModule):
             outputs = self.validation_step_proteingym(batch)
             return outputs
         else:
-            forward_kwargs = self.get_forward_kwargs(batch)
             outputs = self(
                 input_ids=batch["input_ids"],
                 attention_mask=batch["attention_mask"],
                 labels=batch["labels"],
-                **forward_kwargs,
             )
         loss = outputs.loss
         self.log_metrics(batch, outputs, "test", log_global=dataloader_idx == 0)
@@ -291,9 +285,6 @@ class BaseFamilyLitModule(LightningModule):
         return optim_dict
 
 
-    def get_forward_kwargs(self, batch):
-        forward_kwargs = {}
-        return forward_kwargs
 
     def trim_eval_batch(self, seqs_ids):
         """
@@ -325,8 +316,7 @@ class BaseFamilyLitModule(LightningModule):
         assert input_ids[0,0] == self.tokenizer.vocab['[start-of-document]'] and input_ids[0,1] > 19, "First two tokens should be special start-of-doc and document type"
         if completion_ids[0,0,0] == self.tokenizer.sep_token_id:
             assert input_ids[0, -1] != self.tokenizer.sep_token_id, "Double sep token in input and completion"
-        forward_kwargs = self.get_forward_kwargs()
-        outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
+        outputs = self.model(input_ids=input_ids, use_cache=True)
         past_key_values = (
             outputs.past_key_values
         )  # just a tuple of tensors - doesn't get extended
@@ -344,7 +334,6 @@ class BaseFamilyLitModule(LightningModule):
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
             L_mini_batch = this_input_ids.shape[-1]
-            forward_kwargs = {}
 
             actual_batch_size = this_input_ids.shape[0]
             cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
@@ -354,7 +343,6 @@ class BaseFamilyLitModule(LightningModule):
                 input_ids=this_input_ids,
                 past_key_values=cache,
                 use_cache=True,
-                **forward_kwargs,
             )
             # fmt: on
             labels = torch.where(
@@ -394,7 +382,6 @@ class BaseFamilyLitModule(LightningModule):
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)
             L_mini_batch = this_input_ids.shape[-1]  # beware: includes prompt too
-            forward_kwargs = {}
             # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
@@ -406,7 +393,7 @@ class BaseFamilyLitModule(LightningModule):
             ), "Likelihood start ix is an AA token - likelihood cannot be computed for this position"
 
             outputs = self.model(
-                input_ids=this_input_ids, use_cache=False, **forward_kwargs
+                input_ids=this_input_ids, use_cache=False
             )
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
@@ -438,9 +425,8 @@ class BaseFamilyLitModule(LightningModule):
             range(0, completion_ids.shape[0], batch_size), disable=not verbose
         ):
             this_input_ids = completion_ids[completion_ix:completion_ix+batch_size]
-            forward_kwargs = {}
             outputs = self.model(
-                input_ids=this_input_ids, use_cache=False, **forward_kwargs
+                input_ids=this_input_ids, use_cache=False
             )
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
@@ -590,7 +576,6 @@ class BaseFamilyLitModule(LightningModule):
             batch_collected: List[torch.Tensor] = []
             batch_scores: List[float] = []
             while remaining > 0:
-                forward_kwargs = self.get_forward_kwargs()
                 # Build stopping criteria that knows prompt length (non-continuous only)
                 stopping = None
                 if not continuous_sampling and repeat_guard:
@@ -607,7 +592,6 @@ class BaseFamilyLitModule(LightningModule):
                     temperature=temperature,
                     stopping_criteria=stopping,
                     **generation_kwargs,
-                    **forward_kwargs,
                 )
                 seqs_full = gen_out.sequences  # (remaining, L_total)
                 scores_list = gen_out.scores  # List[T] of (remaining, V)
@@ -1958,7 +1942,6 @@ class BaseFamilyLitModule(LightningModule):
     ) -> torch.Tensor:
         # uncomment for debugging ddp (train.py +experiment=ddp_test)
         # print(f"Rank: {self.trainer.global_rank}", batch["identifier"].text, flush=True)
-        forward_kwargs = self.get_forward_kwargs(batch)
         # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
         # one option would be to write our own versions of classes llike llamaforcausallm
 
@@ -1966,7 +1949,6 @@ class BaseFamilyLitModule(LightningModule):
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],
             labels=batch["labels"],
-            **forward_kwargs,
         )
         loss = outputs.loss
         # TODO: handle ds-level metrics for train batches which can include multiple datasets
