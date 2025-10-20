@@ -3,7 +3,6 @@ from omegaconf import DictConfig
 
 def check_config(cfg: DictConfig):
     return
-    assert cfg.model.embed_residue_index == cfg.tokenizer.embed_residue_index
     max_train_doc_len = 0
     for dataset in cfg.data.dataset_builders:
         if dataset not in cfg.data.val_dataset_batch_sizes:

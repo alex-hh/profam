@@ -3,7 +3,6 @@ defaults:
   - dataset@dataset_builders.ted_s50_raw: ted_s50_raw
   - dataset@dataset_builders.val_ted_s50_raw: ted_s50_raw
   - _self_
-total_num_train_samples: 5080  # todo get actual number
 data_weights:
   ted_s50_raw: 1.0
 

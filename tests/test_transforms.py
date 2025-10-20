@@ -11,26 +11,10 @@ from src.data.processors.transforms import (
 def protein_document():
     sequences = ["M" * 100, "A" * 150, "G" * 200]  # Sequences longer than max_tokens
     accessions = ["P12345", "Q67890", "R23456"]
-    plddts = [np.random.rand(100), np.random.rand(150), np.random.rand(200)]
-    backbone_coords = [
-        np.random.rand(100, 4, 3),
-        np.random.rand(150, 4, 3),
-        np.random.rand(200, 4, 3),
-    ]
-    backbone_coords_masks = [
-        np.ones((100, 4)),
-        np.ones((150, 4)),
-        np.ones((200, 4)),
-    ]
-    structure_tokens = ["X" * 100, "Y" * 150, "Z" * 200]
 
     return ProteinDocument(
         sequences=sequences,
         accessions=accessions,
-        plddts=plddts,
-        backbone_coords=backbone_coords,
-        backbone_coords_masks=backbone_coords_masks,
-        structure_tokens=structure_tokens,
     )
 
 

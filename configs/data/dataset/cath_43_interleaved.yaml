@@ -1,8 +1,0 @@
-_target_: src.data.cath.CATHTorchDataset
-defaults:
-  - /preprocessor: noisy_interleaved_coords
-
-name: cath43
-split_name: train
-use_cath_43: true
-# num_proc: ${data.num_workers}

@@ -25,7 +25,6 @@ dataset_builders:
     max_tokens_per_example: ${data.dataset_builders.uniref90.preprocessor.cfg.max_tokens_per_example}
     max_context_seqs: 0
 
-total_num_train_samples: 10000000
 data_weights:
   uniref90: 1.0
 

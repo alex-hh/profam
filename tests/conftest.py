@@ -23,8 +23,6 @@ def profam_tokenizer():
         sep_token="[SEP]",
         mask_token="?",
         seq_struct_sep_token="|",
-        embed_residue_index=True,
-        max_res_pos_in_seq=2048,
         max_tokens=2048,
         mask_below_plddt=None,
     )
@@ -41,8 +39,6 @@ def profam_tokenizer_noseqpos():
         sep_token="[SEP]",
         mask_token="?",
         seq_struct_sep_token="|",
-        embed_residue_index=False,
-        max_res_pos_in_seq=2048,
         max_tokens=2048,
         mask_below_plddt=None,
     )
@@ -58,7 +54,6 @@ def test_model_noseqpos(profam_tokenizer_noseqpos):
             return_hydra_config=True,
             overrides=[
                 "model=llama_test",
-                "model.embed_sequence_index=False",
             ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
@@ -72,7 +67,6 @@ def test_model(profam_tokenizer):
             return_hydra_config=True,
             overrides=[
                 "model=llama_test",
-                "model.embed_sequence_index=True",
             ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
@@ -85,7 +79,6 @@ def model_seq_index(profam_tokenizer):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
-                "model.embed_sequence_index=True",
                 "model.config.attn_implementation=null",
                 "model.pass_res_pos_in_doc_as_position_ids=False",
             ],

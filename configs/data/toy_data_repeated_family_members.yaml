@@ -3,7 +3,6 @@ defaults:
   - dataset@dataset_builders.toy_data_repeated_family_members: toy_data_repeated_family_members
   - dataset@dataset_builders.val_toy_data_repeated_family_members: toy_data_repeated_family_members
   - _self_
-total_num_train_samples: 5080  # todo get actual number
 data_weights:
   toy_data_repeated_family_members: 1.0
 

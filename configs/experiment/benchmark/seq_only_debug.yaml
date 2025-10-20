@@ -31,10 +31,7 @@ paths:
 
 model:
   use_kv_cache_for_scoring: true
-  embed_coords: false
   lr: 2e-3
-  embed_sequence_index: true
-  embed_residue_index: true
 
 data:
   dataset_builders:
@@ -102,7 +99,6 @@ data:
         file_repeats: 8
 
   _target_: src.data.datamodule.ProteinDataMixture
-  total_num_train_samples: 5080
   data_weights:
     foldseek_struct: 1.0
   batch_size: 1

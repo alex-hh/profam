@@ -68,7 +68,6 @@ class OnlineSampleMapping:
     def __init__(
         self,
         dataset_size: int,
-        num_samples: int,
         block_size: Optional[int] = 1000000,
         cache_maxsize: int = 2,
         seed: int = 1,
@@ -78,7 +77,6 @@ class OnlineSampleMapping:
         """
         Args:
             dataset_size (int): Size of the dataset.
-            num_samples (int): Number of samples the dataset should contain.
             block_size (Optional[int]): Size of each sample block. Defaults to 1000000.
             cache_maxsize (int): Maximum size of the blocks cache for the get_sample_block function.
             seed (int): Seed for the random number generator used for shuffling.
@@ -86,14 +84,12 @@ class OnlineSampleMapping:
             truncate_to_block_boundary (bool): Whether to truncate the last block to the block boundary.
         """
         self.dataset_size = dataset_size
-        self.num_samples = num_samples
+        self.num_samples = dataset_size
         self.block_size = block_size if block_size is not None else self.dataset_size
         self.cache_maxsize = cache_maxsize
         self.seed = seed
         self.shuffle = shuffle
         self.truncate_to_block_boundary = truncate_to_block_boundary
-
-        # we need at least num_samples (up-sampling) or dataset_size samples (correct down-sampling)
         self.required_samples = max(self.num_samples, self.dataset_size)
         # block size cannot be larger than dataset size
         self.block_size = min(self.block_size, self.dataset_size)
@@ -153,7 +149,7 @@ class OnlineSampleMapping:
             f")"
         )
 
-    def __getitem__(self, idx: int) -> int:
+    def __getitem__(self, idx: int | slice) -> int | list[int]:
         # handle slices
         if isinstance(idx, slice):
             slc = idx
@@ -262,7 +258,9 @@ class OnlineSampleMappingDataset(torch.utils.data.Dataset):
         self.dataset = dataset
         dataset_size = len(dataset)
         self.num_samples = num_samples
-        self.mapping = OnlineSampleMapping(dataset_size, num_samples, **kwargs)
+        self.mapping = OnlineSampleMapping(
+            dataset_size=dataset_size,
+             **kwargs)
 
     def __str__(self) -> str:
         return (
@@ -371,7 +369,6 @@ class WeightedConcatOnlineDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         datasets: List[torch.utils.data.Dataset],
-        num_samples: Optional[int] = None,
         weights: Optional[List[float]] = None,
         seed: int = 1,
         shuffle: bool = True,
@@ -382,7 +379,6 @@ class WeightedConcatOnlineDataset(torch.utils.data.Dataset):
         """
         Args:
             datasets (List[torch.utils.data.Dataset]): List of datasets to concatenate.
-            num_samples (Optional[int]): Total number of samples in the concatenated dataset. Defaults to None (which will be replaced with the joint sample number of all datasets).
             weights (Optional[List[float]]): List of weights corresponding to each dataset. Defaults to None (which will be replaced with the relative size of each dataset).
             seed (int): Seed for random number generation. Defaults to 1.
             shuffle (bool): Whether to shuffle the samples. Defaults to True.
@@ -414,8 +410,8 @@ class WeightedConcatOnlineDataset(torch.utils.data.Dataset):
             logger.warning(
                 "Weights contain zero values. This may lead to empty datasets."
             )
-        if num_samples is None:
-            num_samples = int(np.sum([len(d) for d in datasets]))
+        
+        num_samples = int(np.sum([len(d) for d in datasets]))
 
         self.datasets = datasets
         self.weights = weights = np.array(weights, dtype=np.float32)

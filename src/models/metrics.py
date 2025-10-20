@@ -33,21 +33,6 @@ def has_coords_frac(coords_mask, structure_mask, **kwargs):
     return has_coords_frac
 
 
-def plddt_metrics(
-    plddts, structure_mask: torch.Tensor, coords_mask: torch.Tensor, **kwargs
-):
-    metrics = {}
-    assert coords_mask.ndim == 4
-    has_coords_mask = coords_mask.flatten(start_dim=-2).any(-1) & structure_mask
-    mean_plddt_unmasked = (
-        plddts * has_coords_mask.float()
-    ).sum() / has_coords_mask.float().sum()
-    metrics["mean_plddt_unmasked"] = mean_plddt_unmasked
-    metrics["mean_plddt"] = (
-        plddts * structure_mask.float()
-    ).sum() / structure_mask.float().sum()
-    return metrics
-
 
 def calc_accuracy_with_masks(
     token_accuracy,

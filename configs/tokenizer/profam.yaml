@@ -9,6 +9,4 @@ seq_struct_sep_token: "|"
 add_final_sep: true
 add_bos_token: true
 add_document_token: true
-mask_below_plddt: 80  # > 90 is 'very high' confidence in af browser
-max_res_pos_in_seq: ${model.max_res_pos_in_seq}
-embed_residue_index: ${model.embed_residue_index}  # don't set this independent of model config
+

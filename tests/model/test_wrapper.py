@@ -100,11 +100,9 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences), add_final_sep=False
     )
-    input_residue_index = torch.from_numpy(tokenized.residue_index[None, :-2])
     input_ids = torch.from_numpy(tokenized.input_ids[None, :-2])
 
     model_kwargs = {
-        "residue_index": input_residue_index,
         "use_cache": True,
         "past_key_values": None,
     }
@@ -114,7 +112,6 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         input_ids, model_kwargs
     )
     # cache position is [0,1,2,3,4,5,6,7,8,9,10]
-    # residue_index is [[0,0,2,3,4,0,2,3,4,5,0]]
 
     with torch.no_grad():
         outputs = model_seq_index.model(input_ids=input_ids, **model_kwargs)
@@ -140,7 +137,6 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         torch.from_numpy(tokenized.input_ids[None, :-1]),
         **model_kwargs,
     )
-    assert (inputs["residue_index"] == 2).all()
 
     # TODO: add next step.
 
@@ -156,8 +152,6 @@ def test_prepare_inputs_for_generation(model_seq_index, profam_tokenizer):
         torch.from_numpy(tokenized.input_ids[None]),
         **model_kwargs,
     )
-    print(inputs["input_ids"], inputs["residue_index"])
-    assert (inputs["residue_index"] == 3).all()
 
 
 def test_compute_sequence_index(model_seq_index, profam_tokenizer):
@@ -172,11 +166,9 @@ def test_compute_sequence_index(model_seq_index, profam_tokenizer):
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences), add_final_sep=False
     )
-    input_residue_index = torch.from_numpy(tokenized.residue_index[None, :-2])
     input_ids = torch.from_numpy(tokenized.input_ids[None, :-2])
 
     model_kwargs = {
-        "residue_index": input_residue_index,
         "use_cache": True,
         "past_key_values": None,
     }
@@ -202,11 +194,9 @@ def test_compute_sequence_index(model_seq_index, profam_tokenizer):
     tokenized = profam_tokenizer.encode(
         ProteinDocument(sequences=sequences), add_final_sep=True
     )
-    input_residue_index = torch.from_numpy(tokenized.residue_index[None, :])
     input_ids = torch.from_numpy(tokenized.input_ids[None, :])
 
     model_kwargs = {
-        "residue_index": input_residue_index,
         "use_cache": True,
         "past_key_values": None,
     }

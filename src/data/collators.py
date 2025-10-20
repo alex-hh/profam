@@ -360,13 +360,7 @@ class DocumentBatchCollator:
             keys_to_pad = [
                 "input_ids",
                 "attention_mask",
-                "residue_index",
-                "coords",
-                "coords_mask",
-                "interleaved_coords_mask",
                 "aa_mask",
-                "structure_mask",
-                "plddts",
             ]
             for key in keys_to_pad:
                 existing = [d for d in non_string_data if key in d]

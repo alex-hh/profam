@@ -105,14 +105,12 @@ def tokenize_msa(
     # gym msas don't contain insertions so no need to worry about that and default position indexing is fine
     proteins = ProteinDocument(
         sequences=sample["MSA"],
-        residue_positions=sample["seq_pos"],
     )
     tokenized = tokenizer.encode(
         proteins, document_token=document_token, add_final_sep=False
     )  # sep gets added in completion bos
     sample["input_ids"] = tokenized.input_ids.squeeze()
-    if tokenizer.embed_residue_index:
-        sample["residue_index"] = tokenized.data["residue_index"]
+
     return sample
 
 
@@ -134,12 +132,10 @@ def tokenize_completions(
 ):
     tokenized = tokenizer.encode_completions(
         sequences=sample["completion_seqs"],
-        residue_positions=sample["completion_residue_positions"],
         bos_token=get_token_from_name(bos_token, tokenizer),
     )
     sample["completion_ids"] = tokenized.input_ids
-    if tokenizer.embed_residue_index:
-        sample["completion_residue_index"] = tokenized.data["residue_index"]
+
     return sample
 
 
@@ -251,10 +247,6 @@ def load_msa_for_row(
         sequences=seqs,
         accessions=None,
         identifier=row["DMS_id"],
-        residue_positions=None,
-        plddts=None,
-        backbone_coords=None,
-        structure_tokens=None,
         sequence_similarities=sequence_similarities,
         coverages=coverages,
         sequence_weights=sequence_weights,
@@ -283,7 +275,6 @@ def load_msa_for_row(
 
     assert len(proteins.sequences) > 0, "No sequences sampled - check max tokens"
     row["MSA"] = proteins.sequences
-    row["seq_pos"] = proteins.residue_positions
     # Ensure coverage and similarity data are always present for consistent schema
     if proteins.sequence_similarities is None:
         proteins.sequence_similarities = [0.0 for _ in proteins.sequences]
@@ -313,10 +304,6 @@ def load_comp_seq_dms_for_row(
         sequences=completion_seqs,
         accessions=None,
         identifier=None,
-        residue_positions=None,
-        plddts=None,
-        backbone_coords=None,
-        structure_tokens=None,
     )
     proteins = transforms.preprocess_aligned_sequences_sampling_to_max_tokens(
         proteins,
@@ -333,7 +320,6 @@ def load_comp_seq_dms_for_row(
     )
     row["DMS_scores"] = dms_df["DMS_score"].tolist()
     row["completion_seqs"] = proteins.sequences
-    row["completion_residue_positions"] = proteins.residue_positions
     return row
 
 
@@ -549,9 +535,6 @@ class ProteinGymDataset(Dataset):
             "ds_name": row.get("ds_name", "gym"),
             "DMS_id": row["DMS_id"],
         }
-        if self._tokenizer.embed_residue_index:
-            out["residue_index"] = row.get("residue_index")
-            out["completion_residue_index"] = row.get("completion_residue_index")
         # Optional metadata
         if "sequence_similarities" in row:
             out["sequence_similarities"] = row["sequence_similarities"]

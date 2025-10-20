@@ -1,6 +1,0 @@
-defaults:
-  - default
-
-max_epochs: 20
-accelerator: gpu
-devices: 4

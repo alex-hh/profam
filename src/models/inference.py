@@ -106,56 +106,6 @@ class PromptBuilder:
         return proteins
 
 
-class FewShotInterleavedInverseFoldingPromptBuilder(PromptBuilder):
-    pass
-
-
-class InterleavedInverseFoldingPromptBuilder(PromptBuilder):
-    """Prompt builder for interleaved inverse folding tasks.
-
-    Instead of finishing with a sep, we finish with a structure sequence sep
-    We also know the ground truth sequence: the representative sequence in the protein
-    document: ProteinDocument.representative.sequence
-    """
-
-    def __init__(
-        self,
-        preprocessor: ProteinDocumentPreprocessor,  # n.b. only preprocessing cfg and transform fns actually matter
-        seed: Optional[int] = None,
-        prompt_is_aligned: bool = False,
-    ):
-        super().__init__(preprocessor, seed, prompt_is_aligned=prompt_is_aligned)
-        assert self.preprocessor.interleave_structure_sequence
-
-    # we need to exclude token space for length seed*2 from preprocessing
-    # TODO: write tests for this
-    def __call__(self, proteins: ProteinDocument, tokenizer: ProFamTokenizer):
-        proteins = proteins.clone()
-        representative = proteins.representative
-
-        # We want to interleave the structure with an empty sequence
-        # for now a hack to do this is to replace the sequence with an empty sequence
-        representative_doc = ProteinDocument.from_proteins(
-            [representative], representative_accession=representative.accession
-        )
-        _preprocessor_single_protein_documents = (
-            self.preprocessor.single_protein_documents
-        )
-        self.preprocessor.single_protein_documents = True
-        rng = np.random.default_rng(self.seed) if self.seed is not None else None
-        representative_doc = self.preprocessor.apply_transforms(
-            representative_doc, tokenizer, rng=rng
-        )
-        self.preprocessor.single_protein_documents = (
-            _preprocessor_single_protein_documents
-        )
-
-        representative_doc = representative_doc.slice_arrays(
-            [slice(0, len(representative.sequence) + 1)]
-        )
-        return representative_doc
-
-
 class ProFamSampler:
     def __init__(
         self,
@@ -257,8 +207,6 @@ class ProFamSampler:
                         max_tokens=max_tokens,
                         max_generated_length=max_generated_length,
                         num_samples=need,
-                        input_residue_index=encoded["residue_index"].unsqueeze(0).to(self.model.device),
-                        input_coords=encoded["coords"].unsqueeze(0).to(self.model.device).to(self.dtype) if self.model.embed_coords else None,
                         continuous_sampling=False,
                         repeat_guard=repeat_guard,
                         repeat_length=repeat_length,
@@ -300,8 +248,6 @@ class ProFamSampler:
                         max_tokens=max_tokens,
                         max_generated_length=max_generated_length,
                         num_samples=need,
-                        input_residue_index=encoded["residue_index"].unsqueeze(0).to(self.model.device),
-                        input_coords=encoded["coords"].unsqueeze(0).to(self.model.device).to(self.dtype) if self.model.embed_coords else None,
                         continuous_sampling=False,
                         repeat_guard=False,
                         **sampling_kwargs,
@@ -432,13 +378,6 @@ class EnsembleDecoder:
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
     ):
-        # Enforce constraints
-        if getattr(model, "embed_coords", False):
-            raise ValueError("embed_coords must be False for EnsembleDecoder")
-        if getattr(model, "embed_sequence_index", False):
-            raise ValueError("embed_sequence_index must be False for EnsembleDecoder")
-        if getattr(model, "embed_residue_index", False):
-            raise ValueError("embed_residue_index must be False for EnsembleDecoder")
 
         self.model = model
         self.tokenizer = tokenizer
@@ -663,13 +602,6 @@ class ProFamEnsembleSampler:
         self.temperature = temperature
         self.top_p = top_p
         self.add_final_sep = add_final_sep
-
-        if getattr(self.model, "embed_coords", False):
-            raise ValueError("embed_coords must be False for ProFamEnsembleSampler")
-        if getattr(self.model, "embed_sequence_index", False):
-            raise ValueError("embed_sequence_index must be False for ProFamEnsembleSampler")
-        if getattr(self.model, "embed_residue_index", False):
-            raise ValueError("embed_residue_index must be False for ProFamEnsembleSampler")
 
         if hasattr(self.model, "dtype") and self.model.dtype is None:
             self.model.dtype = self.dtype

@@ -2,8 +2,5 @@ _target_: src.data.processors.ProteinDocumentPreprocessor
 defaults:
   - cfg: raw_from_msa
 transform_fns:
-  - _target_: src.data.processors.transforms.replace_nans_in_coords
-    _partial_: true
-    fill_value: 0.0
   - _target_: src.data.processors.transforms.add_final_sep
     _partial_: true

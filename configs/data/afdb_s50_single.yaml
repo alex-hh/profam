@@ -11,7 +11,6 @@ dataset_builders:
     cfg:
       data_path_pattern: afdb_s50_single/train_val_test_split/val_shuffled/shuffled_0.parquet
 
-total_num_train_samples: 10000000
 data_weights:
   afdb_s50: 1.0
 

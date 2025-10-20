@@ -1,6 +1,0 @@
-_target_: src.data.processors.ProteinDocumentPreprocessor
-defaults:
-  - cfg: raw
-  - transform_fns: rotate_coords
-interleave_structure_sequence: true
-structure_first_prob: 1.0

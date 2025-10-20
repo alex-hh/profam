@@ -4,12 +4,7 @@ scheduler_name: "cosine_with_min_lr"
 num_warmup_steps: 2000
 num_training_steps: 100000
 lr: 1e-4
-embed_coords: false
-embed_sequence_index: false
-embed_residue_index: false
 use_kv_cache_for_scoring: true
-max_seq_pos_in_doc: 1024
-max_res_pos_in_seq: 4096
 pass_res_pos_in_doc_as_position_ids: true
 optimizer: adamw
 config:

@@ -137,7 +137,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
     )[perm]
     max_length = np.max(new_sequence_lengths)
     truncated_sequence_lengths = np.minimum(
-        new_sequence_lengths, tokenizer.max_res_pos_in_seq or max_length
+        new_sequence_lengths, max_length
     )
     cumsum_lengths = extra_tokens_per_document + np.cumsum(truncated_sequence_lengths)
     if max_tokens is not None:
@@ -163,17 +163,8 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
             effective_endpoint = 1  # add a truncated element
         new_proteins = proteins[perm[:effective_endpoint]]
         assert final_element_tokens >= 0
-        if tokenizer.max_res_pos_in_seq is not None:
-            array_slices = [
-                _get_truncated_slice(
-                    new_sequence_lengths[i] - extra_tokens_per_protein,
-                    tokenizer.max_res_pos_in_seq,
-                    rnd,
-                )
-                for i in range(effective_endpoint)
-            ]
-        else:
-            array_slices = [None] * effective_endpoint
+
+        array_slices = [slice(None)] * effective_endpoint
 
         if effective_endpoint <= len(proteins) and final_element_tokens > 0:
             # TODO: rng seed this
@@ -187,23 +178,8 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
 
     else:
         new_proteins = proteins[perm]
-        if tokenizer.max_res_pos_in_seq is not None:
-            array_slices = [
-                _get_truncated_slice(
-                    new_sequence_lengths[i] - extra_tokens_per_protein,
-                    tokenizer.max_res_pos_in_seq,
-                    rnd,
-                )
-                for i in range(len(new_proteins))
-            ]
-        else:
-            array_slices = [None] * len(new_proteins)
+        array_slices = [slice(None)] * len(new_proteins)
 
-    new_proteins = new_proteins.clone(
-        residue_positions=[
-            list(range(1, len(seq) + 1)) for seq in new_proteins.sequences
-        ]
-    )
     new_proteins = new_proteins.slice_arrays(array_slices)
     return new_proteins
 
@@ -255,24 +231,12 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     total_length = extra_tokens_per_document
     sampled_protein_ids = []
     sampled_protein_sequences = []
-    sampled_protein_positions = []
     sampled_protein_sequence_similarities = [] if proteins.sequence_similarities is not None else None
     sampled_protein_coverages = [] if proteins.coverages is not None else None
     sampled_protein_sequence_weights = [] if proteins.sequence_weights is not None else None
 
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
-        if any(
-            attr is not None
-            for attr in [
-                proteins.backbone_coords,
-                proteins.structure_tokens,
-                proteins.plddts,
-            ]
-        ):
-            raise NotImplementedError(
-                "To handle structure alignment we require something more sophisticated"
-            )
         seq_length = len(seq) + extra_tokens_per_protein
 
         if max_tokens is not None and (total_length + seq_length >= max_tokens):
@@ -280,14 +244,13 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                 max_tokens - total_length - extra_tokens_per_protein
             )  # -1 for sep token
             leftover_tokens = min(
-                leftover_tokens, tokenizer.max_res_pos_in_seq or leftover_tokens
+                leftover_tokens, leftover_tokens
             )
             if leftover_tokens > 0:
                 if allow_partial_sequence:
                     seq_slice = _get_truncated_slice(len(seq), leftover_tokens, rnd)
                     sampled_protein_ids.append(ix)
                     sampled_protein_sequences.append(seq[seq_slice])
-                    sampled_protein_positions.append(pos[seq_slice])
                     if proteins.sequence_similarities is not None:
                         sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
                     if proteins.coverages is not None:
@@ -296,29 +259,10 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
                         sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
                     total_length += len(seq[seq_slice]) + extra_tokens_per_protein
             break
-        elif (
-            tokenizer.max_res_pos_in_seq is not None
-            and seq_length > tokenizer.max_res_pos_in_seq
-        ):
-            # N.B. assumes no addition or removal of residues in sequence conversion
-            seq_slice = _get_truncated_slice(
-                len(seq), tokenizer.max_res_pos_in_seq, rnd
-            )
-            sampled_protein_ids.append(ix)
-            sampled_protein_sequences.append(seq[seq_slice])
-            sampled_protein_positions.append(pos[seq_slice])
-            if proteins.sequence_similarities is not None:
-                sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
-            if proteins.coverages is not None:
-                sampled_protein_coverages.append(proteins.coverages[ix])
-            if proteins.sequence_weights is not None:
-                sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
-            total_length += len(seq[seq_slice]) + extra_tokens_per_protein
         else:
             total_length += seq_length
             sampled_protein_ids.append(ix)
             sampled_protein_sequences.append(seq)
-            sampled_protein_positions.append(pos)
             if proteins.sequence_similarities is not None:
                 sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
             if proteins.coverages is not None:
@@ -329,7 +273,6 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
         raise ValueError("No proteins sampled: adjust max_tokens")
     # init will check array sizes - but misalignment could still occur
     return proteins[sampled_protein_ids].clone(
-        residue_positions=sampled_protein_positions,
         sequences=sampled_protein_sequences,
         sequence_similarities=sampled_protein_sequence_similarities,
         coverages=sampled_protein_coverages,
@@ -341,7 +284,7 @@ def prepare_raw_sequences_no_sampling(
     proteins: ProteinDocument,
     tokenizer: ProFamTokenizer,
     **kwargs,
-) -> ProteinDocument:
+) -> ProteinDocument:  # FIXME remove this function
     """
     Prepare raw sequences without subsampling/truncation.
 
@@ -349,9 +292,7 @@ def prepare_raw_sequences_no_sampling(
     - Does not change order or count of sequences.
     - Does not enforce max_tokens.
     """
-    return proteins.clone(
-        residue_positions=[list(range(1, len(seq) + 1)) for seq in proteins.sequences]
-    )
+    return proteins
 
 
 def prepare_aligned_sequences_no_sampling(
@@ -374,8 +315,7 @@ def prepare_aligned_sequences_no_sampling(
         converted_sequences.append(new_seq)
         converted_positions.append(pos)
     return proteins.clone(
-        sequences=converted_sequences,
-        residue_positions=converted_positions,
+        sequences=converted_sequences
     )
 
 
@@ -497,83 +437,6 @@ def replace_nans_in_coords(
     return proteins.clone(backbone_coords=new_coords)
 
 
-def fill_missing_fields(
-    proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwargs
-):
-    if not proteins.has_all_structure_arrays:
-        proteins = proteins.fill_missing_structure_arrays(
-            coords_fill=np.nan,
-            plddts_fill=100.0,
-            tokens_fill=tokenizer.mask_token,
-        )
-    return proteins
-
-
-def apply_plddt_mask(
-    proteins: ProteinDocument,
-    tokenizer: ProFamTokenizer,
-    threshold: float = 80.0,
-    mask_plddts: bool = False,
-    mask_sequences: bool = False,
-    **kwargs,
-):
-    # only mask structure tokens
-    # must be before replace nans and before interleaving
-    masked_coords = []
-    masked_coords_masks = []
-    masked_sequences = []
-    masked_structure_tokens = []
-    masked_plddts = []
-    assert (
-        proteins.interleaved_coords_masks is None
-    ), "plddt masking should be applied before interleaving"
-    for ix, (sequence, coords, coords_mask, plddts) in enumerate(
-        zip(
-            proteins.sequences,
-            proteins.backbone_coords,
-            proteins.backbone_coords_masks,
-            proteins.plddts,
-        )
-    ):
-        plddt_mask = plddts < threshold
-        masked_coords.append(np.where(plddt_mask[:, None, None], np.nan, coords))
-        masked_coords_masks.append(
-            np.where(plddt_mask[:, None, None], 0.0, coords_mask)
-        )
-        if proteins.structure_tokens is not None:
-            structure_tokens = proteins.structure_tokens[ix]
-            masked_structure_tokens.append(
-                "".join(
-                    [
-                        tok if not m else tokenizer.mask_token
-                        for tok, m in zip(structure_tokens, plddt_mask)
-                    ]
-                )
-            )
-        if mask_sequences:
-            masked_sequences.append(
-                "".join(
-                    [
-                        aa if not m else tokenizer.mask_token
-                        for aa, m in zip(sequence, plddt_mask)
-                    ]
-                )
-            )
-        else:
-            masked_sequences.append(sequence)
-        if mask_plddts:
-            masked_plddts.append(np.where(plddt_mask, 0.0, plddts))
-        else:
-            masked_plddts.append(plddts)
-
-    return proteins.clone(
-        sequences=masked_sequences,
-        structure_tokens=masked_structure_tokens if masked_structure_tokens else None,
-        backbone_coords=masked_coords,
-        backbone_coords_masks=masked_coords_masks,
-        plddts=masked_plddts,
-    )
-
 
 def filter_by_length(
     proteins: ProteinDocument,
@@ -609,7 +472,6 @@ def interleave_structure_sequence(
     rnd = np.random if rng is None else rng
     coin_flip = rnd.rand()
     interleaved_sequences = []
-    interleaved_positions = []
     interleaved_plddts = []
     interleaved_coords = []
     interleaved_structure_coords_masks = []
@@ -631,17 +493,12 @@ def interleave_structure_sequence(
             plddts = proteins.plddts[ix]
         else:
             plddts = np.full((len(seq),), 100.0)
-        positions = proteins.residue_positions[ix]
         # TODO: monitor max_tokens
         assert (
             len(seq) == len(xyz) == len(plddts)
         ), f"seq {seq} length != xyz shape {xyz.shape[0]} or plddts {plddts.shape[0]}"  # n.b. special tokens can screw this up
-        assert isinstance(positions, list)
         if coin_flip < structure_first_prob:
             interleaved_sequences.append(seq_3d + tokenizer.seq_struct_sep_token + seq)
-            interleaved_positions.append(
-                positions + [-1] + positions
-            )  # 1 will be added to positions in tokenizer so we use -1
             interleaved_plddts.append(
                 np.concatenate(
                     [np.array(plddts), np.full((1,), 100.0), np.array(plddts)]
@@ -678,7 +535,6 @@ def interleave_structure_sequence(
             )
         else:
             interleaved_sequences.append(seq + tokenizer.seq_struct_sep_token + seq_3d)
-            interleaved_positions.append(positions + [-1] + positions)
             interleaved_plddts.append(
                 np.concatenate(
                     [np.array(plddts), np.full((1,), 100.0), np.array(plddts)]
@@ -714,7 +570,6 @@ def interleave_structure_sequence(
 
         if total_tokens > (max_tokens or 1e8):
             interleaved_sequences = interleaved_sequences[:-1]
-            interleaved_positions = interleaved_positions[:-1]
             interleaved_plddts = interleaved_plddts[:-1]
             interleaved_coords = interleaved_coords[:-1]
             interleaved_structure_coords_masks = interleaved_structure_coords_masks[:-1]
@@ -727,7 +582,6 @@ def interleave_structure_sequence(
 
     return proteins.clone(
         sequences=interleaved_sequences,
-        residue_positions=interleaved_positions,
         plddts=interleaved_plddts,
         backbone_coords=interleaved_coords,
         backbone_coords_masks=interleaved_structure_coords_masks,
@@ -761,16 +615,6 @@ def add_final_sep(proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwarg
             new_sequences.append(seq + tokenizer.sep_token)
         else:
             new_sequences.append(seq)
-    
-    # Add position -1 only to the last protein's positions
-    new_positions = None
-    if proteins.residue_positions is not None:
-        new_positions = []
-        for i, pos in enumerate(proteins.residue_positions):
-            if i == len(proteins.residue_positions) - 1:  # Last protein
-                new_positions.append(pos + [-1])
-            else:
-                new_positions.append(pos)
 
     # Add plddt value only to the last protein
     new_plddts = None
@@ -824,7 +668,6 @@ def add_final_sep(proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwarg
 
     return proteins.clone(
         sequences=new_sequences,
-        residue_positions=new_positions,
         plddts=new_plddts,
         backbone_coords=new_coords,
         backbone_coords_masks=new_coords_masks,
@@ -861,10 +704,6 @@ def repeat_random_sequence_in_family(
     rng = kwargs.get("rng", np.random.default_rng())
     index = rng.choice(len(proteins.sequences))
     proteins.sequences = [proteins.sequences[index]] * len(proteins.sequences)
-    # If residue_positions are present, repeat them as well
-    if proteins.residue_positions is not None:
-        positions = proteins.residue_positions[index]
-        proteins.residue_positions = [positions] * len(proteins.sequences)
     if proteins.backbone_coords is not None:
         coords = proteins.backbone_coords[index]
         proteins.backbone_coords = [coords] * len(proteins.sequences)
@@ -899,21 +738,3 @@ def repeat_random_sequence_in_family(
 
 AAs = "ACDEFGHIKLMNPQRSTVWY"
 
-
-def seq_is_random_res_pos(
-    proteins: ProteinDocument, rng: Optional[np.random.Generator] = None, **kwargs
-) -> ProteinDocument:
-    """
-    FOR DEBUGGING / BENCHMARKING ONLY
-    Replaces residue indices with random ones (1-20)
-    then makes sequence from AA letters indexed by the random indices
-    """
-    rng = kwargs.get("rng", np.random.default_rng())
-    new_sequences = []
-    residue_positions = []
-    AAs = "ACDEFGHIKLMNPQRSTVWY"
-    for seq in proteins.sequences:
-        random_indices = rng.choice(20, size=len(seq))
-        residue_positions.append(random_indices)
-        new_sequences.append("A" + "".join([AAs[i] for i in random_indices[:-1]]))
-    return proteins.clone(sequences=new_sequences, residue_positions=residue_positions)

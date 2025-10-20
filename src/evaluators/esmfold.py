@@ -53,11 +53,9 @@ def esmfold_output_to_proteins(output):
         sequence = decode_tokens(aa, restypes_with_x)
         pred_pos = final_atom_positions[i]
         mask = final_atom_mask[i]
-        resid = output["residue_index"][i] + 1
         backbone_atom_ids = [atom_order[atom] for atom in ["N", "CA", "C", "O"]]
         pred = Protein(
             sequence=sequence,
-            residue_positions=list(resid),
             backbone_coords=pred_pos[:, backbone_atom_ids],
             backbone_coords_mask=mask[:, backbone_atom_ids],
             plddt=output["plddt"][i].mean(-1) * 100.0,  # average over atoms per residue

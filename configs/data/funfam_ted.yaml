@@ -8,7 +8,6 @@ defaults:
   - dataset@dataset_builders.pfam_val: pfam
   - dataset@dataset_builders.pfam_val_raw: pfam_raw
   - _self_
-total_num_train_samples: 9000000  # todo get actual number
 data_weights:
   funfam_s50_ali: 0.25
   funfam_s100_raw: 0.25

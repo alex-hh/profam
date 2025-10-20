@@ -3,14 +3,9 @@ scheduler_name: "cosine_with_min_lr"
 num_warmup_steps: 1000
 num_training_steps: 50000
 lr: 1e-3
-embed_coords: false
-embed_sequence_index: false
-embed_residue_index: false
 use_kv_cache_for_scoring: true
 use_focal_loss: false
 focal_gamma: null
-max_seq_pos_in_doc: 1024
-max_res_pos_in_seq: 4096
 pass_res_pos_in_doc_as_position_ids: true
 optimizer: adamw
 config:

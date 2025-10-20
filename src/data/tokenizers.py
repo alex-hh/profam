@@ -10,64 +10,6 @@ from src.utils import RankedLogger
 log = RankedLogger(__name__, rank_zero_only=True)
 
 
-def get_flat_residue_index_from_positions(
-    residue_positions,
-    max_res_pos_in_seq: int = 1024,
-    prepend_index=0,
-    append_index=0,
-    sep_index=0,
-    num_start_tokens=1,
-    num_end_tokens=1,
-):
-    # TODO: maybe raise exception if max_res_pos_in_seq exceeded rather than duplicating...
-    if len(residue_positions) > 0:
-        flat_indices = [prepend_index] * num_start_tokens
-        for sequence_positions in residue_positions[:-1]:
-            # add 1 so that sep doesnt have same index
-            # n.b. that convert_sequence_with_positions is also already 1-based
-            flat_indices += [
-                min(p + 1, max_res_pos_in_seq - 1) for p in sequence_positions
-            ]
-            flat_indices.append(sep_index)
-        flat_indices += [
-            min(p + 1, max_res_pos_in_seq - 1) for p in residue_positions[-1]
-        ]
-        flat_indices += [append_index] * num_end_tokens  # no [SEP] at end of MSA
-        return flat_indices
-    else:
-        return []
-
-
-def get_residue_index_from_positions(
-    input_ids,
-    residue_positions,
-    pad_token_id,
-    max_res_pos_in_seq: int = 1024,
-    num_start_tokens=1,
-    num_end_tokens=1,
-):
-    assert input_ids.ndim == 1
-    seq_pos = np.zeros_like(input_ids)
-    # TODO: convert to array and use concatenate_pad_array instead
-    flat_indices = get_flat_residue_index_from_positions(
-        residue_positions,
-        max_res_pos_in_seq=max_res_pos_in_seq,
-        prepend_index=0,
-        append_index=0,
-        sep_index=0,
-        num_start_tokens=num_start_tokens,  # TODO: handle better
-        num_end_tokens=num_end_tokens,
-    )
-    pad_any = np.argwhere(input_ids == pad_token_id)
-    if pad_any.any():
-        pad_start = pad_any.min()
-    else:
-        pad_start = input_ids.shape[0]
-    if len(flat_indices) > 0:
-        seq_pos[:pad_start] = flat_indices
-    return seq_pos
-
-
 def concatenate_pad_array(
     array_list,
     fill_value,
@@ -128,16 +70,12 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         *args,
         add_bos_token: bool = True,
         add_document_token: bool = True,
-        embed_residue_index: bool = False,
-        max_res_pos_in_seq: int = 1024,
-        seq_struct_sep_token="|",
+                seq_struct_sep_token="|",
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.add_bos_token = add_bos_token
         self.add_document_token = add_document_token
-        self.embed_residue_index = embed_residue_index
-        self.max_res_pos_in_seq = max_res_pos_in_seq
         self.seq_struct_sep_token = seq_struct_sep_token
 
         if not self.additional_special_tokens:
@@ -169,7 +107,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         padding="longest",
         max_length: Optional[int] = None,
         add_final_sep: bool = True,
-        # TODO: allow custom fill value for coord / plddt padding?
         allow_unk: bool = False,
     ):
         """Encode a list of sequences into a single sequence of sequences tensor."""
@@ -201,28 +138,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert not (
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
-        if proteins.residue_positions is None:
-            log.warning(
-                "Using res_pos_in_seq but residue_positions not provided. "
-                "Using default residue_positions."
-            )
-            # +1 to match convert_sequence_with_positions
-            # get_res_pos_in_seq_from_positions adds another offset
-            residue_positions = [
-                list(range(1, len(seq) + 1)) for seq in proteins.sequences
-            ]
-        else:
-            residue_positions = proteins.residue_positions
-        res_pos_in_seq = get_residue_index_from_positions(
-            tokenized.input_ids,
-            residue_positions,
-            pad_token_id=self.pad_token_id,
-            max_res_pos_in_seq=self.max_res_pos_in_seq,
-            num_start_tokens=self.num_start_tokens,
-            num_end_tokens=num_end_tokens,
-        )
-        tokenized.data["residue_index"] = res_pos_in_seq
-        assert res_pos_in_seq.shape[0] == tokenized.input_ids.shape[0]
 
         if proteins.backbone_coords is not None:
             tokenized.data["coords"] = concatenate_pad_array(
@@ -285,26 +200,12 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                     tokenized.input_ids
                 ).astype(bool)
 
-        if proteins.plddts is not None:
-            tokenized.data["plddts"] = concatenate_pad_array(
-                proteins.plddts,
-                fill_value=100.0,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
-                pad_to_length=tokenized.input_ids.shape[-1],
-            ).astype(np.float32)
-            assert (
-                tokenized.data["plddts"].shape[0] == tokenized.input_ids.shape[0]
-            ), f"{tokenized.data['plddts'].shape[0]} != {tokenized.input_ids.shape[0]}"
-
         if proteins.original_size is not None:
             tokenized.data["original_size"] = proteins.original_size
 
         if proteins.identifier is not None:
             tokenized.data["identifier"] = proteins.identifier
 
-        # TODO: handle nans
-        # TODO: return sequence start and end residue_positions?
         return tokenized
 
     def batched_encode(
@@ -337,7 +238,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
     def encode_completions(
         self,
         sequences,
-        residue_positions: Optional[List[int]] = None,
         bos_token="[SEP]",
         eos_token="[SEP]",
     ):
@@ -350,26 +250,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             truncation=False,
             add_special_tokens=False,
         )
-        if self.embed_residue_index:
-            all_residue_indices = []
-            for i, seq in enumerate(sequences):
-                if residue_positions is None:
-                    res_positions = [list(range(1, len(seq) + 1))]
-                else:
-                    res_positions = [residue_positions[i]]
-                all_residue_indices.append(
-                    get_residue_index_from_positions(
-                        tokenized.input_ids[i],
-                        res_positions,
-                        pad_token_id=self.pad_token_id,
-                        max_res_pos_in_seq=self.max_res_pos_in_seq,
-                        num_start_tokens=1
-                        if bos_token
-                        else 0,  # just bos_token no doc as now completing prompt
-                        num_end_tokens=1 if eos_token else 0,
-                    )
-                )
-            tokenized.data["residue_index"] = np.stack(all_residue_indices)
 
         return tokenized
 

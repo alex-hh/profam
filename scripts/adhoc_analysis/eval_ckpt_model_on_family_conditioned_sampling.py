@@ -77,8 +77,6 @@ def build_prompt_builder(max_tokens: int = 20_000) -> PromptBuilder:
     # We replicate the behaviour of raw_from_msa_add_final_sep which first applies
     # default preprocessing and finally appends an explicit [SEP] token.
     transform_fns = [
-        # Replace potential NaNs in coordinates (safe-guard; coords usually absent).
-        proc_transforms.replace_nans_in_coords,
         # Add final separator token so completions always start with BOS/SEP.
         proc_transforms.add_final_sep,
     ]

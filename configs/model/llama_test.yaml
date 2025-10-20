@@ -3,11 +3,6 @@ _target_: src.models.llama.LlamaLitModule
 scheduler_name: "inverse_sqrt"
 num_warmup_steps: 1000
 lr: 1e-3
-embed_coords: false
-embed_sequence_index: false
-embed_residue_index: true
-max_seq_pos_in_doc: 1024
-max_res_pos_in_seq: 4096
 pass_res_pos_in_doc_as_position_ids: false
 config:
   _target_: transformers.LlamaConfig

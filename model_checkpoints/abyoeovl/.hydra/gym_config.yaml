@@ -13,13 +13,8 @@ model:
   num_warmup_steps: 200
   num_training_steps: 1000000
   lr: 0.001
-  embed_coords: false
-  embed_sequence_index: false
-  embed_residue_index: false
   use_kv_cache_for_scoring: true
-  max_seq_pos_in_doc: 1024
-  max_res_pos_in_seq: 4096
-  pass_res_pos_in_doc_as_position_ids: true
+    pass_res_pos_in_doc_as_position_ids: true
   optimizer: adamw
   scoring_max_tokens: 10240
   config:
@@ -141,9 +136,6 @@ tokenizer:
   add_final_sep: true
   add_bos_token: true
   add_document_token: true
-  mask_below_plddt: 80
-  max_res_pos_in_seq: ${model.max_res_pos_in_seq}
-  embed_residue_index: ${model.embed_residue_index}
 constants:
   vocab_size: 68
   gym_val_assay_list:
@@ -161,21 +153,7 @@ constants:
   - input_ids
   - attention_mask
   - original_size
-  - residue_index
   - batch_size
-  structure_features:
-  - ds_name
-  - identifier
-  - input_ids
-  - attention_mask
-  - original_size
-  - residue_index
-  - coords
-  - coords_mask
-  - interleaved_coords_mask
-  - aa_mask
-  - plddts
-  - structure_mask
 extra_callbacks:
   unconditional_sampling_callback:
     prompt_builder:
@@ -189,10 +167,7 @@ extra_callbacks:
           max_tokens_per_example: 8192
           shuffle_proteins_in_document: true
           padding: do_not_pad
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+        transform_fns: null
         _target_: src.data.processors.ProteinDocumentPreprocessor
       _target_: src.models.inference.PromptBuilder
     _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
@@ -239,4 +214,3 @@ data:
   shuffle: true
   interleaved: true
   interleaved_block_size: 1000
-  total_num_train_samples: null

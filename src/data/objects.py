@@ -9,12 +9,9 @@ from Bio.SVDSuperimposer import SVDSuperimposer
 from biotite import structure as struc
 from biotite.sequence import ProteinSequence
 from biotite.structure import io as strucio
-from biotite.structure.residues import get_residue_starts, get_residues
 
 from src.constants import BACKBONE_ATOMS
 from src.sequence.fasta import read_fasta_lines
-from src.structure.pdb import get_atom_coords_residuewise, load_structure
-from src.tools.foldseek import convert_pdbs_to_3di
 
 
 # copying here to avoid circular imports
@@ -63,144 +60,15 @@ class StringObject:
 class Protein:
     sequence: str
     accession: Optional[str] = None
-    residue_positions: Optional[List[int]] = None
-    plddt: Optional[np.ndarray] = None
-    backbone_coords: Optional[np.ndarray] = None
-    backbone_coords_mask: Optional[np.ndarray] = None
-    structure_tokens: Optional[str] = None
 
     def __len__(self):
         return len(self.sequence)
 
-    def __post_init__(self):
-        struct_comp = (
-            [self.structure_tokens] if self.structure_tokens is not None else None
-        )
-        check_array_lengths(
-            [self.sequence],
-            [self.plddt] if self.plddt is not None else None,
-            [self.backbone_coords] if self.backbone_coords is not None else None,
-            [self.backbone_coords_mask]
-            if self.backbone_coords_mask is not None
-            else None,
-            struct_comp,
-        )
-        if self.backbone_coords_mask is None and self.backbone_coords is not None:
-            self.backbone_coords_mask = np.where(
-                np.isnan(self.backbone_coords),
-                np.zeros_like(self.backbone_coords),
-                np.ones_like(self.backbone_coords),
-            )
-
-    def view(self, view):
-        """view=py3Dmol.view(width=800, height=600)"""
-        view.addModel(self.to_pdb_str(), "pdb")
-        if self.plddt is not None:
-            for i, plddt_val in enumerate(list(self.plddt) * 4):
-                color = plddt_to_color(plddt_val)
-                view.setStyle(
-                    {"model": -1, "serial": i + 1}, {"cartoon": {"color": color}}
-                )
-        else:
-            view.setStyle({"model": -1}, {"cartoon": {"color": "blue"}})
-
-    def view_superimposed(self, view, other, align: bool = True):
-        coords = self.backbone_coords
-        other_coords = other.backbone_coords
-        assert coords.shape == other_coords.shape
-        if align:
-            superimposed, rmsd = _superimpose_np(
-                coords.reshape((-1, 3)), other_coords.reshape((-1, 3))
-            )
-            superimposed = superimposed.reshape(other_coords.shape)
-            other = other.clone(backbone_coords=superimposed)
-
-        pdb_str = self.to_pdb_str()
-        view.addModel(pdb_str, "pdb")
-        view.setStyle({"model": -1}, {"cartoon": {"color": "blue"}})
-        # view.addModel(other.to_pdb_str(), "pdb")
-        # view.setStyle({'model': -1}, {'cartoon': {'color': 'red'}})
-        view.addModel(other.to_pdb_str(), "pdb")
-        view.setStyle({"model": -1}, {"cartoon": {"color": "red"}})
-
-    def to_pdb_file(self, pdb_file):
-        atoms = []
-        # TODO: consider saving position information
-        for res_ix, (aa, res_coords) in enumerate(
-            zip(self.sequence, self.backbone_coords)
-        ):
-            if aa in ["?", "|"]:
-                aa = "X"
-            res_name = ProteinSequence.convert_letter_1to3(aa)
-            for atom_ix, atom_name in enumerate(BACKBONE_ATOMS):
-                annots = (
-                    {"b_factor": self.plddt[res_ix]} if self.plddt is not None else {}
-                )
-                atom = struc.Atom(
-                    coord=res_coords[atom_ix],
-                    chain_id="A",
-                    res_id=res_ix + 1,
-                    res_name=res_name,
-                    hetero=False,
-                    atom_name=atom_name,
-                    element=atom_name[0],
-                    **annots,
-                )
-                atoms.append(atom)
-        arr = struc.array(atoms)
-        pdb = strucio.pdb.PDBFile()
-        pdb.set_structure(arr)
-        pdb.write(pdb_file)
-
-    def to_pdb_str(self):
-        pdb_file_like = io.StringIO()
-        self.to_pdb_file(pdb_file_like)
-        return pdb_file_like.getvalue()
-
-    @classmethod
-    def from_pdb(cls, pdb_file, chain=None, bfactor_is_plddt=False, load_3di=False):
-        # TODO: check chain handled correctly
-        structure = load_structure(
-            pdb_file,
-            chain=chain,
-            extra_fields=["b_factor"] if bfactor_is_plddt else None,
-        )
-        coords = get_atom_coords_residuewise(
-            ["N", "CA", "C", "O"], structure
-        )  # residues, atoms, xyz
-        residue_identities = get_residues(structure)[1]
-        seq = "".join(
-            [ProteinSequence.convert_letter_3to1(r) for r in residue_identities]
-        )
-        if bfactor_is_plddt:
-            plddt = np.array(structure.b_factor[get_residue_starts(structure)])
-        else:
-            plddt = None
-        if load_3di:
-            structure_tokens = convert_pdbs_to_3di([pdb_file])[0]
-        else:
-            structure_tokens = None
-        return cls(
-            sequence=seq,
-            accession=os.path.splitext(os.path.basename(pdb_file))[0],
-            residue_positions=None,
-            plddt=plddt,
-            backbone_coords=coords,
-            backbone_coords_mask=None,  # TODO: for cif files we can get mask - c.f. evogvp
-            structure_tokens=structure_tokens,
-        )
 
     def clone(self, **kwargs):
         return Protein(
             sequence=kwargs.get("sequence", self.sequence),
             accession=kwargs.get("accession", self.accession),
-            residue_positions=kwargs.get("residue_positions", self.residue_positions),
-            plddt=kwargs.get("plddt", self.plddt),
-            backbone_coords=kwargs.get("backbone_coords", self.backbone_coords),
-            backbone_coords_mask=kwargs.get(
-                "backbone_coords_mask", self.backbone_coords_mask
-            ),
-            structure_tokens=kwargs.get("structure_tokens", self.structure_tokens),
         )
 
     def slice_arrays(self, slice_or_indices):
@@ -209,38 +77,7 @@ class Protein:
             if isinstance(slice_or_indices, slice)
             else "".join([self.sequence[i] for i in slice_or_indices]),
             accession=self.accession,
-            residue_positions=self.residue_positions[slice_or_indices]
-            if self.residue_positions is not None
-            else None,
-            plddt=self.plddt[slice_or_indices] if self.plddt is not None else None,
-            backbone_coords=self.backbone_coords[slice_or_indices]
-            if self.backbone_coords is not None
-            else None,
-            backbone_coords_mask=self.backbone_coords_mask[slice_or_indices]
-            if self.backbone_coords_mask is not None
-            else None,
-            structure_tokens=self.structure_tokens[slice_or_indices]
-            if self.structure_tokens is not None
-            else None,
         )
-
-
-def check_array_lengths(*arrays):  # TODO: name better!
-
-    sequence_lengths = []
-    for arr in arrays:
-        if arr is None:
-            continue
-        if isinstance(arr[0], str):
-            arr = [s.replace("[SEP]", "/") for s in arr]  # replace [SEP] w single char?
-        if isinstance(arr[0], float):
-            continue
-        sequence_lengths.append(tuple([len(seq) for seq in arr]))
-
-    assert all(
-        l == sequence_lengths[0] for l in sequence_lengths
-    ), f"{sequence_lengths} not all equal"
-    return sequence_lengths
 
 
 def convert_list_of_arrays_to_list_of_lists(list_of_arrays):
@@ -252,9 +89,7 @@ def convert_list_of_arrays_to_list_of_lists(list_of_arrays):
         return list_of_arrays
 
 
-# want to be consistent with fields in parquet files so we can load from there
-# TODO: look into how openai evals uses data classes or similar
-# TODO: consider how to represent masks
+
 @dataclass
 class ProteinDocument:
     # TODO: make this a mapping?
@@ -262,10 +97,6 @@ class ProteinDocument:
     protein_fields: ClassVar[List[str]] = [
         "sequences",
         "accessions",
-        "plddts",
-        "backbone_coords",
-        "backbone_coords_masks",
-        "structure_tokens",
         "sequence_similarities",
         "coverages",
         "sequence_weights",
@@ -273,18 +104,6 @@ class ProteinDocument:
     sequences: List[str]
     accessions: Optional[List[str]] = None
     identifier: Optional[str] = None
-    residue_positions: Optional[List[List[int]]] = None
-    plddts: Optional[List[np.ndarray]] = None
-    backbone_coords: Optional[List[np.ndarray]] = None
-    backbone_coords_masks: Optional[List[np.ndarray]] = None
-    interleaved_coords_masks: Optional[
-        List[np.ndarray]
-    ] = None  # if interleaving, indicates which coords are available at each sequence position
-    structure_tokens: Optional[List[str]] = None
-    struct_is_pdb: Optional[List[np.ndarray]] = None
-    # L x 2, boolean mask for modality (0: sequence, 1: structure)
-    # really tells us about what we are predicting: we could condition on e.g. sequence within interleaved structure.
-    modality_masks: Optional[np.ndarray] = None
     representative_accession: Optional[
         str
     ] = None  # e.g. seed or cluster representative
@@ -296,50 +115,11 @@ class ProteinDocument:
 
     def __post_init__(self):
         for field in [
-            "plddts",
-            "backbone_coords",
-            "backbone_coords_masks",
-            "struct_is_pdb",
-            "interleaved_coords_masks",
-            "modality_masks",
             "sequence_weights",
         ]:
             attr = getattr(self, field)
             if attr is not None and isinstance(attr[0], list):
                 setattr(self, field, [np.array(arr) for arr in getattr(self, field)])
-
-        try:
-            check_array_lengths(
-                self.sequences,
-                self.plddts,
-                self.backbone_coords,
-                self.backbone_coords_masks,
-                self.structure_tokens,
-                self.interleaved_coords_masks,
-                self.sequence_similarities,
-                self.coverages,
-                self.sequence_weights,
-            )
-        except AssertionError:
-            print(
-                f"Error in protein document {self.identifier}:",
-                f"sequences: {self.sequences}",
-                f"plddts: {self.plddts}",
-                f"backbone_coords: {self.backbone_coords}",
-                f"backbone_coords_masks: {self.backbone_coords_masks}",
-                f"structure_tokens: {self.structure_tokens}",
-                f"interleaved_coords_masks: {self.interleaved_coords_masks}",
-                f"sequence_similarities: {self.sequence_similarities}",
-                f"coverages: {self.coverages}",
-                f"sequence_weights: {self.sequence_weights}",
-            )
-            raise
-        if self.backbone_coords_masks is None and self.backbone_coords is not None:
-            self.backbone_coords_masks = [
-                np.ones_like(xyz) for xyz in self.backbone_coords
-            ]
-        if self.struct_is_pdb is not None:
-            assert len(self.struct_is_pdb) == len(self.sequences)
 
     def __len__(self):
         return len(self.sequences)
@@ -368,8 +148,6 @@ class ProteinDocument:
         renaming = {
             "sequence": "sequences",
             "accession": "accessions",
-            "plddt": "plddts",
-            "backbone_coords_mask": "backbone_coords_masks",
         }
         reverse_naming = {v: k for k, v in renaming.items()}
         attr_dict = {}
@@ -433,19 +211,6 @@ class ProteinDocument:
             accession=self.accessions.pop(index)
             if self.accessions is not None
             else None,
-            residue_positions=self.residue_positions.pop(index)
-            if self.residue_positions is not None
-            else None,
-            plddt=self.plddts.pop(index) if self.plddts is not None else None,
-            backbone_coords=self.backbone_coords.pop(index)
-            if self.backbone_coords is not None
-            else None,
-            backbone_coords_mask=self.backbone_coords_masks.pop(index)
-            if self.backbone_coords_masks is not None
-            else None,
-            structure_tokens=self.structure_tokens.pop(index)
-            if self.structure_tokens is not None
-            else None,
         )
 
     @classmethod
@@ -465,22 +230,6 @@ class ProteinDocument:
                 sequences=self.sequences[key],
                 accessions=self.accessions[key]
                 if self.accessions is not None
-                else None,
-                residue_positions=self.residue_positions[key]
-                if self.residue_positions is not None
-                else None,
-                plddts=self.plddts[key] if self.plddts is not None else None,
-                backbone_coords=self.backbone_coords[key]
-                if self.backbone_coords is not None
-                else None,
-                backbone_coords_masks=self.backbone_coords_masks[key]
-                if self.backbone_coords_masks is not None
-                else None,
-                structure_tokens=self.structure_tokens[key]
-                if self.structure_tokens is not None
-                else None,
-                modality_masks=self.modality_masks[key]
-                if self.modality_masks is not None
                 else None,
                 sequence_similarities=self.sequence_similarities[key]
                 if self.sequence_similarities is not None
@@ -502,26 +251,8 @@ class ProteinDocument:
                 accessions=[self.accessions[i] for i in key]
                 if self.accessions is not None
                 else None,
-                residue_positions=[self.residue_positions[i] for i in key]
-                if self.residue_positions is not None
-                else None,
-                plddts=[self.plddts[i] for i in key]
-                if self.plddts is not None
-                else None,
-                backbone_coords=[self.backbone_coords[i] for i in key]
-                if self.backbone_coords is not None
-                else None,
-                backbone_coords_masks=[self.backbone_coords_masks[i] for i in key]
-                if self.backbone_coords_masks is not None
-                else None,
-                structure_tokens=[self.structure_tokens[i] for i in key]
-                if self.structure_tokens is not None
-                else None,
                 representative_accession=self.representative_accession,
                 original_size=self.original_size,
-                modality_masks=[self.modality_masks[i] for i in key]
-                if self.modality_masks is not None
-                else None,
                 sequence_similarities=[self.sequence_similarities[i] for i in key]
                 if self.sequence_similarities is not None
                 else None,
@@ -536,19 +267,6 @@ class ProteinDocument:
             return Protein(
                 sequence=self.sequences[key],
                 accession=self.accessions[key] if self.accessions is not None else None,
-                residue_positions=self.residue_positions[key]
-                if self.residue_positions is not None
-                else None,
-                plddt=self.plddts[key] if self.plddts is not None else None,
-                backbone_coords=self.backbone_coords[key]
-                if self.backbone_coords is not None
-                else None,
-                backbone_coords_mask=self.backbone_coords_masks[key]
-                if self.backbone_coords_masks is not None
-                else None,
-                structure_tokens=self.structure_tokens[key]
-                if self.structure_tokens is not None
-                else None,
             )
         else:
             raise ValueError(f"Invalid key type: {type(key)}")
@@ -559,29 +277,8 @@ class ProteinDocument:
             identifier=self.identifier,
             sequences=[seq[s] for seq, s in zip(self.sequences, slices)],
             accessions=self.accessions,
-            residue_positions=[pos[s] for pos, s in zip(self.residue_positions, slices)]
-            if self.residue_positions is not None else None,
-            plddts=[plddt[s] for plddt, s in zip(self.plddts, slices)]
-            if self.plddts is not None
-            else None,
-            backbone_coords=[xyz[s] for xyz, s in zip(self.backbone_coords, slices)]
-            if self.backbone_coords is not None else None,
-            backbone_coords_masks=[
-                mask[s] for mask, s in zip(self.backbone_coords_masks, slices)
-            ]
-            if self.backbone_coords_masks is not None else None,
-            structure_tokens=[
-                tokens[s] for tokens, s in zip(self.structure_tokens, slices)
-            ]
-            if self.structure_tokens is not None else None,
             representative_accession=self.representative_accession,
             original_size=self.original_size,
-            modality_masks=[mask[s] for mask, s in zip(self.modality_masks, slices)]
-            if self.modality_masks is not None else None,
-            interleaved_coords_masks=[
-                mask[s] for mask, s in zip(self.interleaved_coords_masks, slices)
-            ]
-            if self.interleaved_coords_masks is not None else None,
             # Per-sequence scalar fields are unchanged by per-residue slicing
             sequence_similarities=self.sequence_similarities.copy()
             if self.sequence_similarities is not None else None,
@@ -593,39 +290,6 @@ class ProteinDocument:
     def __len__(self):
         return len(self.sequences)
 
-    @property
-    def has_all_structure_arrays(self):
-        has_arrays = [
-            arr is not None
-            for arr in [
-                self.plddts,
-                self.backbone_coords,
-                self.backbone_coords_masks,
-                self.structure_tokens,
-            ]
-        ]
-        missing_arrays_msg = " ".join(
-            [
-                f"{name}: {missing}"
-                for name, missing in zip(
-                    ["plddts", "coords", "coords_masks", "tokens"], has_arrays
-                )
-            ]
-        )
-        return all(has_arrays)
-
-    def fill_missing_structure_arrays(
-        self, coords_fill=np.nan, plddts_fill=np.nan, tokens_fill="?"
-    ):
-        assert isinstance(tokens_fill, str)
-        return self.clone(
-            plddts=self.plddts
-            or [np.full(len(seq), plddts_fill) for seq in self.sequences],
-            backbone_coords=self.backbone_coords
-            or [np.full((len(seq), 4, 3), coords_fill) for seq in self.sequences],
-            structure_tokens=self.structure_tokens
-            or [tokens_fill * len(seq) for seq in self.sequences],
-        )
 
     def clone(self, **kwargs):
         return ProteinDocument(
@@ -635,47 +299,10 @@ class ProteinDocument:
                 "accessions",
                 self.accessions.copy() if self.accessions is not None else None,
             ),
-            residue_positions=kwargs.pop(
-                "residue_positions",
-                self.residue_positions.copy()
-                if self.residue_positions is not None
-                else None,
-            ),
-            plddts=kwargs.pop(
-                "plddts", self.plddts.copy() if self.plddts is not None else None
-            ),
-            backbone_coords=kwargs.pop(
-                "backbone_coords",
-                self.backbone_coords.copy()
-                if self.backbone_coords is not None
-                else None,
-            ),
-            backbone_coords_masks=kwargs.pop(
-                "backbone_coords_masks",
-                self.backbone_coords_masks.copy()
-                if self.backbone_coords_masks is not None
-                else None,
-            ),
-            interleaved_coords_masks=kwargs.pop(
-                "interleaved_coords_masks",
-                self.interleaved_coords_masks.copy()
-                if self.interleaved_coords_masks is not None
-                else None,
-            ),
-            structure_tokens=kwargs.pop(
-                "structure_tokens",
-                self.structure_tokens.copy()
-                if self.structure_tokens is not None
-                else None,
-            ),
             representative_accession=kwargs.pop(
                 "representative_accession", self.representative_accession
             ),
             original_size=kwargs.pop("original_size", self.original_size),
-            modality_masks=kwargs.pop(
-                "modality_masks",
-                self.modality_masks.copy() if self.modality_masks is not None else None,
-            ),
             sequence_similarities=kwargs.pop(
                 "sequence_similarities",
                 self.sequence_similarities.copy() if self.sequence_similarities is not None else None,
@@ -720,17 +347,3 @@ class ProteinDocument:
             end (int): The ending index of the truncation.
         """
         self.sequences[index] = self.sequences[index][start:end]
-        if self.residue_positions is not None:
-            self.residue_positions[index] = self.residue_positions[index][start:end]
-        if self.plddts is not None:
-            self.plddts[index] = self.plddts[index][start:end]
-        if self.backbone_coords is not None:
-            self.backbone_coords[index] = self.backbone_coords[index][start:end]
-        if self.backbone_coords_masks is not None:
-            self.backbone_coords_masks[index] = self.backbone_coords_masks[index][
-                start:end
-            ]
-        if self.structure_tokens is not None:
-            self.structure_tokens[index] = self.structure_tokens[index][start:end]
-        if self.modality_masks is not None:
-            self.modality_masks[index] = self.modality_masks[index][start:end]

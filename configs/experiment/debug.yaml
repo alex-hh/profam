@@ -24,12 +24,7 @@ model:
   num_warmup_steps: 1000
   num_training_steps: 1000000
   lr: 0.001
-  embed_coords: false
-  embed_sequence_index: false
-  embed_residue_index: false
   use_kv_cache_for_scoring: true
-  max_seq_pos_in_doc: 1024
-  max_res_pos_in_seq: 4096
   pass_res_pos_in_doc_as_position_ids: true
   optimizer: adamw
   config:
@@ -166,10 +161,7 @@ tokenizer:
   add_final_sep: true
   add_bos_token: true
   add_document_token: true
-  mask_below_plddt: 80
-  max_res_pos_in_seq: ${model.max_res_pos_in_seq}
-  embed_residue_index: ${model.embed_residue_index}
-constants:
+  constants:
   vocab_size: 68
   gym_val_assay_list:
   - BLAT_ECOLX_Jacquier_2013
@@ -186,63 +178,32 @@ constants:
   - input_ids
   - attention_mask
   - original_size
-  - residue_index
   - batch_size
-  structure_features: null
 extra_callbacks: null
-  # unconditional_sampling_callback:
-  #   prompt_builder:
-  #     preprocessor:
-  #       cfg:
-  #         _target_: src.data.processors.PreprocessingConfig
-  #         document_token: '[RAW]'
-  #         drop_first_protein: false
-  #         keep_first_protein: false
-  #         allow_unk: false
-  #         max_tokens_per_example: 8192
-  #         shuffle_proteins_in_document: true
-  #         padding: do_not_pad
-  #       transform_fns:
-  #       - _target_: src.data.processors.transforms.replace_nans_in_coords
-  #         _partial_: true
-  #         fill_value: 0.0
-  #       _target_: src.data.processors.ProteinDocumentPreprocessor
-  #     _target_: src.models.inference.PromptBuilder
-  #   _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
-  #   pipeline:
-  #     _target_: src.pipelines.unconditional_sequence.UnconditionalSequenceEvaluationPipeline
-  #     num_generations: 5
-  #     max_tokens: 20000
-  #     max_generated_length: 300
-  #     pipeline_id: unconditional_sampling
-  #     save_results_to_file: false
-  #   evaluators:
-  #     _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-  #     name: esmfold_example
 data:
   _target_: src.data.datamodule.ProteinDataMixture
   dataset_builders:
-    openfold_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
-      name: openfold_train
-      dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.AlignedProteinPreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-          keep_gaps: false
-          keep_insertions: true
-          to_upper: true
-          use_msa_pos: false
-        transform_fns: null
+    # openfold_train:
+    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    #   name: openfold_train
+    #   dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
+    #   tokenizer: ${tokenizer}
+    #   preprocessor:
+    #     _target_: src.data.processors.ProteinDocumentPreprocessor
+    #     cfg:
+    #       _target_: src.data.processors.AlignedProteinPreprocessingConfig
+    #       document_token: '[RAW]'
+    #       drop_first_protein: false
+    #       keep_first_protein: false
+    #       allow_unk: false
+    #       max_tokens_per_example: 8192
+    #       shuffle_proteins_in_document: true
+    #       padding: do_not_pad
+    #       keep_gaps: false
+    #       keep_insertions: true
+    #       to_upper: true
+    #       use_msa_pos: false
+    #     transform_fns: null
     # ted_20_90_train:
     #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     #   name: ted_20_90_train
@@ -350,14 +311,11 @@ data:
     #       max_tokens_per_example: 320
     #       shuffle_proteins_in_document: true
     #       padding: do_not_pad
-    #     transform_fns:
-    #     - _target_: src.data.processors.transforms.replace_nans_in_coords
-    #       _partial_: true
-    #       fill_value: 0.0
+    #     transform_fns: null
   data_weights:
     foldseek_s50_train: 1
     uniref90_train: 1
-    openfold_train: 1
+    # openfold_train: 1
     # ted_20_90_train: 1
   val_dataset_batch_sizes:
     foldseek_s50_val: 1
@@ -373,4 +331,3 @@ data:
   shuffle: true
   interleaved: true
   interleaved_block_size: 1000
-  total_num_train_samples: null

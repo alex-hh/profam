@@ -78,7 +78,6 @@ class BaseFamilyLitModule(LightningModule):
         num_training_steps: Optional[int] = None,
         scoring_max_tokens: int = 32_000,
         use_kv_cache_for_scoring: bool = True,
-        embed_coords: bool = False,
         override_optimizer_on_load: bool = False,
         max_tokens: int = 8192,
         gym_subsamples_per_n: int = 5,
@@ -103,10 +102,6 @@ class BaseFamilyLitModule(LightningModule):
         
         
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
-        self.embed_residue_index = self.tokenizer.embed_residue_index
-        self.max_res_pos_in_seq = self.tokenizer.max_res_pos_in_seq
-        self.embed_coords = embed_coords
-        self.embed_sequence_index = self.model.embed_sequence_index
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if gym_results_save_dir is not None:
             self.gym_results_save_dir = gym_results_save_dir
@@ -298,12 +293,6 @@ class BaseFamilyLitModule(LightningModule):
 
     def get_forward_kwargs(self, batch):
         forward_kwargs = {}
-        if self.embed_coords:
-            assert batch["coords"] is not None
-            forward_kwargs["coords"] = batch["coords"]
-        if self.embed_residue_index:
-            assert batch["residue_index"] is not None
-            forward_kwargs["residue_index"] = batch["residue_index"]
         return forward_kwargs
 
     def trim_eval_batch(self, seqs_ids):
@@ -325,9 +314,6 @@ class BaseFamilyLitModule(LightningModule):
         self,
         input_ids,
         completion_ids,
-        input_residue_index: Optional[torch.LongTensor] = None,
-        coords: Optional[torch.FloatTensor] = None,
-        completion_residue_index: Optional[torch.LongTensor] = None,
         batch_size: int = 1,
         verbose: bool = False,
     ):
@@ -339,9 +325,7 @@ class BaseFamilyLitModule(LightningModule):
         assert input_ids[0,0] == self.tokenizer.vocab['[start-of-document]'] and input_ids[0,1] > 19, "First two tokens should be special start-of-doc and document type"
         if completion_ids[0,0,0] == self.tokenizer.sep_token_id:
             assert input_ids[0, -1] != self.tokenizer.sep_token_id, "Double sep token in input and completion"
-        forward_kwargs = self.get_forward_kwargs(
-            {"residue_index": input_residue_index, "coords": coords}
-        )
+        forward_kwargs = self.get_forward_kwargs()
         outputs = self.model(input_ids=input_ids, use_cache=True, **forward_kwargs)
         past_key_values = (
             outputs.past_key_values
@@ -361,16 +345,6 @@ class BaseFamilyLitModule(LightningModule):
             this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
             L_mini_batch = this_input_ids.shape[-1]
             forward_kwargs = {}
-            if self.embed_residue_index:
-                # fmt: off
-                this_res_ix = completion_residue_index[
-                    :, batch_start: batch_start + batch_size, :L_mini_batch
-                               ].reshape(-1, L_mini_batch)
-                # fmt: on
-                forward_kwargs["residue_index"] = this_res_ix
-            if self.embed_coords:
-                assert coords is not None
-                raise NotImplementedError("Coords not yet supported for mutant scoring")
 
             actual_batch_size = this_input_ids.shape[0]
             cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
@@ -401,9 +375,6 @@ class BaseFamilyLitModule(LightningModule):
         input_ids,
         completion_ids,
         batch_size: int = 1,
-        input_residue_index: Optional[torch.LongTensor] = None,
-        coords: Optional[torch.FloatTensor] = None,
-        completion_residue_index: Optional[torch.LongTensor] = None,
         verbose: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
@@ -433,15 +404,7 @@ class BaseFamilyLitModule(LightningModule):
             assert (
                 this_input_ids[..., likelihood_start_ix] not in self.tokenizer.aa_tokens
             ), "Likelihood start ix is an AA token - likelihood cannot be computed for this position"
-            if self.embed_residue_index:
-                this_res_ix = torch.cat(
-                    [input_residue_index, completion_residue_index[:, completion_ix]],
-                    dim=1,
-                )[..., :L_mini_batch]
-                forward_kwargs["residue_index"] = this_res_ix
-            if self.embed_coords:
-                assert coords is not None
-                raise NotImplementedError("Coords not yet supported for mutant scoring")
+
             outputs = self.model(
                 input_ids=this_input_ids, use_cache=False, **forward_kwargs
             )
@@ -500,9 +463,6 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         use_cache: bool = True,
         batch_size: int = 1,
-        coords: Optional[torch.FloatTensor] = None,
-        input_residue_index: Optional[torch.LongTensor] = None,
-        completion_residue_index: Optional[torch.LongTensor] = None,
     ):
         if input_ids is not None:
             assert (
@@ -516,23 +476,14 @@ class BaseFamilyLitModule(LightningModule):
                     input_ids,
                     completion_ids,
                     batch_size=batch_size,
-                    coords=coords,
-                    input_residue_index=input_residue_index,
-                    completion_residue_index=completion_residue_index,
                 )
             else:
                 return self._score_seqs_no_cache(
                     input_ids,
                     completion_ids,
-                    batch_size=batch_size,
-                    coords=coords,
-                    input_residue_index=input_residue_index,
-                    completion_residue_index=completion_residue_index,
+                    batch_size=batch_size,  
                 )
         else:
-            assert input_residue_index is None and completion_residue_index is None
-            if coords is not None:
-                raise NotImplementedError("Coords not yet supported for mutant scoring")
             return self._score_seqs_no_context(
                 completion_ids,
                 batch_size=batch_size,
@@ -548,8 +499,6 @@ class BaseFamilyLitModule(LightningModule):
         max_total_length: Optional[
             int
         ] = None,  # maximum length of inputs plus completions
-        input_residue_index: Optional[torch.LongTensor] = None,
-        input_coords: Optional[torch.FloatTensor] = None,
         include_prompt_in_output: bool = False,
         fixed_length: Optional[int] = None,
         greedy: bool = False,
@@ -575,13 +524,7 @@ class BaseFamilyLitModule(LightningModule):
         # TODO: add min length kwarg
         # TODO: check whether model spontaneously adds the SEP token
         if max_total_length is None:
-            if self.embed_residue_index:
-                max_total_length = min(
-                    max_tokens,
-                    input_ids.shape[1] + self.tokenizer.max_res_pos_in_seq,
-                )
-            else:
-                max_total_length = max_tokens
+            max_total_length = max_tokens
         if max_generated_length is not None:
             assert max_generated_length <= max_total_length
         generation_kwargs = {}
@@ -637,7 +580,6 @@ class BaseFamilyLitModule(LightningModule):
             input_ids.shape[0] == 1 and input_ids.ndim == 2
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
-        assert input_residue_index.shape == input_ids.shape
         all_outputs: List[torch.Tensor] = []
         all_scores: List[float] = []
         # Always generate exactly one sequence at a time
@@ -648,12 +590,7 @@ class BaseFamilyLitModule(LightningModule):
             batch_collected: List[torch.Tensor] = []
             batch_scores: List[float] = []
             while remaining > 0:
-                forward_kwargs = self.get_forward_kwargs(
-                    {
-                        "residue_index": input_residue_index,
-                        "coords": input_coords,
-                    }
-                )
+                forward_kwargs = self.get_forward_kwargs()
                 # Build stopping criteria that knows prompt length (non-continuous only)
                 stopping = None
                 if not continuous_sampling and repeat_guard:
@@ -817,7 +754,6 @@ class BaseFamilyLitModule(LightningModule):
                     ds_name + "_last_sequence"
                 ],
             }
-            # TODO: coords frac for each dataset
             if is_single_dataset_batch:
                 # global metrics are dataset specific
                 ds_metrics[f"{step_name}/{ds_name}/loss"] = loss
@@ -1014,14 +950,12 @@ class BaseFamilyLitModule(LightningModule):
         """Deep-clone `batch` keeping only sequences at indices `idxs`.
 
         - If `idxs` is empty and `allow_no_context` is True, returns a cloned
-          batch with `input_ids` and `residue_index` set to None (no-context path).
+          batch with `input_ids` set to None (no-context path).
         - Otherwise, concatenates the chosen sequences and prefixes start tokens.
         """
         new_batch = self._clone_batch(batch)
         if len(idxs) == 0 and allow_no_context:
             new_batch["input_ids"] = None
-            if "residue_index" in new_batch:
-                new_batch["residue_index"] = None
             return new_batch
 
         start_tokens_tensor = torch.tensor(start_tokens, device=new_batch["input_ids"].device).unsqueeze(0)
@@ -1038,8 +972,6 @@ class BaseFamilyLitModule(LightningModule):
             return concat
 
         new_batch["input_ids"] = _concat_slices(new_batch["input_ids"]).clone()
-        if "residue_index" in new_batch and new_batch["residue_index"] is not None:
-            new_batch["residue_index"] = _concat_slices(new_batch["residue_index"]).clone()
 
         if include_optional_meta:
             if "sequence_similarities" in new_batch and new_batch["sequence_similarities"] is not None:
@@ -1064,7 +996,7 @@ class BaseFamilyLitModule(LightningModule):
         n = max(0, min(n, total_seqs))
         if n == 0:
             vb = self._clone_batch(batch)
-            vb["input_ids"], vb["residue_index"] = None, None
+            vb["input_ids"] = None
             L_prompt = 0
         else:
             selected_idxs = rng.sample(range(total_seqs), n)
@@ -1078,8 +1010,6 @@ class BaseFamilyLitModule(LightningModule):
         lls = self.score_seqs(
             vb_device["input_ids"],
             comp_ids,
-            input_residue_index=vb_device.get("residue_index", None),
-            completion_residue_index=vb_device.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1) if self.use_kv_cache_for_scoring else 1,
         )
@@ -1467,7 +1397,6 @@ class BaseFamilyLitModule(LightningModule):
                     shortest_seq_len = 0
                     var_batch = self._clone_batch(batch)
                     var_batch["input_ids"] = None
-                    var_batch["residue_index"] = None
                     min_completion_coverage = 0
                     min_length_ratio = 0
                     min_sequence_similarity = 0
@@ -1519,8 +1448,6 @@ class BaseFamilyLitModule(LightningModule):
                 lls = self.score_seqs(
                     var_batch_device["input_ids"],
                     var_batch_device["completion_ids"],
-                    input_residue_index=var_batch_device.get("residue_index", None),
-                    completion_residue_index=var_batch_device.get("completion_residue_index", None),
                     use_cache=self.use_kv_cache_for_scoring,
                     batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
                     if self.use_kv_cache_for_scoring
@@ -1703,7 +1630,6 @@ class BaseFamilyLitModule(LightningModule):
                     shortest_seq_len = 0
                     var_batch = self._clone_batch(batch)
                     var_batch["input_ids"] = None
-                    var_batch["residue_index"] = None
                     min_completion_coverage = 0
                     min_length_ratio = 0
                     min_sequence_similarity = 0
@@ -1755,8 +1681,6 @@ class BaseFamilyLitModule(LightningModule):
                 lls = self.score_seqs(
                     var_batch_device["input_ids"],
                     var_batch_device["completion_ids"],
-                    input_residue_index=var_batch_device.get("residue_index", None),
-                    completion_residue_index=var_batch_device.get("completion_residue_index", None),
                     use_cache=self.use_kv_cache_for_scoring,
                     batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
                     if self.use_kv_cache_for_scoring
@@ -1888,8 +1812,6 @@ class BaseFamilyLitModule(LightningModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            input_residue_index=batch.get("residue_index", None),
-            completion_residue_index=batch.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=1,
             # (self.scoring_max_tokens - L_prompt) // L

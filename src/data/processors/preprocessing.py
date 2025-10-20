@@ -83,7 +83,6 @@ def default_transforms(cfg: PreprocessingConfig):
             )
     return [
         preprocess_sequences_fn,
-        transforms.fill_missing_fields,
         transforms.replace_selenocysteine_pyrrolysine,
     ]
 
@@ -97,24 +96,11 @@ class ProteinDocumentPreprocessor:
         self,
         cfg: PreprocessingConfig,  # configures preprocessing of individual proteins
         transform_fns: Optional[List[Callable]] = [],
-        interleave_structure_sequence: bool = False,
         structure_first_prob: float = 1.0,
         single_protein_documents: bool = False,
     ):
         self.cfg = cfg
-        if interleave_structure_sequence:
-            # handle like this because useful to have an interleave_structure_sequence attribute for lenght filtering
-            transform_fns = transform_fns or []
-            transform_fns.append(
-                functools.partial(
-                    transforms.interleave_structure_sequence,
-                    structure_first_prob=structure_first_prob,
-                )
-            )
         self.transform_fns = transform_fns
-        self.interleave_structure_sequence = (
-            interleave_structure_sequence  # should this be part of config?
-        )
         self.single_protein_documents = single_protein_documents
 
     def apply_transforms(self, proteins, tokenizer, rng: Optional[np.random.Generator] = None):

@@ -1,4 +1,0 @@
-_target_: src.models.inference.FewShotInterleavedInverseFoldingPromptBuilder
-preprocessor: null
-seed: 42
-representative_only: False

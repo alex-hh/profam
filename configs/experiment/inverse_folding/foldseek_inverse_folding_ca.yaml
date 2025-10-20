@@ -1,8 +1,0 @@
-# @package _global_
-# n.b. this should also be possible from command line (with defaults overrides with slashes as here and attr overrides with dots)
-defaults:
-  - /experiment@_global_: foldseek_inverse_folding
-  - override /preprocessor/transform_fns@data.dataset_builders.foldseek.preprocessor.transform_fns: ca_rotate_and_noise
-  - override /preprocessor/transform_fns@data.dataset_builders.foldseek_val.preprocessor.transform_fns: ca_rotate_and_noise
-
-# is it possible to override transform fns individually?

@@ -20,15 +20,6 @@ from src.data.tokenizers import ProFamTokenizer
 
 class ProteinDataMixture(LightningDataModule):
     """Data module for training on mixture of datasets.
-
-    total_num_train_samples: estimate of total number of samples across all datasets
-        (because of on-the-fly filtering, may not be exact). used to ensure the
-        same number of samples are seen on each device when using distributed
-        training. If the dataset on a given device has fewer than total_num_train_samples
-        samples, it will be repeated to ensure the same number of samples are seen
-        on each device. However total_num_train_samples must be no greater than twice
-        the number of samples on any single device. TODO: figure out some way of
-        raising an error if this is exceeded.
     """
 
     def __init__(
@@ -44,7 +35,6 @@ class ProteinDataMixture(LightningDataModule):
         interleaved: bool = True,
         interleaved_block_size: int = 1000,
         ignore_gaps: bool = False,
-        total_num_train_samples: Optional[int] = None,
         feature_names: Optional[List[str]] = None,
         pack_to_max_tokens: Optional[int] = None,
         prefetch_factor: Optional[int] = None,
@@ -81,7 +71,6 @@ class ProteinDataMixture(LightningDataModule):
             pack_to_max_tokens=self.pack_to_max_tokens,
         )
         self._is_setup = False
-        self.total_num_train_samples = total_num_train_samples
         self.test_dataset = test_dataset
 
     def setup(self, stage: Optional[str] = None) -> None:
@@ -134,12 +123,10 @@ class ProteinDataMixture(LightningDataModule):
                 print(
                     f"Using interleaved train dataset with {len(train_datasets)} datasets, shuffle = {self.shuffle}, interleaved = {self.interleaved}"
                 )
-                print(f"num_samples = {self.total_num_train_samples}")
                 print(f"train_dataset_names = {train_dataset_names}")
                 print(f"train_data_weights = {train_data_weights}")
                 self.train_dataset = WeightedConcatOnlineDataset(
                     datasets=train_datasets,
-                    num_samples=self.total_num_train_samples,
                     weights=train_data_weights,
                     seed=42,
                     shuffle=self.shuffle,
@@ -153,11 +140,9 @@ class ProteinDataMixture(LightningDataModule):
             elif len(train_datasets) == 1:
                 print("Using single dataset", flush=True)
                 print(f"Using sampled mapped train dataset, shuffle = {self.shuffle}")
-                print(f"num_samples = {self.total_num_train_samples}")
                 print(f"train_dataset_names = {train_dataset_names}")
                 self.train_dataset = OnlineSampleMappingDataset(
                     dataset=train_datasets[0],
-                    num_samples=self.total_num_train_samples,
                     seed=42,
                     shuffle=self.shuffle,
                 )

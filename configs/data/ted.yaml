@@ -5,7 +5,6 @@ defaults:
   # validation sets
   - dataset@dataset_builders.ted_s50_raw_val: ted_s50_raw_map
   - _self_
-total_num_train_samples: 6000  # todo get actual number
 data_weights:
   ted_s100_raw: 0.25
   ted_s50_raw: 0.25
