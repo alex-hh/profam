@@ -4,14 +4,6 @@ import torch
 from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
-from src.models.wrapper import WrappedHFModelWithPositionEmbeddingsMixin
-
-
-class WrappedLlamaForCausalLM(
-    WrappedHFModelWithPositionEmbeddingsMixin, LlamaForCausalLM
-):
-    pass
-
 
 class LlamaLitModule(BaseFamilyLitModule):
     def __init__(

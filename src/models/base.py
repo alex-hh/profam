@@ -157,17 +157,6 @@ class BaseFamilyLitModule(LightningModule):
             prog_bar=True,
         )
 
-    def training_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        outputs = self(
-            input_ids=batch["input_ids"],
-            attention_mask=batch["attention_mask"],
-            labels=batch["labels"],
-        )
-        loss = outputs.loss
-        self.log_metrics(batch, outputs, "train", log_global=True)
-        return loss
 
     def on_before_optimizer_step(self, optimizer):
         # https://github.com/Lightning-AI/pytorch-lightning/issues/1462
@@ -179,6 +168,42 @@ class BaseFamilyLitModule(LightningModule):
             prog_bar=True,
         )
         self.log("train/lr", optimizer.param_groups[0]["lr"])
+
+
+    def training_step(
+        self, batch: Dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
+        # uncomment for debugging ddp (train.py +experiment=ddp_test)
+        # print(f"Rank: {self.trainer.global_rank}", batch["identifier"].text, flush=True)
+        # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
+        # one option would be to write our own versions of classes llike llamaforcausallm
+
+        outputs = self(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
+        )
+        loss = outputs.loss
+        self.log_metrics(batch, outputs, "train", log_global=True)
+        self.log(
+            "train/n_seqs",
+            (batch["input_ids"] == self.tokenizer.sep_token_id)
+            .float()
+            .sum(axis=1)
+            .mean()
+            .item(),
+            on_step=True,
+            prog_bar=True,
+            on_epoch=False,
+        )
+        self.log(
+            "train/accumulate_grad_batches",
+            self.trainer.accumulate_grad_batches,
+            on_step=True,
+            on_epoch=False,
+        )
+        return loss
+
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
@@ -480,12 +505,10 @@ class BaseFamilyLitModule(LightningModule):
         input_ids,
         num_samples,
         max_tokens: int,
-        batch_size: int = 1,
         max_generated_length: Optional[int] = None,
         max_total_length: Optional[
             int
         ] = None,  # maximum length of inputs plus completions
-        include_prompt_in_output: bool = False,
         fixed_length: Optional[int] = None,
         greedy: bool = False,
         temperature: Optional[float] = None,
@@ -813,75 +836,6 @@ class BaseFamilyLitModule(LightningModule):
             return 0.0
         return float(spearmanr(lls.astype(np.float32), dms_scores.astype(np.float32))[0])
 
-    def _save_variant_scatter_plot(
-        self,
-        n_seqs_list: list[int],
-        variant_lls: list[np.ndarray],
-        dms_id: str,
-    ):
-        """Create and save scatter plot and histogram of variant evaluation results.
-
-        The scatter and histogram are drawn on separate subplots in the same
-        figure.  The number of histogram bins is determined as
-        ``max(1, int(0.2 * n_observations))`` where *n_observations* is the
-        number of data points.
-        """
-        import warnings
-        try:
-            # Calculate per-variant mean log-likelihoods
-            mean_lls_per_variant = [float(ll.mean()) for ll in variant_lls]
-
-            n_observations = len(n_seqs_list)
-            n_bins = max(1, int(0.2 * n_observations))
-
-            # Create figure with two distinct subplots (side-by-side)
-            fig, (ax_scatter, ax_hist) = plt.subplots(1, 2, figsize=(12, 5))
-
-            # Scatter plot: mean log-likelihood vs number of sequences
-            scatter = ax_scatter.scatter(
-                n_seqs_list,
-                mean_lls_per_variant,
-                c=list(range(n_observations)),
-                cmap="viridis",
-                alpha=0.3,
-            )
-            ax_scatter.set_xlabel("Number of sequences sampled")
-            ax_scatter.set_ylabel("Mean log likelihood")
-            ax_scatter.set_title(f"Context variants for {dms_id}")
-
-
-            ax_hist.hist(
-                n_seqs_list,
-                bins=n_bins,
-                color="grey",
-                alpha=0.7,
-            )
-            ax_hist.set_xlabel("Number of sequences sampled")
-            ax_hist.set_ylabel("Count")
-            ax_hist.set_title("Histogram of sampled sequences")
-
-            # Colour bar associated with the scatter
-            cbar = fig.colorbar(scatter, ax=ax_scatter)
-            cbar.set_label("Variant index (earlier → later)")
-
-            scatter_path = os.path.join(
-                self.gym_results_save_dir,
-                f"batch_{dms_id}_scatter.png",
-            )
-            fig.tight_layout()
-            fig.savefig(scatter_path, dpi=300, bbox_inches="tight")
-            plt.close(fig)
-        except Exception as e:
-            warnings.warn(f"Failed to create scatter plot: {e}")
-
-
-
-    @staticmethod
-    def _calculate_entropy_per_prompt(lls_array: np.ndarray) -> np.ndarray:
-        exp_log = np.exp(lls_array)
-        prob_denominator = np.sum(exp_log, axis=1)
-        seq_probs = exp_log / prob_denominator.reshape(lls_array.shape[0], 1)
-        return -np.sum(seq_probs * np.log(seq_probs), axis=1)
 
     def _prepare_prompt_and_stats(
         self,
@@ -1015,8 +969,7 @@ class BaseFamilyLitModule(LightningModule):
 
         Returns (ensemble_log_ll, ensemble_spearman).
         """
-        # Compute diagnostics
-        entropy_per_prompt = self._calculate_entropy_per_prompt(lls_array)
+        
         mean_per_forward_pass = lls_array.mean(axis=1)
         mean_lls = lls_array.mean(axis=0)
         ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
@@ -1024,25 +977,14 @@ class BaseFamilyLitModule(LightningModule):
 
         
         sorted_indices_ll = np.argsort(-mean_per_forward_pass)
-        sorted_indices_entropy = np.argsort(entropy_per_prompt)
-        for top_pct in [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+        
+        for top_pct in [0.1, 0.3, 0.5, 0.7, 0.9, 1.0]:
             top_k = max(1, int(top_pct * len(sorted_indices_ll)))
             top_k_ll_mean_ll = lls_array[sorted_indices_ll[:top_k]].mean(axis=0)
-            top_k_entropy_mean_ll = lls_array[sorted_indices_entropy[:top_k]].mean(axis=0)
             top_k_ll_spearman = self._compute_spearman(top_k_ll_mean_ll, dms_scores_np)
-            top_k_entropy_spearman = self._compute_spearman(top_k_entropy_mean_ll, dms_scores_np)
             self.log(
                 f"gym/top_{top_pct}_ll_spearman",
                 top_k_ll_spearman,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-                batch_size=1,
-            )
-            self.log(
-                f"gym/bottom_{top_pct}_entropy_spearman",
-                top_k_entropy_spearman,
                 on_step=True,
                 on_epoch=True,
                 prog_bar=False,
@@ -1067,7 +1009,6 @@ class BaseFamilyLitModule(LightningModule):
                 payload = {
                     "lls": lls_array.astype(np.float32),
                     "n_prompt_seqs": np.asarray(n_seqs_list, dtype=np.int32),
-                    "entropy_per_prompt": entropy_per_prompt.astype(np.float32),
                     "dms_scores": dms_scores_np.astype(np.float32),
                 }
                 if extra_npz_payload is not None:
@@ -1077,25 +1018,10 @@ class BaseFamilyLitModule(LightningModule):
                     np.savez_compressed(lls_npz_path, **payload)
                 except Exception as e:
                     warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
-                if variant_lls is not None and self.gym_results_save_dir is not None and plot:
-                    try:
-                        self._save_variant_scatter_plot(n_seqs_list, variant_lls, dms_id)
-                    except Exception as e:
-                        warnings.warn(f"Failed to save scatter plot for {dms_id}: {e}")
 
-        # Final summary logs with versioned keys
         self.log(f"gym/mean_spearman_{file_suffix}", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log(f"gym/ensemble_spearman_{file_suffix}", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
         self.log(f"gym/ensemble_log_ll_{file_suffix}", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-        self.log(
-            "gym/entropy_and_ll_spearman_correlation",
-            self._compute_spearman(mean_per_forward_pass, entropy_per_prompt),
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-            sync_dist=True,
-        )
-
         return ensemble_log_ll, ensemble_spearman
 
 
@@ -1458,14 +1384,12 @@ class BaseFamilyLitModule(LightningModule):
                     "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
                     "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
                 }
-                payload_entropy = self._calculate_entropy_per_prompt(lls_array)
                 if self.gym_results_save_dir is not None:
                     try:
                         np.savez_compressed(
                             lls_npz_path,
                             lls=lls_array.astype(np.float32),
                             n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
-                            entropy_per_prompt=payload_entropy.astype(np.float32),
                             dms_scores=dms_scores_np.astype(np.float32),
                             **extra_payload,
                         )
@@ -1692,14 +1616,12 @@ class BaseFamilyLitModule(LightningModule):
                     "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
                     "spearman_list": np.asarray(spearman_list, dtype=np.float32),
                 }
-                payload_entropy = self._calculate_entropy_per_prompt(lls_array)
                 if self.gym_results_save_dir is not None:
                     try:
                         np.savez_compressed(
                             lls_npz_path,
                             lls=lls_array.astype(np.float32),
                             n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
-                            entropy_per_prompt=payload_entropy.astype(np.float32),
                             dms_scores=dms_scores_np.astype(np.float32),
                             **extra_payload,
                         )
@@ -1937,40 +1859,7 @@ class BaseFamilyLitModule(LightningModule):
         self.family_likelihoods = {}
         self.batch_counter = 0
 
-    def training_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        # uncomment for debugging ddp (train.py +experiment=ddp_test)
-        # print(f"Rank: {self.trainer.global_rank}", batch["identifier"].text, flush=True)
-        # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
-        # one option would be to write our own versions of classes llike llamaforcausallm
 
-        outputs = self(
-            input_ids=batch["input_ids"],
-            attention_mask=batch["attention_mask"],
-            labels=batch["labels"],
-        )
-        loss = outputs.loss
-        # TODO: handle ds-level metrics for train batches which can include multiple datasets
-        self.log_metrics(batch, outputs, "train", log_global=True)
-        self.log(
-            "train/n_seqs",
-            (batch["input_ids"] == self.tokenizer.sep_token_id)
-            .float()
-            .sum(axis=1)
-            .mean()
-            .item(),
-            on_step=True,
-            prog_bar=True,
-            on_epoch=False,
-        )
-        self.log(
-            "train/accumulate_grad_batches",
-            self.trainer.accumulate_grad_batches,
-            on_step=True,
-            on_epoch=False,
-        )
-        return loss
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP
