@@ -93,10 +93,6 @@ class ProteinDataMixture(LightningDataModule):
                             f"Skipping dataset {data_key} with weight {dataset_weight}"
                         )
                         continue
-                    # If this is a PyTorch Dataset already (e.g., ProteinFamilyMemmapDataset, ProteinGymDataset),
-                    # use it directly; otherwise fall back to legacy builder API.
-                    
-                    # Inject tokenizer into ProteinGymDataset if needed
                     if isinstance(dataset_builder, ProteinGymDataset):
                         if getattr(dataset_builder, "_tokenizer", None) is None:
                             dataset_builder._tokenizer = self.tokenizer
@@ -107,8 +103,6 @@ class ProteinDataMixture(LightningDataModule):
                         {k: type(v) for k, v in next(iter(dataset)).items()},
                     )
                     train_datasets.append(dataset)
-                    # TODO: we could also shuffle individual datasets here - is there a reason we might want to?
-                    # https://github.com/huggingface/datasets/issues/6623#issuecomment-2367769573 c.f. currently wont aßffect interleave anyways
                     train_data_weights.append(dataset_weight)
                     train_dataset_names.append(data_key)
             train_data_weights = [

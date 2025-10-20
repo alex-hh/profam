@@ -139,55 +139,9 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
 
-        if proteins.backbone_coords is not None:
-            tokenized.data["coords"] = concatenate_pad_array(
-                proteins.backbone_coords,
-                fill_value=0.0,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
-                pad_to_length=tokenized.input_ids.shape[-1],
-            ).astype(np.float32)
-            tokenized.data["coords_mask"] = concatenate_pad_array(
-                proteins.backbone_coords_masks,
-                fill_value=0,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
-                pad_to_length=max_length if padding == "max_length" else None,
-            )
 
-            assert (
-                tokenized.data["coords"].shape[0] == tokenized.input_ids.shape[0]
-            ), f"{tokenized.data['coords'].shape[0]} != {tokenized.input_ids.shape[0]}"
-            assert tokenized.data["coords_mask"].shape == tokenized.data["coords"].shape
 
-        is_interleaved = (
-            tokenized.data["input_ids"] == self.seq_struct_sep_token_id
-        ).any()
-        if is_interleaved and proteins.backbone_coords is not None:
-            tokenized.data["interleaved_coords_mask"] = concatenate_pad_array(
-                proteins.interleaved_coords_masks,
-                fill_value=0,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
-                pad_to_length=max_length if padding == "max_length" else None,
-            )
-        elif proteins.backbone_coords is not None:
-            # still need to return something in case other batches have interleaved coords
-            tokenized.data["interleaved_coords_mask"] = np.zeros_like(
-                tokenized.data["coords_mask"]
-            )
 
-        if proteins.modality_masks is not None:
-            modality_mask = concatenate_pad_array(
-                proteins.modality_masks,
-                fill_value=False,
-                num_start_tokens=self.num_start_tokens,
-                num_end_tokens=num_end_tokens,
-                pad_to_length=max_length if padding == "max_length" else None,
-            )
-            # these really denote where you're PREDICTING the modality. because you could have fixed residue identities in structure regions.
-            tokenized.data["aa_mask"] = modality_mask[:, 0]
-            tokenized.data["structure_mask"] = modality_mask[:, 1]
         else:
             # TODO: handle more carefully
             tokenized.data["aa_mask"] = np.ones_like(tokenized.input_ids).astype(bool)

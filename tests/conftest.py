@@ -102,16 +102,6 @@ def pfam_fasta_text():
 
 
 @pytest.fixture(scope="package")
-def parquet_3di_processor():
-    preprocessing_cfg = preprocessing.PreprocessingConfig()
-    return preprocessing.ProteinDocumentPreprocessor(
-        config=preprocessing_cfg,
-        structure_tokens_col="msta_3di",
-        transform_fns=[transforms.interleave_structure_sequence],
-    )
-
-
-@pytest.fixture(scope="package")
 def proteingym_batch(profam_tokenizer):
     builder = ProteinGymDataset(
         name="pfam",
