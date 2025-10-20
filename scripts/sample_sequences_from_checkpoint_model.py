@@ -131,11 +131,11 @@ def main():
             # Set both public and internal fields to be safe across HF versions
             setattr(cfg_obj, "attn_implementation", override_attn_impl)
             setattr(cfg_obj, "_attn_implementation", override_attn_impl)
-            model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj)
+            model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj, strict=False)
         except Exception as e:
             raise RuntimeError(f"Failed to override attention implementation: {e}")
     else:
-        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path)
+        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, strict=False)
     model.eval()
     dtype_map = {
         "float32": torch.float32,
