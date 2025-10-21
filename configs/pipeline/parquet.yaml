@@ -1,5 +1,0 @@
-_target_: src.pipelines.mixins.ParquetGenerationsPipeline
-evaluation_parquet: null
-evaluation_accessions_file: null
-parquet_index: null
-num_generations: 10

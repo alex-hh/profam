@@ -1,7 +1,0 @@
-_target_: src.pipelines.foldseek.FoldseekRepresentativesPipeline
-evaluation_parquet: null
-evaluation_accessions_file: null
-evaluation_accessions: null
-parquet_index: null
-num_generations: 10
-max_protein_length: null

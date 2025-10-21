@@ -1,7 +1,0 @@
-_target_: src.pipelines.pfam.PfamGenerationsPipeline
-evaluation_parquet: data/pfam/combined_parquets/Family_95000795_101711374.parquet
-evaluation_accessions_file: null
-parquet_index: null
-evaluation_accessions: null
-pipeline_id: pfam_n${.num_generations}
-num_generations: 3000  # something large makes sense for msa statistics

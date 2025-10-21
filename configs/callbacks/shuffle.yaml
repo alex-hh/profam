@@ -1,2 +1,0 @@
-shuffle:
-  _target_: src.utils.callbacks.ShuffleCallback

@@ -1,5 +1,0 @@
-_target_: src.pipelines.cath.CATHEvaluationPipeline
-use_cath_43: false
-split_name: "test"
-num_generations: 10
-pipeline_id: cath_${.split_name}_n${.num_generations}

@@ -1,7 +1,0 @@
-_target_: src.pipelines.pfam.PfamGenerationsPipeline
-evaluation_parquet: data/example_data/pfam/Domain_60429258_61033370.parquet
-evaluation_accessions_file: null
-parquet_index: null
-evaluation_accessions: ['PF20938.2']
-pipeline_id: pfam_example_n${.num_generations}
-num_generations: 10
