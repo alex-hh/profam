@@ -41,8 +41,8 @@ Requires installing cuda-toolkit (best done in conda) like so:
 ```
 conda create -n pf11 python=3.11
 conda activate pf11
-conda install -c conda-forge ninja packaging
-conda install -c nvidia cuda-toolkit=12.4
+conda install -c conda-forge ninja packaging -y
+conda install -c nvidia cuda-toolkit=12.4 -y
 pip install -r requirements.txt
 pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 --index-url https://download.pytorch.org/whl/cu121
 pip install flash-attn==2.5.6 --no-build-isolation
