@@ -91,7 +91,7 @@ def _evaluate_and_save_variants_v10(
         n_opt = 0
         repeats = 1
     else:
-        repeats = min(model.gym_subsamples_per_n, total_seqs)
+        repeats = min(model.gym_subsamples_per_n, 2**(total_seqs))
     weights = np.ones(total_seqs) / total_seqs
     for rep in range(repeats):
         fail_count = 0
