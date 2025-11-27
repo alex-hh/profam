@@ -10,7 +10,7 @@ defaults:
   - override /logger: null
   - _self_
 task_name: train
-experiment_group: openfold_fs50_ur90_ted2090_memmap
+experiment_group: debug
 tags:
 - ${experiment_group}
 train: true
@@ -25,7 +25,7 @@ model:
   num_training_steps: 1000000
   lr: 0.001
   use_kv_cache_for_scoring: true
-    pass_res_pos_in_doc_as_position_ids: true
+  pass_res_pos_in_doc_as_position_ids: true
   optimizer: adamw
   config:
     _target_: transformers.LlamaConfig
@@ -180,32 +180,7 @@ constants:
   - original_size
   - batch_size
 extra_callbacks: null
-  # unconditional_sampling_callback:
-  #   prompt_builder:
-  #     preprocessor:
-  #       cfg:
-  #         _target_: src.data.processors.PreprocessingConfig
-  #         document_token: '[RAW]'
-  #         drop_first_protein: false
-  #         keep_first_protein: false
-  #         allow_unk: false
-  #         max_tokens_per_example: 8192
-  #         shuffle_proteins_in_document: true
-  #         padding: do_not_pad
-  #       transform_fns: null
-  #       _target_: src.data.processors.ProteinDocumentPreprocessor
-  #     _target_: src.models.inference.PromptBuilder
-  #   _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
-  #   pipeline:
-  #     _target_: src.pipelines.unconditional_sequence.UnconditionalSequenceEvaluationPipeline
-  #     num_generations: 5
-  #     max_tokens: 20000
-  #     max_generated_length: 300
-  #     pipeline_id: unconditional_sampling
-  #     save_results_to_file: false
-  #   evaluators:
-  #     _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-  #     name: esmfold_example
+
 data:
   _target_: src.data.datamodule.ProteinDataMixture
   dataset_builders:
