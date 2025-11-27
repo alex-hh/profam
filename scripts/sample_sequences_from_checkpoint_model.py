@@ -51,9 +51,9 @@ def main():
         "--glob",
         type=str,
         required=True,
-        help="Glob pattern for input FASTA/MSA files (e.g. '../data/val/*.fasta')"
+        help="Glob pattern for input FASTA/MSA files (e.g. 'data/4_1_1_39_cluster_aln.filtered.fasta' or '../data/val/*.a3m')"
     )
-    parser.add_argument("--save_dir", type=str, required=True, help="Directory to save generated FASTA files")
+    parser.add_argument("--save_dir", type=str, default="outputs", help="Directory to save generated FASTA files")
     parser.add_argument("--sampler", type=str, default="single", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
     parser.add_argument("--num_prompts_in_ensemble", type=int, default=8)
     parser.add_argument("--num_samples", type=int, default=10)
@@ -77,7 +77,7 @@ def main():
     parser.add_argument(
         "--minimum_sequence_length_proportion",
         type=float,
-        default=0,
+        default=0.5,
         help=(
             "Discard sequences that end with length < this proportion times the minimum "
             "sequence length in the prompt"
@@ -102,40 +102,49 @@ def main():
     )
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
-    parser.add_argument("--disable_repeat_guard", action="store_true", default=False, help="Disable repeat guard")
+    parser.add_argument("--disable_repeat_guard", action="store_true", default=False, 
+    help="Disable repeat guard: repeat guard aborts and retries the sequence generation if it detects too many repeats")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
     parser.add_argument(
         "--attn_implementation",
         type=str,
-        default=None,
+        default="sdpa",
         choices=["sdpa", "flash_attention_2", "eager"],
         help="Override attention implementation before model init (e.g. flash_attention_2)",
     )
     args = parser.parse_args()
     repeat_guard = not args.disable_repeat_guard
     if args.max_tokens > 8192:
-        raise ValueError("Max tokens must be less than or equal to 8192: model was only trained up to 8192 tokens, not likely to work at lengths above this")
+        raise ValueError(
+            "Max tokens must be less than or equal to 8192: model was only trained up to 8192 tokens, not likely to work at lengths above this"
+            )
     # Seed RNGs for reproducibility
     seed_all(args.seed)
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
     # Load model (and tokenizer) from checkpoint dir, optionally overriding attention implementation
     override_attn_impl = args.attn_implementation or None
-    if override_attn_impl is not None:
-        try:
-            ckpt_blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-            hyper_params = ckpt_blob.get("hyper_parameters", {})
-            cfg_obj = hyper_params.get("config", None)
-            if cfg_obj is None:
-                raise RuntimeError("Could not find 'config' in checkpoint hyper_parameters to override attn implementation")
-            # Set both public and internal fields to be safe across HF versions
-            setattr(cfg_obj, "attn_implementation", override_attn_impl)
-            setattr(cfg_obj, "_attn_implementation", override_attn_impl)
-            model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj, strict=False)
-        except Exception as e:
-            raise RuntimeError(f"Failed to override attention implementation: {e}")
-    else:
-        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, strict=False)
+
+    try:
+        import flash_attn
+    except ImportError:
+        if override_attn_impl == "flash_attention_2":
+            print("Flash attention requested but not installed. Reverting to sdpa.")
+            override_attn_impl = "sdpa"
+
+    try:
+        ckpt_blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        hyper_params = ckpt_blob.get("hyper_parameters", {})
+        cfg_obj = hyper_params.get("config", None)
+        if cfg_obj is None:
+            raise RuntimeError("Could not find 'config' in checkpoint hyper_parameters to override attn implementation")
+        # Set both public and internal fields to be safe across HF versions
+        setattr(cfg_obj, "attn_implementation", override_attn_impl)
+        setattr(cfg_obj, "_attn_implementation", override_attn_impl)
+        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj, strict=False)
+    except Exception as e:
+        raise RuntimeError(f"Failed to override attention implementation: {e}")
+
     model.eval()
     dtype_map = {
         "float32": torch.float32,
