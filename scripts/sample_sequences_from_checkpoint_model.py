@@ -123,14 +123,14 @@ def main():
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
     # Load model (and tokenizer) from checkpoint dir, optionally overriding attention implementation
-    override_attn_impl = args.attn_implementation or None
+    attn_impl = args.attn_implementation
 
     try:
         import flash_attn
     except ImportError:
-        if override_attn_impl == "flash_attention_2":
+        if attn_impl == "flash_attention_2":
             print("Flash attention requested but not installed. Reverting to sdpa.")
-            override_attn_impl = "sdpa"
+            attn_impl = "sdpa"
 
     try:
         ckpt_blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
@@ -139,8 +139,8 @@ def main():
         if cfg_obj is None:
             raise RuntimeError("Could not find 'config' in checkpoint hyper_parameters to override attn implementation")
         # Set both public and internal fields to be safe across HF versions
-        setattr(cfg_obj, "attn_implementation", override_attn_impl)
-        setattr(cfg_obj, "_attn_implementation", override_attn_impl)
+        setattr(cfg_obj, "attn_implementation", attn_impl)
+        setattr(cfg_obj, "_attn_implementation", attn_impl)
         model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj, strict=False)
     except Exception as e:
         raise RuntimeError(f"Failed to override attention implementation: {e}")

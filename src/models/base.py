@@ -1171,7 +1171,7 @@ class BaseFamilyLitModule(LightningModule):
         coverage_multiplier: float = 1.0,
         seq_sim_multiplier: float = 1.0,
         precomputed_multiplier: float = 1.0,
-        resample_downweighter: float = 0.6
+        resample_downweighter: float = 1.0
     ):
         """
         re-implementation of v4 to fix bugs
@@ -1438,7 +1438,7 @@ class BaseFamilyLitModule(LightningModule):
         coverage_multiplier: float = 0.0,
         seq_sim_multiplier: float = 0.0,
         precomputed_multiplier: float = 1.0,
-        resample_downweighter: float = 0.6
+        resample_downweighter: float = 1.0
     ):
         """
         re-implementation of v9 to remove the log forward search
