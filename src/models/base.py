@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional, List, Tuple
 
 import hydra
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -14,10 +13,6 @@ import tqdm
 from lightning import LightningModule
 from omegaconf import OmegaConf
 from scipy.stats import spearmanr
-from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
-from torch import nn
-from transformers import PreTrainedTokenizerFast
-from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 from transformers import StoppingCriteriaList
 import torch
@@ -175,8 +170,6 @@ class BaseFamilyLitModule(LightningModule):
     ) -> torch.Tensor:
         # uncomment for debugging ddp (train.py +experiment=ddp_test)
         # print(f"Rank: {self.trainer.global_rank}", batch["identifier"].text, flush=True)
-        # TODO: write a wrapper to compute loss / metrics if we have 3di tokens?
-        # one option would be to write our own versions of classes llike llamaforcausallm
 
         outputs = self(
             input_ids=batch["input_ids"],
@@ -466,8 +459,7 @@ class BaseFamilyLitModule(LightningModule):
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls
 
-    # TODO: make this part of a mixin so that it can be reused across models
-    # c.f. GenerationsMixin
+
     def score_seqs(
         self,
         input_ids,
@@ -517,9 +509,9 @@ class BaseFamilyLitModule(LightningModule):
         structure_tokens: bool = False,
         continuous_sampling: bool = False,
         repeat_guard: bool = True,
-        repeat_length: int = 9,
+        repeat_length: int = 9, # if last repeat_length chars appear repeat_count times, seq is aborted
         repeat_count: int = 9,
-        repeat_guard_max_restarts: int = 3,
+        max_retries: int = 3,
     ):
         """
         Conditionally independent sequence generation: sequences are generated independently of each other
@@ -529,9 +521,7 @@ class BaseFamilyLitModule(LightningModule):
         # TODO: pass attention mask, pad_token_id to avoid the following warning:
         # The attention mask and the pad token id were not set. As a consequence, you may
         # observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
-        # TODO: add temperature kwarg
         # TODO: add min length kwarg
-        # TODO: check whether model spontaneously adds the SEP token
         if max_total_length is None:
             max_total_length = max_tokens
         if max_generated_length is not None:
@@ -595,7 +585,6 @@ class BaseFamilyLitModule(LightningModule):
         for batch_start in tqdm.tqdm(range(num_samples), "Generating sequences"):
             remaining = 1
             attempt = 0
-            max_topups = 3
             batch_collected: List[torch.Tensor] = []
             batch_scores: List[float] = []
             while remaining > 0:
@@ -661,7 +650,7 @@ class BaseFamilyLitModule(LightningModule):
                     remaining = 0
                 else:
                     attempt += 1
-                    if attempt >= max_topups:
+                    if attempt > max_retries:
                         # accept remaining failed ones as-is (score them) to avoid infinite loop
                         for i in failed_indices:
                             row = seqs[i]
@@ -685,8 +674,6 @@ class BaseFamilyLitModule(LightningModule):
                 all_scores.extend(batch_scores)
 
         max_output_length = max([o.shape[1] for o in all_outputs])
-        # TODO: poss just return a list instead of the padded tensor
-        # TODO: does padding include eos (sep)? seems no?
         padded_outputs = torch.full(
             (num_samples, max_output_length), self.tokenizer.pad_token_id
         )
@@ -723,7 +710,6 @@ class BaseFamilyLitModule(LightningModule):
             bos_token_id=self.tokenizer.bos_token_id,
             calc_full_no_context_accuracies=True,
         )
-        has_3di = False
 
         global_metrics = {
             "loss": loss,
@@ -919,39 +905,7 @@ class BaseFamilyLitModule(LightningModule):
 
         return new_batch
 
-    @torch.no_grad()
-    def _eval_prefix_mean_ll(
-        self,
-        batch: Dict[str, torch.Tensor],
-        n: int,
-        seq_starts: torch.Tensor,
-        seq_ends: torch.Tensor,
-        start_tokens: list[int],
-        rng: random.Random,
-    ) -> float:
-        """Evaluate mean log-likelihood for a random selection of n context sequences."""
-        total_seqs = len(seq_ends)
-        n = max(0, min(n, total_seqs))
-        if n == 0:
-            vb = self._clone_batch(batch)
-            vb["input_ids"] = None
-            L_prompt = 0
-        else:
-            selected_idxs = rng.sample(range(total_seqs), n)
-            vb = self._make_truncated_batch_from_indices(
-                batch, selected_idxs, seq_starts, seq_ends, start_tokens
-            )
-            L_prompt = vb["input_ids"].shape[-1]
-        vb_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in vb.items()}
-        comp_ids = vb_device["completion_ids"][:, : min(100, vb_device["completion_ids"].shape[1]), :]
-        L = comp_ids.shape[-1]
-        lls = self.score_seqs(
-            vb_device["input_ids"],
-            comp_ids,
-            use_cache=self.use_kv_cache_for_scoring,
-            batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1) if self.use_kv_cache_for_scoring else 1,
-        )
-        return float(lls.mean())
+
 
     def _log_and_save_variant_results(
         self,
@@ -1161,276 +1115,6 @@ class BaseFamilyLitModule(LightningModule):
 
 
 
-    def _evaluate_and_save_variants_v9(
-        self,
-        batch: Dict[str, torch.Tensor],
-        start_tokens: list[int] = [47, 63],
-        min_target_likelihood: float = -1.7,
-        max_target_likelihood: float = -0.9,
-        n_opt_range_extension: int = 2,
-        coverage_multiplier: float = 1.0,
-        seq_sim_multiplier: float = 1.0,
-        precomputed_multiplier: float = 1.0,
-        resample_downweighter: float = 1.0
-    ):
-        """
-        re-implementation of v4 to fix bugs
-        this version does a log search to determine vals in range
-        and subsequently does random sampling from those values.
-        Also permits use of weighting.
-        """
-        random.seed(42)
-        rng = random.Random(42)
-        rng_np = np.random.default_rng(42)
-        optimal_likelihood = min_target_likelihood + (max_target_likelihood - min_target_likelihood) / 2
-        dms_id = batch["DMS_id"].text[0]
-        dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
-        if self.gym_results_save_dir is not None:
-            lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v9_lls.npz")
-        else:
-            lls_npz_path = None
-        if lls_npz_path is not None and os.path.exists(lls_npz_path):
-            print(f"Loading from {lls_npz_path}")
-            data = np.load(lls_npz_path)
-            lls_array = data["lls"]
-        else:
-            seq_starts, seq_ends, seq_lengths, total_seqs, completion_length = self._prepare_prompt_and_stats(
-                batch, start_tokens
-            )
-            max_context_tokens = (self.max_tokens - completion_length) - 5
-            avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
-            max_n_by_tokens = max(0, min(int(max_context_tokens // avg_seq_len) + 2, total_seqs)) if avg_seq_len > 0 else 0
-
-            # ------------------------------------------------------------------ #
-            # Forward logspace search                                            #
-            # ------------------------------------------------------------------ #
-            n_forward_search = min(50, max_n_by_tokens)
-            n_log_samples = n_forward_search
-            if max_n_by_tokens <= 0:
-                n_vals = [0]
-            else:
-                while True:
-                    n_vals = [0] + [int(s) for s in np.logspace(0, np.log10(max_n_by_tokens), n_log_samples)]
-                    n_vals = list(set(n_vals))
-                    if len(n_vals) >= n_forward_search:
-                        break
-                    n_log_samples += 1
-                n_vals.sort()
-            n_seqs_list = []
-            ll_list = []
-
-            # find range of n_opt values that are in the target likelihood range:
-            vals_in_range: List[int] = []
-            distances_to_target = {}
-            for n_curr in n_vals:
-                ll_curr = self._eval_prefix_mean_ll(batch, n_curr, seq_starts, seq_ends, start_tokens, rng)
-                n_seqs_list.append(n_curr)
-                ll_list.append(ll_curr)
-                if min_target_likelihood <= ll_curr <= max_target_likelihood:
-                    n_opt = n_curr
-                    vals_in_range.append(n_curr)
-                distances_to_target[n_curr] = abs(ll_curr - optimal_likelihood)
-            if len(vals_in_range) > 0:
-                lower_bound = max(1, min(vals_in_range) - n_opt_range_extension)
-                upper_bound = min(max(vals_in_range) + n_opt_range_extension, max_n_by_tokens + 1)
-            else:
-                # allow [0, max_n_by_tokens] inclusive
-                best_by_distance = sorted(distances_to_target.items(), key=lambda x: x[1])[:5]
-                best_by_distance = [x[0] for x in best_by_distance]
-                lower_bound = max(0, min(best_by_distance))
-                upper_bound = min(max(best_by_distance), max_n_by_tokens + 1)
-            upper_bound = min(upper_bound, total_seqs)
-            vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
-            if len(vals_in_range) == 0:
-                vals_in_range = [0]
-            n_opt = int(rng.choice(vals_in_range))
-
-            # compute likelihoods for each n_opt value in the range:
-            spearman_list = []
-            variant_lls: List[np.ndarray] = []
-            n_seqs_list = []
-            tok_cnt_list: List[int] = []
-            min_cov_list: List[float] = []
-            # Additional metrics to mirror v5
-            min_length_ratio_list: List[float] = []
-            min_sequence_similarity_list: List[float] = []
-            mean_sequence_similarity_list: List[float] = []
-            max_sequence_similarity_list: List[float] = []
-            min_coverage_list: List[float] = []
-            mean_coverage_list: List[float] = []
-            max_coverage_list: List[float] = []
-            
-            token_count_attempts = 100
-            if completion_length + 2 > self.max_tokens:
-                n_opt = 0
-                repeats = 1
-            else:
-                repeats = self.gym_subsamples_per_n
-            weights = self.get_sequence_weights(
-                batch, 
-                precomputed_sequence_weights=batch.get('sequence_weights', None), 
-                coverage_multiplier=coverage_multiplier,
-                seq_sim_multiplier=seq_sim_multiplier,
-                precomputed_multiplier=precomputed_multiplier,
-                target_seq_sim=0.5,
-                top_p_mass_target=0.5,
-                top_p=0.5,
-            )
-            for rep in range(repeats):
-                fail_count = 0
-                while True:
-                    if n_opt == 0 and 0 in n_seqs_list:
-                        n_opt = int(random.choice(vals_in_range))
-                    idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
-                    # Downweight the probability of re-sampling chosen indices and renormalise
-                    weights[idxs] *= resample_downweighter
-                    w_sum = weights.sum()
-                    if w_sum > 0:
-                        weights /= w_sum
-                    else:
-                        weights[:] = 1.0 / len(weights)
-                    rng.shuffle(idxs)
-                    tok_cnt = sum(seq_lengths[i] for i in idxs)
-                    if tok_cnt + completion_length <= self.max_tokens:
-                        fail_count = 0
-                        break
-                    else:
-                        fail_count += 1
-                        if fail_count > token_count_attempts:
-                            n_opt = max(0, n_opt - 1)
-                            fail_count = 0
-                
-                if n_opt == 0:
-                    # No context sequences selected; use empty prompt
-                    idxs = []
-                    tok_cnt = 0
-                    shortest_seq_len = 0
-                    var_batch = self._clone_batch(batch)
-                    var_batch["input_ids"] = None
-                    min_completion_coverage = 0
-                    min_length_ratio = 0
-                    min_sequence_similarity = 0
-                    mean_sequence_similarity = 0
-                    max_sequence_similarity = 0
-                    min_coverage = 0
-                    mean_coverage = 0
-                    max_coverage = 0
-                else:
-                    shortest_seq_len = min(seq_lengths[i] for i in idxs)
-                    var_batch = self._make_truncated_batch_from_indices(
-                        batch, idxs, seq_starts, seq_ends, start_tokens, include_optional_meta=True
-                    )
-                    min_completion_coverage = shortest_seq_len / batch["completion_ids"].shape[-1] if batch["completion_ids"].shape[-1] > 0 else 0
-                    # Additional metrics consistent with v5
-                    min_length_ratio = min_completion_coverage
-                    seq_sims = var_batch.get("sequence_similarities", None)
-                    covs = var_batch.get("coverages", None)
-                    if seq_sims is not None:
-                        min_sequence_similarity = seq_sims.min().item()
-                        mean_sequence_similarity = seq_sims.mean().item()
-                        max_sequence_similarity = seq_sims.max().item()
-                    else:
-                        min_sequence_similarity = 0
-                        mean_sequence_similarity = 0
-                        max_sequence_similarity = 0
-                    if covs is not None:
-                        min_coverage = covs.min().item()
-                        mean_coverage = covs.mean().item()
-                        max_coverage = covs.max().item()
-                    else:
-                        min_coverage = 0
-                        mean_coverage = 0
-                        max_coverage = 0
-                n_seqs_list.append(n_opt)
-                tok_cnt_list.append(tok_cnt)
-                min_cov_list.append(min_completion_coverage)
-                # Track additional lists for NPZ logging
-                min_length_ratio_list.append(min_length_ratio)
-                min_sequence_similarity_list.append(min_sequence_similarity)
-                mean_sequence_similarity_list.append(mean_sequence_similarity)
-                max_sequence_similarity_list.append(max_sequence_similarity)
-                min_coverage_list.append(min_coverage)
-                mean_coverage_list.append(mean_coverage)
-                max_coverage_list.append(max_coverage)
-                var_batch_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()}
-                L = var_batch_device["completion_ids"].shape[-1]
-                L_prompt = 0 if var_batch_device["input_ids"] is None else var_batch_device["input_ids"].shape[-1]
-                lls = self.score_seqs(
-                    var_batch_device["input_ids"],
-                    var_batch_device["completion_ids"],
-                    use_cache=self.use_kv_cache_for_scoring,
-                    batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
-                    if self.use_kv_cache_for_scoring
-                    else 1,
-                )
-                
-                variant_lls.append(lls)
-                spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
-                n_opt = rng.choice(vals_in_range)
-
-
-            # Stack and persist
-            lls_array = np.stack(variant_lls, axis=0)
-            # Persist NPZ here for re-use on subsequent runs
-            if getattr(self, "global_rank", 0) == 0:
-                extra_payload = {
-                    "tok_cnt_list": tok_cnt_list,
-                    "min_cov_list": min_cov_list,
-                    "min_length_ratio_list": np.asarray(min_length_ratio_list, dtype=np.float32),
-                    "min_sequence_similarity_list": np.asarray(min_sequence_similarity_list, dtype=np.float32),
-                    "mean_sequence_similarity_list": np.asarray(mean_sequence_similarity_list, dtype=np.float32),
-                    "max_sequence_similarity_list": np.asarray(max_sequence_similarity_list, dtype=np.float32),
-                    "min_coverage_list": np.asarray(min_coverage_list, dtype=np.float32),
-                    "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
-                    "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
-                }
-                if self.gym_results_save_dir is not None:
-                    try:
-                        np.savez_compressed(
-                            lls_npz_path,
-                            lls=lls_array.astype(np.float32),
-                            n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
-                            dms_scores=dms_scores_np.astype(np.float32),
-                            **extra_payload,
-                        )
-                    except Exception as e:
-                        warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
-
-        # Centralised logging and returns
-        # If we loaded from disk, we have no rows/variant_lls to plot — pass None
-        if lls_npz_path is not None and os.path.exists(lls_npz_path) and 'variant_lls' not in locals():
-            return self._log_and_save_variant_results(
-                dms_id=dms_id,
-                lls_array=lls_array,
-                dms_scores_np=dms_scores_np,
-                n_seqs_list=[],
-                variant_lls=None,
-                file_suffix="v9",
-                rows=None,
-                extra_npz_payload=None,
-            )
-        else:
-            extra_payload = {
-                "tok_cnt_list": tok_cnt_list,
-                "min_cov_list": min_cov_list,
-                "min_length_ratio_list": min_length_ratio_list,
-                "min_sequence_similarity_list": min_sequence_similarity_list,
-                "mean_sequence_similarity_list": mean_sequence_similarity_list,
-                "max_sequence_similarity_list": max_sequence_similarity_list,
-                "min_coverage_list": min_coverage_list,
-                "mean_coverage_list": mean_coverage_list,
-                "max_coverage_list": max_coverage_list,
-            }
-            return self._log_and_save_variant_results(
-                dms_id=dms_id,
-                lls_array=lls_array,
-                dms_scores_np=dms_scores_np,
-                n_seqs_list=n_seqs_list,
-                variant_lls=variant_lls,
-                file_suffix="v9",
-                rows=None,
-                extra_npz_payload=extra_payload,
-            )
     def _evaluate_and_save_variants_v10(
         self,
         batch: Dict[str, torch.Tensor],
@@ -1696,169 +1380,6 @@ class BaseFamilyLitModule(LightningModule):
             sync_dist=True,
         )
         return torch.tensor(ensemble_spearman, device=self.device, dtype=torch.float32)
-
-    def validation_step_family_classification(
-        self, batch: Dict[str, torch.Tensor], task: str = "classification"
-    ) -> torch.Tensor:
-        """
-        Val step for family classification task.
-
-        Assumes that batch contains the following:
-        input_ids: the prompt (i.e. MSA)
-        completion_ids: the completions (i.e. mutated seqs / seqs to be classified)
-        """
-        assert (
-            batch["family_labels"].ndim == 2
-            and batch["input_ids"].ndim == 2
-            and batch["input_ids"].shape[0] == 1
-            and batch["completion_ids"].ndim == 3
-        )
-        L = batch["completion_ids"].shape[-1]
-        L_prompt = batch["input_ids"].shape[-1]
-        lls = self.score_seqs(
-            batch["input_ids"],
-            batch["completion_ids"],
-            use_cache=self.use_kv_cache_for_scoring,
-            batch_size=1,
-            # (self.scoring_max_tokens - L_prompt) // L
-            # if self.use_kv_cache_for_scoring
-            # else 1,
-        )
-        target_vals = batch["family_labels"][0].cpu().numpy()
-        # TODO: maybe specify which family is classified in metric
-
-        precision, recall, thresholds = precision_recall_curve(target_vals, lls)
-        metric = auc(recall, precision)
-        self.log(
-            f"val/{batch.get('ds_name').text[0]}_auprc_classification",
-            metric,
-            on_step=False,
-            on_epoch=True,
-            add_dataloader_idx=False,
-        )
-        au_roc = roc_auc_score(target_vals, lls)
-        self.log(
-            f"val/{batch.get('ds_name').text[0]}_auroc_classification",
-            au_roc,
-            on_step=False,
-            on_epoch=True,
-            add_dataloader_idx=False,
-        )
-        k_vals = [k for k in [1, 2, 5, 10] if k < len(target_vals)]
-        for top_k in k_vals:
-            top_k_acc = len(
-                set(np.argsort(lls)[::-1][:top_k]).intersection(
-                    set(np.where(target_vals)[0])
-                )
-            ) / min(top_k, sum(target_vals))
-            self.log(
-                f"val/{batch.get('ds_name').text[0]}_top_{top_k}_acc_classification",
-                top_k_acc,
-                on_step=False,
-                on_epoch=True,
-                sync_dist=True,
-                add_dataloader_idx=False,
-            )
-        if batch["ds_name"].text[0] in ["pfam_fam_class"]:
-            # only do this for evals where the eval seqs remain the same across
-            # batches and we consider the likelihood of each eval seq conditioned
-            # on different family 'prompts'
-            self.update_family_likelihoods(batch, lls)
-        return torch.tensor(metric, device=self.device, dtype=torch.float32)
-
-    def update_family_likelihoods(self, batch, lls):
-        """
-        each batch evaluates the ll of all test seqs
-        conditioned on a single family. This means
-        we can re-use the KV cache across all seqs.
-        For the multi-class objective we need to store
-        the likelihood of each seq conditioned on each
-        family. lls from each batch are stored here
-        """
-        if not hasattr(self, "family_likelihoods"):
-            self.family_likelihoods = {}
-            self.batch_counter = 0
-        val_ds_name = batch["ds_name"].text[0]
-        if val_ds_name not in self.family_likelihoods:
-            self.family_likelihoods[val_ds_name] = {}
-        for eval_seq_ix, bin_label in enumerate(
-            batch["family_labels"][0].cpu().numpy()
-        ):
-            ll = lls[eval_seq_ix]
-            if eval_seq_ix not in self.family_likelihoods[val_ds_name]:
-                self.family_likelihoods[val_ds_name][eval_seq_ix] = {}
-            if bin_label == 1:
-                if (
-                    1 in self.family_likelihoods[val_ds_name][eval_seq_ix]
-                ):  # 1 fam per seq
-                    warnings.warn("Multiple families assigned for eval seq")
-                self.family_likelihoods[val_ds_name][eval_seq_ix][1] = ll
-            else:
-                if 0 not in self.family_likelihoods[val_ds_name][eval_seq_ix]:
-                    self.family_likelihoods[val_ds_name][eval_seq_ix][0] = []
-                self.family_likelihoods[val_ds_name][eval_seq_ix][0].append(ll)
-        self.batch_counter += 1
-        if self.trainer.sanity_checking:
-            self.family_likelihoods = {}
-            self.batch_counter = 0
-
-    def on_validation_epoch_end(self):
-        """
-        Likelihood scores are accumulated across batches
-        at end of epoch multi-class metrics can be calcd
-        """
-        super().on_validation_epoch_end()
-        if self.trainer.sanity_checking:
-            return
-        if hasattr(self, "family_likelihoods"):
-            ce_scores = []
-            acc_scores = []
-            for val_name in self.family_likelihoods:
-                for eval_seq, lls in self.family_likelihoods[val_name].items():
-                    # softmax likelihoods to get probability over families
-                    labels = np.array([1] + [0] * len(lls[0]))
-                    if 1 in lls:
-                        lls_arr = np.array([lls[1]] + lls[0])
-                        self.log(
-                            f"val/{val_name}_mean_ll_across_fam_prompts",
-                            lls_arr.mean(),
-                            on_step=False,
-                            add_dataloader_idx=False,
-                        )
-                        self.log(
-                            f"val/{val_name}_variance_ll_across_fam_prompts",
-                            np.var(lls_arr),
-                            on_step=False,
-                            add_dataloader_idx=False,
-                        )
-                        lls_arr = lls_arr - lls_arr.max()
-                        probs = np.exp(lls_arr) / np.exp(lls_arr).sum()
-                        # calculate cross entropy
-                        ce = -np.log(probs[labels == 1]).mean()
-                        ce_scores.append(ce)
-                        if np.argmax(probs) == 0:
-                            acc_scores.append(1)
-                        else:
-                            acc_scores.append(0)
-                    else:
-                        warnings.warn(f"Warning: Eval seq has no positive family")
-
-                self.log(
-                    f"val/{val_name}_multiclass_cr_ent",
-                    sum(ce_scores) / len(ce_scores),
-                    on_step=False,
-                    add_dataloader_idx=False,
-                )
-
-                self.log(
-                    f"val/{val_name}_multiclass_acc",
-                    sum(acc_scores) / len(acc_scores),
-                    on_step=False,
-                    add_dataloader_idx=False,
-                )
-        self.family_likelihoods = {}
-        self.batch_counter = 0
-
 
 
     def on_train_epoch_end(self):

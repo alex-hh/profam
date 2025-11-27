@@ -110,15 +110,9 @@ def score_variants_ensemble(
             else:
                 idxs = []
                 tok_cnt = 0
+
             
-            # Account for [SEP] tokens between sequences
-            # [START] seq1 [SEP] seq2 [SEP] ... seqN
-            # Total length = len(start_tokens) + sum(len(seq)) + (n_opt - 1 if n_opt > 0 else 0) * 1
-            # Wait, usually we join with SEP. 
-            # Logic: start + seq1 + sep + seq2 + sep ... + seqN
-            # No trailing sep because completion starts with sep (bos_token=sep)
-            
-            prompt_len_estimate = len(start_tokens) + tok_cnt + max(0, len(idxs) - 1)
+            prompt_len_estimate = len(start_tokens) + tok_cnt + len(idxs)
             
             if prompt_len_estimate + completion_length <= max_tokens:
                 fail_count = 0

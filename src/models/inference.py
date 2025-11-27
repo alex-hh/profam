@@ -163,7 +163,7 @@ class ProFamSampler:
         repeat_guard: bool = True,
         repeat_length: int = 9,
         repeat_count: int = 9,
-        repeat_guard_max_restarts: int = 3,
+        max_retries: int = 3,
     ):
         assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
         sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
@@ -211,7 +211,7 @@ class ProFamSampler:
                         repeat_guard=repeat_guard,
                         repeat_length=repeat_length,
                         repeat_count=repeat_count,
-                        repeat_guard_max_restarts=repeat_guard_max_restarts,
+                        max_retries=max_retries,
                         **sampling_kwargs,
                     )
                     batch_seqs = self.model.tokenizer.decode_tokens(tokens)
@@ -422,7 +422,7 @@ class EnsembleDecoder:
         repeat_guard: bool = True,
         repeat_length: int = 9,
         repeat_count: int = 9,
-        repeat_guard_max_restarts: int = 3,
+        max_retries: int = 3,
     ) -> torch.Tensor:
         device = self.model.device
         # Ensure tensors are on device
@@ -523,7 +523,7 @@ class EnsembleDecoder:
                     seq_so_far = ""
                 if seq_so_far and has_too_many_repeats(seq_so_far, repeat_length=repeat_length, repeat_count=repeat_count):
                     restarts_done += 1
-                    if restarts_done <= int(repeat_guard_max_restarts):
+                    if restarts_done <= int(max_retries):
                         # Reset rollout state and start again from scratch
                         completions = []
                         total_logp = 0.0
@@ -651,7 +651,7 @@ class ProFamEnsembleSampler:
         repeat_guard: bool = True,
         repeat_length: int = 9,
         repeat_count: int = 9,
-        repeat_guard_max_restarts: int = 3,
+        max_retries: int = 3,
     ) -> Tuple[List[str], List[float], List[ProteinDocument]]:
         assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
         # Build prompt variants
@@ -696,7 +696,7 @@ class ProFamEnsembleSampler:
                         repeat_guard=repeat_guard,
                         repeat_length=repeat_length,
                         repeat_count=repeat_count,
-                        repeat_guard_max_restarts=repeat_guard_max_restarts,
+                        max_retries=max_retries,
                     )
                     if isinstance(gen_ids, torch.Tensor) and gen_ids.numel() == 0:
                         continue
