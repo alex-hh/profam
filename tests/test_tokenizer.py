@@ -48,5 +48,3 @@ def test_sequence_of_sequence_tokenization(profam_tokenizer):
     assert not (
         tokenized["input_ids"] == profam_tokenizer.convert_tokens_to_ids("[UNK]")
     ).any()
-
-

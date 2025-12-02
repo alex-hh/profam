@@ -10,7 +10,7 @@ defaults:
   - override /logger: null
   - _self_
 task_name: train
-experiment_group: openfold_fs50_ur90_ted2090_memmap
+experiment_group: debug
 tags:
 - ${experiment_group}
 train: true
@@ -25,7 +25,7 @@ model:
   num_training_steps: 1000000
   lr: 0.001
   use_kv_cache_for_scoring: true
-    pass_res_pos_in_doc_as_position_ids: true
+  pass_res_pos_in_doc_as_position_ids: true
   optimizer: adamw
   config:
     _target_: transformers.LlamaConfig
@@ -38,7 +38,7 @@ model:
     rope_theta: 500000
     max_position_embeddings: 131072
     scoring_max_tokens: 128000
-    attn_implementation: flash_attention_2
+    attn_implementation: sdpa
     attention_bias: false
     attention_dropout: 0.0
     rms_norm_eps: 1.0e-05
@@ -180,37 +180,12 @@ constants:
   - original_size
   - batch_size
 extra_callbacks: null
-  # unconditional_sampling_callback:
-  #   prompt_builder:
-  #     preprocessor:
-  #       cfg:
-  #         _target_: src.data.processors.PreprocessingConfig
-  #         document_token: '[RAW]'
-  #         drop_first_protein: false
-  #         keep_first_protein: false
-  #         allow_unk: false
-  #         max_tokens_per_example: 8192
-  #         shuffle_proteins_in_document: true
-  #         padding: do_not_pad
-  #       transform_fns: null
-  #       _target_: src.data.processors.ProteinDocumentPreprocessor
-  #     _target_: src.models.inference.PromptBuilder
-  #   _target_: src.pipelines.callback.SamplingEvaluationPipelineCallback
-  #   pipeline:
-  #     _target_: src.pipelines.unconditional_sequence.UnconditionalSequenceEvaluationPipeline
-  #     num_generations: 5
-  #     max_tokens: 20000
-  #     max_generated_length: 300
-  #     pipeline_id: unconditional_sampling
-  #     save_results_to_file: false
-  #   evaluators:
-  #     _target_: src.evaluators.esmfold.ESMFoldSamplingEvaluator
-  #     name: esmfold_example
+
 data:
   _target_: src.data.datamodule.ProteinDataMixture
   dataset_builders:
     openfold_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: openfold_train
       dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
       tokenizer: ${tokenizer}
@@ -230,27 +205,27 @@ data:
           to_upper: true
           use_msa_pos: false
         transform_fns: null
-    ted_20_90_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
-      name: ted_20_90_train
-      dataset_root: ${paths.data_dir}/ted/s100_text_min_20_max_90/train_test_split_v2/train_filtered
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.AlignedProteinPreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-          keep_gaps: false
-          keep_insertions: true
-          to_upper: true
-          use_msa_pos: false
-        transform_fns: null
+    # ted_20_90_train:
+    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    #   name: ted_20_90_train
+    #   dataset_root: ${paths.data_dir}/ted/s100_text_min_20_max_90/train_test_split_v2/train_filtered
+    #   tokenizer: ${tokenizer}
+    #   preprocessor:
+    #     _target_: src.data.processors.ProteinDocumentPreprocessor
+    #     cfg:
+    #       _target_: src.data.processors.AlignedProteinPreprocessingConfig
+    #       document_token: '[RAW]'
+    #       drop_first_protein: false
+    #       keep_first_protein: false
+    #       allow_unk: false
+    #       max_tokens_per_example: 8192
+    #       shuffle_proteins_in_document: true
+    #       padding: do_not_pad
+    #       keep_gaps: false
+    #       keep_insertions: true
+    #       to_upper: true
+    #       use_msa_pos: false
+    #     transform_fns: null
     proteingym:
       _target_: src.data.builders.proteingym.ProteinGymDataset
       name: proteingym
@@ -269,7 +244,7 @@ data:
       drop_wt: true
       msa_folder_name: "PoET_DMS_msa_files/DMS_substitutions"
     foldseek_s50_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: foldseek_s50_train
       dataset_root: ${paths.data_dir}/foldseek/foldseek_s50_seq_only_text/train_test_split_v2/train_filtered
       tokenizer: ${tokenizer}
@@ -287,7 +262,7 @@ data:
           padding: do_not_pad
         transform_fns: null
     foldseek_s50_val:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: foldseek_s50_val
       dataset_root: ${paths.data_dir}/foldseek/foldseek_s50_seq_only_text/train_test_split_v2/val_filtered
       tokenizer: ${tokenizer}
@@ -305,7 +280,7 @@ data:
           padding: do_not_pad
         transform_fns: null
     uniref90_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: uniref90_train
       dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
       tokenizer: ${tokenizer}
@@ -322,7 +297,7 @@ data:
           padding: do_not_pad
         transform_fns: null
     # uniref90_val:
-    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDatasetBuilder
+    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     #   name: uniref90_val
     #   dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_filtered
     #   tokenizer: ${tokenizer}
@@ -342,7 +317,7 @@ data:
     foldseek_s50_train: 1
     uniref90_train: 1
     openfold_train: 1
-    ted_20_90_train: 1
+    # ted_20_90_train: 1
   val_dataset_batch_sizes:
     foldseek_s50_val: 1
     proteingym: 1

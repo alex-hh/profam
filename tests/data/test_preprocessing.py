@@ -31,5 +31,3 @@ def foldseek_datapoint(profam_tokenizer):
     data = data.filter(lambda x: x["msta_3di"] is not None)
     ds_iter = iter(data)
     return next(ds_iter)
-
-

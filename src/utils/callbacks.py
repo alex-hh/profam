@@ -11,7 +11,7 @@ from lightning.fabric.utilities.throughput import get_available_flops
 from lightning.pytorch.callbacks import Callback, ThroughputMonitor
 from lightning.pytorch.callbacks.throughput_monitor import _plugin_to_compute_dtype
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
-from lightning.pytorch.utilities import rank_zero_info  
+from lightning.pytorch.utilities import rank_zero_info
 from lightning.pytorch.utilities.exceptions import MisconfigurationException
 from lightning.pytorch.utilities.rank_zero import rank_zero_only, rank_zero_warn
 from omegaconf import DictConfig

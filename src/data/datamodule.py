@@ -1,13 +1,12 @@
 import os
 from typing import Dict, List, Optional
+
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
 from src.constants import SEQUENCE_FEATURE_NAMES
-from src.data.builders import (
-    ProteinGymDataset,
-)
+from src.data.builders import ProteinGymDataset
 from src.data.collators import DocumentBatchCollator
 from src.data.online_sample_mapping import (
     OffsetOnlineDataset,
@@ -19,8 +18,7 @@ from src.data.tokenizers import ProFamTokenizer
 
 
 class ProteinDataMixture(LightningDataModule):
-    """Data module for training on mixture of datasets.
-    """
+    """Data module for training on mixture of datasets."""
 
     def __init__(
         self,
@@ -235,7 +233,6 @@ class ProteinDataMixture(LightningDataModule):
 
     def val_dataloader(self) -> List[DataLoader]:
 
-        
         loaders = [
             DataLoader(
                 val_ds,
@@ -258,7 +255,9 @@ class ProteinDataMixture(LightningDataModule):
             # to avoid each rank evaluating the full set.
             sampler = None
             if world_size > 1 and val_ds_name == "proteingym":
-                print(f"Using distributed sampler for {val_ds_name} on device rank {rank}")
+                print(
+                    f"Using distributed sampler for {val_ds_name} on device rank {rank}"
+                )
                 sampler = DistributedSampler(
                     val_ds,
                     num_replicas=world_size,

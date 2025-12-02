@@ -1,10 +1,9 @@
-from Bio.SVDSuperimposer import SVDSuperimposer
-from tmtools import tm_align
-
 import numpy as np
+from Bio import pairwise2
+from Bio.SVDSuperimposer import SVDSuperimposer
 from biotite import structure as struc
 from biotite.sequence import ProteinSequence
-from Bio import pairwise2
+from tmtools import tm_align
 
 from src.constants import BACKBONE_ATOMS
 from src.data.objects import Protein
@@ -128,11 +127,23 @@ def lddt(
     # Align sequences and select aligned residue index pairs (i, j)
     if alignment_mode == "global":
         aligns = pairwise2.align.globalms(
-            reference.sequence, subject.sequence, 2, -1, -10, -1, one_alignment_only=True
+            reference.sequence,
+            subject.sequence,
+            2,
+            -1,
+            -10,
+            -1,
+            one_alignment_only=True,
         )
     elif alignment_mode == "local":
         aligns = pairwise2.align.localms(
-            reference.sequence, subject.sequence, 2, -1, -10, -1, one_alignment_only=True
+            reference.sequence,
+            subject.sequence,
+            2,
+            -1,
+            -10,
+            -1,
+            one_alignment_only=True,
         )
     else:
         raise ValueError("alignment_mode must be 'global' or 'local'")

@@ -134,9 +134,7 @@ def preprocess_raw_sequences_sampling_to_max_tokens(
         [len(seq) + extra_tokens_per_protein for seq in proteins.sequences]
     )[perm]
     max_length = np.max(new_sequence_lengths)
-    truncated_sequence_lengths = np.minimum(
-        new_sequence_lengths, max_length
-    )
+    truncated_sequence_lengths = np.minimum(new_sequence_lengths, max_length)
     cumsum_lengths = extra_tokens_per_document + np.cumsum(truncated_sequence_lengths)
     if max_tokens is not None:
         endpoint = np.searchsorted(
@@ -229,9 +227,13 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
     total_length = extra_tokens_per_document
     sampled_protein_ids = []
     sampled_protein_sequences = []
-    sampled_protein_sequence_similarities = [] if proteins.sequence_similarities is not None else None
+    sampled_protein_sequence_similarities = (
+        [] if proteins.sequence_similarities is not None else None
+    )
     sampled_protein_coverages = [] if proteins.coverages is not None else None
-    sampled_protein_sequence_weights = [] if proteins.sequence_weights is not None else None
+    sampled_protein_sequence_weights = (
+        [] if proteins.sequence_weights is not None else None
+    )
 
     for ix in perm:
         seq, pos, is_match = sequence_converter(proteins.sequences[ix])
@@ -241,20 +243,22 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
             leftover_tokens = (
                 max_tokens - total_length - extra_tokens_per_protein
             )  # -1 for sep token
-            leftover_tokens = min(
-                leftover_tokens, leftover_tokens
-            )
+            leftover_tokens = min(leftover_tokens, leftover_tokens)
             if leftover_tokens > 0:
                 if allow_partial_sequence:
                     seq_slice = _get_truncated_slice(len(seq), leftover_tokens, rnd)
                     sampled_protein_ids.append(ix)
                     sampled_protein_sequences.append(seq[seq_slice])
                     if proteins.sequence_similarities is not None:
-                        sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
+                        sampled_protein_sequence_similarities.append(
+                            proteins.sequence_similarities[ix]
+                        )
                     if proteins.coverages is not None:
                         sampled_protein_coverages.append(proteins.coverages[ix])
                     if proteins.sequence_weights is not None:
-                        sampled_protein_sequence_weights.append(proteins.sequence_weights[ix])
+                        sampled_protein_sequence_weights.append(
+                            proteins.sequence_weights[ix]
+                        )
                     total_length += len(seq[seq_slice]) + extra_tokens_per_protein
             break
         else:
@@ -262,7 +266,9 @@ def preprocess_aligned_sequences_sampling_to_max_tokens(
             sampled_protein_ids.append(ix)
             sampled_protein_sequences.append(seq)
             if proteins.sequence_similarities is not None:
-                sampled_protein_sequence_similarities.append(proteins.sequence_similarities[ix])
+                sampled_protein_sequence_similarities.append(
+                    proteins.sequence_similarities[ix]
+                )
             if proteins.coverages is not None:
                 sampled_protein_coverages.append(proteins.coverages[ix])
             if proteins.sequence_weights is not None:
@@ -295,10 +301,7 @@ def prepare_aligned_sequences_no_sampling(
     for seq in proteins.sequences:
         new_seq, pos, _ = sequence_converter(seq)
         converted_sequences.append(new_seq)
-    return proteins.clone(
-        sequences=converted_sequences
-    )
-
+    return proteins.clone(sequences=converted_sequences)
 
 
 def filter_by_length(
@@ -318,7 +321,6 @@ def filter_by_length(
             )
 
         return proteins.filter(length_filter)
-
 
 
 def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
@@ -364,5 +366,5 @@ def apply_transforms(
         )
     return proteins
 
-AAs = "ACDEFGHIKLMNPQRSTVWY"
 
+AAs = "ACDEFGHIKLMNPQRSTVWY"

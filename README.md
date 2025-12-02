@@ -33,6 +33,9 @@ pip install -r requirements.txt
 # if using flash attention, install separately
 pip install flash-attn --no-build-isolation
 
+# download the model checkpoint:
+python scripts/hf_download_checkpoint.py
+
 # if on a development machine, install the follow post-commit hook to track git hash
 echo 'git rev-parse HEAD > commit_hash.txt' > .git/hooks/post-commit && chmod +x .git/hooks/post-commit
 ```
