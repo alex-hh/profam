@@ -1,5 +1,3 @@
-# Authors: Ismail Khalfaoui, Simon Grasse with help from GenAI
-# Date: July 2025
 # Description: This script automatically monitors and syncs offline Wandb runs to the cloud
 # License: MIT License
 

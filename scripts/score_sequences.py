@@ -22,7 +22,7 @@ from src.data.objects import ProteinDocument
 from src.sequence.fasta import read_fasta
 from src.models.llama import LlamaLitModule
 from src.utils.utils import seed_all
-
+from src.data.msa_subsampling import compute_homology_sequence_weights_with_cache
 
 
 def write_fasta(sequences, accessions, fasta_path):
@@ -49,7 +49,8 @@ def score_variants_ensemble(
     ensemble_size: int,
     start_tokens: list[int] = [47, 63],
     resample_downweighter: float = 1.0,
-    max_tokens_override: Optional[int] = None
+    max_tokens_override: Optional[int] = None,
+    weights: Optional[np.ndarray] = None,
 ):
     """
     Computes the mean log-likelihood of candidate sequences using an ensemble of prompts
@@ -104,7 +105,8 @@ def score_variants_ensemble(
                     break
             
             if total_seqs > 0:
-                idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False).tolist()
+                p = weights / weights.sum() if weights is not None else None
+                idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=p).tolist()
                 rng.shuffle(idxs)
                 tok_cnt = sum(seq_lengths[i] for i in idxs)
             else:
@@ -231,6 +233,12 @@ def main():
     # Build ProteinDocument objects (just to read sequences nicely)
     cond_doc = build_pool_from_fasta(args.conditioning_fasta)
     
+    print(f"Computing sequence weights for {args.conditioning_fasta}...", file=sys.stderr)
+    weights = compute_homology_sequence_weights_with_cache(
+        msa_file=args.conditioning_fasta,
+        sequences=cond_doc.sequences,
+    )
+    
     # Tokenize conditioning sequences individually
     print(f"Tokenizing {len(cond_doc.sequences)} conditioning sequences...", file=sys.stderr)
     # Using the tokenizer directly on strings to get IDs. 
@@ -273,7 +281,8 @@ def main():
             tokenized_conditioning_sequences=tokenized_conditioning_sequences,
             ensemble_size=args.ensemble_number,
             start_tokens=[47, 63],
-            max_tokens_override=args.max_tokens
+            max_tokens_override=args.max_tokens,
+            weights=weights
         )
 
     # Output handling

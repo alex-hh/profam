@@ -19,7 +19,10 @@ from src.sequence import fasta
 
 
 
-from src.data.msa_subsampling import compute_homology_weights
+from src.data.msa_subsampling import (
+    compute_homology_weights,
+    compute_homology_sequence_weights_with_cache,
+)
 
 
 def has_no_indels(string_list):
@@ -39,61 +42,6 @@ def extract_sequence_weights_from_seq_ids(seq_ids: list) -> np.ndarray[float]:
 #     repeat the expensive computation.
 #   • A light-weight one-hot encoding from characters to integers compatible with the
 #     Uniprot21 alphabet expected by the original implementation.
-
-
-_GAP_TOKEN_IDX = 20  # must match default of compute_homology_weights
-
-
-def _encode_msa_strings_to_uint8(seqs: list[str]) -> np.ndarray:
-    """Encode an aligned list of sequences to the uint8 format expected by
-    `compute_homology_weights`.
-
-    Any unknown or gap-like character (including '-') is mapped to the GAP token.
-    """
-    _AA_TO_IDX = {aa: i for i, aa in enumerate("ACDEFGHIKLMNPQRSTVWY")}
-    seq_len = len(seqs[0]) if seqs else 0
-    arr = np.zeros((len(seqs), seq_len), dtype=np.uint8)
-    for i, s in enumerate(seqs):
-        arr[i] = [
-            _AA_TO_IDX.get(ch, _GAP_TOKEN_IDX)  # unknowns → GAP
-            for ch in s
-        ]
-    return arr
-
-
-def compute_homology_sequence_weights(
-    msa_file: str,
-    sequences: list[str],
-    theta: float = 0.2,
-    force_recalc: bool = False,
-) -> np.ndarray:
-    """Return 1/neighbor-count weights for every sequence in *sequences*.
-
-    If a cached file ``<msa_file_base>_weights.npz`` exists it is loaded instead of
-    recomputing.  To override this behaviour pass *force_recalc*=True.
-    """
-
-    cache_path = os.path.splitext(msa_file)[0] + "_weights.npz"
-
-    if (not force_recalc) and os.path.exists(cache_path):
-        try:
-            return np.load(cache_path)["sequence_weights"]
-        except Exception as e:
-            print(f"Failed to load cached weights from {cache_path}: {e}. Recomputing …")
-
-    # Encode → compute → normalise
-    encoded = _encode_msa_strings_to_uint8(sequences)
-
-    _, p = compute_homology_weights(
-        ungapped_msa=encoded,
-        theta=theta,
-        gap_token=_GAP_TOKEN_IDX,
-        gap_token_mask=255,
-        can_use_torch=False,  # CPU is fine here; avoids GPU sync in data loader
-    )
-
-    np.savez_compressed(cache_path, sequence_weights=p)
-    return p
 
 
 def tokenize_msa(
@@ -211,7 +159,7 @@ def load_msa_for_row(
         keep_gaps=True
     )
         # Homology-based weights with on-disk caching
-        sequence_weights = compute_homology_sequence_weights(
+        sequence_weights = compute_homology_sequence_weights_with_cache(
             msa_file=msa_file,
             sequences=seqs_for_weights,
         ).tolist()
