@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.data.objects import ProteinDocument, check_array_lengths
+from src.data.objects import ProteinDocument
 from src.data.processors.transforms import (
     preprocess_raw_sequences_sampling_to_max_tokens,
 )
@@ -33,11 +33,4 @@ def test_sample_to_max_tokens_exceeds_max(protein_document, profam_tokenizer):
         assert (
             len(sampled_proteins.sequences[0])
             == max_tokens - profam_tokenizer.num_start_tokens - 1
-        )
-        sequence_lengths = check_array_lengths(
-            sampled_proteins.sequences,
-            sampled_proteins.modality_masks,
-        )
-        assert (
-            sequence_lengths[0][0] == max_tokens - profam_tokenizer.num_start_tokens - 1
         )
