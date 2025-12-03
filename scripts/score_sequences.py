@@ -1,15 +1,17 @@
 import argparse
+import json
 import os
-import sys
-import torch
 import random
+import sys
+from datetime import datetime
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-import json
-from datetime import datetime
-from scipy.stats import spearmanr
-from typing import Dict, List, Optional
 import rootutils
+import torch
+from scipy.stats import spearmanr
+
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
 """
@@ -19,11 +21,10 @@ Outputs: prints per-sequence mean log-likelihoods to stdout as CSV
 """
 
 from src.data.objects import ProteinDocument
-from src.sequence.fasta import read_fasta
 from src.models.llama import LlamaLitModule
+from src.sequence.fasta import read_fasta
 from src.utils.utils import seed_all
 from src.data.msa_subsampling import compute_homology_sequence_weights_with_cache
-
 
 def write_fasta(sequences, accessions, fasta_path):
     with open(fasta_path, "w") as f:
@@ -50,7 +51,6 @@ def score_variants_ensemble(
     start_tokens: list[int] = [47, 63],
     resample_downweighter: float = 1.0,
     max_tokens_override: Optional[int] = None,
-    weights: Optional[np.ndarray] = None,
 ):
     """
     Computes the mean log-likelihood of candidate sequences using an ensemble of prompts
@@ -64,28 +64,34 @@ def score_variants_ensemble(
     seq_lengths = [len(seq) for seq in tokenized_conditioning_sequences]
     total_seqs = len(seq_lengths)
     completion_length = completion_ids.shape[-1]
-    
-    max_tokens = max_tokens_override if max_tokens_override is not None else model.max_tokens
+
+    max_tokens = (
+        max_tokens_override if max_tokens_override is not None else model.max_tokens
+    )
     max_context_tokens = (max_tokens - completion_length) - 5
-    
+
     avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
     min_seq_len = min(seq_lengths) if len(seq_lengths) > 0 else 0
     assumed_seq_len = (min_seq_len + avg_seq_len) / 2
-    
-    max_n_by_tokens = max(0, min(int(max_context_tokens // assumed_seq_len) + 2, total_seqs)) if avg_seq_len > 0 else 0
-    
+
+    max_n_by_tokens = (
+        max(0, min(int(max_context_tokens // assumed_seq_len) + 2, total_seqs))
+        if avg_seq_len > 0
+        else 0
+    )
+
     # find range of n_opt values that are in the target likelihood range (heuristic range here):
     lower_bound = min(max_n_by_tokens, 2)
     upper_bound = min(max_n_by_tokens, total_seqs)
     vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
     if len(vals_in_range) == 0:
         vals_in_range = [0]
-        
+
     n_opt = int(rng.choice(vals_in_range))
     n_seqs_list = []
     variant_lls: List[np.ndarray] = []
     token_count_attempts = 100
-    
+
     if completion_length + 2 > max_tokens:
         n_opt = 0
         repeats = 1
@@ -101,9 +107,9 @@ def score_variants_ensemble(
                 if len(vals_in_range) > 0:
                     n_opt = int(random.choice(vals_in_range))
                 else:
-                    n_opt = 0 # Stuck at 0
+                    n_opt = 0  # Stuck at 0
                     break
-            
+
             if total_seqs > 0:
                 p = weights / weights.sum() if weights is not None else None
                 idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=p).tolist()
@@ -124,69 +130,100 @@ def score_variants_ensemble(
                 if fail_count > token_count_attempts:
                     n_opt = max(0, n_opt - 1)
                     fail_count = 0
-        
+
         # Build prompt
         if n_opt == 0 or len(idxs) == 0:
-             prompt_ids_list = [] # No context
+            prompt_ids_list = []  # No context
         else:
             prompt_ids_list = list(start_tokens)
             for i, idx in enumerate(idxs):
                 prompt_ids_list.extend(tokenized_conditioning_sequences[idx])
                 if i < len(idxs) - 1:
                     prompt_ids_list.append(sep_token_id)
-        
+
         if len(prompt_ids_list) > 0:
-            input_ids = torch.tensor(prompt_ids_list, dtype=torch.long, device=model.device).unsqueeze(0)
+            input_ids = torch.tensor(
+                prompt_ids_list, dtype=torch.long, device=model.device
+            ).unsqueeze(0)
         else:
             input_ids = None
 
         L = completion_ids.shape[-1]
         L_prompt = 0 if input_ids is None else input_ids.shape[-1]
-        
-        # Ensure completion_ids is on device
+
         completion_ids_device = completion_ids.to(model.device)
-        
+
         lls = model.score_seqs(
             input_ids,
             completion_ids_device,
             use_cache=getattr(model, "use_kv_cache_for_scoring", True),
-            batch_size=max((getattr(model, "scoring_max_tokens", 32000)) // (L + L_prompt), 1)
+            batch_size=max(
+                (getattr(model, "scoring_max_tokens", 32000)) // (L + L_prompt), 1
+            )
             if getattr(model, "use_kv_cache_for_scoring", True)
             else 1,
         )
-        
+
         variant_lls.append(lls)
         n_seqs_list.append(n_opt)
-        
+
         if len(vals_in_range) > 0:
             n_opt = rng.choice(vals_in_range)
 
-
-    # Stack and persist
     lls_array = np.stack(variant_lls, axis=0)
     # Return per-sequence mean log-likelihood across variants
     mean_lls_per_sequence = lls_array.mean(axis=0)
-    
+
     return mean_lls_per_sequence
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compute conditional likelihoods of candidate sequences given conditioning sequences")
+    parser = argparse.ArgumentParser(
+        description="Compute conditional likelihoods of candidate sequences given conditioning sequences"
+    )
     parser.add_argument(
         "--checkpoint_dir",
         type=str,
         default="model_checkpoints/abyoeovl",
         help="Checkpoint run directory (contains checkpoints/last.ckpt)",
     )
-    parser.add_argument("--conditioning_fasta", type=str, default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.a3m", help="Path to conditioning FASTA/MSA file")
-    parser.add_argument("--candidates_file", type=str, default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.csv", 
-    help="Path to candidate sequences FASTA file or csv file with columns: 'mutated_sequence', and optionally 'DMS_score'")
-    parser.add_argument("--save_dir", type=str, default="outputs", help="Directory to save output files")
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--dtype", type=str, default="bfloat16", choices=["float32", "float16", "bfloat16"])
+    parser.add_argument(
+        "--conditioning_fasta",
+        type=str,
+        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.a3m",
+        help="Path to conditioning FASTA/MSA file",
+    )
+    parser.add_argument(
+        "--candidates_file",
+        type=str,
+        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.csv",
+        help="Path to candidate sequences FASTA file or csv file with columns: 'mutated_sequence', and optionally 'DMS_score'",
+    )
+    parser.add_argument(
+        "--save_dir", type=str, default="outputs", help="Directory to save output files"
+    )
+    parser.add_argument(
+        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+    )
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
+    )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--max_tokens", type=int, default=8192, help="Token budget (prompt+completion) used for batch size heuristics")
-    parser.add_argument("--ensemble_number", type=int, default=3, help="Number of prompts used to generate the ensemble score")
+    parser.add_argument(
+        "--max_tokens",
+        type=int,
+        default=8192,
+        help="Token budget (prompt+completion) used for batch size heuristics",
+    )
+    parser.add_argument(
+        "--ensemble_number",
+        type=int,
+        default=3,
+        help="Number of prompts used to generate the ensemble score",
+    )
     parser.add_argument(
         "--attn_implementation",
         type=str,
@@ -205,7 +242,10 @@ def main():
         import flash_attn
     except ImportError:
         if attn_impl == "flash_attention_2":
-            print("Flash attention requested but not installed. Reverting to sdpa.", file=sys.stderr)
+            print(
+                "Flash attention requested but not installed. Reverting to sdpa.",
+                file=sys.stderr,
+            )
             attn_impl = "sdpa"
 
     try:
@@ -213,13 +253,17 @@ def main():
         hyper_params = ckpt_blob.get("hyper_parameters", {})
         cfg_obj = hyper_params.get("config", None)
         if cfg_obj is None:
-            raise RuntimeError("Could not find 'config' in checkpoint hyper_parameters to override attn implementation")
+            raise RuntimeError(
+                "Could not find 'config' in checkpoint hyper_parameters to override attn implementation"
+            )
         setattr(cfg_obj, "attn_implementation", attn_impl)
         setattr(cfg_obj, "_attn_implementation", attn_impl)
         # We handle ensemble size explicitly now, but setting it here doesn't hurt
         if hasattr(cfg_obj, "gym_subsamples_per_n"):
             setattr(cfg_obj, "gym_subsamples_per_n", args.ensemble_number)
-        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj, strict=False)
+        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(
+            ckpt_path, config=cfg_obj, strict=False
+        )
     except Exception as e:
         raise RuntimeError(f"Failed to override attention implementation: {e}")
     model.eval()
@@ -240,43 +284,58 @@ def main():
     )
     
     # Tokenize conditioning sequences individually
-    print(f"Tokenizing {len(cond_doc.sequences)} conditioning sequences...", file=sys.stderr)
-    # Using the tokenizer directly on strings to get IDs. 
+    print(
+        f"Tokenizing {len(cond_doc.sequences)} conditioning sequences...",
+        file=sys.stderr,
+    )
+    # Using the tokenizer directly on strings to get IDs.
     # NOTE: verify if we need spaces or not. The tokenizer in debug worked on "ACDEFGH".
     tokenized_conditioning_sequences = [
-        model.tokenizer(seq.upper().replace("-", "").replace(".", ""), add_special_tokens=False)["input_ids"] 
+        model.tokenizer(
+            seq.upper().replace("-", "").replace(".", ""), add_special_tokens=False
+        )["input_ids"]
         for seq in cond_doc.sequences
     ]
-    
+
     # Read candidates
     dms_scores = None
     if args.candidates_file.endswith(".csv"):
         df = pd.read_csv(args.candidates_file)
         if "mutated_sequence" not in df.columns:
-             raise ValueError("CSV must have 'mutated_sequence' column")
+            raise ValueError("CSV must have 'mutated_sequence' column")
         # Ensure upper case
         cand_seqs = df["mutated_sequence"].astype(str).str.upper().tolist()
-        
+
         if "mutant" in df.columns:
             cand_names = df["mutant"].astype(str).tolist()
         else:
             cand_names = [f"seq_{i}" for i in range(len(cand_seqs))]
-            
+
         if "DMS_score" in df.columns:
-             dms_scores = df["DMS_score"].values
+            dms_scores = df["DMS_score"].values
     else:
-        cand_names, cand_seqs = read_fasta(args.candidates_file, keep_insertions=False, to_upper=True)
+        cand_names, cand_seqs = read_fasta(
+            args.candidates_file, keep_insertions=False, to_upper=True
+        )
 
     if len(cand_seqs) == 0:
         raise ValueError("No candidate sequences found")
 
     # Encode completions with BOS/EOS = [SEP]
-    comp_tok = model.tokenizer.encode_completions(cand_seqs, bos_token=model.tokenizer.sep_token, eos_token=model.tokenizer.sep_token)
-    completion_ids = torch.as_tensor(comp_tok["input_ids"], dtype=torch.long).unsqueeze(0).to(model.device)  # (1, n, L)
+    comp_tok = model.tokenizer.encode_completions(
+        cand_seqs,
+        bos_token=model.tokenizer.sep_token,
+        eos_token=model.tokenizer.sep_token,
+    )
+    completion_ids = (
+        torch.as_tensor(comp_tok["input_ids"], dtype=torch.long)
+        .unsqueeze(0)
+        .to(model.device)
+    )  # (1, n, L)
 
     with torch.no_grad():
         lls = score_variants_ensemble(
-            model=model, 
+            model=model,
             completion_ids=completion_ids,
             tokenized_conditioning_sequences=tokenized_conditioning_sequences,
             ensemble_size=args.ensemble_number,
@@ -288,21 +347,19 @@ def main():
     # Output handling
     os.makedirs(args.save_dir, exist_ok=True)
     candidate_basename = os.path.splitext(os.path.basename(args.candidates_file))[0]
-    
+
     csv_path = os.path.join(args.save_dir, f"{candidate_basename}_scores.csv")
     json_path = os.path.join(args.save_dir, f"{candidate_basename}_metadata.json")
-    
+
     # Save CSV
     print(f"Saving scores to {csv_path}...")
-    df_out = pd.DataFrame({
-        "id": cand_names,
-        "mutated_sequence": cand_seqs,
-        "score": lls.tolist()
-    })
+    df_out = pd.DataFrame(
+        {"id": cand_names, "mutated_sequence": cand_seqs, "score": lls.tolist()}
+    )
     if dms_scores is not None:
         df_out["DMS_score"] = dms_scores
     df_out.to_csv(csv_path, index=False)
-    
+
     # Print to stdout as well (header compatible with previous version)
     print(df_out[["id", "mutated_sequence", "score"]].to_csv(index=False))
 
@@ -322,12 +379,12 @@ def main():
         "candidates_file": args.candidates_file,
         "mean_likelihood_score": float(np.mean(lls)),
         "spearman_correlation": float(corr) if corr is not None else None,
-        "checkpoint": args.checkpoint_dir
+        "checkpoint": args.checkpoint_dir,
     }
-    
+
     with open(json_path, "w") as f:
         json.dump(metadata, f, indent=4)
-    
+
     print(f"Metadata saved to {json_path}", file=sys.stderr)
 
 

@@ -1,24 +1,29 @@
 import argparse
-import os
 import glob
+import os
+
+import rootutils
 import torch
 import torch.nn.functional as F
-import rootutils
+
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
+from src.data.objects import ProteinDocument
+from src.data.processors.preprocessing import (
+    AlignedProteinPreprocessingConfig,
+    PreprocessingConfig,
+    ProteinDocumentPreprocessor,
+)
 from src.models.base import load_checkpoint
 from src.models.inference import (
     EnsemblePromptBuilder,
     ProFamEnsembleSampler,
+    ProFamSampler,
     PromptBuilder,
-    ProFamSampler
 )
-from src.data.objects import ProteinDocument
-from src.data.processors.preprocessing import PreprocessingConfig, ProteinDocumentPreprocessor, AlignedProteinPreprocessingConfig
-from src.sequence.fasta import read_fasta
 from src.models.llama import LlamaLitModule
+from src.sequence.fasta import read_fasta
 from src.utils.utils import seed_all
-
 
 
 def write_fasta(sequences, accessions, fasta_path):
@@ -42,29 +47,62 @@ def build_pool_from_fasta(path: str) -> ProteinDocument:
 def main():
     parser = argparse.ArgumentParser(description="Debug ensemble decoder sampling")
     parser.add_argument(
-        "--checkpoint_dir", 
-        type=str, 
-        default="model_checkpoints/abyoeovl", 
-        help="Checkpoint run directory (contains .hydra)"
+        "--checkpoint_dir",
+        type=str,
+        default="model_checkpoints/abyoeovl",
+        help="Checkpoint run directory (contains .hydra)",
     )
     parser.add_argument(
         "--glob",
         type=str,
         required=True,
-        help="Glob pattern for input FASTA/MSA files (e.g. 'data/4_1_1_39_cluster_aln.filtered.fasta' or '../data/val/*.a3m')"
+        help="Glob pattern for input FASTA/MSA files (e.g. 'data/4_1_1_39_cluster_aln.filtered.fasta' or '../data/val/*.a3m')",
     )
-    parser.add_argument("--save_dir", type=str, default="outputs", help="Directory to save generated FASTA files")
-    parser.add_argument("--sampler", type=str, default="single", choices=["ensemble", "single"], help="Sampler type: ensemble or single")
+    parser.add_argument(
+        "--save_dir",
+        type=str,
+        default="outputs",
+        help="Directory to save generated FASTA files",
+    )
+    parser.add_argument(
+        "--sampler",
+        type=str,
+        default="single",
+        choices=["ensemble", "single"],
+        help="Sampler type: ensemble or single",
+    )
     parser.add_argument("--num_prompts_in_ensemble", type=int, default=8)
     parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--max_tokens", type=int, default=8192)
     parser.add_argument("--max_generated_length", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
-    parser.add_argument("--top_p", type=float, default=0.95, help="Nucleus sampling probability mass (0<p<=1)")
-    parser.add_argument("--reduction", type=str, default="mean_probs", choices=["mean_probs", "sum_log_probs"])
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--dtype", type=str, default="bfloat16", choices=["float32", "float16", "bfloat16"])
-    parser.add_argument("--continuous_sampling", action="store_true", default=False, help="Ignore [SEP] EOS and generate until token budget; drop final partial segment")
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0.95,
+        help="Nucleus sampling probability mass (0<p<=1)",
+    )
+    parser.add_argument(
+        "--reduction",
+        type=str,
+        default="mean_probs",
+        choices=["mean_probs", "sum_log_probs"],
+    )
+    parser.add_argument(
+        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+    )
+    parser.add_argument(
+        "--dtype",
+        type=str,
+        default="bfloat16",
+        choices=["float32", "float16", "bfloat16"],
+    )
+    parser.add_argument(
+        "--continuous_sampling",
+        action="store_true",
+        default=False,
+        help="Ignore [SEP] EOS and generate until token budget; drop final partial segment",
+    )
     parser.add_argument(
         "--max_sequence_length_multiplier",
         type=float,
@@ -102,9 +140,15 @@ def main():
     )
     parser.add_argument("--task_index", type=int, default=None, help="Task index")
     parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
-    parser.add_argument("--disable_repeat_guard", action="store_true", default=False, 
-    help="Disable repeat guard: repeat guard aborts and retries the sequence generation if it detects too many repeats")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible sampling")
+    parser.add_argument(
+        "--disable_repeat_guard",
+        action="store_true",
+        default=False,
+        help="Disable repeat guard: repeat guard aborts and retries the sequence generation if it detects too many repeats",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducible sampling"
+    )
     parser.add_argument(
         "--attn_implementation",
         type=str,
@@ -117,7 +161,7 @@ def main():
     if args.max_tokens > 8192:
         raise ValueError(
             "Max tokens must be less than or equal to 8192: model was only trained up to 8192 tokens, not likely to work at lengths above this"
-            )
+        )
     # Seed RNGs for reproducibility
     seed_all(args.seed)
 
@@ -137,11 +181,15 @@ def main():
         hyper_params = ckpt_blob.get("hyper_parameters", {})
         cfg_obj = hyper_params.get("config", None)
         if cfg_obj is None:
-            raise RuntimeError("Could not find 'config' in checkpoint hyper_parameters to override attn implementation")
+            raise RuntimeError(
+                "Could not find 'config' in checkpoint hyper_parameters to override attn implementation"
+            )
         # Set both public and internal fields to be safe across HF versions
         setattr(cfg_obj, "attn_implementation", attn_impl)
         setattr(cfg_obj, "_attn_implementation", attn_impl)
-        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(ckpt_path, config=cfg_obj, strict=False)
+        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(
+            ckpt_path, config=cfg_obj, strict=False
+        )
     except Exception as e:
         raise RuntimeError(f"Failed to override attention implementation: {e}")
 
@@ -164,7 +212,9 @@ def main():
         else:
             end_idx = start_idx + batch_size
         input_files = input_files[start_idx:end_idx]
-        print(f"Processing {len(input_files)} files in task {args.task_index} of {args.num_tasks}")
+        print(
+            f"Processing {len(input_files)} files in task {args.task_index} of {args.num_tasks}"
+        )
         for fpath in input_files:
             print(fpath)
     if len(input_files) == 0:
@@ -187,7 +237,9 @@ def main():
     preprocessor = ProteinDocumentPreprocessor(cfg=cfg)
 
     if args.sampler == "ensemble":
-        builder = EnsemblePromptBuilder(preprocessor=preprocessor, shuffle=True, seed=args.seed)
+        builder = EnsemblePromptBuilder(
+            preprocessor=preprocessor, shuffle=True, seed=args.seed
+        )
         sampler = ProFamEnsembleSampler(
             name="ensemble_sampler",
             model=model,
@@ -199,8 +251,10 @@ def main():
             add_final_sep=True,
         )
     else:
-        
-        builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True, seed=args.seed)
+
+        builder = PromptBuilder(
+            preprocessor=preprocessor, prompt_is_aligned=True, seed=args.seed
+        )
         sampling_kwargs = {}
         if args.top_p is not None:
             sampling_kwargs["top_p"] = args.top_p
@@ -226,7 +280,9 @@ def main():
         try:
             pool = build_pool_from_fasta(fasta_path)
             longest_prompt_len = int(max(pool.sequence_lengths))
-            default_cap = int(longest_prompt_len * float(args.max_sequence_length_multiplier))
+            default_cap = int(
+                longest_prompt_len * float(args.max_sequence_length_multiplier)
+            )
             if args.max_generated_length is None:
                 max_gen_len = default_cap
             else:
@@ -239,7 +295,9 @@ def main():
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
-                    num_prompts_in_ensemble=min(args.num_prompts_in_ensemble, len(pool.sequences)),
+                    num_prompts_in_ensemble=min(
+                        args.num_prompts_in_ensemble, len(pool.sequences)
+                    ),
                     max_generated_length=max_gen_len,
                     continuous_sampling=args.continuous_sampling,
                     minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
@@ -249,7 +307,9 @@ def main():
                 )
             else:
                 preprocessor.cfg.max_tokens_per_example = args.max_tokens - max_gen_len
-                builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
+                builder = PromptBuilder(
+                    preprocessor=preprocessor, prompt_is_aligned=True
+                )
                 sampling_kwargs = {}
                 if args.top_p is not None:
                     sampling_kwargs["top_p"] = args.top_p
@@ -260,7 +320,9 @@ def main():
                     model=model,
                     prompt_builder=builder,
                     document_token=doc_token,
-                    sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
+                    sampling_kwargs=sampling_kwargs
+                    if len(sampling_kwargs) > 0
+                    else None,
                     add_final_sep=True,
                 )
                 sequences, scores, _ = sampler.sample_seqs(
@@ -275,8 +337,10 @@ def main():
                     repeat_guard=repeat_guard,
                 )
 
-
-            accessions = [f"{base}_sample_{i}_log_likelihood_{score:.3f}" for i, score in enumerate(scores)]
+            accessions = [
+                f"{base}_sample_{i}_log_likelihood_{score:.3f}"
+                for i, score in enumerate(scores)
+            ]
             write_fasta(sequences, accessions, out_path)
             print(f"Wrote {len(sequences)} sequences -> {out_path}")
         except Exception as e:
@@ -285,4 +349,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

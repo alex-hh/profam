@@ -70,7 +70,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         *args,
         add_bos_token: bool = True,
         add_document_token: bool = True,
-                seq_struct_sep_token="|",
+        seq_struct_sep_token="|",
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -138,9 +138,6 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
             assert not (
                 tokenized.input_ids == self.convert_tokens_to_ids("[UNK]")
             ).any(), "UNK tokens in input"
-
-
-
 
         else:
             # TODO: handle more carefully

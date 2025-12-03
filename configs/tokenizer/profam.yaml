@@ -9,4 +9,3 @@ seq_struct_sep_token: "|"
 add_final_sep: true
 add_bos_token: true
 add_document_token: true
-

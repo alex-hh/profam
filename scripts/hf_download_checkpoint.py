@@ -3,7 +3,8 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from huggingface_hub import snapshot_download, get_token
+
+from huggingface_hub import get_token, snapshot_download
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,9 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--target-dir",
         default=str(
-            Path(__file__).resolve().parents[1]
-            / "model_checkpoints"
-            / "abyoeovl"
+            Path(__file__).resolve().parents[1] / "model_checkpoints" / "abyoeovl"
         ),
         help="Destination directory (default: model_checkpoints/abyoeovl)",
     )
@@ -79,5 +78,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

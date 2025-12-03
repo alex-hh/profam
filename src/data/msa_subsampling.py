@@ -2,9 +2,9 @@ import hashlib
 import math
 import os
 import pickle
-from pathlib import Path
-from typing import Callable, Literal, Optional, Union, Sequence
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Literal, Optional, Sequence, Union
 
 import numba as nb
 import numpy as np
@@ -21,6 +21,7 @@ def hash_of_string_list(lst: list[str]) -> str:
     for elt in lst:
         m.update(elt.encode("utf-8"))
     return m.hexdigest()
+
 
 def compute_hamming_csim_np(
     seqs: np.ndarray,
@@ -162,8 +163,6 @@ def _compute_homology_weights(
             this_neighbors = (d <= theta).sum(dim=1).cpu()
         neighbors.append(this_neighbors)
     return np.concatenate(neighbors)
-
-
 
 
 def compute_homology_weights(

@@ -17,7 +17,6 @@ def load_named_model(model_name, overrides=None):
         )
         tokenizer_cfg = compose(config_name=f"tokenizer/profam")
 
-
     tokenizer = instantiate(tokenizer_cfg.tokenizer)
     model = instantiate(model_cfg.model, tokenizer=tokenizer)
     return model
@@ -83,7 +82,6 @@ class InputAwareDynamicCache(DynamicCache):
         if isinstance(cache, cls):
             new_cache.input_ids_cache = cache.input_ids_cache
         return new_cache
-
 
 
 def log_likelihood_from_outputs(model_outputs, labels, start_ix=0, flatten=False):

@@ -258,9 +258,7 @@ class OnlineSampleMappingDataset(torch.utils.data.Dataset):
         self.dataset = dataset
         dataset_size = len(dataset)
         self.num_samples = num_samples
-        self.mapping = OnlineSampleMapping(
-            dataset_size=dataset_size,
-             **kwargs)
+        self.mapping = OnlineSampleMapping(dataset_size=dataset_size, **kwargs)
 
     def __str__(self) -> str:
         return (
@@ -410,7 +408,7 @@ class WeightedConcatOnlineDataset(torch.utils.data.Dataset):
             logger.warning(
                 "Weights contain zero values. This may lead to empty datasets."
             )
-        
+
         num_samples = int(np.sum([len(d) for d in datasets]))
 
         self.datasets = datasets

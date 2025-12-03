@@ -5,6 +5,7 @@ from transformers import LlamaConfig, LlamaForCausalLM, PreTrainedTokenizerFast
 
 from src.models.base import BaseFamilyLitModule
 
+
 class LlamaLitModule(BaseFamilyLitModule):
     def __init__(
         self,
@@ -18,10 +19,10 @@ class LlamaLitModule(BaseFamilyLitModule):
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
         pass_res_pos_in_doc_as_position_ids: bool = True,
-                max_sequence_index: int = 1024,
+        max_sequence_index: int = 1024,
         optimizer: str = "adamw",
         override_optimizer_on_load: bool = False,
-        gym_results_save_dir = None,
+        gym_results_save_dir=None,
         # New loss: zero gradients for samples whose mean log-likelihood exceeds a threshold
         gym_subsamples_per_n: int = 5,
     ) -> None:

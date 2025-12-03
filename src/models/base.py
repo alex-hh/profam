@@ -1,8 +1,10 @@
+import copy
 import os
+import random
 import time
 import warnings
 from datetime import datetime
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
 import numpy as np
@@ -13,12 +15,11 @@ import tqdm
 from lightning import LightningModule
 from omegaconf import OmegaConf
 from scipy.stats import spearmanr
+from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
+from torch import nn
+from transformers import PreTrainedTokenizerFast, StoppingCriteriaList
+from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
-from transformers import StoppingCriteriaList
-import torch
-import random
-import warnings
-import copy
 
 from src.constants import BASEDIR, aa_letters, aa_letters_lower
 from src.data.objects import StringObject
@@ -76,11 +77,11 @@ class BaseFamilyLitModule(LightningModule):
         override_optimizer_on_load: bool = False,
         max_tokens: int = 8192,
         gym_subsamples_per_n: int = 5,
-        gym_results_save_dir = None,
+        gym_results_save_dir=None,
         ignore_index: int = -100,
     ):
         super().__init__()
-        
+
         self.model = model
         self.tokenizer = tokenizer
         self.save_hyperparameters(logger=False, ignore=["model"])
@@ -93,9 +94,7 @@ class BaseFamilyLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
-        
-        
-        
+
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if gym_results_save_dir is not None:
@@ -152,18 +151,15 @@ class BaseFamilyLitModule(LightningModule):
             prog_bar=True,
         )
 
-
     def on_before_optimizer_step(self, optimizer):
         # https://github.com/Lightning-AI/pytorch-lightning/issues/1462
         self.log(
             "train/grad_norm",
             calc_grad_norm(self.model.parameters()),
             on_step=True,
-
             prog_bar=True,
         )
         self.log("train/lr", optimizer.param_groups[0]["lr"])
-
 
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
@@ -197,7 +193,6 @@ class BaseFamilyLitModule(LightningModule):
         )
         return loss
 
-
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> torch.Tensor:
@@ -205,9 +200,6 @@ class BaseFamilyLitModule(LightningModule):
         if "DMS_scores" in batch:
             print("validation step:", batch["DMS_id"].text[0])
             outputs = self.validation_step_proteingym(batch)
-            return outputs
-        elif "family_labels" in batch:
-            outputs = self.validation_step_family_classification(batch)
             return outputs
         else:
             outputs = self(
@@ -302,8 +294,6 @@ class BaseFamilyLitModule(LightningModule):
             }
         return optim_dict
 
-
-
     def trim_eval_batch(self, seqs_ids):
         """
         trim to first padding token in mini-batch
@@ -331,9 +321,14 @@ class BaseFamilyLitModule(LightningModule):
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
-        assert input_ids[0,0] == self.tokenizer.vocab['[start-of-document]'] and input_ids[0,1] > 19, "First two tokens should be special start-of-doc and document type"
-        if completion_ids[0,0,0] == self.tokenizer.sep_token_id:
-            assert input_ids[0, -1] != self.tokenizer.sep_token_id, "Double sep token in input and completion"
+        assert (
+            input_ids[0, 0] == self.tokenizer.vocab["[start-of-document]"]
+            and input_ids[0, 1] > 19
+        ), "First two tokens should be special start-of-doc and document type"
+        if completion_ids[0, 0, 0] == self.tokenizer.sep_token_id:
+            assert (
+                input_ids[0, -1] != self.tokenizer.sep_token_id
+            ), "Double sep token in input and completion"
         outputs = self.model(input_ids=input_ids, use_cache=True)
         past_key_values = (
             outputs.past_key_values
@@ -410,9 +405,7 @@ class BaseFamilyLitModule(LightningModule):
                 this_input_ids[..., likelihood_start_ix] not in self.tokenizer.aa_tokens
             ), "Likelihood start ix is an AA token - likelihood cannot be computed for this position"
 
-            outputs = self.model(
-                input_ids=this_input_ids, use_cache=False
-            )
+            outputs = self.model(input_ids=this_input_ids, use_cache=False)
             # TODO: maybe relabel start_ix - a bit confusing
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=likelihood_start_ix
@@ -427,25 +420,28 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         batch_size: int = 1,
         verbose: bool = False,
-        start_tokens: list[int] = [47, 63]
-        
+        start_tokens: list[int] = [47, 63],
     ):
         if len(completion_ids.shape) == 3:
             completion_ids = completion_ids.squeeze(0)
-        if (completion_ids[:,0] == self.tokenizer.sep_token_id).any():
-            assert (completion_ids[:,0] == self.tokenizer.sep_token_id).all(), "Some sequences have sep token at start but not all"
+        if (completion_ids[:, 0] == self.tokenizer.sep_token_id).any():
+            assert (
+                completion_ids[:, 0] == self.tokenizer.sep_token_id
+            ).all(), "Some sequences have sep token at start but not all"
             completion_ids = completion_ids[:, 1:]
-        if (completion_ids[:,0] != start_tokens[0]).any():
-            start_tokens_tensor = torch.tensor(start_tokens, device=completion_ids.device).unsqueeze(0).repeat(completion_ids.shape[0], 1)
+        if (completion_ids[:, 0] != start_tokens[0]).any():
+            start_tokens_tensor = (
+                torch.tensor(start_tokens, device=completion_ids.device)
+                .unsqueeze(0)
+                .repeat(completion_ids.shape[0], 1)
+            )
             completion_ids = torch.cat([start_tokens_tensor, completion_ids], dim=-1)
         all_lls = []
         for completion_ix in tqdm.tqdm(
             range(0, completion_ids.shape[0], batch_size), disable=not verbose
         ):
-            this_input_ids = completion_ids[completion_ix:completion_ix+batch_size]
-            outputs = self.model(
-                input_ids=this_input_ids, use_cache=False
-            )
+            this_input_ids = completion_ids[completion_ix : completion_ix + batch_size]
+            outputs = self.model(input_ids=this_input_ids, use_cache=False)
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
                 -100,
@@ -484,7 +480,7 @@ class BaseFamilyLitModule(LightningModule):
                 return self._score_seqs_no_cache(
                     input_ids,
                     completion_ids,
-                    batch_size=batch_size,  
+                    batch_size=batch_size,
                 )
         else:
             return self._score_seqs_no_context(
@@ -537,10 +533,14 @@ class BaseFamilyLitModule(LightningModule):
         elif max_generated_length is not None:
             generation_kwargs["min_new_tokens"] = 3
             generation_kwargs["max_new_tokens"] = max_generated_length
-            generation_kwargs["eos_token_id"] = None if continuous_sampling else sep_token_id
+            generation_kwargs["eos_token_id"] = (
+                None if continuous_sampling else sep_token_id
+            )
         else:
             generation_kwargs["min_new_tokens"] = 3  # for esmfold
-            generation_kwargs["eos_token_id"] = None if continuous_sampling else sep_token_id
+            generation_kwargs["eos_token_id"] = (
+                None if continuous_sampling else sep_token_id
+            )
             generation_kwargs["max_length"] = max_total_length
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
         if top_p is not None:
@@ -592,9 +592,16 @@ class BaseFamilyLitModule(LightningModule):
                 stopping = None
                 if not continuous_sampling and repeat_guard:
                     prompt_len = input_ids.shape[1]
-                    stopping = StoppingCriteriaList([
-                        RepeatStoppingCriteria(self.tokenizer, repeat_length=repeat_length, repeat_count=repeat_count, prompt_length=prompt_len)
-                    ])
+                    stopping = StoppingCriteriaList(
+                        [
+                            RepeatStoppingCriteria(
+                                self.tokenizer,
+                                repeat_length=repeat_length,
+                                repeat_count=repeat_count,
+                                prompt_length=prompt_len,
+                            )
+                        ]
+                    )
                 gen_out = self.model.generate(
                     input_ids=input_ids,
                     num_return_sequences=1,
@@ -618,11 +625,19 @@ class BaseFamilyLitModule(LightningModule):
                     # find last non-pad token index
                     pad_id = self.tokenizer.pad_token_id
                     valid_len = int((row != pad_id).sum().item())
-                    last_tok = int(row[valid_len - 1].item()) if valid_len > 0 else pad_id
-                    text = self.tokenizer.decode(row[:valid_len].tolist(), skip_special_tokens=True).replace(" ", "")
-                    ends_with_sep = (last_tok == self.tokenizer.sep_token_id)
-                    is_repeaty = has_too_many_repeats(text, repeat_length=repeat_length, repeat_count=repeat_count)
-                    if (not ends_with_sep) or (is_repeaty and (not continuous_sampling)):
+                    last_tok = (
+                        int(row[valid_len - 1].item()) if valid_len > 0 else pad_id
+                    )
+                    text = self.tokenizer.decode(
+                        row[:valid_len].tolist(), skip_special_tokens=True
+                    ).replace(" ", "")
+                    ends_with_sep = last_tok == self.tokenizer.sep_token_id
+                    is_repeaty = has_too_many_repeats(
+                        text, repeat_length=repeat_length, repeat_count=repeat_count
+                    )
+                    if (not ends_with_sep) or (
+                        is_repeaty and (not continuous_sampling)
+                    ):
                         failed_indices.append(i)
                     else:
                         # accept and score
@@ -633,8 +648,12 @@ class BaseFamilyLitModule(LightningModule):
                         finished_non_cont = False
                         T = len(scores_list)
                         for t in range(T):
-                            token_id = int(seqs[i, t].item()) if t < seqs.shape[1] else pad_id
-                            lp = F.log_softmax(scores_list[t], dim=-1)[i, token_id].item()
+                            token_id = (
+                                int(seqs[i, t].item()) if t < seqs.shape[1] else pad_id
+                            )
+                            lp = F.log_softmax(scores_list[t], dim=-1)[
+                                i, token_id
+                            ].item()
                             if not continuous_sampling:
                                 if finished_non_cont:
                                     continue
@@ -643,7 +662,9 @@ class BaseFamilyLitModule(LightningModule):
                                 if token_id == self.tokenizer.sep_token_id:
                                     finished_non_cont = True
                             else:
-                                raise ValueError("Continuous sampling is not supported for base model")
+                                raise ValueError(
+                                    "Continuous sampling is not supported for base model"
+                                )
                         batch_scores.append(total_logp / max(count, 1))
 
                 if len(failed_indices) == 0:
@@ -659,8 +680,14 @@ class BaseFamilyLitModule(LightningModule):
                             count = 0
                             T = len(scores_list)
                             for t in range(T):
-                                token_id = int(seqs[i, t].item()) if t < seqs.shape[1] else pad_id
-                                lp = F.log_softmax(scores_list[t], dim=-1)[i, token_id].item()
+                                token_id = (
+                                    int(seqs[i, t].item())
+                                    if t < seqs.shape[1]
+                                    else pad_id
+                                )
+                                lp = F.log_softmax(scores_list[t], dim=-1)[
+                                    i, token_id
+                                ].item()
                                 total_logp += float(lp)
                                 count += 1
                             batch_scores.append(total_logp / max(count, 1))
@@ -683,8 +710,6 @@ class BaseFamilyLitModule(LightningModule):
             start_ix += o.shape[0]
 
         return padded_outputs, all_scores
-
-
 
     @torch.no_grad()
     def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
@@ -797,575 +822,41 @@ class BaseFamilyLitModule(LightningModule):
                 add_dataloader_idx=add_dataloader_idx,
             )
 
-
-
-    # ---------------------------------------------------------------------
-    # Context subsampling helpers (adapted from eval_ckpt_model_on_gym_multi_prompt)
-    # ---------------------------------------------------------------------
-    @staticmethod
-    def _clone_batch(batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        """Deep-clone a ProteinGym batch so that in-place slicing does not affect the original."""
-        out: Dict[str, torch.Tensor] = {}
-        for k, v in batch.items():
-            if torch.is_tensor(v):
-                out[k] = v.clone()
-            elif isinstance(v, list):
-                out[k] = v.copy()
-            else:
-                out[k] = copy.deepcopy(v)
-        return out
-
-
-    @staticmethod
-    def _compute_spearman(lls: np.ndarray, dms_scores: np.ndarray):
-        if lls.min() == lls.max():
-            return 0.0
-        return float(spearmanr(lls.astype(np.float32), dms_scores.astype(np.float32))[0])
-
-
-    def _prepare_prompt_and_stats(
-        self,
-        batch: Dict[str, torch.Tensor],
-        start_tokens: list[int],
-    ):
-        """Canonicalise prompt (strip leading start tokens; ensure trailing SEP) and
-        compute per-sequence boundaries and lengths.
-
-        Returns (seq_starts, seq_ends, seq_lengths, total_seqs, completion_length).
-        Modifies `batch["input_ids"]` in-place.
-        """
-        sep_tok_id = self.tokenizer.sep_token_id
-        start_tokens_tensor = torch.tensor(start_tokens, device=batch["input_ids"].device).unsqueeze(0)
-
-        # Strip leading start tokens if present
-        if (batch["input_ids"][0, : start_tokens_tensor.shape[1]] == start_tokens_tensor).all():
-            batch["input_ids"] = batch["input_ids"][:, start_tokens_tensor.shape[1] :]
-
-        # Ensure trailing SEP token
-        if batch["input_ids"][0, -1] != sep_tok_id:
-            batch["input_ids"] = torch.cat(
-                [
-                    batch["input_ids"],
-                    torch.tensor([sep_tok_id], device=batch["input_ids"].device).unsqueeze(0),
-                ],
-                dim=-1,
-            )
-
-        # Prompt statistics
-        seq_ends = (batch["input_ids"][0] == sep_tok_id).nonzero(as_tuple=True)[0].cpu()
-        total_seqs = len(seq_ends)
-        seq_starts = torch.zeros_like(seq_ends)
-        if total_seqs > 1:
-            seq_starts[1:] = seq_ends[:-1] + 1
-        seq_lengths = (seq_ends - seq_starts + 1).tolist()
-        completion_length = batch["completion_ids"].shape[-1]
-        return seq_starts, seq_ends, seq_lengths, total_seqs, completion_length
-
-    def _make_truncated_batch_from_indices(
-        self,
-        batch: Dict[str, torch.Tensor],
-        idxs: List[int],
-        seq_starts: torch.Tensor,
-        seq_ends: torch.Tensor,
-        start_tokens: list[int],
-        allow_no_context: bool = True,
-        include_optional_meta: bool = True,
-    ) -> Dict[str, torch.Tensor]:
-        """Deep-clone `batch` keeping only sequences at indices `idxs`.
-
-        - If `idxs` is empty and `allow_no_context` is True, returns a cloned
-          batch with `input_ids` set to None (no-context path).
-        - Otherwise, concatenates the chosen sequences and prefixes start tokens.
-        """
-        new_batch = self._clone_batch(batch)
-        if len(idxs) == 0 and allow_no_context:
-            new_batch["input_ids"] = None
-            return new_batch
-
-        start_tokens_tensor = torch.tensor(start_tokens, device=new_batch["input_ids"].device).unsqueeze(0)
-        sep_tok_id = self.tokenizer.sep_token_id
-        if "sequence_weights" in new_batch and new_batch["sequence_weights"] is not None:
-            new_batch["sequence_weights"] = new_batch["sequence_weights"][0, idxs].clone()
-        def _concat_slices(tensor):
-            parts = [tensor[..., seq_starts[i] : seq_ends[i] + 1] for i in idxs]
-            concat = torch.cat(parts, dim=-1)
-            concat = torch.cat([start_tokens_tensor, concat], dim=-1)
-            if concat[0, -1] == sep_tok_id:
-                # remove the final sep token as this is in the completions
-                concat = concat[:, :-1]
-            return concat
-
-        new_batch["input_ids"] = _concat_slices(new_batch["input_ids"]).clone()
-
-        if include_optional_meta:
-            if "sequence_similarities" in new_batch and new_batch["sequence_similarities"] is not None:
-                new_batch["sequence_similarities"] = new_batch["sequence_similarities"][0, idxs].clone()
-            if "coverages" in new_batch and new_batch["coverages"] is not None:
-                new_batch["coverages"] = new_batch["coverages"][0, idxs].clone()
-
-        return new_batch
-
-
-
-    def _log_and_save_variant_results(
-        self,
-        dms_id: str,
-        lls_array: np.ndarray,
-        dms_scores_np: np.ndarray,
-        n_seqs_list: List[int],
-        variant_lls: Optional[List[np.ndarray]],
-        file_suffix: str,
-        rows: Optional[List[Dict[str, Any]]] = None,
-        extra_npz_payload: Optional[Dict[str, Any]] = None,
-        plot=False
-    ) -> Tuple[float, float]:
-        """Centralised logging, plotting and artefact saving for v3/v4/v5.
-
-        Returns (ensemble_log_ll, ensemble_spearman).
-        """
-        
-        mean_per_forward_pass = lls_array.mean(axis=1)
-        mean_lls = lls_array.mean(axis=0)
-        ensemble_spearman = self._compute_spearman(mean_lls, dms_scores_np)
-        ensemble_log_ll = float(lls_array.mean())
-
-        
-        sorted_indices_ll = np.argsort(-mean_per_forward_pass)
-        
-        for top_pct in [0.1, 0.3, 0.5, 0.7, 0.9, 1.0]:
-            top_k = max(1, int(top_pct * len(sorted_indices_ll)))
-            top_k_ll_mean_ll = lls_array[sorted_indices_ll[:top_k]].mean(axis=0)
-            top_k_ll_spearman = self._compute_spearman(top_k_ll_mean_ll, dms_scores_np)
-            self.log(
-                f"gym/top_{top_pct}_ll_spearman",
-                top_k_ll_spearman,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-                batch_size=1,
-            )
-
-        # Mean Spearman across variants
-        per_variant_spearman = [self._compute_spearman(lls_array[i], dms_scores_np) for i in range(lls_array.shape[0])]
-        mean_spearman = float(np.mean(per_variant_spearman)) if len(per_variant_spearman) > 0 else 0.0
-
-        # Save artefacts (CSV, NPZ, scatter)
-        if getattr(self, "global_rank", 0) == 0:
-            if self.gym_results_save_dir is not None:
-                csv_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}.csv")
-                lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_{file_suffix}_lls.npz")
-                if rows is not None and len(rows) > 0:
-                    try:
-                        pd.DataFrame(rows).to_csv(csv_path, index=False)
-                    except Exception as e:
-                        warnings.warn(f"Could not save CSV to {csv_path}: {e}")
-                payload = {
-                    "lls": lls_array.astype(np.float32),
-                    "n_prompt_seqs": np.asarray(n_seqs_list, dtype=np.int32),
-                    "dms_scores": dms_scores_np.astype(np.float32),
-                }
-                if extra_npz_payload is not None:
-                    for k, v in extra_npz_payload.items():
-                        payload[k] = np.asarray(v)
-                try:
-                    np.savez_compressed(lls_npz_path, **payload)
-                except Exception as e:
-                    warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
-
-        self.log(f"gym/mean_spearman_{file_suffix}", mean_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-        self.log(f"gym/ensemble_spearman_{file_suffix}", ensemble_spearman, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-        self.log(f"gym/ensemble_log_ll_{file_suffix}", ensemble_log_ll, on_step=True, on_epoch=True, prog_bar=False, sync_dist=True)
-        return ensemble_log_ll, ensemble_spearman
-
-
-    def get_sequence_weights(
-            self,
-            batch, 
-            precomputed_sequence_weights=None, 
-            coverage_multiplier: float = 0.0,
-            seq_sim_multiplier: float = 0.0,
-            precomputed_multiplier: float = 0.0,
-            target_seq_sim=0.5,
-            top_p_mass_target=0.65,
-            top_p=0.35,
-            min_seqs_for_weighting=200,
-            ):
-        eps = 1e-8
-
-        def _to_np_1d(x):
-            if x is None:
-                return None
-            arr = x.detach().float().cpu().numpy()
-            arr = arr[0]
-            return arr.astype(np.float32)
-
-        def _softmax_with_temp(scores: np.ndarray, tau: float) -> np.ndarray:
-            # Stable softmax
-            z = scores / max(tau, eps)
-            z = z - z.max()
-            exps = np.exp(z)
-            denom = exps.sum()
-            if denom <= eps:
-                return np.ones_like(scores) / max(scores.shape[0], 1)
-            return exps / denom
-
-        def _adjust_temperature_to_top_mass(scores: np.ndarray, desired_mass: float, top_frac: float) -> np.ndarray:
-            n = scores.shape[0]
-            if n == 0:
-                return scores
-            # If all scores equal, uniform is already smooth; return as-is
-            if np.allclose(scores, scores[0]):
-                return np.ones(n, dtype=np.float32) / max(n, 1)
-            k = max(1, int(np.ceil(top_frac * n)))
-            # Fix the ordering by raw scores; we tune temperature only
-            order = np.argsort(-scores)
-            top_idx = order[:k]
-            # Binary search on temperature to hit target mass smoothly
-            lo, hi = 1e-3, 1e3
-            best_probs = None
-            for _ in range(30):
-                mid = (lo + hi) / 2.0
-                probs = _softmax_with_temp(scores, mid)
-                mass = probs[top_idx].sum()
-                best_probs = probs
-                if mass < desired_mass:
-                    # Need sharper distribution (more mass on top) → decrease tau
-                    hi = mid
-                else:
-                    # Too concentrated → increase tau
-                    lo = mid
-            if best_probs is None:
-                best_probs = _softmax_with_temp(scores, 1.0)
-            s = best_probs.sum()
-            return (best_probs / s).astype(np.float32) if s > eps else (np.ones(n, dtype=np.float32) / max(n, 1))
-
-        # Determine n_seqs from any available vector
-        seq_sims_np = _to_np_1d(batch.get('sequence_similarities', None))
-        covs_np = _to_np_1d(batch.get('coverages', None))
-        if seq_sims_np is not None:
-            n_seqs = seq_sims_np.shape[0]
-        elif covs_np is not None:
-            n_seqs = covs_np.shape[0]
-        else:
-            raise ValueError("At least one of 'sequence_similarities' or 'coverages' must be present in batch")
-        if n_seqs < min_seqs_for_weighting:
-            return np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
-        use_precomputed = (precomputed_multiplier > 0) and (precomputed_sequence_weights is not None)
-        use_cov = (coverage_multiplier > 0) and (covs_np is not None)
-        use_sim = (seq_sim_multiplier > 0) and (seq_sims_np is not None)
-        if not (use_precomputed or use_cov or use_sim):
-            return np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
-
-        component_probs: List[np.ndarray] = []
-        component_weights: List[float] = []
-
-        if use_precomputed:
-            # Accept torch tensor or numpy
-            if torch.is_tensor(precomputed_sequence_weights):
-                pre_np = precomputed_sequence_weights.detach().float().cpu().numpy()
-                if pre_np.ndim == 2 and pre_np.shape[0] == 1:
-                    pre_np = pre_np[0]
-            else:
-                pre_np = np.asarray(precomputed_sequence_weights)
-            if pre_np.shape[0] != n_seqs:
-                raise ValueError("precomputed_sequence_weights must have length n_seqs")
-            pre_np = np.maximum(pre_np.astype(np.float32), 0.0)
-            if pre_np.sum() <= eps:
-                pre_np = np.ones_like(pre_np)
-            pre_probs = pre_np / pre_np.sum()
-            component_probs.append(pre_probs.astype(np.float32))
-            component_weights.append(float(precomputed_multiplier))
-
-        # Coverage-based weights (target = 1.0 i.e. 100%)
-        if use_cov:
-            target_cov = 1.0
-            d = np.abs(covs_np - target_cov)
-            std = np.std(covs_np)
-            scale = std if std > eps else (np.mean(np.abs(covs_np - np.mean(covs_np))) + eps)
-            cov_scores = - (d / (scale + eps)) ** 2
-            cov_probs = _adjust_temperature_to_top_mass(cov_scores, top_p_mass_target, top_p)
-            component_probs.append(cov_probs.astype(np.float32))
-            component_weights.append(float(coverage_multiplier))
-
-        # Sequence similarity-based weights (target specified)
-        if use_sim:
-            d = np.abs(seq_sims_np - float(target_seq_sim))
-            std = np.std(seq_sims_np)
-            scale = std if std > eps else (np.mean(np.abs(seq_sims_np - np.mean(seq_sims_np))) + eps)
-            sim_scores = - (d / (scale + eps)) ** 2
-            sim_probs = _adjust_temperature_to_top_mass(sim_scores, top_p_mass_target, top_p)
-            component_probs.append(sim_probs.astype(np.float32))
-            component_weights.append(float(seq_sim_multiplier))
-
-        if len(component_probs) == 0:
-            final_probs = np.ones(n_seqs, dtype=np.float32) / max(n_seqs, 1)
-        else:
-            # Aggregate components using provided multipliers and re-adjust smoothly
-            weights_arr = np.asarray(component_weights, dtype=np.float32)
-            weights_sum = float(weights_arr.sum())
-            if weights_sum <= eps:
-                weights_arr = np.ones_like(weights_arr) / max(weights_arr.shape[0], 1)
-            else:
-                weights_arr = weights_arr / weights_sum
-            stacked = np.stack(component_probs, axis=0)
-            agg = np.sum(stacked * weights_arr.reshape(-1, 1), axis=0)
-            final_probs = agg / max(agg.sum(), eps)
-        return final_probs.astype(np.float32)
-
-
-
-    def _evaluate_and_save_variants_v10(
-        self,
-        batch: Dict[str, torch.Tensor],
-        start_tokens: list[int] = [47, 63],
-        coverage_multiplier: float = 0.0,
-        seq_sim_multiplier: float = 0.0,
-        precomputed_multiplier: float = 1.0,
-        resample_downweighter: float = 1.0
-    ):
-        """
-        re-implementation of v9 to remove the log forward search
-        and restrict minimal n_opt
-        """
-        random.seed(42)
-        rng = random.Random(42)
-        rng_np = np.random.default_rng(42)
-        dms_id = batch["DMS_id"].text[0]
-        dms_scores_np = batch["DMS_scores"][0].float().cpu().numpy()
-        if self.gym_results_save_dir is not None:
-            lls_npz_path = os.path.join(self.gym_results_save_dir, f"batch_{dms_id}_v10_lls.npz")
-        else:
-            lls_npz_path = None
-
-        if lls_npz_path is not None and os.path.exists(lls_npz_path):
-            print(f"Loading from {lls_npz_path}")
-            data = np.load(lls_npz_path)
-            lls_array = data["lls"]
-        else:
-            seq_starts, seq_ends, seq_lengths, total_seqs, completion_length = self._prepare_prompt_and_stats(
-                batch, start_tokens
-            )
-            max_context_tokens = (self.max_tokens - completion_length) - 5
-            avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
-            min_seq_len = min(seq_lengths)
-            assumed_seq_len = (min_seq_len + avg_seq_len) / 2
-            max_n_by_tokens = max(0, min(int(max_context_tokens // assumed_seq_len) + 2, total_seqs)) if avg_seq_len > 0 else 0
-            # find range of n_opt values that are in the target likelihood range:
-            lower_bound = max_n_by_tokens // 2
-            upper_bound = min(max_n_by_tokens, total_seqs)
-            vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
-            if len(vals_in_range) == 0:
-                vals_in_range = [0]
-            n_opt = int(rng.choice(vals_in_range))
-
-            # compute likelihoods for each n_opt value in the range:
-            spearman_list = []
-            variant_lls: List[np.ndarray] = []
-            n_seqs_list = []
-            tok_cnt_list: List[int] = []
-            min_cov_list: List[float] = []
-            # Additional metrics to mirror v5
-            min_length_ratio_list: List[float] = []
-            min_sequence_similarity_list: List[float] = []
-            mean_sequence_similarity_list: List[float] = []
-            max_sequence_similarity_list: List[float] = []
-            min_coverage_list: List[float] = []
-            mean_coverage_list: List[float] = []
-            max_coverage_list: List[float] = []
-            
-            token_count_attempts = 100
-            if completion_length + 2 > self.max_tokens:
-                n_opt = 0
-                repeats = 1
-            else:
-                repeats = min(self.gym_subsamples_per_n, total_seqs)
-            weights = self.get_sequence_weights(
-                batch, 
-                precomputed_sequence_weights=batch.get('sequence_weights', None), 
-                coverage_multiplier=coverage_multiplier,
-                seq_sim_multiplier=seq_sim_multiplier,
-                precomputed_multiplier=precomputed_multiplier,
-                target_seq_sim=0.5,
-                top_p_mass_target=0.6,
-                top_p=0.4
-            )
-            for rep in range(repeats):
-                print(f"processing rep {rep} of {repeats} on device rank {getattr(self, 'global_rank', 'Unknown')}")
-                fail_count = 0
-                while True:
-                    if n_opt == 0 and 0 in n_seqs_list:
-                        n_opt = int(random.choice(vals_in_range))
-                    idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=weights).tolist()
-                    # Downweight the probability of re-sampling chosen indices and renormalise
-                    weights[idxs] *= resample_downweighter
-                    w_sum = weights.sum()
-                    if w_sum > 0:
-                        weights /= w_sum
-                    else:
-                        weights[:] = 1.0 / len(weights)
-                    rng.shuffle(idxs)
-                    tok_cnt = sum(seq_lengths[i] for i in idxs)
-                    if tok_cnt + completion_length <= self.max_tokens:
-                        fail_count = 0
-                        break
-                    else:
-                        fail_count += 1
-                        if fail_count > token_count_attempts:
-                            n_opt = max(0, n_opt - 1)
-                            fail_count = 0
-                
-                if n_opt == 0:
-                    # No context sequences selected; use empty prompt
-                    idxs = []
-                    tok_cnt = 0
-                    shortest_seq_len = 0
-                    var_batch = self._clone_batch(batch)
-                    var_batch["input_ids"] = None
-                    min_completion_coverage = 0
-                    min_length_ratio = 0
-                    min_sequence_similarity = 0
-                    mean_sequence_similarity = 0
-                    max_sequence_similarity = 0
-                    min_coverage = 0
-                    mean_coverage = 0
-                    max_coverage = 0
-                else:
-                    shortest_seq_len = min(seq_lengths[i] for i in idxs)
-                    var_batch = self._make_truncated_batch_from_indices(
-                        batch, idxs, seq_starts, seq_ends, start_tokens, include_optional_meta=True
-                    )
-                    min_completion_coverage = shortest_seq_len / batch["completion_ids"].shape[-1] if batch["completion_ids"].shape[-1] > 0 else 0
-                    # Additional metrics consistent with v5
-                    min_length_ratio = min_completion_coverage
-                    seq_sims = var_batch.get("sequence_similarities", None)
-                    covs = var_batch.get("coverages", None)
-                    if seq_sims is not None:
-                        min_sequence_similarity = seq_sims.min().item()
-                        mean_sequence_similarity = seq_sims.mean().item()
-                        max_sequence_similarity = seq_sims.max().item()
-                    else:
-                        min_sequence_similarity = 0
-                        mean_sequence_similarity = 0
-                        max_sequence_similarity = 0
-                    if covs is not None:
-                        min_coverage = covs.min().item()
-                        mean_coverage = covs.mean().item()
-                        max_coverage = covs.max().item()
-                    else:
-                        min_coverage = 0
-                        mean_coverage = 0
-                        max_coverage = 0
-                n_seqs_list.append(n_opt)
-                tok_cnt_list.append(tok_cnt)
-                min_cov_list.append(min_completion_coverage)
-                # Track additional lists for NPZ logging
-                min_length_ratio_list.append(min_length_ratio)
-                min_sequence_similarity_list.append(min_sequence_similarity)
-                mean_sequence_similarity_list.append(mean_sequence_similarity)
-                max_sequence_similarity_list.append(max_sequence_similarity)
-                min_coverage_list.append(min_coverage)
-                mean_coverage_list.append(mean_coverage)
-                max_coverage_list.append(max_coverage)
-                var_batch_device = {k: v.to(self.device) if torch.is_tensor(v) else v for k, v in var_batch.items()}
-                L = var_batch_device["completion_ids"].shape[-1]
-                L_prompt = 0 if var_batch_device["input_ids"] is None else var_batch_device["input_ids"].shape[-1]
-                lls = self.score_seqs(
-                    var_batch_device["input_ids"],
-                    var_batch_device["completion_ids"],
-                    use_cache=self.use_kv_cache_for_scoring,
-                    batch_size=max((self.scoring_max_tokens) // (L + L_prompt), 1)
-                    if self.use_kv_cache_for_scoring
-                    else 1,
-                )
-                
-                variant_lls.append(lls)
-                spearman_list.append(float(self._compute_spearman(lls, dms_scores_np)))
-                n_opt = rng.choice(vals_in_range)
-
-
-            # Stack and persist
-            lls_array = np.stack(variant_lls, axis=0)
-            # Persist NPZ here for re-use on subsequent runs
-            if getattr(self, "global_rank", 0) == 0:
-                extra_payload = {
-                    "tok_cnt_list": tok_cnt_list,
-                    "min_cov_list": min_cov_list,
-                    "min_length_ratio_list": np.asarray(min_length_ratio_list, dtype=np.float32),
-                    "min_sequence_similarity_list": np.asarray(min_sequence_similarity_list, dtype=np.float32),
-                    "mean_sequence_similarity_list": np.asarray(mean_sequence_similarity_list, dtype=np.float32),
-                    "max_sequence_similarity_list": np.asarray(max_sequence_similarity_list, dtype=np.float32),
-                    "min_coverage_list": np.asarray(min_coverage_list, dtype=np.float32),
-                    "mean_coverage_list": np.asarray(mean_coverage_list, dtype=np.float32),
-                    "max_coverage_list": np.asarray(max_coverage_list, dtype=np.float32),
-                    "spearman_list": np.asarray(spearman_list, dtype=np.float32),
-                }
-                if self.gym_results_save_dir is not None:
-                    try:
-                        np.savez_compressed(
-                            lls_npz_path,
-                            lls=lls_array.astype(np.float32),
-                            n_prompt_seqs=np.asarray(n_seqs_list, dtype=np.int32),
-                            dms_scores=dms_scores_np.astype(np.float32),
-                            **extra_payload,
-                        )
-                    except Exception as e:
-                        warnings.warn(f"Could not save likelihoods to {lls_npz_path}: {e}")
-
-        # Centralised logging and returns
-        # If we loaded from disk, we have no rows/variant_lls to plot — pass None
-        if lls_npz_path is not None and os.path.exists(lls_npz_path) and 'variant_lls' not in locals():
-            return self._log_and_save_variant_results(
-                dms_id=dms_id,
-                lls_array=lls_array,
-                dms_scores_np=dms_scores_np,
-                n_seqs_list=[],
-                variant_lls=None,
-                file_suffix="v10",
-                rows=None,
-                extra_npz_payload=None,
-            )
-        else:
-            extra_payload = {
-                "tok_cnt_list": tok_cnt_list,
-                "min_cov_list": min_cov_list,
-                "min_length_ratio_list": min_length_ratio_list,
-                "min_sequence_similarity_list": min_sequence_similarity_list,
-                "mean_sequence_similarity_list": mean_sequence_similarity_list,
-                "max_sequence_similarity_list": max_sequence_similarity_list,
-                "min_coverage_list": min_coverage_list,
-                "mean_coverage_list": mean_coverage_list,
-                "max_coverage_list": max_coverage_list,
-                "spearman_list": spearman_list,
-            }
-            return self._log_and_save_variant_results(
-                dms_id=dms_id,
-                lls_array=lls_array,
-                dms_scores_np=dms_scores_np,
-                n_seqs_list=n_seqs_list,
-                variant_lls=variant_lls,
-                file_suffix="v10",
-                rows=None,
-                extra_npz_payload=extra_payload,
-            )
-
     def validation_step_proteingym(
-        self,
-        batch: Dict[str, torch.Tensor],
-        batch_idx: Optional[int] = None,
+        self, batch: Dict[str, torch.Tensor]
     ) -> torch.Tensor:
-        """Evaluate ProteinGym batch with multiple randomly-subsampled contexts."""
-        if batch_idx is None:
-            batch_idx = -1  # fallback when Lightning doesn't supply the index
+        """Assumes that batch contains the following:
 
-        ensemble_log_ll, ensemble_spearman = self._evaluate_and_save_variants_v10(
-            batch
+        input_ids: the prompt (i.e. MSA)
+        completion_ids: the completions (i.e. mutated sequences)
+
+        on caching: it seems like, if we modify what is passed to attention forward, existing cache
+        might just work. currently model/sampling loop probably passes just the next token.
+        """
+        assert batch["DMS_scores"].ndim == 2  # b, n
+        L = batch["completion_ids"].shape[-1]
+        L_prompt = batch["input_ids"].shape[-1]
+        lls = self.score_seqs(
+            batch["input_ids"],
+            batch["completion_ids"],
+            input_residue_index=batch.get("residue_index", None),
+            completion_residue_index=batch.get("completion_residue_index", None),
+            use_cache=self.use_kv_cache_for_scoring,
+            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
+            if self.use_kv_cache_for_scoring
+            else 1,
         )
-
-        # Log aggregate metrics so that Lightning tracks them across batches
+        if lls.min() == lls.max():
+            spearman_corr = 0
+        else:
+            spearman_corr, _ = spearmanr(
+                lls.astype(np.float32),
+                batch["DMS_scores"][0].to(torch.float32).cpu().numpy(),
+            )
+        # TODO: log the specific landscape name
         self.log(
             "gym/spearman",
-            ensemble_spearman,
+            spearman_corr,
             on_step=False,
             on_epoch=True,
             prog_bar=False,
@@ -1373,14 +864,12 @@ class BaseFamilyLitModule(LightningModule):
         )
         self.log(
             "gym/log_likelihood",
-            ensemble_log_ll,
+            lls.mean(),
             on_step=False,
             on_epoch=True,
             prog_bar=False,
             sync_dist=True,
         )
-        return torch.tensor(ensemble_spearman, device=self.device, dtype=torch.float32)
-
 
     def on_train_epoch_end(self):
         # Commenting out as may cause deadlock in DDP

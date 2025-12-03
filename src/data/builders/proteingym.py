@@ -6,9 +6,10 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from transformers import PreTrainedTokenizerFast
 from torch.utils.data import Dataset
+from transformers import PreTrainedTokenizerFast
 
+from src.data.msa_subsampling import compute_homology_weights
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
 from src.data.processors.transforms import (
@@ -29,8 +30,10 @@ def has_no_indels(string_list):
     pattern = r"[.\-a-z]"
     return not any(re.search(pattern, s) for s in string_list)
 
+
 def extract_sequence_weights_from_seq_ids(seq_ids: list) -> np.ndarray[float]:
-    return np.array([float(e.split("score=")[-1].split(" ")[0]  ) for e in seq_ids])
+    return np.array([float(e.split("score=")[-1].split(" ")[0]) for e in seq_ids])
+
 
 # --------------------------------------------------------------------------------------
 # Homology-based sequence weights
@@ -152,12 +155,12 @@ def load_msa_for_row(
     # Sequence weights
     # ------------------------------------------------------------------
     if use_msa_seq_weights:
-        _, seqs_for_weights = fasta.read_fasta(  # initially load without changes for pos calc
-        msa_file,
-        keep_insertions=False,
-        to_upper=True,
-        keep_gaps=True
-    )
+        (
+            _,
+            seqs_for_weights,
+        ) = fasta.read_fasta(  # initially load without changes for pos calc
+            msa_file, keep_insertions=False, to_upper=True, keep_gaps=True
+        )
         # Homology-based weights with on-disk caching
         sequence_weights = compute_homology_sequence_weights_with_cache(
             msa_file=msa_file,
@@ -165,7 +168,7 @@ def load_msa_for_row(
         ).tolist()
     else:
         sequence_weights = [1.0 for _ in seqs]
-    
+
     # Load coverage and similarity data if available
     sequence_similarities = None
     coverages = None
@@ -178,12 +181,25 @@ def load_msa_for_row(
             npz_data["sequence_similarities"], nan=0.0
         ).tolist()
         coverages = np.nan_to_num(npz_data["coverages"], nan=0.0).tolist()
-        print(f"mean sequence similarity to wt: {np.mean(sequence_similarities)}, num_seqs: {len(sequence_similarities)}")
+        print(
+            f"mean sequence similarity to wt: {np.mean(sequence_similarities)}, num_seqs: {len(sequence_similarities)}"
+        )
         if len(sequence_similarities) != len(seqs):
-            print(f"Warning: Number of sequences in MSA ({len(seqs)}) doesn't match number in .npz file ({len(sequence_similarities)})")
+            print(
+                f"Warning: Number of sequences in MSA ({len(seqs)}) doesn't match number in .npz file ({len(sequence_similarities)})"
+            )
             sequence_similarities = None
             coverages = None
-    seq_indices = [i for i, s in enumerate(seqs) if "X" not in s and "U" not in s and "Z" not in s and "O" not in s and "B" not in s and "J" not in s]
+    seq_indices = [
+        i
+        for i, s in enumerate(seqs)
+        if "X" not in s
+        and "U" not in s
+        and "Z" not in s
+        and "O" not in s
+        and "B" not in s
+        and "J" not in s
+    ]
     seqs = [seqs[i] for i in seq_indices]
     if sequence_similarities is not None:
         sequence_similarities = [sequence_similarities[i] for i in seq_indices]
@@ -291,7 +307,7 @@ def build_gym_df(
 
     if max_completion_length is not None:
         df = df[df["seq_len"] <= max_completion_length]
-    
+
     if task_index is not None and num_tasks is not None:
         batch_size = len(df) // num_tasks
         start_idx = task_index * batch_size
@@ -300,7 +316,7 @@ def build_gym_df(
         else:
             end_idx = start_idx + batch_size
         df = df.iloc[start_idx:end_idx]
-    
+
     if use_foldseek_msa:
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, "foldseek_s50_DMS_msa_files", x)
@@ -315,13 +331,15 @@ def build_gym_df(
         )
     elif "msa_pairformer" in msa_folder_name:
         df["MSA_filename"] = df["MSA_filename"].apply(
-            lambda x: os.path.join(gym_data_dir, msa_folder_name, x.split(".")[0] + "_ranked.fasta")
+            lambda x: os.path.join(
+                gym_data_dir, msa_folder_name, x.split(".")[0] + "_ranked.fasta"
+            )
         )
     else:
         df["MSA_filename"] = df["MSA_filename"].apply(
             lambda x: os.path.join(gym_data_dir, msa_folder_name, x)
         )
-    
+
     if "indels" in csv_filename:
         dms_dir = "DMS_ProteinGym_indels"
         df = df[~df.MSA_filename.str.contains("PSAE_PICP2")]
@@ -364,7 +382,7 @@ class ProteinGymDataset(Dataset):
         max_context_seqs: Optional[
             int
         ] = None,  # 0 means no family context, None means use all
-        max_completion_length = None,
+        max_completion_length=None,
         keep_wt: bool = False,
         drop_wt: bool = True,
         msa_folder_name: str = "DMS_msa_files",
@@ -491,7 +509,12 @@ class ProteinGymDataset(Dataset):
         if "sequence_weights" in row:
             out["sequence_weights"] = row["sequence_weights"]
         # Ensure metadata fields are numpy arrays so default collate produces tensors
-        for _k in ("sequence_similarities", "coverages", "sequence_weights", "DMS_scores"):
+        for _k in (
+            "sequence_similarities",
+            "coverages",
+            "sequence_weights",
+            "DMS_scores",
+        ):
             if _k in out and out[_k] is not None:
                 try:
                     out[_k] = np.asarray(out[_k], dtype=np.float32)
@@ -530,7 +553,11 @@ class ProteinGymDataset(Dataset):
 
     # Deprecated HF-style API retained for backward compatibility, but unused.
     def process(self, *args, **kwargs):  # pragma: no cover
-        raise NotImplementedError("ProteinGymDataset is now a PyTorch Dataset; no process().")
+        raise NotImplementedError(
+            "ProteinGymDataset is now a PyTorch Dataset; no process()."
+        )
 
     def load(self, *args, **kwargs):  # pragma: no cover
-        raise NotImplementedError("ProteinGymDataset is now a PyTorch Dataset; no load().")
+        raise NotImplementedError(
+            "ProteinGymDataset is now a PyTorch Dataset; no load()."
+        )
