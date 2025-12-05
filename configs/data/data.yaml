@@ -1,0 +1,129 @@
+_target_: src.data.datamodule.ProteinDataMixture
+dataset_builders:
+  openfold_train:
+    _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    name: openfold_train
+    dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
+    tokenizer: ${tokenizer}
+    preprocessor:
+      _target_: src.data.processors.ProteinDocumentPreprocessor
+      cfg:
+        _target_: src.data.processors.AlignedProteinPreprocessingConfig
+        document_token: '[RAW]'
+        drop_first_protein: false
+        keep_first_protein: false
+        allow_unk: false
+        max_tokens_per_example: 8192
+        shuffle_proteins_in_document: true
+        padding: do_not_pad
+        keep_gaps: false
+        keep_insertions: true
+        to_upper: true
+        use_msa_pos: false
+      transform_fns: null
+    proteingym:
+      _target_: src.data.builders.proteingym.ProteinGymDataset
+      name: proteingym
+      dms_ids: ${constants.gym_val_assay_list}
+      seed: 42
+      mutant_bos_token: sep
+      keep_gaps: false
+      use_filtered_msa: false
+      extra_tokens_per_document: 2
+      max_mutated_sequences: 1000
+      use_msa_pos: false
+      num_proc: null
+      max_tokens_per_example: 1_000_000_000
+      max_context_seqs: null
+      keep_wt: false
+      drop_wt: true
+      msa_folder_name: "PoET_DMS_msa_files/DMS_substitutions"
+    foldseek_s50_train:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+      name: foldseek_s50_train
+      dataset_root: ${paths.data_dir}/foldseek/foldseek_s50_seq_only_text/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      seed: ${seed}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 8192
+          shuffle_proteins_in_document: true
+          padding: do_not_pad
+        transform_fns: null
+    foldseek_s50_val:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+      name: foldseek_s50_val
+      dataset_root: ${paths.data_dir}/foldseek/foldseek_s50_seq_only_text/train_test_split_v2/val_filtered
+      tokenizer: ${tokenizer}
+      seed: ${seed}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 8192
+          shuffle_proteins_in_document: true
+          padding: do_not_pad
+        transform_fns: null
+    uniref90_train:
+      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+      name: uniref90_train
+      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
+      tokenizer: ${tokenizer}
+      preprocessor:
+        _target_: src.data.processors.ProteinDocumentPreprocessor
+        cfg:
+          _target_: src.data.processors.PreprocessingConfig
+          document_token: '[RAW]'
+          drop_first_protein: false
+          keep_first_protein: false
+          allow_unk: false
+          max_tokens_per_example: 512
+          shuffle_proteins_in_document: true
+          padding: do_not_pad
+        transform_fns: null
+    # uniref90_val:
+    #   _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    #   name: uniref90_val
+    #   dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/val_filtered
+    #   tokenizer: ${tokenizer}
+    #   preprocessor:
+    #     _target_: src.data.processors.ProteinDocumentPreprocessor
+    #     cfg:
+    #       _target_: src.data.processors.PreprocessingConfig
+    #       document_token: '[RAW]'
+    #       drop_first_protein: false
+    #       keep_first_protein: false
+    #       allow_unk: false
+    #       max_tokens_per_example: 320
+    #       shuffle_proteins_in_document: true
+    #       padding: do_not_pad
+    #     transform_fns: null
+  data_weights:
+    foldseek_s50_train: 1
+    uniref90_train: 1
+    openfold_train: 1
+    # ted_20_90_train: 1
+  val_dataset_batch_sizes:
+    foldseek_s50_val: 1
+    proteingym: 1
+    # uniref90_val: 1
+  batch_size: 100
+  data_dir: ${paths.data_dir}
+  num_workers: 32
+  ignore_gaps: true
+  feature_names: ${constants.sequence_features}
+  pack_to_max_tokens: 75000
+  prefetch_factor: 4
+  shuffle: true
+  interleaved: true
+  interleaved_block_size: 1000

@@ -13,7 +13,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--repo-id",
-        default="judewells/pf",
+        default="judewells/ProFam-1",
         help="Repository id on HF Hub, e.g. username/profam-abyoeovl",
     )
     parser.add_argument(
