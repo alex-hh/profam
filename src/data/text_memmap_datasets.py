@@ -275,7 +275,7 @@ class TextMemMapDataset(torch.utils.data.Dataset):
             midx - indices pointing to the end-of-line (or end of file) position
             size - number of lines in file
         """
-        logger.info(f"Loading {fn}")
+        # logger.info(f"Loading {fn}")
         idx_fn = _index_fn(fn, index_mapping_dir)
 
         # create data map

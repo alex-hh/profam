@@ -839,8 +839,6 @@ class BaseFamilyLitModule(LightningModule):
         lls = self.score_seqs(
             batch["input_ids"],
             batch["completion_ids"],
-            input_residue_index=batch.get("residue_index", None),
-            completion_residue_index=batch.get("completion_residue_index", None),
             use_cache=self.use_kv_cache_for_scoring,
             batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
             if self.use_kv_cache_for_scoring
