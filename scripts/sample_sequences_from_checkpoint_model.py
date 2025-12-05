@@ -53,10 +53,10 @@ def main():
         help="Checkpoint run directory (contains .hydra)",
     )
     parser.add_argument(
-        "--glob",
+        "--file_path",
         type=str,
-        required=True,
-        help="Glob pattern for input FASTA/MSA files (e.g. 'data/4_1_1_39_cluster_aln.filtered.fasta' or '../data/val/*.a3m')",
+        default='data/4_1_1_39_cluster.filtered.fasta',
+        help="Filepath for input FASTA/MSA files (e.g. 'data/4_1_1_39_cluster.filtered.fasta' or '../data/val/*.a3m')",
     )
     parser.add_argument(
         "--save_dir",
@@ -203,7 +203,7 @@ def main():
 
     os.makedirs(args.save_dir, exist_ok=True)
 
-    input_files = sorted(glob.glob(args.glob))
+    input_files = sorted(glob.glob(args.file_path))
     if args.task_index is not None and args.num_tasks is not None:
         batch_size = len(input_files) // args.num_tasks
         start_idx = args.task_index * batch_size
@@ -218,7 +218,7 @@ def main():
         for fpath in input_files:
             print(fpath)
     if len(input_files) == 0:
-        raise FileNotFoundError(f"No input files matched pattern: {args.glob}")
+        raise FileNotFoundError(f"No input files matched pattern: {args.file_path}")
 
     doc_token = "[RAW]"
 
@@ -273,7 +273,7 @@ def main():
     # Process each file
     for fasta_path in input_files:
         base = os.path.splitext(os.path.basename(fasta_path))[0]
-        out_path = os.path.join(args.save_dir, f"{base}_generated.fasta")
+        out_path = os.path.join(args.save_dir, f"{base}_generated_{args.sampler}.fasta")
         if os.path.exists(out_path):
             print(f"Skipping {fasta_path} because {out_path} already exists")
             continue
