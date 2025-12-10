@@ -55,7 +55,7 @@ def main():
     parser.add_argument(
         "--file_path",
         type=str,
-        default='data/4_1_1_39_cluster.filtered.fasta',
+        default='data/generate_sequences_example/4_1_1_39_cluster.filtered.fasta',
         help="Filepath for input FASTA/MSA files (e.g. 'data/4_1_1_39_cluster.filtered.fasta' or '../data/val/*.a3m')",
     )
     parser.add_argument(
