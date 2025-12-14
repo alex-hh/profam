@@ -80,7 +80,7 @@ def test_generate_sequences(tmp_path, project_root):
 
     cmd = [
         sys.executable,
-        "scripts/sample_sequences_from_checkpoint_model.py",
+        "scripts/generate_sequences.py",
         "--checkpoint_dir",
         str(ckpt_dir),
         "--file_path",

@@ -57,7 +57,7 @@ python -c "import flash_attn; print(flash_attn.__version__)"
 
 There are two main inference scripts:
 
-- **Sampling / generating new sequences**: `scripts/sample_sequences_from_checkpoint_model.py`
+- **Sampling / generating new sequences**: `scripts/generate_sequences.py`
 - **Scoring / log-likelihood**: `scripts/score_sequences.py`
 
 ### Training entrypoint
