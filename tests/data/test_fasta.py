@@ -8,7 +8,6 @@ from src.data.processors.transforms import (
 from src.sequence.fasta import read_fasta_sequences
 
 
-
 def get_sequence_match_positions(sequence):
     sequence_index = 0  # relative to raw sequence
     raw_seq_match_positions = []
@@ -17,7 +16,6 @@ def get_sequence_match_positions(sequence):
             raw_seq_match_positions.append(sequence_index)
         sequence_index += 1
     return raw_seq_match_positions
-
 
 
 class TestSequencePositions:

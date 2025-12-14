@@ -455,7 +455,6 @@ class BaseFamilyLitModule(LightningModule):
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls
 
-
     def score_seqs(
         self,
         input_ids,
@@ -505,7 +504,7 @@ class BaseFamilyLitModule(LightningModule):
         structure_tokens: bool = False,
         continuous_sampling: bool = False,
         repeat_guard: bool = True,
-        repeat_length: int = 9, # if last repeat_length chars appear repeat_count times, seq is aborted
+        repeat_length: int = 9,  # if last repeat_length chars appear repeat_count times, seq is aborted
         repeat_count: int = 9,
         max_retries: int = 3,
     ):

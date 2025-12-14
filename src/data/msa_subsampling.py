@@ -16,6 +16,7 @@ code originally from:
 https://github.com/OpenProteinAI/PoET/blob/main/poet/msa/sampling.py
 """
 
+
 def hash_of_string_list(lst: list[str]) -> str:
     m = hashlib.sha1()
     for elt in lst:
@@ -312,17 +313,14 @@ def encode_msa_sequences_to_uint8(seqs: list[str]) -> np.ndarray:
     seq_len = len(seqs[0]) if seqs else 0
     arr = np.zeros((len(seqs), seq_len), dtype=np.uint8)
     for i, s in enumerate(seqs):
-        arr[i] = [
-            _AA_TO_IDX.get(ch, _GAP_TOKEN_IDX)  # unknowns → GAP
-            for ch in s
-        ]
+        arr[i] = [_AA_TO_IDX.get(ch, _GAP_TOKEN_IDX) for ch in s]  # unknowns → GAP
     return arr
 
 
 def calculate_file_hash(filepath: str) -> str:
     sha256_hash = hashlib.sha256()
     with open(filepath, "rb") as f:
-        
+
         for byte_block in iter(lambda: f.read(4096), b""):
             sha256_hash.update(byte_block)
     return sha256_hash.hexdigest()
@@ -356,15 +354,17 @@ def compute_homology_sequence_weights_with_cache(
             # But to be safe and compatible with existing non-hashed cache files, we can check if it exists.
             # However, user requested to use hash. So if hash doesn't match or missing, we recompute.
             # If current_file_hash is empty (failed to read), we skip check? No, better recompute.
-            
+
             if cached_hash == current_file_hash and current_file_hash != "":
-                 return data["sequence_weights"]
+                return data["sequence_weights"]
             elif "file_hash" not in data:
-                 print(f"Cached weights at {cache_path} missing hash. Recomputing...")
+                print(f"Cached weights at {cache_path} missing hash. Recomputing...")
             elif cached_hash != current_file_hash:
-                 print(f"Cached weights hash mismatch for {cache_path}. Recomputing...")
+                print(f"Cached weights hash mismatch for {cache_path}. Recomputing...")
         except Exception as e:
-            print(f"Failed to load cached weights from {cache_path}: {e}. Recomputing …")
+            print(
+                f"Failed to load cached weights from {cache_path}: {e}. Recomputing …"
+            )
 
     # Encode → compute → normalise
     encoded = encode_msa_sequences_to_uint8(sequences)

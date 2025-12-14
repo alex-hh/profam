@@ -69,7 +69,12 @@ def test_training_on_example_data(tmp_path, project_root):
 
 def test_generate_sequences(tmp_path, project_root):
     ckpt_dir = project_root / "model_checkpoints" / "abyoeovl"
-    fasta_path = project_root / "data" / "generate_sequences_example" / "4_1_1_39_cluster.filtered.fasta"
+    fasta_path = (
+        project_root
+        / "data"
+        / "generate_sequences_example"
+        / "4_1_1_39_cluster.filtered.fasta"
+    )
     save_dir = tmp_path / "gen_outputs"
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -114,8 +119,12 @@ def test_generate_sequences(tmp_path, project_root):
 
 def test_score_sequences(tmp_path, project_root):
     ckpt_dir = project_root / "model_checkpoints" / "abyoeovl"
-    conditioning = project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.a3m"
-    candidates = project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.csv"
+    conditioning = (
+        project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.a3m"
+    )
+    candidates = (
+        project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.csv"
+    )
     save_dir = tmp_path / "score_outputs"
     save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -153,5 +162,6 @@ def test_score_sequences(tmp_path, project_root):
     assert csv_path.exists(), "Score CSV was not created"
     df = pd.read_csv(csv_path)
     assert len(df) > 0, "Score CSV is empty"
-    assert {"id", "mutated_sequence", "score"}.issubset(df.columns), "Score CSV missing expected columns"
-
+    assert {"id", "mutated_sequence", "score"}.issubset(
+        df.columns
+    ), "Score CSV missing expected columns"

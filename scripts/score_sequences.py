@@ -21,11 +21,12 @@ Inputs: conditioning_sequences.fasta, candidate_sequences.fasta or .csv
 Outputs: prints per-sequence mean log-likelihoods to stdout as CSV
 """
 
+from src.data.msa_subsampling import compute_homology_sequence_weights_with_cache
 from src.data.objects import ProteinDocument
 from src.models.llama import LlamaLitModule
 from src.sequence.fasta import read_fasta
 from src.utils.utils import seed_all
-from src.data.msa_subsampling import compute_homology_sequence_weights_with_cache
+
 
 def write_fasta(sequences, accessions, fasta_path):
     with open(fasta_path, "w") as f:
@@ -136,13 +137,12 @@ def score_variants_ensemble(
                 idxs = []
                 tok_cnt = 0
 
-            
             prompt_len_estimate = len(start_tokens) + tok_cnt + len(idxs)
-            
+
             if prompt_len_estimate + completion_length <= max_tokens:
                 break
             else:
-                n_opt = max(0, n_opt - 1) # Try a smaller number of sequences
+                n_opt = max(0, n_opt - 1)  # Try a smaller number of sequences
 
         # Build prompt
         if n_opt == 0 or len(idxs) == 0:
@@ -317,7 +317,7 @@ def main():
 
     # Build ProteinDocument objects (just to read sequences nicely)
     cond_doc = build_pool_from_fasta(args.conditioning_fasta)
-    
+
     weights = None
     if args.use_diversity_weights:
         print(
@@ -330,7 +330,7 @@ def main():
             theta=args.diversity_theta,
             force_recalc=args.recompute_diversity_weights,
         )
-    
+
     # Tokenize conditioning sequences individually
     print(
         f"Tokenizing {len(cond_doc.sequences)} conditioning sequences...",
@@ -390,7 +390,7 @@ def main():
             scoring_max_tokens=args.scoring_max_tokens,
             start_tokens=[47, 63],
             max_tokens_override=args.max_tokens,
-            weights=weights
+            weights=weights,
         )
 
     # Output handling

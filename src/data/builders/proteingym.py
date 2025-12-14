@@ -9,7 +9,10 @@ import pandas as pd
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerFast
 
-from src.data.msa_subsampling import compute_homology_weights
+from src.data.msa_subsampling import (
+    compute_homology_sequence_weights_with_cache,
+    compute_homology_weights,
+)
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
 from src.data.processors.transforms import (
@@ -17,14 +20,6 @@ from src.data.processors.transforms import (
 )
 from src.data.tokenizers import ProFamTokenizer
 from src.sequence import fasta
-
-
-
-from src.data.msa_subsampling import (
-    compute_homology_weights,
-    compute_homology_sequence_weights_with_cache,
-)
-
 
 
 def tokenize_msa(
