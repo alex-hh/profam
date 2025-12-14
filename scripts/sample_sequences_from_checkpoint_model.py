@@ -172,9 +172,12 @@ def main():
     try:
         import flash_attn
     except ImportError:
-        if attn_impl == "flash_attention_2":
-            print("Flash attention requested but not installed. Reverting to sdpa.")
-            attn_impl = "sdpa"
+        raise ImportError(
+            "Flash attention is not installed. "
+            "select an alternative attention implementation such as:\n`--attn_implementation sdpa`.\n"
+            "Or install it with:\n`pip install flash-attn --no-build-isolation`. "
+            
+        )
 
     try:
         ckpt_blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)

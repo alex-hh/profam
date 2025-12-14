@@ -181,6 +181,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         preprocessor: ProteinDocumentPreprocessor,
         tokenizer: ProFamTokenizer,
         max_tokens_per_family: Optional[int] = None,
+        max_families: Optional[int] = None,
         shuffle_family_sequences: bool = True,
         sample_cache_size: int = 1000,
         seed: Optional[int] = 1,
@@ -191,6 +192,7 @@ class ProteinFamilyMemmapDataset(Dataset):
             name: name of the dataset
             dataset_root: point to the root directory of the dataset (i.e., train, val, test)
             tokenizer: tokenizer to use to convert sequences to tokens.
+            max_families: maximum number of families to use (useful for validation)
             kwargs: additional arguments to pass to the dataset
         """
         super().__init__()
@@ -198,6 +200,7 @@ class ProteinFamilyMemmapDataset(Dataset):
         self.preprocessor = preprocessor
         self.tokenizer = tokenizer
         self.max_tokens_per_family = max_tokens_per_family
+        self.max_families = max_families
         self.shuffle_family_sequences = shuffle_family_sequences
         self.sample_cache_size = sample_cache_size
         self.seed = seed
@@ -224,7 +227,10 @@ class ProteinFamilyMemmapDataset(Dataset):
             )
 
     def __len__(self):
-        return len(self.mapping_ds)
+        length = len(self.mapping_ds)
+        if self.max_families is not None:
+            length = min(length, self.max_families)
+        return length
 
     def __getitem__(self, idx):
         mapping_data = self.mapping_ds[idx]
