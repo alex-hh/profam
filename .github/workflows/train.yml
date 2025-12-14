@@ -30,4 +30,17 @@ jobs:
         pytest -k "not example"
     - name: Train model
       run: |
-        HYDRA_FULL_ERROR=1 python src/train.py experiment=train_test
+        HYDRA_FULL_ERROR=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+          python src/train.py \
+            experiment=train_profam_example \
+            model=llama_test \
+            trainer=cpu \
+            trainer.max_steps=2 \
+            trainer.num_sanity_val_steps=0 \
+            trainer.limit_val_batches=1 \
+            trainer.enable_checkpointing=false \
+            trainer.enable_progress_bar=false \
+            logger=null \
+            callbacks=none \
+            data.num_workers=0 \
+            data.prefetch_factor=null
