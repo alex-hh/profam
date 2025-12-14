@@ -141,11 +141,10 @@ trainer:
   use_distributed_sampler: false
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
-  data_dir: ../ProFam-atlas
+  data_dir: data/train_example
   log_dir: ${paths.root_dir}/logs/${experiment_group}
   output_dir: ${hydra:runtime.output_dir}
   work_dir: ${hydra:runtime.cwd}
-  gym_data_dir: ${paths.data_dir}/ProteinGym
 extras:
   ignore_warnings: false
   enforce_tags: true
@@ -164,15 +163,6 @@ tokenizer:
   add_document_token: true
 constants:
   vocab_size: 68
-  gym_val_assay_list:
-  - BLAT_ECOLX_Jacquier_2013
-  - CALM1_HUMAN_Weile_2017
-  - DYR_ECOLI_Thompson_2019
-  - DLG4_RAT_McLaughlin_2012
-  - REV_HV1H2_Fernandes_2016
-  - TAT_HV1BR_Fernandes_2016
-  - RL40A_YEAST_Roscoe_2013
-  - P53_HUMAN_Giacomelli_2018_WT_Nutlin
   sequence_features:
   - ds_name
   - identifier
@@ -188,7 +178,7 @@ data:
     openfold_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: openfold_train
-      dataset_root: ${paths.data_dir}/OpenFold_OpenProteinSet/train
+      dataset_root: ${paths.data_dir}/OpenFold_OpenProteinSet
       tokenizer: ${tokenizer}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -209,7 +199,7 @@ data:
     ted_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: ted_train
-      dataset_root: ${paths.data_dir}/ted/ted_min20_max90_train
+      dataset_root: ${paths.data_dir}/ted
       tokenizer: ${tokenizer}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -227,28 +217,10 @@ data:
           to_upper: true
           use_msa_pos: false
         transform_fns: null
-    proteingym:
-      _target_: src.data.builders.proteingym.ProteinGymDataset
-      name: proteingym
-      dms_ids: ${constants.gym_val_assay_list}
-      gym_data_dir: ${paths.gym_data_dir}
-      seed: 42
-      mutant_bos_token: sep
-      keep_gaps: false
-      use_filtered_msa: false
-      extra_tokens_per_document: 2
-      max_mutated_sequences: 1000
-      use_msa_pos: false
-      num_proc: null
-      max_tokens_per_example: 7000
-      max_context_seqs: null
-      keep_wt: false
-      drop_wt: true
-      msa_folder_name: "PoET_DMS_msa_files/DMS_substitutions"
     foldseek_s50_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: foldseek_s50_train
-      dataset_root: ${paths.data_dir}/foldseek_s50/train
+      dataset_root: ${paths.data_dir}/foldseek_s50
       tokenizer: ${tokenizer}
       seed: ${seed}
       preprocessor:
@@ -266,7 +238,7 @@ data:
     foldseek_s50_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: foldseek_s50_val
-      dataset_root: ${paths.data_dir}/foldseek_s50/val
+      dataset_root: ${paths.data_dir}/foldseek_s50
       tokenizer: ${tokenizer}
       seed: ${seed}
       max_families: 500
@@ -285,7 +257,7 @@ data:
     uniref90_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: uniref90_train
-      dataset_root: ${paths.data_dir}/uniref90/train
+      dataset_root: ${paths.data_dir}/uniref90
       tokenizer: ${tokenizer}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -302,7 +274,7 @@ data:
     uniref90_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: uniref90_val
-      dataset_root: ${paths.data_dir}/OpenFold_OpenProteinSet/val
+      dataset_root: ${paths.data_dir}/uniref90
       tokenizer: ${tokenizer}
       max_families: 500
       preprocessor:
@@ -324,14 +296,13 @@ data:
     ted_train: 1
   val_dataset_batch_sizes:
     foldseek_s50_val: 1
-    proteingym: 1
     uniref90_val: 1
   batch_size: 100
   data_dir: ${paths.data_dir}
   num_workers: 32
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 17000
+  pack_to_max_tokens: 10000
   prefetch_factor: 4
   shuffle: true
   interleaved: true
