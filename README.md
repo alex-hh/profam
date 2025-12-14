@@ -24,10 +24,13 @@ uv venv -p python3.11 pfenv
 source pfenv/bin/activate
 
 # install requirements
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 
-# if using flash attention, install separately
-pip install flash-attn --no-build-isolation
+# [Optional - Development]: install test/lint tooling
+uv pip install -r requirements-dev.txt
+
+# if you want to use flash attention, install separately
+uv pip install flash-attn --no-build-isolation
 
 # download the model checkpoint:
 python scripts/hf_download_checkpoint.py

@@ -345,7 +345,7 @@ class BaseFamilyLitModule(LightningModule):
             ].reshape(-1, L)  # b_mut, L
             # fmt: on
             # remove unnecessary padding:
-            this_input_ids = self.trim_eval_batch(this_input_ids)  # todo trim strct etc
+            this_input_ids = self.trim_eval_batch(this_input_ids)
             L_mini_batch = this_input_ids.shape[-1]
 
             actual_batch_size = this_input_ids.shape[0]
@@ -366,7 +366,12 @@ class BaseFamilyLitModule(LightningModule):
             # start_ix is 0 as this is likelihood for first AA (pos 1)
             log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
 
-            all_lls.append(log_likelihood.mean(-1))  # b_mut
+            # mask padded positions in before computing the mean.
+            shift_labels = labels[..., 1:].to(log_likelihood.device)  # aligns with start_ix=0
+            mask = shift_labels != -100
+            denom = mask.sum(dim=-1).clamp(min=1)
+            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+            all_lls.append(ll_mean)  # b_mut
 
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls
@@ -410,8 +415,13 @@ class BaseFamilyLitModule(LightningModule):
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=likelihood_start_ix
             )  # 1, L
-
-            all_lls.append(log_likelihood.mean(-1).item())
+            shift_labels = labels[..., likelihood_start_ix + 1 :].to(
+                log_likelihood.device
+            )
+            mask = shift_labels != -100
+            denom = mask.sum(dim=-1).clamp(min=1)
+            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+            all_lls.append(ll_mean.item())
         lls = np.array(all_lls)
         return lls
 
@@ -450,7 +460,11 @@ class BaseFamilyLitModule(LightningModule):
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=1
             )  # 1, L
-            all_lls.append(log_likelihood.mean(-1))
+            shift_labels = labels[..., 2:].to(log_likelihood.device)  # aligns with start_ix=1
+            mask = shift_labels != -100
+            denom = mask.sum(dim=-1).clamp(min=1)
+            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+            all_lls.append(ll_mean)
 
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls

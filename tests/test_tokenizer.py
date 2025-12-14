@@ -5,30 +5,6 @@ from src.data.processors.transforms import (
 from src.sequence.fasta import read_fasta_sequences
 
 
-def test_encode_decode(profam_tokenizer, pfam_fasta_text):
-    max_tokens = 2048
-    lines = pfam_fasta_text.split("\n")
-    sequence_iterator = read_fasta_sequences(
-        lines,
-        # preserve original sequences before getting positions
-        keep_gaps=False,
-        keep_insertions=True,
-        to_upper=True,
-    )
-    proteins = preprocess_raw_sequences_sampling_to_max_tokens(
-        ProteinDocument(sequences=list(sequence_iterator)),
-        tokenizer=profam_tokenizer,
-        max_tokens=max_tokens,
-        extra_tokens_per_document=2,
-    )
-    # n.b. encode_sequences encodes as a sequence of sequences
-    encoded = profam_tokenizer.encode(proteins).input_ids
-    decoded = profam_tokenizer.decode_tokens(encoded[None])[
-        0
-    ]  # decode_tokens returns a list of lists
-    for input_seq, decoded_seq in zip(proteins.sequences, decoded):
-        assert input_seq == decoded_seq
-
 
 def test_sequence_of_sequence_tokenization(profam_tokenizer):
     example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]

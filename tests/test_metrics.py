@@ -19,8 +19,9 @@ def test_single_doc_single_batch():
 
     outputs = type("", (), {"logits": logits})()
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -36,8 +37,9 @@ def test_single_doc_single_batch():
 
     logits[0, -3, 3] = -1000  # incorrect pred
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -48,8 +50,9 @@ def test_single_doc_single_batch():
     logits[0, 2, 4] = -1000  # incorrect at first sep
     logits[0, 1, 3] = -1000  # incorrect
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -80,8 +83,9 @@ def test_sequence_packing():
 
     outputs = type("", (), {"logits": logits})()
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -93,8 +97,9 @@ def test_sequence_packing():
 
     logits[0, 0, 2] = -1000  # incorrect pred first seq 1
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -119,8 +124,9 @@ def test_sequence_packing():
     logits[0, 8, 99] = 1000
     logits[0, -2, 99] = 1000
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -166,8 +172,9 @@ def test_multiple_documents_batch_dim():
 
         outputs = type("", (), {"logits": logits})()
         acc_metrics = metrics.accuracy_from_outputs(
-            outputs,
-            labels,
+            input_ids=labels,
+            model_outputs=outputs,
+            labels=labels,
             start_ix=0,
             sep_token_id=4,
             bos_token_id=1,
@@ -190,8 +197,9 @@ def test_multiple_documents_batch_dim():
     logits[1, 2, 2] = -1000  # incorrect in second batch, first sequence
 
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -231,8 +239,9 @@ def test_single_sequence_document():
 
     outputs = type("", (), {"logits": logits})()
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -248,8 +257,9 @@ def test_single_sequence_document():
     logits[1, 2, 6] = -1000  # incorrect in second sequence
 
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -280,8 +290,9 @@ def test_padding_handling():
 
     outputs = type("", (), {"logits": logits})()
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -291,8 +302,9 @@ def test_padding_handling():
 
     logits[0, 0, 2] = -100  # incorrect
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -302,8 +314,9 @@ def test_padding_handling():
 
     logits[0, 1, 3] = -100  # incorrect
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -313,8 +326,9 @@ def test_padding_handling():
 
     logits[1, 0, 5] = -100  # incorrect
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -341,8 +355,9 @@ def test_mixed_dataset_batch():
 
     outputs = type("", (), {"logits": logits})()
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
         sep_token_id=4,
         bos_token_id=1,
@@ -365,8 +380,9 @@ def test_edge_cases():
 
     outputs = type("", (), {"logits": logits})()
     acc_metrics = metrics.accuracy_from_outputs(
-        outputs,
-        labels,
+        input_ids=labels,
+        model_outputs=outputs,
+        labels=labels,
         start_ix=0,
     )
 
