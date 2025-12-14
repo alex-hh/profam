@@ -16,13 +16,15 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: 'pip'
-        cache-dependency-path: '**/requirements.txt'
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
 
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        uv pip install -r requirements.txt
 
 # TODO: seed?
     - name: Test
@@ -32,7 +34,7 @@ jobs:
       run: |
         HYDRA_FULL_ERROR=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
           python src/train.py \
-            experiment=train_profam_example \
+            data=train_example \
             model=llama_test \
             trainer=cpu \
             trainer.max_steps=2 \
