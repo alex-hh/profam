@@ -11,6 +11,7 @@ import pandas as pd
 import rootutils
 import torch
 from scipy.stats import spearmanr
+from tqdm.auto import tqdm
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
@@ -48,14 +49,17 @@ def score_variants_ensemble(
     completion_ids: torch.Tensor,
     tokenized_conditioning_sequences: List[List[int]],
     ensemble_size: int,
-    start_tokens: list[int] = [47, 63],
-    resample_downweighter: float = 1.0,
+    scoring_max_tokens: int,
+    start_tokens: Optional[list[int]] = None,
     max_tokens_override: Optional[int] = None,
+    weights: Optional[np.ndarray] = None,
 ):
     """
     Computes the mean log-likelihood of candidate sequences using an ensemble of prompts
     sampled from the conditioning sequences (context).
     """
+    if start_tokens is None:
+        start_tokens = [47, 63]
     random.seed(42)
     rng = random.Random(42)
     rng_np = np.random.default_rng(42)
@@ -99,9 +103,18 @@ def score_variants_ensemble(
         repeats = min(ensemble_size, total_seqs) if total_seqs > 0 else 1
 
     sep_token_id = model.tokenizer.sep_token_id
-
-    for rep in range(repeats):
-        fail_count = 0
+    p = None
+    if weights is not None:
+        w = np.asarray(weights, dtype=np.float64)
+        w = np.clip(w, 0.0, None)
+        s = float(w.sum())
+        p = (w / s) if s > 0 else None
+    for rep in tqdm(
+        range(repeats),
+        desc="Scoring sequences",
+        unit="prompt",
+        file=sys.stderr,
+    ):
         while True:
             if n_opt == 0 and 0 in n_seqs_list:
                 if len(vals_in_range) > 0:
@@ -111,8 +124,12 @@ def score_variants_ensemble(
                     break
 
             if total_seqs > 0:
-                p = weights / weights.sum() if weights is not None else None
-                idxs = rng_np.choice(np.arange(total_seqs), size=min(n_opt, total_seqs), replace=False, p=p).tolist()
+                idxs = rng_np.choice(
+                    np.arange(total_seqs),
+                    size=min(n_opt, total_seqs),
+                    replace=False,
+                    p=p,
+                ).tolist()
                 rng.shuffle(idxs)
                 tok_cnt = sum(seq_lengths[i] for i in idxs)
             else:
@@ -123,13 +140,9 @@ def score_variants_ensemble(
             prompt_len_estimate = len(start_tokens) + tok_cnt + len(idxs)
             
             if prompt_len_estimate + completion_length <= max_tokens:
-                fail_count = 0
                 break
             else:
-                fail_count += 1
-                if fail_count > token_count_attempts:
-                    n_opt = max(0, n_opt - 1)
-                    fail_count = 0
+                n_opt = max(0, n_opt - 1) # Try a smaller number of sequences
 
         # Build prompt
         if n_opt == 0 or len(idxs) == 0:
@@ -158,7 +171,8 @@ def score_variants_ensemble(
             completion_ids_device,
             use_cache=getattr(model, "use_kv_cache_for_scoring", True),
             batch_size=max(
-                (getattr(model, "scoring_max_tokens", 32000)) // (L + L_prompt), 1
+                int(scoring_max_tokens) // (L + L_prompt),
+                1,
             )
             if getattr(model, "use_kv_cache_for_scoring", True)
             else 1,
@@ -219,10 +233,37 @@ def main():
         help="Token budget (prompt+completion) used for batch size heuristics",
     )
     parser.add_argument(
+        "--scoring_max_tokens",
+        type=int,
+        default=64000,
+        help=(
+            "Token budget used ONLY to dynamically set the scoring batch size to stay within memory "
+            "constraints. This is typically higher than --max_tokens. "
+        ),
+    )
+    parser.add_argument(
         "--ensemble_number",
         type=int,
         default=3,
         help="Number of prompts used to generate the ensemble score",
+    )
+    parser.add_argument(
+        "--use_diversity_weights",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="If set, sample conditioning sequences with homology-based diversity weights (1/#neighbors).",
+    )
+    parser.add_argument(
+        "--diversity_theta",
+        type=float,
+        default=0.2,
+        help="Theta used for homology neighbor definition when computing diversity weights.",
+    )
+    parser.add_argument(
+        "--recompute_diversity_weights",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="If set, ignore any on-disk cached weights and recompute.",
     )
     parser.add_argument(
         "--attn_implementation",
@@ -242,11 +283,11 @@ def main():
         import flash_attn
     except ImportError:
         if attn_impl == "flash_attention_2":
-            print(
-                "Flash attention requested but not installed. Reverting to sdpa.",
-                file=sys.stderr,
+            raise ImportError(
+                "Flash attention is not installed. "
+                "select an alternative attention implementation such as:\n`--attn_implementation sdpa`.\n"
+                "Or install it with:\n`pip install flash-attn --no-build-isolation`. "
             )
-            attn_impl = "sdpa"
 
     try:
         ckpt_blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
@@ -277,11 +318,18 @@ def main():
     # Build ProteinDocument objects (just to read sequences nicely)
     cond_doc = build_pool_from_fasta(args.conditioning_fasta)
     
-    print(f"Computing sequence weights for {args.conditioning_fasta}...", file=sys.stderr)
-    weights = compute_homology_sequence_weights_with_cache(
-        msa_file=args.conditioning_fasta,
-        sequences=cond_doc.sequences,
-    )
+    weights = None
+    if args.use_diversity_weights:
+        print(
+            f"Computing diversity (homology) weights for {args.conditioning_fasta}...",
+            file=sys.stderr,
+        )
+        weights = compute_homology_sequence_weights_with_cache(
+            msa_file=args.conditioning_fasta,
+            sequences=cond_doc.sequences,
+            theta=args.diversity_theta,
+            force_recalc=args.recompute_diversity_weights,
+        )
     
     # Tokenize conditioning sequences individually
     print(
@@ -339,6 +387,7 @@ def main():
             completion_ids=completion_ids,
             tokenized_conditioning_sequences=tokenized_conditioning_sequences,
             ensemble_size=args.ensemble_number,
+            scoring_max_tokens=args.scoring_max_tokens,
             start_tokens=[47, 63],
             max_tokens_override=args.max_tokens,
             weights=weights
@@ -351,8 +400,6 @@ def main():
     csv_path = os.path.join(args.save_dir, f"{candidate_basename}_scores.csv")
     json_path = os.path.join(args.save_dir, f"{candidate_basename}_metadata.json")
 
-    # Save CSV
-    print(f"Saving scores to {csv_path}...")
     df_out = pd.DataFrame(
         {"id": cand_names, "mutated_sequence": cand_seqs, "score": lls.tolist()}
     )
@@ -360,8 +407,8 @@ def main():
         df_out["DMS_score"] = dms_scores
     df_out.to_csv(csv_path, index=False)
 
-    # Print to stdout as well (header compatible with previous version)
     print(df_out[["id", "mutated_sequence", "score"]].to_csv(index=False))
+    print(f"Scores saved to {csv_path}...")
 
     # Calculate metrics
     corr = None
@@ -369,7 +416,6 @@ def main():
         corr, _ = spearmanr(lls, dms_scores)
         print(f"Spearman correlation: {corr}", file=sys.stderr)
 
-    # Save Metadata JSON
     metadata = {
         "n_sequences_evaluated": len(cand_seqs),
         "ensemble_number": args.ensemble_number,

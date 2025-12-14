@@ -26,26 +26,6 @@ from src.data.msa_subsampling import (
 )
 
 
-def has_no_indels(string_list):
-    pattern = r"[.\-a-z]"
-    return not any(re.search(pattern, s) for s in string_list)
-
-
-def extract_sequence_weights_from_seq_ids(seq_ids: list) -> np.ndarray[float]:
-    return np.array([float(e.split("score=")[-1].split(" ")[0]) for e in seq_ids])
-
-
-# --------------------------------------------------------------------------------------
-# Homology-based sequence weights
-# --------------------------------------------------------------------------------------
-# These weights are the inverse of the number of neighbours within a given Hamming-distance
-# threshold (theta).  The logic is shared with the implementation in
-# `src/data/msa_subsampling.py::compute_homology_weights`, but we wrap it here with:
-#   • FAST caching to an .npz file next to the source MSA so that subsequent epochs do not
-#     repeat the expensive computation.
-#   • A light-weight one-hot encoding from characters to integers compatible with the
-#     Uniprot21 alphabet expected by the original implementation.
-
 
 def tokenize_msa(
     sample,
