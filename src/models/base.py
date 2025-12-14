@@ -367,7 +367,9 @@ class BaseFamilyLitModule(LightningModule):
             log_likelihood = log_likelihood_from_outputs(outputs, labels, start_ix=0)
 
             # mask padded positions in before computing the mean.
-            shift_labels = labels[..., 1:].to(log_likelihood.device)  # aligns with start_ix=0
+            shift_labels = labels[..., 1:].to(
+                log_likelihood.device
+            )  # aligns with start_ix=0
             mask = shift_labels != -100
             denom = mask.sum(dim=-1).clamp(min=1)
             ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
@@ -460,7 +462,9 @@ class BaseFamilyLitModule(LightningModule):
             log_likelihood = log_likelihood_from_outputs(
                 outputs, labels, start_ix=1
             )  # 1, L
-            shift_labels = labels[..., 2:].to(log_likelihood.device)  # aligns with start_ix=1
+            shift_labels = labels[..., 2:].to(
+                log_likelihood.device
+            )  # aligns with start_ix=1
             mask = shift_labels != -100
             denom = mask.sum(dim=-1).clamp(min=1)
             ll_mean = (log_likelihood * mask).sum(dim=-1) / denom

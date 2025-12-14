@@ -78,7 +78,7 @@ Important: **even if aligned/MSA information is provided, ProFam does not use al
 During preprocessing, sequences are standardised:
 
 - **Gaps**: `-` (and alignment gap-like `.`) are removed
-- **Insertions / lowercase**: lowercase residues (common in A3M insertions) will be converted to uppercase 
+- **Insertions / lowercase**: lowercase residues (common in A3M insertions) will be converted to uppercase
 - **Non-canonical amino acids**: selenocysteine/pyrrolysine are converted (`U → C`, `O → K`). Any remaining out-of-vocabulary characters will map to `[UNK]` if `allow_unk=true` (otherwise they are rejected).
 
 ## Training
@@ -193,4 +193,3 @@ If you have a directory of per-family FASTA files and want to create `*.mapping`
 see:
 
 - `data_creation_scripts/fasta_to_text_memmap.py`
-

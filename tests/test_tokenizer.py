@@ -5,7 +5,6 @@ from src.data.processors.transforms import (
 from src.sequence.fasta import read_fasta_sequences
 
 
-
 def test_sequence_of_sequence_tokenization(profam_tokenizer):
     example_sequences = ["ARNDC", "QEGHIL", "KMFPST", "WYV"]
     concatenated_sequence = (

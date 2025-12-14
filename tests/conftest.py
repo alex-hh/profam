@@ -91,7 +91,6 @@ def model_seq_index(profam_tokenizer):
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
 
 
-
 @pytest.fixture(scope="package")
 def proteingym_batch(profam_tokenizer):
     # This test suite only needs a prompt + multiple "completion" variants to
@@ -130,5 +129,3 @@ def proteingym_batch(profam_tokenizer):
         "DMS_id": "SYNTHETIC",
     }
     return collator([datapoint])
-
-
