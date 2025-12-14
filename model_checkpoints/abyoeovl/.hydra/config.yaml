@@ -32,7 +32,7 @@ model:
     rope_theta: 500000
     max_position_embeddings: 131072
     scoring_max_tokens: 10240
-    attn_implementation: sdpa
+    attn_implementation: flash_attention_2
     attention_bias: false
     attention_dropout: 0.0
     rms_norm_eps: 1.0e-05
