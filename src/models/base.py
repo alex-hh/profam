@@ -115,12 +115,14 @@ class BaseFamilyLitModule(LightningModule):
             # BaseLitModule.model.forward()
             # in general we assume that if you call BaseLitModule.forward()
             # you are not using KV cache.
-        
+
         if labels is not None:
             labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
-        
-        position_ids = self.get_position_ids_for_model_forward(input_ids, past_key_values)
-        
+
+        position_ids = self.get_position_ids_for_model_forward(
+            input_ids, past_key_values
+        )
+
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -152,9 +154,7 @@ class BaseFamilyLitModule(LightningModule):
         position_ids = (counter - offsets).unsqueeze(0)
         return position_ids
 
-    def get_position_ids_for_model_forward(
-        self, input_ids, past_key_values
-    ):
+    def get_position_ids_for_model_forward(self, input_ids, past_key_values):
         position_ids = None
         if past_key_values is not None:
             assert (
@@ -164,7 +164,6 @@ class BaseFamilyLitModule(LightningModule):
         elif self.pass_res_pos_in_doc_as_position_ids:
             position_ids = self.compute_res_pos_in_doc(input_ids)
         return position_ids
-
 
     def on_train_batch_start(self, batch, batch_idx: int):
         self._t0 = time.time()

@@ -324,7 +324,12 @@ def main():
             f"Computing diversity (homology) weights for {args.conditioning_fasta}...",
             file=sys.stderr,
         )
-        _, aligned_sequences = read_fasta(args.conditioning_fasta, keep_insertions=False, to_upper=True, keep_gaps=True)
+        _, aligned_sequences = read_fasta(
+            args.conditioning_fasta,
+            keep_insertions=False,
+            to_upper=True,
+            keep_gaps=True,
+        )
         weights = compute_homology_sequence_weights_with_cache(
             msa_file=args.conditioning_fasta,
             sequences=aligned_sequences,
