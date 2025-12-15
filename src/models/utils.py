@@ -6,19 +6,27 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from transformers.cache_utils import DynamicCache
 
-from src.constants import BASEDIR, VOCAB_SIZE
+from src.constants import BASEDIR
 
 
-def load_named_model(model_name, overrides=None):
+def load_named_model(experiment_name: str, overrides: Optional[List[str]] = None):
+    """Load a model by composing the full training config and instantiating `cfg.model`.
+
+    This helper intentionally composes `configs/train.yaml` + an `experiment=` preset,
+    matching the config layout (base + presets).
+
+    Args:
+        experiment_name: Name of a file under `configs/experiment/` (without `.yaml`).
+        overrides: Optional Hydra override strings (e.g. `model.lr=1e-4`).
+    """
     with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
-        model_overrides = [f"+constants.vocab_size={VOCAB_SIZE}"] + (overrides or [])
-        model_cfg = compose(
-            config_name=f"model/{model_name}", overrides=model_overrides
+        cfg = compose(
+            config_name="train.yaml",
+            overrides=[f"experiment={experiment_name}"] + (overrides or []),
         )
-        tokenizer_cfg = compose(config_name=f"tokenizer/profam")
 
-    tokenizer = instantiate(tokenizer_cfg.tokenizer)
-    model = instantiate(model_cfg.model, tokenizer=tokenizer)
+    tokenizer = instantiate(cfg.tokenizer)
+    model = instantiate(cfg.model, tokenizer=tokenizer)
     return model
 
 
