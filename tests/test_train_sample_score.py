@@ -77,7 +77,7 @@ def test_generate_sequences(tmp_path, project_root):
         project_root
         / "data"
         / "generate_sequences_example"
-        / "4_1_1_39_cluster.filtered.fasta"
+        / "generate_sequences_test_case.fasta"
     )
     save_dir = tmp_path / "gen_outputs"
     save_dir.mkdir(parents=True, exist_ok=True)

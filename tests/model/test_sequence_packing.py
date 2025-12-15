@@ -103,9 +103,6 @@ def test_sequence_packing_consistency(profam_tokenizer):
     # Packed: [0, len1:len1+len2]
     diff2 = (logits_batch[1, :len2] - logits_packed[0, len1:len1+len2]).abs().max()
     
-    print(f"Difference Seq 1: {diff1.item()}")
-    print(f"Difference Seq 2: {diff2.item()}")
-    
     # Tolerances might need to be looser for float16/bfloat16
     assert diff1 < 1e-2, f"Sequence 1 outputs differ significantly: {diff1.item()}"
     assert diff2 < 1e-2, f"Sequence 2 outputs differ significantly: {diff2.item()}"
