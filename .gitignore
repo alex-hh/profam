@@ -54,6 +54,7 @@ out/
 .zshrc
 .zcompdump
 .viminfo
+.venv/
 evo_finetune_gym/
 model_checkpoints/abyoeovl/checkpoints/last.ckpt
 tests/test_min20_max90_mapping_alignment.py
