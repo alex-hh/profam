@@ -9,7 +9,7 @@
 
 **ProFam-1** is a 251M-parameter autoregressive protein family language model (pfLM), trained with next-token prediction on **concatenated, unaligned protein sequences** drawn from the same family.
 
-ProFam is built using the **PyTorch Lightning** framework.
+ProFam is built using the **PyTorch Lightning** framework and uses hydra for configuration management.
 
 ## Quickstart
 
@@ -108,6 +108,7 @@ The config that reproduces the checkpoint model training run is:
 Some settings in that config are **deprecated**. The suggested config compatible with the **latest ProFam-Atlas release** is:
 
 - `configs/experiment/train_profam.yaml`
+
 
 ## Debugging installation (conda fallback)
 
