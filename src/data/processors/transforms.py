@@ -330,6 +330,61 @@ def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
     return proteins.clone(sequences=new_sequences)
 
 
+def replace_nans_in_coords(
+    proteins: ProteinDocument,
+    fill_value: float = 0.0,
+    **kwargs,
+) -> ProteinDocument:
+    """Replace NaNs in any coordinate-like arrays attached to a ProteinDocument."""
+    import copy
+
+    try:
+        import torch
+    except ImportError:
+        torch = None
+
+    def _nan_to_num(x):
+        if x is None:
+            return x, False
+        if isinstance(x, np.ndarray):
+            if np.isnan(x).any():
+                return np.nan_to_num(x, nan=float(fill_value)), True
+            return x, False
+        if torch is not None and isinstance(x, torch.Tensor):
+            if torch.isnan(x).any():
+                if hasattr(torch, "nan_to_num"):
+                    return torch.nan_to_num(x, nan=float(fill_value)), True
+                return torch.where(torch.isnan(x), x.new_full((), float(fill_value)), x), True
+            return x, False
+        if isinstance(x, (list, tuple)):
+            changed_any = False
+            out = []
+            for item in x:
+                new_item, changed = _nan_to_num(item)
+                changed_any = changed_any or changed
+                out.append(new_item)
+            return (out if isinstance(x, list) else tuple(out)), changed_any
+        return x, False
+
+    coord_keys = [
+        k
+        for k in vars(proteins).keys()
+        if "coord" in k.lower() or "coords" in k.lower()
+    ]
+    if not coord_keys:
+        return proteins
+
+    out_doc = copy.copy(proteins)
+    changed_any = False
+    for k in coord_keys:
+        new_val, changed = _nan_to_num(getattr(out_doc, k, None))
+        if changed:
+            setattr(out_doc, k, new_val)
+            changed_any = True
+
+    return out_doc if changed_any else proteins
+
+
 def add_final_sep(proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwargs):
     """Add a separator token to the end of the last sequence and extend other arrays accordingly.
 
