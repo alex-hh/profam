@@ -1,4 +1,8 @@
 import os
+
+# Set environment variable for deterministic algorithms with CuBLAS
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+
 import subprocess
 import sys
 from pathlib import Path
