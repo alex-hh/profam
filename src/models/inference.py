@@ -4,12 +4,13 @@ import os
 import shutil
 import subprocess
 import tempfile
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+from src.constants import aa_letters, aa_letters_lower
 from src.data.objects import ProteinDocument
 from src.data.processors import transforms
 from src.data.processors.preprocessing import (
@@ -18,11 +19,12 @@ from src.data.processors.preprocessing import (
 )
 from src.data.tokenizers import ProFamTokenizer
 from src.models.base import BaseFamilyLitModule
-from src.constants import aa_letters, aa_letters_lower
 from src.utils.sampling_utils import has_too_many_repeats
 
 
-def _mmseqs_best_identity(prompt_sequences: List[str], query_sequences: List[str], threads: int = 1) -> List[float]:
+def _mmseqs_best_identity(
+    prompt_sequences: List[str], query_sequences: List[str], threads: int = 1
+) -> List[float]:
     """Compute best identity per query sequence against prompt sequences using mmseqs easy-search.
 
     Returns a list of floats in [0,1], one per query, representing the maximum percent identity
@@ -32,7 +34,9 @@ def _mmseqs_best_identity(prompt_sequences: List[str], query_sequences: List[str
         return []
     mmseqs_bin = shutil.which("mmseqs")
     if mmseqs_bin is None:
-        raise RuntimeError("mmseqs binary not found in PATH; required for identity filtering")
+        raise RuntimeError(
+            "mmseqs binary not found in PATH; required for identity filtering"
+        )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         target_fa = os.path.join(tmpdir, "targets.fasta")
@@ -61,7 +65,9 @@ def _mmseqs_best_identity(prompt_sequences: List[str], query_sequences: List[str
             "query,target,pident",
         ]
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"mmseqs easy-search failed: {e}")
 
@@ -163,9 +169,11 @@ class ProFamSampler:
         repeat_guard: bool = True,
         repeat_length: int = 9,
         repeat_count: int = 9,
-        repeat_guard_max_restarts: int = 3,
+        max_retries: int = 3,
     ):
-        assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
+        assert not (
+            repeat_guard and continuous_sampling
+        ), "Repeat guard and continuous sampling are not supported together"
         sampling_kwargs = copy.deepcopy(self.sampling_kwargs or {})
         if self.match_representative_length:
             sampling_kwargs["fixed_length"] = len(
@@ -200,7 +208,9 @@ class ProFamSampler:
         rounds = 0
         with torch.no_grad():
             if not continuous_sampling:
-                while len(accepted_sequences) < target and rounds <= int(maximum_retries):
+                while len(accepted_sequences) < target and rounds <= int(
+                    maximum_retries
+                ):
                     need = target - len(accepted_sequences)
                     tokens, scores = self.model._sample_seqs(
                         encoded["input_ids"].unsqueeze(0).to(self.model.device),
@@ -211,30 +221,46 @@ class ProFamSampler:
                         repeat_guard=repeat_guard,
                         repeat_length=repeat_length,
                         repeat_count=repeat_count,
-                        repeat_guard_max_restarts=repeat_guard_max_restarts,
+                        max_retries=max_retries,
                         **sampling_kwargs,
                     )
                     batch_seqs = self.model.tokenizer.decode_tokens(tokens)
                     # Length pre-filter
                     len_ok_mask = [True] * len(batch_seqs)
                     if minimum_sequence_length_proportion is not None:
-                        min_len = int(min_prompt_len * float(minimum_sequence_length_proportion))
+                        min_len = int(
+                            min_prompt_len * float(minimum_sequence_length_proportion)
+                        )
                         len_ok_mask = [len(s) >= min_len for s in batch_seqs]
                     # Identity via mmseqs on those that passed length
                     idents: List[float] = [0.0] * len(batch_seqs)
                     idx_map: List[int] = [i for i, ok in enumerate(len_ok_mask) if ok]
-                    if len(idx_map) > 0 and ((minimum_sequence_identity is not None) and (minimum_sequence_identity > 0)):
+                    if len(idx_map) > 0 and (
+                        (minimum_sequence_identity is not None)
+                        and (minimum_sequence_identity > 0)
+                    ):
                         queries = [batch_seqs[i] for i in idx_map]
-                        id_vals = _mmseqs_best_identity(prompt_sequences, queries, threads=1)
+                        id_vals = _mmseqs_best_identity(
+                            prompt_sequences, queries, threads=1
+                        )
                         for j, i in enumerate(idx_map):
                             idents[i] = id_vals[j]
                     # Accept
                     for i, seq in enumerate(batch_seqs):
                         passes_len = len_ok_mask[i]
-                        passes_id = True if (minimum_sequence_identity is None or minimum_sequence_identity == 0) else (idents[i] >= float(minimum_sequence_identity))
+                        passes_id = (
+                            True
+                            if (
+                                minimum_sequence_identity is None
+                                or minimum_sequence_identity == 0
+                            )
+                            else (idents[i] >= float(minimum_sequence_identity))
+                        )
                         if passes_len and passes_id:
                             accepted_sequences.append(seq)
-                            accepted_scores.append(float(scores[i] if isinstance(scores, list) else scores))
+                            accepted_scores.append(
+                                float(scores[i] if isinstance(scores, list) else scores)
+                            )
                             max_sequence_identities.append(idents[i])
                             if len(accepted_sequences) >= target:
                                 break
@@ -255,12 +281,16 @@ class ProFamSampler:
                     batch_seqs = self.model.tokenizer.decode_tokens(tokens)
                     for i, seq in enumerate(batch_seqs):
                         accepted_sequences.append(seq)
-                        accepted_scores.append(float(scores[i] if isinstance(scores, list) else scores))
+                        accepted_scores.append(
+                            float(scores[i] if isinstance(scores, list) else scores)
+                        )
                         max_sequence_identities.append(idents[i])
                         if len(accepted_sequences) >= target:
                             break
             else:
-                raise ValueError("Continuous sampling is not supported for ProFamSampler")
+                raise ValueError(
+                    "Continuous sampling is not supported for ProFamSampler"
+                )
 
         return accepted_sequences, accepted_scores, prompt
 
@@ -300,9 +330,13 @@ class EnsemblePromptBuilder:
         self.shuffle = shuffle
         self.rng = np.random.default_rng(seed)
 
-    def _estimate_prompt_tokens(self, sequences: List[str], tokenizer: ProFamTokenizer) -> int:
+    def _estimate_prompt_tokens(
+        self, sequences: List[str], tokenizer: ProFamTokenizer
+    ) -> int:
         extra_tokens_per_protein = 1  # sep token per sequence
-        return tokenizer.num_start_tokens + sum(len(s) + extra_tokens_per_protein for s in sequences)
+        return tokenizer.num_start_tokens + sum(
+            len(s) + extra_tokens_per_protein for s in sequences
+        )
 
     def _choose_indices_under_budget(
         self,
@@ -323,7 +357,11 @@ class EnsemblePromptBuilder:
                 total = prospective
             else:
                 # Try to ensure at least one sequence fits
-                if len(chosen) == 0 and (tokenizer.num_start_tokens + len(proteins.sequences[i]) + 1) <= max_tokens:
+                if (
+                    len(chosen) == 0
+                    and (tokenizer.num_start_tokens + len(proteins.sequences[i]) + 1)
+                    <= max_tokens
+                ):
                     chosen.append(int(i))
                 break
         if len(chosen) == 0:
@@ -352,10 +390,14 @@ class EnsemblePromptBuilder:
                     this_context_tokens = low
                 else:
                     this_context_tokens = int(self.rng.integers(low, high))
-                this_context_tokens = max(int(this_context_tokens), int(max_context_tokens // 2))
+                this_context_tokens = max(
+                    int(this_context_tokens), int(max_context_tokens // 2)
+                )
             else:
                 this_context_tokens = max_context_tokens
-            idxs = self._choose_indices_under_budget(prepared, tokenizer, this_context_tokens)
+            idxs = self._choose_indices_under_budget(
+                prepared, tokenizer, this_context_tokens
+            )
             perm = np.array(idxs)
             if self.shuffle:
                 self.rng.shuffle(perm)
@@ -399,7 +441,11 @@ class EnsembleDecoder:
         if not self.sample_gaps:
             bad_aas.append("-")
 
-        bad_ids = [tid for tid in self.tokenizer.all_special_ids if tid != self.model.tokenizer.sep_token_id]
+        bad_ids = [
+            tid
+            for tid in self.tokenizer.all_special_ids
+            if tid != self.model.tokenizer.sep_token_id
+        ]
         bad_ids += [self.tokenizer.convert_tokens_to_ids(tok) for tok in bad_aas]
         # unique and valid
         bad_ids = [int(i) for i in set(bad_ids) if i is not None and i >= 0]
@@ -422,15 +468,20 @@ class EnsembleDecoder:
         repeat_guard: bool = True,
         repeat_length: int = 9,
         repeat_count: int = 9,
-        repeat_guard_max_restarts: int = 3,
+        max_retries: int = 3,
     ) -> torch.Tensor:
         device = self.model.device
         # Ensure tensors are on device
         input_ids = [ids.to(device) for ids in input_ids]
-        eos = self.model.tokenizer.sep_token_id if eos_token_id is None else eos_token_id
-        assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
+        eos = (
+            self.model.tokenizer.sep_token_id if eos_token_id is None else eos_token_id
+        )
+        assert not (
+            repeat_guard and continuous_sampling
+        ), "Repeat guard and continuous sampling are not supported together"
         # Helper to prepare per-variant state: independent KV caches and lengths (no padding)
         B = len(input_ids)
+
         def _init_states() -> List[Dict]:
             variant_states_local: List[Dict] = []
             for b in range(B):
@@ -481,7 +532,9 @@ class EnsembleDecoder:
 
             # Aggregate across variants
             if self.reduction == "sum_log_probs":
-                log_probs_stack = torch.stack([torch.log(p + 1e-12) for p in probs_list], dim=0)  # (B, V)
+                log_probs_stack = torch.stack(
+                    [torch.log(p + 1e-12) for p in probs_list], dim=0
+                )  # (B, V)
                 agg = torch.mean(log_probs_stack, dim=0)
                 agg_probs = F.softmax(agg, dim=-1)
             else:
@@ -493,11 +546,15 @@ class EnsembleDecoder:
                 sorted_probs, sorted_idx = torch.sort(agg_probs, descending=True)
                 cumsum = torch.cumsum(sorted_probs, dim=-1)
                 keep = cumsum <= float(self.top_p)
-                keep[..., 0] = True # Ensure at least the highest-prob token is included
+                keep[
+                    ..., 0
+                ] = True  # Ensure at least the highest-prob token is included
                 candidate_probs = sorted_probs[keep]
                 candidate_indices = sorted_idx[keep]
                 candidate_probs = candidate_probs / candidate_probs.sum()
-                sampled_local = torch.multinomial(candidate_probs, num_samples=1).squeeze(-1)
+                sampled_local = torch.multinomial(
+                    candidate_probs, num_samples=1
+                ).squeeze(-1)
                 token_id = int(candidate_indices[sampled_local].item())
                 token_prob = float(candidate_probs[sampled_local].item())
             else:
@@ -512,18 +569,24 @@ class EnsembleDecoder:
                 total_logp += token_logp
                 token_count += 1
             else:
-                raise ValueError("Continuous sampling is not supported for EnsembleDecoder")
+                raise ValueError(
+                    "Continuous sampling is not supported for EnsembleDecoder"
+                )
 
             # Repeat-guard: check for excessive repeats and optionally restart rollout
             if guard_active:
                 # Decode current completion as AA string
                 try:
-                    seq_so_far = self.model.tokenizer.decode(completions, skip_special_tokens=True).replace(" ", "")
+                    seq_so_far = self.model.tokenizer.decode(
+                        completions, skip_special_tokens=True
+                    ).replace(" ", "")
                 except Exception:
                     seq_so_far = ""
-                if seq_so_far and has_too_many_repeats(seq_so_far, repeat_length=repeat_length, repeat_count=repeat_count):
+                if seq_so_far and has_too_many_repeats(
+                    seq_so_far, repeat_length=repeat_length, repeat_count=repeat_count
+                ):
                     restarts_done += 1
-                    if restarts_done <= int(repeat_guard_max_restarts):
+                    if restarts_done <= int(max_retries):
                         # Reset rollout state and start again from scratch
                         completions = []
                         total_logp = 0.0
@@ -550,7 +613,9 @@ class EnsembleDecoder:
             for vi in range(B):
                 state = variant_states[vi]
                 curr_len = int(state["length"])
-                step_ids = torch.tensor([[token_id]], dtype=torch.long, device=device)  # (1,1)
+                step_ids = torch.tensor(
+                    [[token_id]], dtype=torch.long, device=device
+                )  # (1,1)
                 am_next = torch.ones((1, curr_len + 1), dtype=torch.long, device=device)
                 pos_next = torch.tensor([[curr_len]], dtype=torch.long, device=device)
                 outputs_next = self.model.model(
@@ -651,9 +716,11 @@ class ProFamEnsembleSampler:
         repeat_guard: bool = True,
         repeat_length: int = 9,
         repeat_count: int = 9,
-        repeat_guard_max_restarts: int = 3,
+        max_retries: int = 3,
     ) -> Tuple[List[str], List[float], List[ProteinDocument]]:
-        assert not (repeat_guard and continuous_sampling), "Repeat guard and continuous sampling are not supported together"
+        assert not (
+            repeat_guard and continuous_sampling
+        ), "Repeat guard and continuous sampling are not supported together"
         # Build prompt variants
         variants = self.prompt_builder.build_variants(
             protein_document,
@@ -662,7 +729,9 @@ class ProFamEnsembleSampler:
             max_tokens=max_tokens,
         )
         # Also prepare prompt sequences (post-transforms) for filtering thresholds
-        prepared = self.prompt_builder.preprocessor.apply_transforms(protein_document, self.model.tokenizer, rng=self.prompt_builder.rng)
+        prepared = self.prompt_builder.preprocessor.apply_transforms(
+            protein_document, self.model.tokenizer, rng=self.prompt_builder.rng
+        )
         prompt_sequences = list(prepared.sequences)
         min_prompt_len = min((len(s) for s in prompt_sequences), default=0)
         # Encode prompts without padding
@@ -696,29 +765,50 @@ class ProFamEnsembleSampler:
                         repeat_guard=repeat_guard,
                         repeat_length=repeat_length,
                         repeat_count=repeat_count,
-                        repeat_guard_max_restarts=repeat_guard_max_restarts,
+                        max_retries=max_retries,
                     )
                     if isinstance(gen_ids, torch.Tensor) and gen_ids.numel() == 0:
                         continue
                     seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[0]
                     cand_seqs.append(seq)
-                    cand_scores.append(float(gen_scores if isinstance(gen_scores, (int, float)) else gen_scores))
+                    cand_scores.append(
+                        float(
+                            gen_scores
+                            if isinstance(gen_scores, (int, float))
+                            else gen_scores
+                        )
+                    )
                 # Length filter
                 len_ok = [True] * len(cand_seqs)
                 if minimum_sequence_length_proportion is not None:
-                    min_len = int(min_prompt_len * float(minimum_sequence_length_proportion))
+                    min_len = int(
+                        min_prompt_len * float(minimum_sequence_length_proportion)
+                    )
                     len_ok = [len(s) >= min_len for s in cand_seqs]
                 # Identity batch via mmseqs
                 idents: List[float] = [0.0] * len(cand_seqs)
                 idx_map = [i for i, ok in enumerate(len_ok) if ok]
-                if len(idx_map) > 0 and (minimum_sequence_identity is not None) and (minimum_sequence_identity > 0):
-                    id_vals = _mmseqs_best_identity(prompt_sequences, [cand_seqs[i] for i in idx_map], threads=1)
+                if (
+                    len(idx_map) > 0
+                    and (minimum_sequence_identity is not None)
+                    and (minimum_sequence_identity > 0)
+                ):
+                    id_vals = _mmseqs_best_identity(
+                        prompt_sequences, [cand_seqs[i] for i in idx_map], threads=1
+                    )
                     for j, i in enumerate(idx_map):
                         idents[i] = id_vals[j]
                 # Accept
                 for i, seq in enumerate(cand_seqs):
                     passes_len = len_ok[i]
-                    passes_id = True if (minimum_sequence_identity is None or minimum_sequence_identity == 0) else (idents[i] >= float(minimum_sequence_identity))
+                    passes_id = (
+                        True
+                        if (
+                            minimum_sequence_identity is None
+                            or minimum_sequence_identity == 0
+                        )
+                        else (idents[i] >= float(minimum_sequence_identity))
+                    )
                     if passes_len and passes_id:
                         sequences.append(seq)
                         scores_out.append(cand_scores[i])
@@ -741,9 +831,19 @@ class ProFamEnsembleSampler:
                         sequences.append("")
                         scores_out.append(float("nan"))
                     else:
-                        seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[0]
+                        seq = self.model.tokenizer.decode_tokens(gen_ids.unsqueeze(0))[
+                            0
+                        ]
                         sequences.append(seq)
-                        scores_out.append(float(gen_scores if isinstance(gen_scores, (int, float)) else gen_scores))
+                        scores_out.append(
+                            float(
+                                gen_scores
+                                if isinstance(gen_scores, (int, float))
+                                else gen_scores
+                            )
+                        )
         else:
-            raise ValueError("Continuous sampling is not supported for ProFamEnsembleSampler")
+            raise ValueError(
+                "Continuous sampling is not supported for ProFamEnsembleSampler"
+            )
         return sequences, scores_out, variants

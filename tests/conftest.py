@@ -4,11 +4,12 @@ import os
 import hydra
 import pandas as pd
 import pytest
+import torch
 from hydra import compose, initialize, initialize_config_dir
 
 from src.constants import BASEDIR
-from src.data.builders import ProteinGymDataset
 from src.data.collators import DocumentBatchCollator
+from src.data.objects import ProteinDocument
 from src.data.processors import preprocessing, transforms
 from src.data.tokenizers import ProFamTokenizer
 
@@ -53,6 +54,7 @@ def test_model_noseqpos(profam_tokenizer_noseqpos):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
+                "data=train_example",
                 "model=llama_test",
             ],
         )
@@ -66,6 +68,7 @@ def test_model(profam_tokenizer):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
+                "data=train_example",
                 "model=llama_test",
             ],
         )
@@ -79,6 +82,8 @@ def model_seq_index(profam_tokenizer):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
+                "data=train_example",
+                "model=llama_test",
                 "model.config.attn_implementation=null",
                 "model.pass_res_pos_in_doc_as_position_ids=False",
             ],
@@ -87,47 +92,40 @@ def model_seq_index(profam_tokenizer):
 
 
 @pytest.fixture(scope="package")
-def parquet_raw_sequence_processor():
-    preprocessing_cfg = preprocessing.PreprocessingConfig()
-    return preprocessing.ParquetSequencePreprocessor(
-        config=preprocessing_cfg,
-    )
-
-
-@pytest.fixture
-def pfam_fasta_text():
-    return pd.read_parquet(
-        "data/example_data/pfam/Domain_60429258_61033370.parquet"
-    ).iloc[0]["text"]
-
-
-@pytest.fixture(scope="package")
 def proteingym_batch(profam_tokenizer):
-    builder = ProteinGymDataset(
-        name="pfam",
-        dms_ids=["BLAT_ECOLX_Jacquier_2013"],
-        keep_gaps=False,
-        use_filtered_msa=True,
-        seed=42,
-        max_tokens_per_example=2048,
-        num_proc=None,
-        keep_wt=True,
-        drop_wt=False,
+    # This test suite only needs a prompt + multiple "completion" variants to
+    # validate KV-cache scoring is consistent with non-cached scoring.
+    #
+    # Avoid depending on external ProteinGym data (not vendored in this repo) and
+    # avoid the deprecated ProteinGymDataset.load()/process() API.
+
+    # Prompt: a single protein sequence, with NO trailing [SEP] (the completion
+    # begins with [SEP] to match how ProteinGym is tokenized).
+    prompt_doc = ProteinDocument(sequences=["ACDEFGHIKLMNPQRSTVWY"])
+    prompt_tok = profam_tokenizer.encode(
+        prompt_doc, document_token="[RAW]", add_final_sep=False
     )
-    data = builder.load(
-        data_dir=os.path.join(BASEDIR, "data/example_data"),
+    input_ids = torch.as_tensor(prompt_tok["input_ids"], dtype=torch.long).unsqueeze(0)
+
+    # Completions: include leading and trailing [SEP] so the boundary token exists.
+    completion_seqs = [
+        "ACDEFGHIKLMNPQRSTVWY",  # "WT"
+        "ACDEFGHIKLMNPQKSTVWY",  # one substitution
+        "ACDEFGHIKLMNPQRSTVWV",  # one substitution
+        "ACDEFGHIKLMNPQRSTVWYAC",  # slightly longer
+    ]
+    comp_tok = profam_tokenizer.encode_completions(completion_seqs)
+    completion_ids = torch.as_tensor(comp_tok["input_ids"], dtype=torch.long).unsqueeze(
+        0
     )
-    data = builder.process(
-        data,
-        tokenizer=profam_tokenizer,
-    )
-    datapoint = next(iter(data))
+
+    # Collator expects a list of datapoints; we mimic the minimal fields used by tests.
     collator = DocumentBatchCollator(tokenizer=profam_tokenizer)
+    datapoint = {
+        "input_ids": input_ids.squeeze(0).numpy(),
+        "completion_ids": completion_ids.squeeze(0).numpy(),
+        "DMS_scores": torch.zeros(len(completion_seqs), dtype=torch.float32).numpy(),
+        "ds_name": "gym",
+        "DMS_id": "SYNTHETIC",
+    }
     return collator([datapoint])
-
-
-@pytest.fixture
-def pfam_fasta_text():
-    return pd.read_parquet(
-        "data/example_data/pfam/Domain_60429258_61033370.parquet"
-    ).iloc[0]["text"]

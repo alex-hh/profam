@@ -64,7 +64,6 @@ class Protein:
     def __len__(self):
         return len(self.sequence)
 
-
     def clone(self, **kwargs):
         return Protein(
             sequence=kwargs.get("sequence", self.sequence),
@@ -87,7 +86,6 @@ def convert_list_of_arrays_to_list_of_lists(list_of_arrays):
         return [arr.tolist() for arr in list_of_arrays]
     else:
         return list_of_arrays
-
 
 
 @dataclass
@@ -234,9 +232,7 @@ class ProteinDocument:
                 sequence_similarities=self.sequence_similarities[key]
                 if self.sequence_similarities is not None
                 else None,
-                coverages=self.coverages[key]
-                if self.coverages is not None
-                else None,
+                coverages=self.coverages[key] if self.coverages is not None else None,
                 sequence_weights=self.sequence_weights[key]
                 if self.sequence_weights is not None
                 else None,
@@ -281,15 +277,16 @@ class ProteinDocument:
             original_size=self.original_size,
             # Per-sequence scalar fields are unchanged by per-residue slicing
             sequence_similarities=self.sequence_similarities.copy()
-            if self.sequence_similarities is not None else None,
+            if self.sequence_similarities is not None
+            else None,
             coverages=self.coverages.copy() if self.coverages is not None else None,
             sequence_weights=self.sequence_weights.copy()
-            if self.sequence_weights is not None else None,
+            if self.sequence_weights is not None
+            else None,
         )
 
     def __len__(self):
         return len(self.sequences)
-
 
     def clone(self, **kwargs):
         return ProteinDocument(
@@ -305,7 +302,9 @@ class ProteinDocument:
             original_size=kwargs.pop("original_size", self.original_size),
             sequence_similarities=kwargs.pop(
                 "sequence_similarities",
-                self.sequence_similarities.copy() if self.sequence_similarities is not None else None,
+                self.sequence_similarities.copy()
+                if self.sequence_similarities is not None
+                else None,
             ),
             coverages=kwargs.pop(
                 "coverages",
@@ -313,7 +312,9 @@ class ProteinDocument:
             ),
             sequence_weights=kwargs.pop(
                 "sequence_weights",
-                self.sequence_weights.copy() if self.sequence_weights is not None else None,
+                self.sequence_weights.copy()
+                if self.sequence_weights is not None
+                else None,
             ),
             **kwargs,
         )

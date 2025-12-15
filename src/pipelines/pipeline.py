@@ -1,9 +1,9 @@
+import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-import json
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
@@ -110,7 +110,9 @@ class BaseEvaluatorPipeline:
                 pd.DataFrame([result]).set_index(["evaluator", "sampler", "instance"]),
             ]
         )
-        csv_save_path = os.path.join(self.pipeline_directory, evaluator_name, "results.csv")
+        csv_save_path = os.path.join(
+            self.pipeline_directory, evaluator_name, "results.csv"
+        )
         os.makedirs(os.path.dirname(csv_save_path), exist_ok=True)
         self.results_dfs[evaluator_name].to_csv(csv_save_path, index=True)
 
@@ -408,40 +410,44 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
     ) -> Dict[str, float]:
         """
         Analyze sequence similarity between prompt and sampled sequences, and create logos.
-        
+
         This method:
         1. Aligns both prompt and sampled sequences using MAFFT
         2. Computes maximum sequence similarity for each sampled sequence with prompt sequences
         3. Computes maximum sequence similarity between sampled sequences
         4. Creates logos for both prompt and sampled sequences
-        
+
         Args:
             instance_id: The instance ID to analyze
             sampler_name: The sampler name
             output_dir: Directory to save logos (defaults to pipeline directory)
             threads: Number of threads for MAFFT alignment
             verbose: Whether to print verbose output
-            
+
         Returns:
             Dictionary containing similarity statistics
         """
         # Load sequences
-        
+
         if verbose:
-            print(f"Analyzing {len(prompt_sequences)} prompt sequences and {len(sampled_sequences)} sampled sequences")
-        
+            print(
+                f"Analyzing {len(prompt_sequences)} prompt sequences and {len(sampled_sequences)} sampled sequences"
+            )
+
         # Set up output directory
         if output_dir is None:
-            output_dir = os.path.join(self.pipeline_directory, "sequence_analysis", instance_id, sampler_name)
+            output_dir = os.path.join(
+                self.pipeline_directory, "sequence_analysis", instance_id, sampler_name
+            )
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Helper functions from the script
         def write_fasta(sequences, accessions, fasta_path):
             """Write sequences to FASTA file."""
             with open(fasta_path, "w") as f:
                 for acc, seq in zip(accessions, sequences):
                     f.write(f">{acc}\n{seq}\n")
-        
+
         def run_alignment_with_mafft(fasta_input, fasta_output, threads=1):
             """Run MAFFT alignment."""
             cmd = ["mafft", "--thread", str(threads), "--auto", fasta_input]
@@ -449,7 +455,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 print(f"Running: {' '.join(cmd)}")
             with open(fasta_output, "w") as fout:
                 subprocess.run(cmd, check=True, stdout=fout)
-        
+
         def create_logo_from_fasta(alignment_fasta, output_logo):
             """Create sequence logo from aligned FASTA."""
             try:
@@ -459,46 +465,49 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 return
             alignment = AlignIO.read(alignment_fasta, "fasta")
             sequences = [str(record.seq) for record in alignment]
-            
+
             # Build logomaker counts matrix
             counts_matrix = logomaker.alignment_to_matrix(sequences)
             logo = logomaker.Logo(
-                counts_matrix, color_scheme="weblogo_protein", width=0.8, figsize=(60, 2.5)
+                counts_matrix,
+                color_scheme="weblogo_protein",
+                width=0.8,
+                figsize=(60, 2.5),
             )
             logo.fig.savefig(output_logo)
             if verbose:
                 print(f"Sequence logo saved as {output_logo}")
-        
+
         def compute_sequence_similarity(seq1: str, seq2: str) -> float:
             """Compute sequence similarity between two sequences."""
-            seq_len = max(len(seq1.replace('-', '')), len(seq2.replace('-', '')))
+            seq_len = max(len(seq1.replace("-", "")), len(seq2.replace("-", "")))
             matches = sum(1 for a, b in zip(seq1, seq2) if a == b and a != "-")
             return matches / seq_len if seq_len > 0 else 0.0
-        
+
         prompt_sequences = [s.replace("[SEP]", "") for s in prompt_sequences]
         # Create temporary files for alignments
         with tempfile.TemporaryDirectory() as temp_dir:
             # Prepare sequences with accessions
             prompt_accessions = [f"prompt_{i}" for i in range(len(prompt_sequences))]
             sampled_accessions = [f"sampled_{i}" for i in range(len(sampled_sequences))]
-            
+
             # Write separate FASTA files for individual logos
             prompt_fasta = os.path.join(temp_dir, "prompt.fasta")
             sampled_fasta = os.path.join(temp_dir, "sampled.fasta")
             write_fasta(prompt_sequences, prompt_accessions, prompt_fasta)
             write_fasta(sampled_sequences, sampled_accessions, sampled_fasta)
-            
+
             # Create combined FASTA file for similarity analysis
             combined_sequences = prompt_sequences + sampled_sequences
             combined_accessions = prompt_accessions + sampled_accessions
             combined_fasta = os.path.join(temp_dir, "combined.fasta")
             write_fasta(combined_sequences, combined_accessions, combined_fasta)
-            
+
             # Run alignments
             prompt_aligned = os.path.join(temp_dir, "prompt_aligned.fasta")
             sampled_aligned = os.path.join(temp_dir, "sampled_aligned.fasta")
             combined_aligned = os.path.join(temp_dir, "combined_aligned.fasta")
-            
+
             try:
                 run_alignment_with_mafft(prompt_fasta, prompt_aligned, threads)
                 run_alignment_with_mafft(sampled_fasta, sampled_aligned, threads)
@@ -506,28 +515,28 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
             except subprocess.CalledProcessError as e:
                 print(f"MAFFT alignment failed: {e}")
                 return {}
-            
+
             # Create logos
             prompt_logo = os.path.join(output_dir, "prompt_logo.png")
             sampled_logo = os.path.join(output_dir, "sampled_logo.png")
             create_logo_from_fasta(prompt_aligned, prompt_logo)
             create_logo_from_fasta(sampled_aligned, sampled_logo)
-            
+
             # Read aligned sequences for similarity computation from combined alignment
             combined_alignment = AlignIO.read(combined_aligned, "fasta")
             all_aligned_seqs = [str(record.seq) for record in combined_alignment]
             all_accessions = [record.id for record in combined_alignment]
-            
+
             # Separate prompt and sampled sequences from combined alignment
             prompt_aligned_seqs = []
             sampled_aligned_seqs = []
-            
+
             for i, acc in enumerate(all_accessions):
                 if acc.startswith("prompt_"):
                     prompt_aligned_seqs.append(all_aligned_seqs[i])
                 elif acc.startswith("sampled_"):
                     sampled_aligned_seqs.append(all_aligned_seqs[i])
-            
+
             # Compute maximum similarity for each sampled sequence with prompt sequences
             sampled_to_prompt_max_similarities = []
             for sampled_seq in sampled_aligned_seqs:
@@ -536,7 +545,7 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     for prompt_seq in prompt_aligned_seqs
                 )
                 sampled_to_prompt_max_similarities.append(max_similarity)
-            
+
             # Compute maximum similarity between sampled sequences
             sampled_to_sampled_max_similarities = []
             for i, sampled_seq1 in enumerate(sampled_aligned_seqs):
@@ -546,15 +555,27 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                     if i != j  # Don't compare sequence with itself
                 )
                 sampled_to_sampled_max_similarities.append(max_similarity)
-            
+
             # Compute statistics
             results = {
-                "sampled_to_prompt_min_max_similarity": min(sampled_to_prompt_max_similarities),
-                "sampled_to_prompt_mean_max_similarity": np.mean(sampled_to_prompt_max_similarities),
-                "sampled_to_prompt_max_max_similarity": max(sampled_to_prompt_max_similarities),
-                "sampled_to_sampled_min_max_similarity": min(sampled_to_sampled_max_similarities),
-                "sampled_to_sampled_mean_max_similarity": np.mean(sampled_to_sampled_max_similarities),
-                "sampled_to_sampled_max_max_similarity": max(sampled_to_sampled_max_similarities),
+                "sampled_to_prompt_min_max_similarity": min(
+                    sampled_to_prompt_max_similarities
+                ),
+                "sampled_to_prompt_mean_max_similarity": np.mean(
+                    sampled_to_prompt_max_similarities
+                ),
+                "sampled_to_prompt_max_max_similarity": max(
+                    sampled_to_prompt_max_similarities
+                ),
+                "sampled_to_sampled_min_max_similarity": min(
+                    sampled_to_sampled_max_similarities
+                ),
+                "sampled_to_sampled_mean_max_similarity": np.mean(
+                    sampled_to_sampled_max_similarities
+                ),
+                "sampled_to_sampled_max_max_similarity": max(
+                    sampled_to_sampled_max_similarities
+                ),
                 "num_prompt_sequences": len(prompt_sequences),
                 "num_sampled_sequences": len(sampled_sequences),
             }
@@ -563,5 +584,5 @@ class GenerationsEvaluatorPipeline(BaseEvaluatorPipeline):
                 json.dump(results, f, indent=4)
             if verbose:
                 print(f"Similarity statistics: {results}")
-            
+
             return results

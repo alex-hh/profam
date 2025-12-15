@@ -33,7 +33,6 @@ def has_coords_frac(coords_mask, structure_mask, **kwargs):
     return has_coords_frac
 
 
-
 def calc_accuracy_with_masks(
     token_accuracy,
     sample_mask: Optional[torch.Tensor] = None,

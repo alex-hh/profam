@@ -1,6 +1,0 @@
-_target_: src.pipelines.mixins.ParquetGenerationsPipeline
-evaluation_parquet: data/example_data/foldseek_struct/3.parquet
-evaluation_accessions_file: null
-parquet_index: null
-pipeline_id: foldseek_example_n${.num_generations}
-num_generations: 10

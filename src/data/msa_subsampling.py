@@ -1,19 +1,28 @@
 import hashlib
 import math
+import os
 import pickle
-from pathlib import Path
-from typing import Callable, Literal, Optional, Union, Sequence
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Literal, Optional, Sequence, Union
 
 import numba as nb
 import numpy as np
 import torch
+
+"""
+This module contains functions for computing homology weights and sampling MSA sequences.
+code originally from:
+https://github.com/OpenProteinAI/PoET/blob/main/poet/msa/sampling.py
+"""
+
 
 def hash_of_string_list(lst: list[str]) -> str:
     m = hashlib.sha1()
     for elt in lst:
         m.update(elt.encode("utf-8"))
     return m.hexdigest()
+
 
 def compute_hamming_csim_np(
     seqs: np.ndarray,
@@ -157,8 +166,6 @@ def _compute_homology_weights(
     return np.concatenate(neighbors)
 
 
-
-
 def compute_homology_weights(
     ungapped_msa: np.ndarray,
     theta: float = 0.2,
@@ -293,3 +300,84 @@ class MSASampler:
                 [[0], original_msa_sample_idxs[original_msa_sample_idxs != 0]]
             )
         return original_msa_sample_idxs
+
+
+def encode_msa_sequences_to_uint8(seqs: list[str]) -> np.ndarray:
+    """Encode an aligned list of sequences to the uint8 format expected by
+    `compute_homology_weights`.
+
+    Any unknown or gap-like character (including '-') is mapped to the GAP token.
+    """
+    _GAP_TOKEN_IDX = 20
+    _AA_TO_IDX = {aa: i for i, aa in enumerate("ACDEFGHIKLMNPQRSTVWY")}
+    seq_len = len(seqs[0]) if seqs else 0
+    arr = np.zeros((len(seqs), seq_len), dtype=np.uint8)
+    for i, s in enumerate(seqs):
+        arr[i] = [_AA_TO_IDX.get(ch, _GAP_TOKEN_IDX) for ch in s]  # unknowns → GAP
+    return arr
+
+
+def calculate_file_hash(filepath: str) -> str:
+    sha256_hash = hashlib.sha256()
+    with open(filepath, "rb") as f:
+
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
+def compute_homology_sequence_weights_with_cache(
+    msa_file: str,
+    sequences: list[str],
+    theta: float = 0.2,
+    force_recalc: bool = False,
+) -> np.ndarray:
+    """Return 1/neighbor-count weights for every sequence in *sequences*.
+
+    If a cached file ``<msa_file_base>_weights.npz`` exists it is loaded instead of
+    recomputing.  To override this behaviour pass *force_recalc*=True.
+    The cache file includes a hash of the MSA file to ensure validity.
+    """
+
+    cache_path = os.path.splitext(msa_file)[0] + "_weights.npz"
+    try:
+        current_file_hash = calculate_file_hash(msa_file)
+    except Exception as e:
+        print(f"Warning: could not calculate hash for {msa_file}: {e}")
+        current_file_hash = ""
+
+    if (not force_recalc) and os.path.exists(cache_path):
+        try:
+            data = np.load(cache_path)
+            cached_hash = str(data.get("file_hash", ""))
+            # If the cached file has no hash (legacy), we might want to recompute or warn.
+            # But to be safe and compatible with existing non-hashed cache files, we can check if it exists.
+            # However, user requested to use hash. So if hash doesn't match or missing, we recompute.
+            # If current_file_hash is empty (failed to read), we skip check? No, better recompute.
+
+            if cached_hash == current_file_hash and current_file_hash != "":
+                return data["sequence_weights"]
+            elif "file_hash" not in data:
+                print(f"Cached weights at {cache_path} missing hash. Recomputing...")
+            elif cached_hash != current_file_hash:
+                print(f"Cached weights hash mismatch for {cache_path}. Recomputing...")
+        except Exception as e:
+            print(
+                f"Failed to load cached weights from {cache_path}: {e}. Recomputing …"
+            )
+
+    # Encode → compute → normalise
+    encoded = encode_msa_sequences_to_uint8(sequences)
+
+    # Note: compute_homology_weights is defined in this file
+    _GAP_TOKEN_IDX = 20
+    _, p = compute_homology_weights(
+        ungapped_msa=encoded,
+        theta=theta,
+        gap_token=_GAP_TOKEN_IDX,
+        gap_token_mask=255,
+        can_use_torch=False,  # CPU is fine here
+    )
+
+    np.savez_compressed(cache_path, sequence_weights=p, file_hash=current_file_hash)
+    return p

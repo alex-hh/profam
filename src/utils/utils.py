@@ -26,7 +26,9 @@ def seed_all(seed: Optional[int] = None, deterministic: bool = False) -> None:
         return
     import os
     import random
+
     import numpy as np
+
     try:
         import torch  # type: ignore
     except Exception:

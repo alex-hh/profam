@@ -4,16 +4,15 @@ Created by Jude Wells 2025-09-12
 This module contains functions for evaluating ProFam and other models.
 """
 
-import sys
-import subprocess
-from Bio import AlignIO
-from Bio import SeqIO
-from Bio import pairwise2
 import os
+import subprocess
+import sys
+
 import logomaker
-import numpy as np
 import matplotlib.pyplot as plt  # noqa: F401
+import numpy as np
 import pandas as pd
+from Bio import AlignIO, SeqIO, pairwise2
 
 
 def save_per_sequence_stats(length_ratio_stats, sequence_identity_stats, csv_path):
@@ -50,31 +49,41 @@ def save_per_sequence_stats(length_ratio_stats, sequence_identity_stats, csv_pat
     rows = []
     for gen_id in all_ids:
         row = {"generated_id": gen_id}
-        row.update({
-            "coverage_min": np.nan,
-            "coverage_mean": np.nan,
-            "coverage_max": np.nan,
-            "identity_min": np.nan,
-            "identity_mean": np.nan,
-            "identity_max": np.nan,
-        })
+        row.update(
+            {
+                "coverage_min": np.nan,
+                "coverage_mean": np.nan,
+                "coverage_max": np.nan,
+                "identity_min": np.nan,
+                "identity_mean": np.nan,
+                "identity_max": np.nan,
+            }
+        )
         if gen_id in coverage_map:
             row.update(coverage_map[gen_id])
         if gen_id in identity_map:
             row.update(identity_map[gen_id])
         rows.append(row)
 
-    df = pd.DataFrame(rows, columns=[
-        "generated_id",
-        "coverage_min", "coverage_mean", "coverage_max",
-        "identity_min", "identity_mean", "identity_max",
-    ])
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "generated_id",
+            "coverage_min",
+            "coverage_mean",
+            "coverage_max",
+            "identity_min",
+            "identity_mean",
+            "identity_max",
+        ],
+    )
 
     out_dir = os.path.dirname(csv_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
     df.to_csv(csv_path, index=False)
     return csv_path
+
 
 def run_alignment_with_mafft(fasta_input, fasta_output, threads=1):
     """
@@ -93,13 +102,22 @@ def length_ratios(prompt_fasta, generated_fasta):
     """
     Compute the length ratio of the generated sequences to the prompt sequences.
     """
-    prompt_sequences = [(record.id, str(record.seq).replace("-", "")) for record in SeqIO.parse(prompt_fasta, "fasta")]
-    generated_sequences = [(record.id, str(record.seq).replace("-", "")) for record in SeqIO.parse(generated_fasta, "fasta")]
+    prompt_sequences = [
+        (record.id, str(record.seq).replace("-", ""))
+        for record in SeqIO.parse(prompt_fasta, "fasta")
+    ]
+    generated_sequences = [
+        (record.id, str(record.seq).replace("-", ""))
+        for record in SeqIO.parse(generated_fasta, "fasta")
+    ]
     results = []
     for generated_id, generated_seq in generated_sequences:
-        ratios = [len(generated_seq) / len(prompt_seq[1]) for prompt_seq in prompt_sequences]
+        ratios = [
+            len(generated_seq) / len(prompt_seq[1]) for prompt_seq in prompt_sequences
+        ]
         results.append((generated_id, min(ratios), max(ratios), np.mean(ratios)))
     return results
+
 
 def pairwise_sequence_identity(seq1, seq2):
     """
@@ -146,6 +164,7 @@ def pairwise_sequence_identity(seq1, seq2):
     except Exception:
         return None
 
+
 def sequence_identity_from_msa(combined_msa, generated_start_idx):
     """
     Compute identity statistics for each generated sequence against all prompt sequences
@@ -166,7 +185,12 @@ def sequence_identity_from_msa(combined_msa, generated_start_idx):
         if len(similarities) == 0:
             stats = (gen.id, 0.0, 0.0, 0.0)
         else:
-            stats = (gen.id, float(np.min(similarities)), float(np.max(similarities)), float(np.mean(similarities)))
+            stats = (
+                gen.id,
+                float(np.min(similarities)),
+                float(np.max(similarities)),
+                float(np.mean(similarities)),
+            )
         results.append(stats)
     return results
 
@@ -180,7 +204,7 @@ def create_logo_from_fasta(alignment_fasta, output_logo):
         return
     alignment = AlignIO.read(alignment_fasta, "fasta")
     sequences = [str(record.seq) for record in alignment]
-    
+
     # Build logomaker counts matrix
     counts_matrix = logomaker.alignment_to_matrix(sequences)
     logo = logomaker.Logo(
@@ -188,6 +212,7 @@ def create_logo_from_fasta(alignment_fasta, output_logo):
     )
     logo.fig.savefig(output_logo)
     print(f"Sequence logo saved as {output_logo}")
+
 
 def make_combined_fasta(prompt_fasta, generated_fasta, combined_fasta):
     """Concatenate prompt and generated FASTAs into a single file.
@@ -206,7 +231,6 @@ def make_combined_fasta(prompt_fasta, generated_fasta, combined_fasta):
         SeqIO.write(prompt_records + generated_records, fout, "fasta")
 
     return len(prompt_records)
-
 
 
 def _msa_column_entropies_and_depths_from_sequences(seqs):
@@ -245,8 +269,12 @@ def compute_entropy_correlation(prompt_seqs, gen_seqs, min_depth=10):
     shared min length, and mask selects columns used in the correlation (depth
     >= min_depth in both and entropies not NaN).
     """
-    prompt_entropies, prompt_depths = _msa_column_entropies_and_depths_from_sequences(prompt_seqs)
-    gen_entropies, gen_depths = _msa_column_entropies_and_depths_from_sequences(gen_seqs)
+    prompt_entropies, prompt_depths = _msa_column_entropies_and_depths_from_sequences(
+        prompt_seqs
+    )
+    gen_entropies, gen_depths = _msa_column_entropies_and_depths_from_sequences(
+        gen_seqs
+    )
 
     min_len = min(len(prompt_entropies), len(gen_entropies))
     if min_len <= 1:
@@ -267,7 +295,13 @@ def compute_entropy_correlation(prompt_seqs, gen_seqs, min_depth=10):
     return corr, prompt_e, gen_e, mask
 
 
-def divergences_from_combined_alignment(combined_msa_path, generated_start_idx, min_depth=10, pseudocount=1e-9, kl_alpha_total=2.0):
+def divergences_from_combined_alignment(
+    combined_msa_path,
+    generated_start_idx,
+    min_depth=10,
+    pseudocount=1e-9,
+    kl_alpha_total=2.0,
+):
     """
     Compute per-position divergences between natural (prompt) and synthetic (generated)
     subsets using a pre-aligned combined MSA (FASTA with gaps).
@@ -349,8 +383,12 @@ def divergences_from_combined_alignment(combined_msa_path, generated_start_idx, 
         ge_map = {res: cnt for res, cnt in zip(ge_unique, ge_counts)}
 
         # Raw count vectors over the union alphabet
-        p_counts = np.array([pr_map.get(res, 0.0) for res in union_residues], dtype=float)
-        q_counts = np.array([ge_map.get(res, 0.0) for res in union_residues], dtype=float)
+        p_counts = np.array(
+            [pr_map.get(res, 0.0) for res in union_residues], dtype=float
+        )
+        q_counts = np.array(
+            [ge_map.get(res, 0.0) for res in union_residues], dtype=float
+        )
 
         # Baseline pseudocount smoothing used for JSD and symmetric KL
         k = float(len(union_residues))
@@ -375,14 +413,18 @@ def divergences_from_combined_alignment(combined_msa_path, generated_start_idx, 
                 increment = kl_alpha_total / float(support_size)
                 q_counts_alpha = q_counts.copy()
                 q_counts_alpha[natural_support_mask] += increment
-                q_probs_for_kl = (q_counts_alpha + pseudocount) / (q_counts_alpha.sum() + pseudocount * k)
+                q_probs_for_kl = (q_counts_alpha + pseudocount) / (
+                    q_counts_alpha.sum() + pseudocount * k
+                )
             else:
                 # Fallback to baseline if no natural support is detected (shouldn't happen due to depth check)
                 q_probs_for_kl = q_probs
         else:
             q_probs_for_kl = q_probs
 
-        kl_pq = _kl(p_probs, q_probs_for_kl)  # KL(natural || synthetic) with asymmetric smoothing
+        kl_pq = _kl(
+            p_probs, q_probs_for_kl
+        )  # KL(natural || synthetic) with asymmetric smoothing
 
         js_values[col] = js
         skl_values[col] = skl
@@ -427,6 +469,7 @@ def plot_perplexity_series(prompt_entropies, gen_entropies, mask, output_path):
     plt.close(fig)
     return output_path
 
+
 def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True):
     """
     Uses mafft to align the promp / generations independently
@@ -435,7 +478,7 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
     - sequence identity (min, max, mean over all prompt sequences)
     - length ratio (min, max, mean over all prompt sequences)
 
-    
+
     for the MSA overall we compute the entropy correlation with the prompt MSA.
     we only calculate this if the prompt MSA has more than 10 seqs.
     this means we calculate the entropy of each column of the MSA for the prompt and the generated sequences.
@@ -445,9 +488,17 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
     """
     alignment_directory = os.path.dirname(generated_fasta) + "/alignments"
     os.makedirs(alignment_directory, exist_ok=True)
-    combined_fasta_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "combined.fasta"))
-    prompt_count = make_combined_fasta(prompt_fasta, generated_fasta, combined_fasta_path)
-    aligned_combined_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "combined_aln.fasta"))
+    combined_fasta_path = os.path.join(
+        alignment_directory,
+        os.path.basename(generated_fasta).replace(".fasta", "combined.fasta"),
+    )
+    prompt_count = make_combined_fasta(
+        prompt_fasta, generated_fasta, combined_fasta_path
+    )
+    aligned_combined_path = os.path.join(
+        alignment_directory,
+        os.path.basename(generated_fasta).replace(".fasta", "combined_aln.fasta"),
+    )
     if not os.path.exists(aligned_combined_path):
         run_alignment_with_mafft(combined_fasta_path, aligned_combined_path)
 
@@ -467,20 +518,32 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
         prompt_seqs = [str(r.seq) for r in prompt_records]
         gen_seqs = [str(r.seq) for r in gen_records]
 
-        corr, prompt_e, gen_e, mask = compute_entropy_correlation(prompt_seqs, gen_seqs, min_depth=10)
+        corr, prompt_e, gen_e, mask = compute_entropy_correlation(
+            prompt_seqs, gen_seqs, min_depth=10
+        )
         entropy_corr = corr
         if corr is not None and mask is not None and np.any(mask):
             try:
                 perplexity_plot_path = os.path.join(
                     alignment_directory,
-                    os.path.basename(generated_fasta).replace(".fasta", "combined_perplexity.png"),
+                    os.path.basename(generated_fasta).replace(
+                        ".fasta", "combined_perplexity.png"
+                    ),
                 )
                 plot_perplexity_series(prompt_e, gen_e, mask, perplexity_plot_path)
             except ImportError:
                 pass  # plotting is optional
         # Divergences (JSD, symmetric KL, and KL(natural||synthetic)) over positions with depth >= 10 in both subsets
         try:
-            js_mean, skl_mean, kl_nat_to_syn_mean, _js_vals, _skl_vals, _kl_pq_vals, _mask = divergences_from_combined_alignment(
+            (
+                js_mean,
+                skl_mean,
+                kl_nat_to_syn_mean,
+                _js_vals,
+                _skl_vals,
+                _kl_pq_vals,
+                _mask,
+            ) = divergences_from_combined_alignment(
                 aligned_combined_path, prompt_count, min_depth=10
             )
         except Exception:
@@ -500,14 +563,22 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
 
     results = {
         "aligned_combined_path": aligned_combined_path,
-        "entropy_correlation": round(entropy_corr, 3) if entropy_corr is not None else None,
+        "entropy_correlation": round(entropy_corr, 3)
+        if entropy_corr is not None
+        else None,
         "perplexity_plot_path": perplexity_plot_path,
         "per_sequence_csv": csv_path,
     }
     # Create sequence logos (optional)
     if generate_logos:
-        aligned_generation_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "_aln.fasta"))
-        aligned_prompt_path = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "prompt_aln.fasta"))
+        aligned_generation_path = os.path.join(
+            alignment_directory,
+            os.path.basename(generated_fasta).replace(".fasta", "_aln.fasta"),
+        )
+        aligned_prompt_path = os.path.join(
+            alignment_directory,
+            os.path.basename(generated_fasta).replace(".fasta", "prompt_aln.fasta"),
+        )
         if not os.path.exists(aligned_generation_path):
             run_alignment_with_mafft(generated_fasta, aligned_generation_path)
         if "aligned" in prompt_fasta or "_aln.fasta" in prompt_fasta:
@@ -517,8 +588,14 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
         results["aligned_generation_path"] = aligned_generation_path
         results["aligned_prompt_path"] = aligned_prompt_path
         try:
-            prompt_logo = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "prompt_logo.png"))
-            gen_logo = os.path.join(alignment_directory, os.path.basename(generated_fasta).replace(".fasta", "_logo.png"))
+            prompt_logo = os.path.join(
+                alignment_directory,
+                os.path.basename(generated_fasta).replace(".fasta", "prompt_logo.png"),
+            )
+            gen_logo = os.path.join(
+                alignment_directory,
+                os.path.basename(generated_fasta).replace(".fasta", "_logo.png"),
+            )
             create_logo_from_fasta(aligned_prompt_path, prompt_logo)
             create_logo_from_fasta(aligned_generation_path, gen_logo)
         except Exception:
@@ -527,7 +604,9 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
 
     # Add averaged divergences if available
     results["js_divergence_mean"] = round(js_mean, 3) if js_mean is not None else None
-    results["symmetric_kl_divergence_mean"] = round(skl_mean, 3) if skl_mean is not None else None
+    results["symmetric_kl_divergence_mean"] = (
+        round(skl_mean, 3) if skl_mean is not None else None
+    )
     results["kl_natural_to_synthetic_mean"] = (
         round(kl_nat_to_syn_mean, 3) if kl_nat_to_syn_mean is not None else None
     )
@@ -539,6 +618,10 @@ def sequence_only_evaluation(prompt_fasta, generated_fasta, generate_logos=True)
         elif aggregation_strategy == "max":
             agg_func = np.max
         for ix, inner_strategy in enumerate(["min", "max", "mean"]):
-            results[f"length_ratio_{aggregation_strategy}_of_{inner_strategy}"] = round(agg_func([entry[ix+1] for entry in length_ratio_stats]),3)
-            results[f"sequence_identity_{aggregation_strategy}_of_{inner_strategy}"] = round(agg_func([entry[ix+1] for entry in seq_identity_stats]),3)
+            results[f"length_ratio_{aggregation_strategy}_of_{inner_strategy}"] = round(
+                agg_func([entry[ix + 1] for entry in length_ratio_stats]), 3
+            )
+            results[
+                f"sequence_identity_{aggregation_strategy}_of_{inner_strategy}"
+            ] = round(agg_func([entry[ix + 1] for entry in seq_identity_stats]), 3)
     return results

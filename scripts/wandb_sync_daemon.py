@@ -1,16 +1,15 @@
-# Authors: Ismail Khalfaoui, Simon Grasse with help from GenAI
-# Date: July 2025
 # Description: This script automatically monitors and syncs offline Wandb runs to the cloud
 # License: MIT License
 
+import logging
 import os
 import shutil
-import time
 import subprocess
-import logging
-from watchdog.observers.polling import PollingObserver
-from watchdog.events import FileSystemEventHandler
+import time
 from datetime import datetime
+
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers.polling import PollingObserver
 
 # Configure logging
 LOG_FILE = "monitor.log"
@@ -68,4 +67,4 @@ if __name__ == "__main__":
     if not os.path.exists(path_to_monitor):
         logger.error(f"Directory to monitor does not exist: {path_to_monitor}")
     else:
-        monitor_directory(path_to_monitor) 
+        monitor_directory(path_to_monitor)
