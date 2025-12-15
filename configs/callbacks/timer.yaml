@@ -1,2 +1,0 @@
-timer:
-  _target_: src.utils.callbacks.EpochTimerCallback

@@ -1,4 +1,0 @@
-_target_: src.data.processors.ProteinDocumentPreprocessor
-defaults:
-  - cfg: raw_from_msa
-  - transform_fns: replace_nans

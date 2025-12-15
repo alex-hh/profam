@@ -1,9 +1,0 @@
-_target_: src.evaluators.hmmer.PFAMHMMAlignmentStatistics
-seed: 52
-pfam_hmm_dir: "../data/pfam_hmms"
-pfam_database: "../data/pfam/Pfam-A.hmm"
-num_reference: 5000
-num_samples: 3000  # if called with fewer samples, will raise error; if more, will use this many
-is_pre_aligned: False
-name: "pfam_msa_statistics"  # n
-document_token: "[RAW]"

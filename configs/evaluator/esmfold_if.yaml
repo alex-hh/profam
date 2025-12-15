@@ -1,6 +1,0 @@
-_target_: src.evaluators.esmfold.ESMFoldInverseFoldingEvaluator
-name: esmfold_if
-half_precision: False
-num_samples: null
-save_structures: False
-max_length: 512  # filter applied when running esmfold on generations to avoid oom

@@ -1,6 +1,0 @@
-_target_: src.data.processors.ProteinDocumentPreprocessor
-defaults:
-  - cfg: raw_from_msa
-transform_fns:
-  - _target_: src.data.processors.transforms.add_final_sep
-    _partial_: true

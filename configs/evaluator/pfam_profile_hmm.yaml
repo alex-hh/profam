@@ -1,9 +1,0 @@
-_target_: src.evaluators.hmmer.PFAMProfileHMM
-seed: 52
-pfam_hmm_dir: "${data.data_dir}/pfam/hmms"
-pfam_database: "${data.data_dir}/pfam/Pfam-A.hmm"
-E: 100000000
-hit_threshold_for_metrics: 0.001
-name: "pfam_profile_hmm"  # n.b. if we change config we should change name otherwise we will overwrite the old results
-num_samples: 3000  # if called with fewer samples, will raise error; if more, will use this many
-document_token: "[RAW]"

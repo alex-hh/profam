@@ -1,8 +1,0 @@
-defaults:
-  - default
-
-accelerator: gpu
-devices: 1
-
-# mixed precision gives keeps model weights as 32bit floats but performs operations in 16bit where possible
-precision: bf16-true  #  bf16-mixed, bf16-true, 16-mixed, 16-true, 32-true

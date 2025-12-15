@@ -1,8 +1,0 @@
-_target_: src.data.processors.PreprocessingConfig
-document_token: "[RAW]"
-drop_first_protein: false
-keep_first_protein: false
-allow_unk: false
-max_tokens_per_example: 8192
-shuffle_proteins_in_document: true
-padding: "do_not_pad"

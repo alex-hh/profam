@@ -1,2 +1,0 @@
-throughput:
-  _target_: src.utils.callbacks.TokenThroughputMonitor

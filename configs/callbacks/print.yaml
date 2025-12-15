@@ -1,2 +1,0 @@
-print:
-  _target_: src.utils.callbacks.PrintCallback

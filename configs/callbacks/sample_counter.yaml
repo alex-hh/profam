@@ -1,3 +1,0 @@
-# Sample counter callback to track total number of training samples
-sample_counter:
-  _target_: src.utils.callbacks.SampleCounter
