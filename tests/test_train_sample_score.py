@@ -34,13 +34,27 @@ def test_training_on_example_data(tmp_path, project_root):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
-                "data=train_example",
-                "model=llama_nano",
-                "trainer=gpu",
-                "callbacks=none",
-                "logger=stdout",
+                "experiment=train_profam_example",
+                # lightweight model (previously `model=llama_nano`)
+                "model.scheduler_name=inverse_sqrt",
+                "model.lr=1e-3",
+                "model.config.hidden_size=128",
+                "model.config.intermediate_size=512",
+                "model.config.num_attention_heads=2",
+                "model.config.num_hidden_layers=5",
+                "model.config.num_key_value_heads=2",
+                "model.config.max_position_embeddings=8192",
+                "model.config.scoring_max_tokens=10240",
+                "model.config.attn_implementation=null",
+                # keep the Trainer single-process for tests
+                "trainer.timeout=null",
+                "trainer.strategy=auto",
+                "trainer.devices=1",
+                # disable callbacks/loggers for a minimal integration run
+                "callbacks=null",
+                "logger=null",
                 f"paths.root_dir={project_root}",
-                f"paths.data_dir={project_root/'data'}",
+                f"paths.data_dir={project_root/'data'/'train_example'}",
                 f"paths.output_dir={run_dir}",
                 f"paths.log_dir={run_dir/'logs'}",
                 f"hydra.run.dir={run_dir}",
@@ -50,6 +64,7 @@ def test_training_on_example_data(tmp_path, project_root):
                 "trainer.max_steps=1",
                 "+trainer.limit_train_batches=1",
                 "+trainer.limit_val_batches=0",
+                "trainer.val_check_interval=1",
                 "trainer.log_every_n_steps=1",
                 "+trainer.enable_checkpointing=False",
                 "trainer.deterministic=True",
@@ -101,6 +116,8 @@ def test_generate_sequences(tmp_path, project_root):
         "bfloat16",
         "--top_p",
         "0.9",
+        "--attn_implementation",
+        "sdpa",
     ]
 
     result = subprocess.run(
@@ -147,6 +164,8 @@ def test_score_sequences(tmp_path, project_root):
         "2048",
         "--ensemble_number",
         "1",
+        "--attn_implementation",
+        "sdpa",
     ]
 
     result = subprocess.run(

@@ -54,8 +54,19 @@ def test_model_noseqpos(profam_tokenizer_noseqpos):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
-                "data=train_example",
-                "model=llama_test",
+                "experiment=train_profam_example",
+                # lightweight test model (previously `model=llama_test`)
+                "model.scheduler_name=inverse_sqrt",
+                "model.lr=1e-3",
+                "model.pass_res_pos_in_doc_as_position_ids=false",
+                "model.config.hidden_size=64",
+                "model.config.intermediate_size=128",
+                "model.config.num_attention_heads=4",
+                "model.config.num_hidden_layers=1",
+                "model.config.num_key_value_heads=4",
+                "model.config.max_position_embeddings=2048",
+                "model.config.scoring_max_tokens=10240",
+                "model.config.attn_implementation=null",
             ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer_noseqpos)
@@ -68,8 +79,19 @@ def test_model(profam_tokenizer):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
-                "data=train_example",
-                "model=llama_test",
+                "experiment=train_profam_example",
+                # lightweight test model (previously `model=llama_test`)
+                "model.scheduler_name=inverse_sqrt",
+                "model.lr=1e-3",
+                "model.pass_res_pos_in_doc_as_position_ids=false",
+                "model.config.hidden_size=64",
+                "model.config.intermediate_size=128",
+                "model.config.num_attention_heads=4",
+                "model.config.num_hidden_layers=1",
+                "model.config.num_key_value_heads=4",
+                "model.config.max_position_embeddings=2048",
+                "model.config.scoring_max_tokens=10240",
+                "model.config.attn_implementation=null",
             ],
         )
     return hydra.utils.instantiate(cfg.model, tokenizer=profam_tokenizer)
@@ -82,8 +104,18 @@ def model_seq_index(profam_tokenizer):
             config_name="train.yaml",
             return_hydra_config=True,
             overrides=[
-                "data=train_example",
-                "model=llama_test",
+                "experiment=train_profam_example",
+                # lightweight test model (previously `model=llama_test`)
+                "model.scheduler_name=inverse_sqrt",
+                "model.lr=1e-3",
+                "model.pass_res_pos_in_doc_as_position_ids=false",
+                "model.config.hidden_size=64",
+                "model.config.intermediate_size=128",
+                "model.config.num_attention_heads=4",
+                "model.config.num_hidden_layers=1",
+                "model.config.num_key_value_heads=4",
+                "model.config.max_position_embeddings=2048",
+                "model.config.scoring_max_tokens=10240",
                 "model.config.attn_implementation=null",
                 "model.pass_res_pos_in_doc_as_position_ids=False",
             ],
