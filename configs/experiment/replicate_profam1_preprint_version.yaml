@@ -297,10 +297,7 @@ data:
           keep_insertions: true
           to_upper: true
           use_msa_pos: false
-        transform_fns:
-        - _target_: src.data.processors.transforms.replace_nans_in_coords
-          _partial_: true
-          fill_value: 0.0
+        transform_fns: null
 
   data_weights:
     foldseek_s50_train: 1
