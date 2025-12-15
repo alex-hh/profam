@@ -80,8 +80,7 @@ def test_sequence_packing_consistency(profam_tokenizer):
     # Concatenate sequences
     # Enable manual position IDs (pass_res_pos_in_doc_as_position_ids=True)
     
-    packed_input_ids = torch.cat([id1, id2], dim=0).unsqueeze(0) # [1, 36]
-    # For packed sequence, attention mask is usually all 1s (no padding)
+    packed_input_ids = torch.cat([id1, id2], dim=0).unsqueeze(0)
     packed_attention_mask = torch.ones_like(packed_input_ids)
     
     model.pass_res_pos_in_doc_as_position_ids = True
@@ -125,8 +124,6 @@ def test_sequence_packing_consistency(profam_tokenizer):
         
     # Compare Seq 2 with original batched Seq 2
     diff2_wrong = (logits_batch[1, :len2] - logits_packed_wrong[0, len1:len1+len2]).abs().max()
-    
-    print(f"Difference Seq 2 (Wrong Pos IDs): {diff2_wrong.item()}")
     
     assert diff2_wrong > 1e-2, f"Sequence 2 outputs should differ when pos IDs are wrong, but diff was {diff2_wrong.item()}"
 
