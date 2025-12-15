@@ -41,6 +41,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             "Initialised Llama model, attention implementation: ",
             model.config._attn_implementation,
         )
+
         super().__init__(
             model,
             tokenizer,
@@ -52,6 +53,5 @@ class LlamaLitModule(BaseFamilyLitModule):
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
             override_optimizer_on_load=override_optimizer_on_load,
-            gym_results_save_dir=gym_results_save_dir,
-            gym_subsamples_per_n=gym_subsamples_per_n,
+            pass_res_pos_in_doc_as_position_ids=pass_res_pos_in_doc_as_position_ids,
         )

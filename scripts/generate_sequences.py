@@ -33,9 +33,9 @@ def write_fasta(sequences, accessions, fasta_path):
 
 
 def build_pool_from_fasta(path: str) -> ProteinDocument:
-    names, seqs = read_fasta(path, keep_insertions=False, to_upper=True)
+    names, seqs = read_fasta(path, keep_insertions=True, to_upper=True, keep_gaps=False)
     # representative is first by default if present
-    rep = names[0] if len(names) > 0 else None
+    rep = names[0] if len(names) > 0 else "representative"
     return ProteinDocument(
         sequences=seqs,
         accessions=names,

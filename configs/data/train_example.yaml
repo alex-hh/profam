@@ -53,7 +53,7 @@ dataset_builders:
     preprocessor:
       _target_: src.data.processors.ProteinDocumentPreprocessor
       cfg:
-        _target_: src.data.processors.PreprocessingConfig
+        _target_: src.data.processors.AlignedProteinPreprocessingConfig
         document_token: "[RAW]"
         drop_first_protein: false
         keep_first_protein: false
@@ -61,6 +61,10 @@ dataset_builders:
         max_tokens_per_example: 2048
         shuffle_proteins_in_document: true
         padding: do_not_pad
+        keep_insertions: true
+        to_upper: true
+        keep_gaps: false
+        use_msa_pos: false
       transform_fns: null
     sample_cache_size: 64
     max_tokens_per_family: 4096

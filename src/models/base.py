@@ -75,10 +75,8 @@ class BaseFamilyLitModule(LightningModule):
         scoring_max_tokens: int = 32_000,
         use_kv_cache_for_scoring: bool = True,
         override_optimizer_on_load: bool = False,
-        max_tokens: int = 8192,
-        gym_subsamples_per_n: int = 5,
-        gym_results_save_dir=None,
         ignore_index: int = -100,
+        pass_res_pos_in_doc_as_position_ids: bool = True,
     ):
         super().__init__()
 
@@ -94,19 +92,9 @@ class BaseFamilyLitModule(LightningModule):
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
-
+        self.pass_res_pos_in_doc_as_position_ids = pass_res_pos_in_doc_as_position_ids
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if gym_results_save_dir is not None:
-            self.gym_results_save_dir = gym_results_save_dir
-            os.makedirs(self.gym_results_save_dir, exist_ok=True)
-            print("proteinGym results saved in", self.gym_results_save_dir)
-        else:
-            self.gym_results_save_dir = None
-        # NEW FOR EVALUATING PROTEIN GYM OFFLINE ONLY-------------------------
-        self.max_tokens = max_tokens
-        self.gym_subsamples_per_n = gym_subsamples_per_n
-        # ---------------------------------------------------------------------
 
     def forward(
         self,
@@ -127,16 +115,55 @@ class BaseFamilyLitModule(LightningModule):
             # BaseLitModule.model.forward()
             # in general we assume that if you call BaseLitModule.forward()
             # you are not using KV cache.
+
         if labels is not None:
             labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
+
+        position_ids = self.get_position_ids_for_model_forward(
+            input_ids, past_key_values
+        )
+
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
+            position_ids=position_ids,
             **kwargs,
         )
+
+    def compute_res_pos_in_doc(self, input_ids):
+        """Needs to start at 0 for compatibility with sequence packing:
+        https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/modeling_flash_attention_utils.py#L133
+        """
+        assert (
+            input_ids.shape[0] == 1
+        ), "Since we are typically packing sequences, we assume batch size is 1"
+        counter = torch.arange(input_ids.shape[1], device=input_ids.device)
+        document_indices = (
+            torch.cumsum(input_ids[0] == self.tokenizer.bos_token_id, 0) - 1
+        )
+        assert (
+            document_indices >= 0
+        ).all(), "Negative document indices encountered: check that bos token is first token in each document"
+        doc_starts = (
+            torch.argwhere(input_ids[0] == self.tokenizer.bos_token_id)
+        ).flatten()
+        offsets = counter[doc_starts][document_indices]
+        position_ids = (counter - offsets).unsqueeze(0)
+        return position_ids
+
+    def get_position_ids_for_model_forward(self, input_ids, past_key_values):
+        position_ids = None
+        if past_key_values is not None:
+            assert (
+                input_ids == self.tokenizer.bos_token_id
+            ).sum() <= 1, "Sequence packing not supported with past_key_values"
+            position_ids = None
+        elif self.pass_res_pos_in_doc_as_position_ids:
+            position_ids = self.compute_res_pos_in_doc(input_ids)
+        return position_ids
 
     def on_train_batch_start(self, batch, batch_idx: int):
         self._t0 = time.time()

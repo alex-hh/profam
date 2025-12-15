@@ -73,7 +73,9 @@ ProFam can take:
 - **Unaligned FASTA** (standard protein sequences), and
 - **Aligned / MSA-type files** (e.g. A2M/A3M-style content containing gaps and insertions).
 
-Important: **even if aligned/MSA information is provided, ProFam does not use alignment information as a model signal** (i.e. no alignment-aware features are consumed by the model in the standard configs).
+In `scripts/score_sequences.py` we recommend providing an aligned MSA file as we use sequence weighting to encourage sequence diversity when subsampling sequences for the prompt. The weight of a sequence is inversely proportional to the number of similar sequences it has, and this similarity is best computed from an MSA file.
+
+Important: **even if aligned/MSA information is provided, the ProFam model converts these to unaligned gap-free sequences before the forward pass** (i.e. no alignment-aware features are consumed by the model in the standard configs).
 
 During preprocessing, sequences are standardised:
 
