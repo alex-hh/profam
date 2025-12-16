@@ -46,12 +46,6 @@ model:
     torch_dtype: bfloat16
     use_cache: true
     pretraining_tp: 1
-    rope_scaling:
-      factor: 32.0
-      high_freq_factor: 4.0
-      low_freq_factor: 1.0
-      original_max_position_embeddings: 32000
-      rope_type: llama3
 callbacks:
   throughput:
     _target_: src.utils.callbacks.TokenThroughputMonitor
