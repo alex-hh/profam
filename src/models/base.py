@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
+import math
 import numpy as np
 import pandas as pd
 import torch
@@ -73,6 +74,7 @@ class BaseFamilyLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
+        num_decay_steps: Optional[int] = None,
         scoring_max_tokens: int = 32_000,
         use_kv_cache_for_scoring: bool = True,
         override_optimizer_on_load: bool = False,
@@ -89,6 +91,7 @@ class BaseFamilyLitModule(LightningModule):
         self.eps = eps
         self.num_warmup_steps = num_warmup_steps
         self.num_training_steps = num_training_steps
+        self.num_decay_steps = num_decay_steps
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
@@ -366,6 +369,36 @@ class BaseFamilyLitModule(LightningModule):
                     num_training_steps=self.num_training_steps,
                     scheduler_specific_kwargs={"min_lr_rate": 0.1},
                 )
+            elif self.scheduler_name == "warmup_stable_decay":
+                if self.num_decay_steps is None:
+                    raise ValueError(
+                        "num_decay_steps is required for warmup_stable_decay scheduler"
+                    )
+
+                num_warmup_steps = self.num_warmup_steps
+                num_decay_steps = self.num_decay_steps
+                num_training_steps = self.num_training_steps
+                num_decay_start_step = num_training_steps - num_decay_steps
+                min_lr_ratio = 0.1
+
+                def lr_lambda(current_step: int):
+                    if current_step < num_warmup_steps:
+                        return float(current_step) / float(max(1, num_warmup_steps))
+                    elif current_step < num_decay_start_step:
+                        return 1.0
+                    else:
+                        progress = min(
+                            1.0,
+                            float(current_step - num_decay_start_step)
+                            / float(max(1, num_decay_steps)),
+                        )
+                        return (
+                            max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+                            * (1.0 - min_lr_ratio)
+                            + min_lr_ratio
+                        )
+
+                scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
             else:
                 scheduler = get_scheduler(
                     self.scheduler_name,
@@ -942,7 +975,7 @@ class BaseFamilyLitModule(LightningModule):
             batch["input_ids"],
             batch["completion_ids"],
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
+            batch_size=max(self.scoring_max_tokens // (L + L_prompt), 1)
             if self.use_kv_cache_for_scoring
             else 1,
         )

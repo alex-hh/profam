@@ -4,6 +4,7 @@ import pytest
 from src.data.objects import ProteinDocument
 from src.data.processors.transforms import (
     preprocess_raw_sequences_sampling_to_max_tokens,
+    random_crop,
 )
 
 
@@ -34,3 +35,12 @@ def test_sample_to_max_tokens_exceeds_max(protein_document, profam_tokenizer):
             len(sampled_proteins.sequences[0])
             == max_tokens - profam_tokenizer.num_start_tokens - 1
         )
+
+def test_random_crop():
+    proteins = ProteinDocument(
+        sequences=["ABCDEFGHIJKLMNOPQRSTUVWXYZ"],
+        accessions=["P12345"],
+    )
+    cropped_proteins = random_crop(proteins, min_length=3, max_length=3, crop_prob=1.0)
+    assert len(cropped_proteins) == 1
+    assert len(cropped_proteins.sequences[0]) == 3
