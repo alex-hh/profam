@@ -98,7 +98,7 @@ trainer:
   max_epochs: 10000
   max_steps: -1
   accelerator: gpu
-  devices: auto
+  devices: 4
   check_val_every_n_epoch: 1
   val_check_interval: 50000
   target_tokens_per_batch: null
@@ -131,7 +131,7 @@ trainer:
   sync_batchnorm: true
   precision: bf16-true
   min_epochs: 1000
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 2
   use_distributed_sampler: false
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
@@ -325,7 +325,7 @@ data:
   num_workers: 32
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 17000
+  pack_to_max_tokens: 52000
   prefetch_factor: 4
   shuffle: true
   interleaved: true

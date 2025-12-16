@@ -3,6 +3,7 @@ import os
 import random
 import time
 import warnings
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -95,6 +96,9 @@ class BaseFamilyLitModule(LightningModule):
         self.pass_res_pos_in_doc_as_position_ids = pass_res_pos_in_doc_as_position_ids
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Running count of samples seen per dataset during training.
+        # Handles both sequence-packed (single "$"-delimited string) and non-packed cases.
+        self._train_dataset_sample_counts = defaultdict(int)
 
     def forward(
         self,
@@ -218,7 +222,61 @@ class BaseFamilyLitModule(LightningModule):
             on_step=True,
             on_epoch=False,
         )
+        self.log_train_dataset_sample_counts(batch)
         return loss
+
+    def log_train_dataset_sample_counts(self, batch: Dict[str, Any]) -> None:
+        """Keep and log a running count of *samples* seen per dataset name during training.
+
+        Handles:
+        - **Sequence packing**: `batch["ds_name"].text` is a length-1 list where the single string
+          concatenates per-sample dataset names with "$" delimiters.
+        - **No packing**: `batch["ds_name"].text` is a list of dataset-name strings, one per sample.
+
+        Logs only in training (caller responsibility) and only logs dataset(s) updated this step.
+        """
+        if "ds_name" not in batch or batch["ds_name"] is None:
+            return
+
+        ds_name_obj = batch["ds_name"]
+        # Prefer the project's StringObject convention, but be permissive.
+        if hasattr(ds_name_obj, "text"):
+            texts = ds_name_obj.text
+        else:
+            texts = ds_name_obj
+
+        if isinstance(texts, str):
+            texts_list = [texts]
+        else:
+            texts_list = list(texts)
+
+        ds_names: List[str] = []
+        for t in texts_list:
+            if t is None:
+                continue
+            if "$" in t:
+                ds_names.extend([x for x in t.split("$") if x])
+            else:
+                ds_names.append(t)
+
+        if len(ds_names) == 0:
+            return
+
+        updated_totals: Dict[str, int] = {}
+        for name in ds_names:
+            self._train_dataset_sample_counts[name] += 1
+            updated_totals[name] = self._train_dataset_sample_counts[name]
+
+        # Log updated totals this step. Use tensors so Lightning can handle device placement.
+        for name, total in updated_totals.items():
+            self.log(
+                f"train/dataset_samples_seen/{name}",
+                torch.tensor(int(total), device=self.device),
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                logger=True,
+            )
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0

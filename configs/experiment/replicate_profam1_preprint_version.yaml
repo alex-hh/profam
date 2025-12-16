@@ -131,7 +131,7 @@ trainer:
   sync_batchnorm: true
   precision: bf16-true
   min_epochs: 1000
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 2
   use_distributed_sampler: false
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
@@ -306,7 +306,7 @@ data:
   num_workers: 32
   ignore_gaps: true
   feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 75000
+  pack_to_max_tokens: 52000
   prefetch_factor: 4
   shuffle: true
   interleaved: true
