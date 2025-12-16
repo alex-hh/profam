@@ -96,8 +96,6 @@ class BaseFamilyLitModule(LightningModule):
         self.pass_res_pos_in_doc_as_position_ids = pass_res_pos_in_doc_as_position_ids
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Running count of samples seen per dataset during training.
-        # Handles both sequence-packed (single "$"-delimited string) and non-packed cases.
         self._train_dataset_sample_counts = defaultdict(int)
 
     def forward(
@@ -276,6 +274,8 @@ class BaseFamilyLitModule(LightningModule):
                 on_epoch=False,
                 prog_bar=False,
                 logger=True,
+                sync_dist=True,
+                reduce_fx="sum",
             )
 
     def validation_step(
