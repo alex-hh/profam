@@ -835,7 +835,7 @@ class BaseFamilyLitModule(LightningModule):
             (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
         )
         start_of_doc_tokens_in_batch = (
-            (batch["labels"] == self.tokenizer.bos_token_id).sum().item()
+            (batch["input_ids"] == self.tokenizer.bos_token_id).sum().item()
         )
         for reduce_fx in ["min", "max", "mean"]:
             self.log(
