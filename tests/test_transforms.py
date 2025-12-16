@@ -36,6 +36,7 @@ def test_sample_to_max_tokens_exceeds_max(protein_document, profam_tokenizer):
             == max_tokens - profam_tokenizer.num_start_tokens - 1
         )
 
+
 def test_random_crop():
     proteins = ProteinDocument(
         sequences=["ABCDEFGHIJKLMNOPQRSTUVWXYZ"],
