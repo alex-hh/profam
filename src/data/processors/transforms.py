@@ -354,7 +354,10 @@ def replace_nans_in_coords(
             if torch.isnan(x).any():
                 if hasattr(torch, "nan_to_num"):
                     return torch.nan_to_num(x, nan=float(fill_value)), True
-                return torch.where(torch.isnan(x), x.new_full((), float(fill_value)), x), True
+                return (
+                    torch.where(torch.isnan(x), x.new_full((), float(fill_value)), x),
+                    True,
+                )
             return x, False
         if isinstance(x, (list, tuple)):
             changed_any = False

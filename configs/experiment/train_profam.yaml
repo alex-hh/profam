@@ -1,9 +1,4 @@
 # @package _global_
-<<<<<<< HEAD
-# Preset: full-scale ProFam training mixture.
-# Base model/trainer/callbacks/logger/tokenizer/constants are defined in `configs/train.yaml`.
-
-=======
 # Experiment: replicate the best training run
 # ---------------------------------------------------------------
 # This is a copy of the https://wandb.ai/profam/profam/runs/abyoeovl run
@@ -15,7 +10,7 @@ defaults:
   - override /logger: null
   - _self_
 task_name: train
-experiment_group: debug
+experiment_group: ProFam1
 tags:
 - ${experiment_group}
 train: true
@@ -138,7 +133,6 @@ trainer:
   min_epochs: 1000
   accumulate_grad_batches: 2
   use_distributed_sampler: false
->>>>>>> simplify
 paths:
   data_dir: ${paths.root_dir}/../ProFam-atlas
 
