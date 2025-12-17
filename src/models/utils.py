@@ -8,26 +8,25 @@ from transformers.cache_utils import DynamicCache
 
 from src.constants import BASEDIR
 
+# def load_named_model(experiment_name: str, overrides: Optional[List[str]] = None):
+#     """Load a model by composing the full training config and instantiating `cfg.model`.
 
-def load_named_model(experiment_name: str, overrides: Optional[List[str]] = None):
-    """Load a model by composing the full training config and instantiating `cfg.model`.
+#     This helper intentionally composes `configs/train.yaml` + an `experiment=` preset,
+#     matching the config layout (base + presets).
 
-    This helper intentionally composes `configs/train.yaml` + an `experiment=` preset,
-    matching the config layout (base + presets).
+#     Args:
+#         experiment_name: Name of a file under `configs/experiment/` (without `.yaml`).
+#         overrides: Optional Hydra override strings (e.g. `model.lr=1e-4`).
+#     """
+#     with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
+#         cfg = compose(
+#             config_name="train.yaml",
+#             overrides=[f"experiment={experiment_name}"] + (overrides or []),
+#         )
 
-    Args:
-        experiment_name: Name of a file under `configs/experiment/` (without `.yaml`).
-        overrides: Optional Hydra override strings (e.g. `model.lr=1e-4`).
-    """
-    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
-        cfg = compose(
-            config_name="train.yaml",
-            overrides=[f"experiment={experiment_name}"] + (overrides or []),
-        )
-
-    tokenizer = instantiate(cfg.tokenizer)
-    model = instantiate(cfg.model, tokenizer=tokenizer)
-    return model
+#     tokenizer = instantiate(cfg.tokenizer)
+#     model = instantiate(cfg.model, tokenizer=tokenizer)
+#     return model
 
 
 def calc_grad_norm(params):

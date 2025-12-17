@@ -328,13 +328,6 @@ def replace_selenocysteine_pyrrolysine(proteins: ProteinDocument, **kwargs):
         seq.replace("U", "C").replace("O", "K") for seq in proteins.sequences
     ]
     return proteins.clone(sequences=new_sequences)
-
-
-def replace_nans_in_coords(
-    proteins: ProteinDocument,
-    fill_value: float = 0.0,
-    **kwargs,
-) -> ProteinDocument:
     """Replace NaNs in any coordinate-like arrays attached to a ProteinDocument."""
     import copy
 

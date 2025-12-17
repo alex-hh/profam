@@ -4,7 +4,7 @@
 # This is a copy of the https://wandb.ai/profam/profam/runs/abyoeovl run
 # ---------------------------------------------------------------
 defaults:
-  - override /data: null          # we supply a custom data config below
+  - override /data: null
   - override /model: null
   - override /trainer: null
   - override /logger: null

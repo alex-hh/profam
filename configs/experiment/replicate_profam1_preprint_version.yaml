@@ -2,9 +2,6 @@
 # Preset: replicate the ProFam-1 preprint configuration.
 # Base model/trainer/callbacks/logger/tokenizer/constants are defined in `configs/train.yaml`.
 
-paths:
-  data_dir: ${paths.root_dir}/../data
-
 model:
   config:
     _target_: transformers.LlamaConfig
@@ -65,7 +62,7 @@ trainer:
   use_distributed_sampler: false
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
-  data_dir: ../data
+  data_dir: ${paths.root_dir}/../data
   log_dir: ${paths.root_dir}/logs/${experiment_group}
   output_dir: ${hydra:runtime.output_dir}
   work_dir: ${hydra:runtime.cwd}

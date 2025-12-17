@@ -10,67 +10,66 @@ from src.data.processors.batch_transforms import pack_batches
 from src.data.tokenizers import ProFamTokenizer
 from src.utils.utils import np_random
 
+# def load_named_preprocessor(
+#     preprocessor_name: str, overrides: Optional[List[str]] = None
+# ) -> "ProteinDocumentPreprocessor":
+#     if overrides:
+#         raise ValueError(
+#             "`overrides` is no longer supported here. Instantiate `ProteinDocumentPreprocessor` directly."
+#         )
 
-def load_named_preprocessor(
-    preprocessor_name: str, overrides: Optional[List[str]] = None
-) -> "ProteinDocumentPreprocessor":
-    if overrides:
-        raise ValueError(
-            "`overrides` is no longer supported here. Instantiate `ProteinDocumentPreprocessor` directly."
-        )
+#     name = preprocessor_name.replace(".yaml", "")
+#     if name == "raw":
+#         cfg = PreprocessingConfig(
+#             document_token="[RAW]",
+#             drop_first_protein=False,
+#             keep_first_protein=False,
+#             allow_unk=False,
+#             max_tokens_per_example=8192,
+#             shuffle_proteins_in_document=True,
+#             padding="do_not_pad",
+#         )
+#         return ProteinDocumentPreprocessor(cfg=cfg, transform_fns=None)
 
-    name = preprocessor_name.replace(".yaml", "")
-    if name == "raw":
-        cfg = PreprocessingConfig(
-            document_token="[RAW]",
-            drop_first_protein=False,
-            keep_first_protein=False,
-            allow_unk=False,
-            max_tokens_per_example=8192,
-            shuffle_proteins_in_document=True,
-            padding="do_not_pad",
-        )
-        return ProteinDocumentPreprocessor(cfg=cfg, transform_fns=None)
+#     if name == "raw_from_msa":
+#         cfg = AlignedProteinPreprocessingConfig(
+#             document_token="[RAW]",
+#             drop_first_protein=False,
+#             keep_first_protein=False,
+#             allow_unk=False,
+#             max_tokens_per_example=8192,
+#             shuffle_proteins_in_document=True,
+#             padding="do_not_pad",
+#             keep_gaps=False,
+#             keep_insertions=True,
+#             to_upper=True,
+#             use_msa_pos=False,
+#         )
+#         return ProteinDocumentPreprocessor(cfg=cfg, transform_fns=None)
 
-    if name == "raw_from_msa":
-        cfg = AlignedProteinPreprocessingConfig(
-            document_token="[RAW]",
-            drop_first_protein=False,
-            keep_first_protein=False,
-            allow_unk=False,
-            max_tokens_per_example=8192,
-            shuffle_proteins_in_document=True,
-            padding="do_not_pad",
-            keep_gaps=False,
-            keep_insertions=True,
-            to_upper=True,
-            use_msa_pos=False,
-        )
-        return ProteinDocumentPreprocessor(cfg=cfg, transform_fns=None)
+#     if name == "raw_from_msa_add_final_sep":
+#         cfg = AlignedProteinPreprocessingConfig(
+#             document_token="[RAW]",
+#             drop_first_protein=False,
+#             keep_first_protein=False,
+#             allow_unk=False,
+#             max_tokens_per_example=8192,
+#             shuffle_proteins_in_document=True,
+#             padding="do_not_pad",
+#             keep_gaps=False,
+#             keep_insertions=True,
+#             to_upper=True,
+#             use_msa_pos=False,
+#         )
+#         return ProteinDocumentPreprocessor(
+#             cfg=cfg,
+#             transform_fns=[transforms.add_final_sep],
+#         )
 
-    if name == "raw_from_msa_add_final_sep":
-        cfg = AlignedProteinPreprocessingConfig(
-            document_token="[RAW]",
-            drop_first_protein=False,
-            keep_first_protein=False,
-            allow_unk=False,
-            max_tokens_per_example=8192,
-            shuffle_proteins_in_document=True,
-            padding="do_not_pad",
-            keep_gaps=False,
-            keep_insertions=True,
-            to_upper=True,
-            use_msa_pos=False,
-        )
-        return ProteinDocumentPreprocessor(
-            cfg=cfg,
-            transform_fns=[transforms.add_final_sep],
-        )
-
-    raise ValueError(
-        f"Unknown preprocessor preset: {preprocessor_name!r}. "
-        "Instantiate `ProteinDocumentPreprocessor` directly instead."
-    )
+#     raise ValueError(
+#         f"Unknown preprocessor preset: {preprocessor_name!r}. "
+#         "Instantiate `ProteinDocumentPreprocessor` directly instead."
+#     )
 
 
 @dataclass
