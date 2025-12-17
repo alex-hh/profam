@@ -1,8 +1,10 @@
 import copy
+import math
 import os
 import random
 import time
 import warnings
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -72,13 +74,12 @@ class BaseFamilyLitModule(LightningModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
+        num_decay_steps: Optional[int] = None,
         scoring_max_tokens: int = 32_000,
         use_kv_cache_for_scoring: bool = True,
         override_optimizer_on_load: bool = False,
-        max_tokens: int = 8192,
-        gym_subsamples_per_n: int = 5,
-        gym_results_save_dir=None,
         ignore_index: int = -100,
+        pass_res_pos_in_doc_as_position_ids: bool = True,
     ):
         super().__init__()
 
@@ -90,23 +91,15 @@ class BaseFamilyLitModule(LightningModule):
         self.eps = eps
         self.num_warmup_steps = num_warmup_steps
         self.num_training_steps = num_training_steps
+        self.num_decay_steps = num_decay_steps
         self.scheduler_name = scheduler_name
         self.scoring_max_tokens = scoring_max_tokens
         self.override_optimizer_on_load = override_optimizer_on_load
         self.ignore_index = ignore_index
-
+        self.pass_res_pos_in_doc_as_position_ids = pass_res_pos_in_doc_as_position_ids
         self.use_kv_cache_for_scoring = use_kv_cache_for_scoring
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if gym_results_save_dir is not None:
-            self.gym_results_save_dir = gym_results_save_dir
-            os.makedirs(self.gym_results_save_dir, exist_ok=True)
-            print("proteinGym results saved in", self.gym_results_save_dir)
-        else:
-            self.gym_results_save_dir = None
-        # NEW FOR EVALUATING PROTEIN GYM OFFLINE ONLY-------------------------
-        self.max_tokens = max_tokens
-        self.gym_subsamples_per_n = gym_subsamples_per_n
-        # ---------------------------------------------------------------------
+        self._train_dataset_sample_counts = defaultdict(int)
 
     def forward(
         self,
@@ -127,16 +120,55 @@ class BaseFamilyLitModule(LightningModule):
             # BaseLitModule.model.forward()
             # in general we assume that if you call BaseLitModule.forward()
             # you are not using KV cache.
+
         if labels is not None:
             labels[labels == self.tokenizer.bos_token_id] = self.ignore_index
+
+        position_ids = self.get_position_ids_for_model_forward(
+            input_ids, past_key_values
+        )
+
         return self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
             past_key_values=past_key_values,
             use_cache=use_cache,
+            position_ids=position_ids,
             **kwargs,
         )
+
+    def compute_res_pos_in_doc(self, input_ids):
+        """Needs to start at 0 for compatibility with sequence packing:
+        https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/modeling_flash_attention_utils.py#L133
+        """
+        assert (
+            input_ids.shape[0] == 1
+        ), "Since we are typically packing sequences, we assume batch size is 1"
+        counter = torch.arange(input_ids.shape[1], device=input_ids.device)
+        document_indices = (
+            torch.cumsum(input_ids[0] == self.tokenizer.bos_token_id, 0) - 1
+        )
+        assert (
+            document_indices >= 0
+        ).all(), "Negative document indices encountered: check that bos token is first token in each document"
+        doc_starts = (
+            torch.argwhere(input_ids[0] == self.tokenizer.bos_token_id)
+        ).flatten()
+        offsets = counter[doc_starts][document_indices]
+        position_ids = (counter - offsets).unsqueeze(0)
+        return position_ids
+
+    def get_position_ids_for_model_forward(self, input_ids, past_key_values):
+        position_ids = None
+        if past_key_values is not None:
+            assert (
+                input_ids == self.tokenizer.bos_token_id
+            ).sum() <= 1, "Sequence packing not supported with past_key_values"
+            position_ids = None
+        elif self.pass_res_pos_in_doc_as_position_ids:
+            position_ids = self.compute_res_pos_in_doc(input_ids)
+        return position_ids
 
     def on_train_batch_start(self, batch, batch_idx: int):
         self._t0 = time.time()
@@ -191,7 +223,63 @@ class BaseFamilyLitModule(LightningModule):
             on_step=True,
             on_epoch=False,
         )
+        self.log_train_dataset_sample_counts(batch)
         return loss
+
+    def log_train_dataset_sample_counts(self, batch: Dict[str, Any]) -> None:
+        """Keep and log a running count of *samples* seen per dataset name during training.
+
+        Handles:
+        - **Sequence packing**: `batch["ds_name"].text` is a length-1 list where the single string
+          concatenates per-sample dataset names with "$" delimiters.
+        - **No packing**: `batch["ds_name"].text` is a list of dataset-name strings, one per sample.
+
+        Logs only in training (caller responsibility) and only logs dataset(s) updated this step.
+        """
+        if "ds_name" not in batch or batch["ds_name"] is None:
+            return
+
+        ds_name_obj = batch["ds_name"]
+        # Prefer the project's StringObject convention, but be permissive.
+        if hasattr(ds_name_obj, "text"):
+            texts = ds_name_obj.text
+        else:
+            texts = ds_name_obj
+
+        if isinstance(texts, str):
+            texts_list = [texts]
+        else:
+            texts_list = list(texts)
+
+        ds_names: List[str] = []
+        for t in texts_list:
+            if t is None:
+                continue
+            if "$" in t:
+                ds_names.extend([x for x in t.split("$") if x])
+            else:
+                ds_names.append(t)
+
+        if len(ds_names) == 0:
+            return
+
+        updated_totals: Dict[str, int] = {}
+        for name in ds_names:
+            self._train_dataset_sample_counts[name] += 1
+            updated_totals[name] = self._train_dataset_sample_counts[name]
+
+        # Log updated totals this step. Use tensors so Lightning can handle device placement.
+        for name, total in updated_totals.items():
+            self.log(
+                f"train/dataset_samples_seen/{name}",
+                torch.tensor(int(total), device=self.device),
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+                logger=True,
+                sync_dist=True,
+                reduce_fx="sum",
+            )
 
     def validation_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
@@ -281,6 +369,36 @@ class BaseFamilyLitModule(LightningModule):
                     num_training_steps=self.num_training_steps,
                     scheduler_specific_kwargs={"min_lr_rate": 0.1},
                 )
+            elif self.scheduler_name == "warmup_stable_decay":
+                if self.num_decay_steps is None:
+                    raise ValueError(
+                        "num_decay_steps is required for warmup_stable_decay scheduler"
+                    )
+
+                num_warmup_steps = self.num_warmup_steps
+                num_decay_steps = self.num_decay_steps
+                num_training_steps = self.num_training_steps
+                num_decay_start_step = num_training_steps - num_decay_steps
+                min_lr_ratio = 0.1
+
+                def lr_lambda(current_step: int):
+                    if current_step < num_warmup_steps:
+                        return float(current_step) / float(max(1, num_warmup_steps))
+                    elif current_step < num_decay_start_step:
+                        return 1.0
+                    else:
+                        progress = min(
+                            1.0,
+                            float(current_step - num_decay_start_step)
+                            / float(max(1, num_decay_steps)),
+                        )
+                        return (
+                            max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
+                            * (1.0 - min_lr_ratio)
+                            + min_lr_ratio
+                        )
+
+                scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
             else:
                 scheduler = get_scheduler(
                     self.scheduler_name,
@@ -808,7 +926,7 @@ class BaseFamilyLitModule(LightningModule):
             (batch["labels"] == self.tokenizer.sep_token_id).sum().item()
         )
         start_of_doc_tokens_in_batch = (
-            (batch["labels"] == self.tokenizer.bos_token_id).sum().item()
+            (batch["input_ids"] == self.tokenizer.bos_token_id).sum().item()
         )
         for reduce_fx in ["min", "max", "mean"]:
             self.log(
@@ -857,7 +975,7 @@ class BaseFamilyLitModule(LightningModule):
             batch["input_ids"],
             batch["completion_ids"],
             use_cache=self.use_kv_cache_for_scoring,
-            batch_size=max((self.scoring_max_tokens - L_prompt) // L, 1)
+            batch_size=max(self.scoring_max_tokens // (L + L_prompt), 1)
             if self.use_kv_cache_for_scoring
             else 1,
         )

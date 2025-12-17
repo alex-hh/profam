@@ -16,6 +16,7 @@ class LlamaLitModule(BaseFamilyLitModule):
         scheduler_name: Optional[str] = None,
         num_warmup_steps: int = 1000,
         num_training_steps: Optional[int] = None,
+        num_decay_steps: Optional[int] = None,
         scoring_max_tokens: int = 10240,
         use_kv_cache_for_scoring: bool = True,
         pass_res_pos_in_doc_as_position_ids: bool = True,
@@ -41,6 +42,7 @@ class LlamaLitModule(BaseFamilyLitModule):
             "Initialised Llama model, attention implementation: ",
             model.config._attn_implementation,
         )
+
         super().__init__(
             model,
             tokenizer,
@@ -49,9 +51,9 @@ class LlamaLitModule(BaseFamilyLitModule):
             scheduler_name=scheduler_name,
             num_warmup_steps=num_warmup_steps,
             num_training_steps=num_training_steps,
+            num_decay_steps=num_decay_steps,
             scoring_max_tokens=scoring_max_tokens,
             use_kv_cache_for_scoring=use_kv_cache_for_scoring,
             override_optimizer_on_load=override_optimizer_on_load,
-            gym_results_save_dir=gym_results_save_dir,
-            gym_subsamples_per_n=gym_subsamples_per_n,
+            pass_res_pos_in_doc_as_position_ids=pass_res_pos_in_doc_as_position_ids,
         )

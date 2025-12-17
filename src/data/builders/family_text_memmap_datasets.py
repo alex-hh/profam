@@ -274,6 +274,3 @@ class ProteinFamilyMemmapDataset(Dataset):
         )
         processed["ds_name"] = self.name
         return processed
-
-
-# Removed ProteinFamilyMemmapDataset: datasets are now instantiated directly

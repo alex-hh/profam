@@ -35,8 +35,8 @@ def write_fasta(sequences, accessions, fasta_path):
 
 
 def build_pool_from_fasta(path: str) -> ProteinDocument:
-    names, seqs = read_fasta(path, keep_insertions=False, to_upper=True)
-    rep = names[0] if len(names) > 0 else None
+    names, seqs = read_fasta(path, keep_insertions=True, to_upper=True, keep_gaps=False)
+    rep = names[0] if len(names) > 0 else "representative"
     return ProteinDocument(
         sequences=seqs,
         accessions=names,
@@ -324,9 +324,15 @@ def main():
             f"Computing diversity (homology) weights for {args.conditioning_fasta}...",
             file=sys.stderr,
         )
+        _, aligned_sequences = read_fasta(
+            args.conditioning_fasta,
+            keep_insertions=False,
+            to_upper=True,
+            keep_gaps=True,
+        )
         weights = compute_homology_sequence_weights_with_cache(
             msa_file=args.conditioning_fasta,
-            sequences=cond_doc.sequences,
+            sequences=aligned_sequences,
             theta=args.diversity_theta,
             force_recalc=args.recompute_diversity_weights,
         )

@@ -9,7 +9,7 @@
 
 **ProFam-1** is a 251M-parameter autoregressive protein family language model (pfLM), trained with next-token prediction on **concatenated, unaligned protein sequences** drawn from the same family.
 
-ProFam is built using the **PyTorch Lightning** framework.
+ProFam is built using the **PyTorch Lightning** framework and uses hydra for configuration management.
 
 ## Quickstart
 
@@ -73,7 +73,9 @@ ProFam can take:
 - **Unaligned FASTA** (standard protein sequences), and
 - **Aligned / MSA-type files** (e.g. A2M/A3M-style content containing gaps and insertions).
 
-Important: **even if aligned/MSA information is provided, ProFam does not use alignment information as a model signal** (i.e. no alignment-aware features are consumed by the model in the standard configs).
+In `scripts/score_sequences.py` we recommend providing an aligned MSA file as we use sequence weighting to encourage sequence diversity when subsampling sequences for the prompt. The weight of a sequence is inversely proportional to the number of similar sequences it has, and this similarity is best computed from an MSA file.
+
+Important: **even if aligned/MSA information is provided, the ProFam model converts these to unaligned gap-free sequences before the forward pass** (i.e. no alignment-aware features are consumed by the model in the standard configs).
 
 During preprocessing, sequences are standardised:
 
@@ -106,6 +108,7 @@ The config that reproduces the checkpoint model training run is:
 Some settings in that config are **deprecated**. The suggested config compatible with the **latest ProFam-Atlas release** is:
 
 - `configs/experiment/train_profam.yaml`
+
 
 ## Debugging installation (conda fallback)
 

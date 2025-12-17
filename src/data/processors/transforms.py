@@ -408,6 +408,30 @@ def add_final_sep(proteins: ProteinDocument, tokenizer: ProFamTokenizer, **kwarg
     )
 
 
+def random_crop(
+    proteins: ProteinDocument,
+    min_length: int,
+    max_length: int,
+    crop_prob: float = 0.5,
+    rng: Optional[np.random.Generator] = None,
+    **kwargs,
+):
+    assert len(proteins) == 1, "random_crop only supports single protein documents"
+    if rng is None:
+        rng = np.random
+    if rng.random() > crop_prob:
+        return proteins
+    elif len(proteins.sequences[0]) < min_length:
+        return proteins
+    else:
+        length = rng.randint(
+            min_length, min(max_length + 1, len(proteins.sequences[0]) + 1)
+        )
+        start = rng.randint(0, len(proteins.sequences[0]) - length + 1)
+        end = start + length
+        return proteins.slice_arrays([slice(start, end)])
+
+
 def apply_transforms(
     transforms,
     proteins,
