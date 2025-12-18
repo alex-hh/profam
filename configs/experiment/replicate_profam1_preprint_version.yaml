@@ -58,14 +58,15 @@ trainer:
   sync_batchnorm: true
   precision: bf16-true
   min_epochs: 1000
-  accumulate_grad_batches: 2
+  accumulate_grad_batches: null
   use_distributed_sampler: false
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
-  data_dir: ${paths.root_dir}/../data
+  data_dir: ${paths.root_dir}/../ProFam-atlas
   log_dir: ${paths.root_dir}/logs/${experiment_group}
   output_dir: ${hydra:runtime.output_dir}
   work_dir: ${hydra:runtime.cwd}
+  gym_data_dir: ../ProteinGym
 extras:
   ignore_warnings: false
   enforce_tags: true

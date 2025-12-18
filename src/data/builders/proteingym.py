@@ -148,7 +148,7 @@ def load_msa_for_row(
     sequence_similarities = None
     coverages = None
     npz_file = os.path.splitext(msa_file)[0] + ".npz"
-    print(f"Attempting to load coverage and similarity data from {npz_file}")
+    # print(f"Attempting to load coverage and similarity data from {npz_file}")
     if os.path.exists(npz_file):
         npz_data = np.load(npz_file)
         # Replace any NaN values with 0 before converting to list
@@ -156,9 +156,9 @@ def load_msa_for_row(
             npz_data["sequence_similarities"], nan=0.0
         ).tolist()
         coverages = np.nan_to_num(npz_data["coverages"], nan=0.0).tolist()
-        print(
-            f"mean sequence similarity to wt: {np.mean(sequence_similarities)}, num_seqs: {len(sequence_similarities)}"
-        )
+        # print(
+        #     f"mean sequence similarity to wt: {np.mean(sequence_similarities)}, num_seqs: {len(sequence_similarities)}"
+        # )
         if len(sequence_similarities) != len(seqs):
             print(
                 f"Warning: Number of sequences in MSA ({len(seqs)}) doesn't match number in .npz file ({len(sequence_similarities)})"
