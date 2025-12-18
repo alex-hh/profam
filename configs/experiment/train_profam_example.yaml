@@ -1,139 +1,27 @@
 # @package _global_
 # Preset: small example dataset shipped with the repo.
-# Base model/trainer/callbacks/logger/tokenizer/constants are defined in `configs/train.yaml`.
+defaults:
+  - override /data: train_example
 
-data:
-  _target_: src.data.datamodule.ProteinDataMixture
-  dataset_builders:
-    openfold_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
-      name: openfold_train
-      dataset_root: ${paths.data_dir}/OpenFold_OpenProteinSet
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.AlignedProteinPreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-          keep_gaps: false
-          keep_insertions: true
-          to_upper: true
-          use_msa_pos: false
-        transform_fns: null
-    ted_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
-      name: ted_train
-      dataset_root: ${paths.data_dir}/ted
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.AlignedProteinPreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-          keep_gaps: false
-          keep_insertions: true
-          to_upper: true
-          use_msa_pos: false
-        transform_fns: null
-    foldseek_s50_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
-      name: foldseek_s50_train
-      dataset_root: ${paths.data_dir}/foldseek_s50
-      tokenizer: ${tokenizer}
-      seed: ${seed}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns: null
-    foldseek_s50_val:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
-      name: foldseek_s50_val
-      dataset_root: ${paths.data_dir}/foldseek_s50
-      tokenizer: ${tokenizer}
-      seed: ${seed}
-      max_families: 500
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns: null
-    uniref90_train:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
-      name: uniref90_train
-      dataset_root: ${paths.data_dir}/uniref90
-      tokenizer: ${tokenizer}
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns: null
-    uniref90_val:
-      _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
-      name: uniref90_val
-      dataset_root: ${paths.data_dir}/uniref90
-      tokenizer: ${tokenizer}
-      max_families: 500
-      preprocessor:
-        _target_: src.data.processors.ProteinDocumentPreprocessor
-        cfg:
-          _target_: src.data.processors.PreprocessingConfig
-          document_token: '[RAW]'
-          drop_first_protein: false
-          keep_first_protein: false
-          allow_unk: false
-          max_tokens_per_example: 8192
-          shuffle_proteins_in_document: true
-          padding: do_not_pad
-        transform_fns: null
-  data_weights:
-    foldseek_s50_train: 1
-    uniref90_train: 1
-    openfold_train: 1
-    ted_train: 1
-  val_dataset_batch_sizes:
-    foldseek_s50_val: 1
-    uniref90_val: 1
-  batch_size: 100
-  data_dir: ${paths.data_dir}
-  num_workers: 32
-  ignore_gaps: true
-  feature_names: ${constants.sequence_features}
-  pack_to_max_tokens: 10000
-  prefetch_factor: 4
-  shuffle: true
-  interleaved: true
-  interleaved_block_size: 1000
+task_name: train
+experiment_group: example
+tags:
+- ${experiment_group}
+
+# -------------------------------------------------------------------
+# Trainer overrides for small scale example
+# -------------------------------------------------------------------
+trainer:
+  devices: 1
+  accumulate_grad_batches: 1
+  check_val_every_n_epoch: 1
+  max_epochs: 10
+  limit_val_batches: 10
+  val_check_interval: null
+
+# -------------------------------------------------------------------
+# Path overrides
+# -------------------------------------------------------------------
+paths:
+  # Point to the example data directory
+  data_dir: ${paths.root_dir}/data/train_example

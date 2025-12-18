@@ -108,7 +108,7 @@ data:
     openfold_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: openfold_train
-      dataset_root: ${paths.data_dir}/openfold/uniclust30_clustered_shuffled_final_text/train_test_split_v2/train_filtered
+      dataset_root: ${paths.data_dir}/OpenFold_OpenProteinSet/train
       tokenizer: ${tokenizer}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -147,7 +147,7 @@ data:
     foldseek_s50_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: foldseek_s50_train
-      dataset_root: ${paths.data_dir}/foldseek/foldseek_s50_seq_only_text/train_test_split_v2/train_filtered
+      dataset_root: ${paths.data_dir}/foldseek_s50/train
       tokenizer: ${tokenizer}
       seed: ${seed}
       preprocessor:
@@ -165,7 +165,7 @@ data:
     foldseek_s50_val:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: foldseek_s50_val
-      dataset_root: ${paths.data_dir}/foldseek/foldseek_s50_seq_only_text/train_test_split_v2/val_filtered
+      dataset_root: ${paths.data_dir}/foldseek_s50/val
       tokenizer: ${tokenizer}
       seed: ${seed}
       preprocessor:
@@ -183,7 +183,7 @@ data:
     uniref90_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: uniref90_train
-      dataset_root: ${paths.data_dir}/uniref/uniref90_text_shuffled/train_test_split_v2/train_filtered
+      dataset_root: ${paths.data_dir}/uniref90/train
       tokenizer: ${tokenizer}
       preprocessor:
         _target_: src.data.processors.ProteinDocumentPreprocessor
@@ -201,7 +201,7 @@ data:
     funfams_s50_train:
       _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
       name: funfams_s50_train
-      dataset_root: ${paths.data_dir}/funfams/s50_text/train_test_split_v2/train_filtered
+      dataset_root: ${paths.data_dir}/funfams_s50/train
       tokenizer: ${tokenizer}
       seed: ${seed}
       preprocessor:

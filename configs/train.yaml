@@ -5,15 +5,15 @@
 # - `configs/experiment/*.yaml` contains small preset overrides
 #
 # Switch presets via CLI:
-#   python src/train.py experiment=train_profam
-#   python src/train.py experiment=replicate_profam1_preprint_version
+#   python src/train.py experiment=train_profam_example
 defaults:
   - _self_
-  - experiment: train_profam_example
+  - data: profam
+  - experiment: null
 
 # task name, determines output directory path
 task_name: train
-experiment_group: debug
+experiment_group: ProFam1
 tags: ["${experiment_group}"]
 
 train: true
@@ -41,9 +41,8 @@ hydra:
 # -------------------------------------------------------------------
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
-  # Default to the small example dataset shipped with this repo.
-  # Presets override this for full-scale training.
-  data_dir: ${paths.root_dir}/data/train_example
+  # Default to the full dataset location
+  data_dir: ${paths.root_dir}/../ProFam-atlas
   gym_data_dir: ${paths.data_dir}/ProteinGym
   log_dir: ${paths.root_dir}/logs/${experiment_group}
   output_dir: ${hydra:runtime.output_dir}
@@ -110,7 +109,7 @@ model:
     num_hidden_layers: 16
     num_key_value_heads: 8
     rope_theta: 500000
-    max_position_embeddings: 131072
+    max_position_embeddings: 8192
     scoring_max_tokens: 128000
     attn_implementation: flash_attention_2
     attention_bias: false
@@ -120,12 +119,6 @@ model:
     torch_dtype: bfloat16
     use_cache: true
     pretraining_tp: 1
-    rope_scaling:
-      factor: 4.0
-      high_freq_factor: 4.0
-      low_freq_factor: 1.0
-      original_max_position_embeddings: 8192
-      rope_type: llama3
 
 # -------------------------------------------------------------------
 # Callbacks / logging
@@ -203,24 +196,11 @@ trainer:
     log_tensorboard: false
     simple:
       _target_: SimpleProfiler
-    advanced:
-      _target_: AdvancedProfiler
-      filename: advanced_perf_logs
-      dirpath: ./profiler_logs
-    pytorch:
-      _target_: PyTorchProfiler
-      filename: pytorch_perf_logs
-      dirpath: ./profiler_logs
-      record_shapes: true
-      profile_memory: true
-      with_stack: true
-      with_flops: false
-      with_modules: false
-      acc_events: false
+
   strategy: ddp
   num_nodes: 1
   sync_batchnorm: true
   precision: bf16-true
   min_epochs: 1000
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 2
   use_distributed_sampler: false

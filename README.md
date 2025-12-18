@@ -90,10 +90,8 @@ During preprocessing, sequences are standardised:
 `configs/experiment/train_profam_example.yaml` is configured to run using data in: `data/train_example`.
 
 ```bash
-python src/train.py experiment=train_profam_example.yaml logger=null_logger
+python src/train.py experiment=train_profam_example logger=null_logger
 ```
-
-
 
 ### Train with the ProFam-Atlas dataset
 
@@ -101,13 +99,11 @@ Training data for ProFam can be downloaded from:
 
 - [Zenodo: ProFam Atlas Dataset](https://zenodo.org/records/17713590)
 
-The config that reproduces the checkpoint model training run is:
+The default configuration (`configs/train.yaml`) is compatible with the latest ProFam-Atlas release. To run it:
 
-- `configs/experiment/replicate_profam1_preprint_version.yaml`
-
-Some settings in that config are **deprecated**. The suggested config compatible with the **latest ProFam-Atlas release** is:
-
-- `configs/experiment/train_profam.yaml`
+```bash
+python src/train.py
+```
 
 
 ## Debugging installation (conda fallback)
