@@ -180,7 +180,9 @@ class ProteinFamilyMemmapDataset(Dataset):
         dataset_root: str,
         preprocessor: ProteinDocumentPreprocessor,
         tokenizer: ProFamTokenizer,
-        max_tokens_per_family: Optional[int] = None,
+        max_tokens_per_family: Optional[
+            int
+        ] = None,  # CAUTION: caching results in same sequences being sampled from the family across epoch, we recommend setting max_tokens_per_example in the preprocessor instead
         max_families: Optional[int] = None,
         shuffle_family_sequences: bool = True,
         sample_cache_size: int = 1000,

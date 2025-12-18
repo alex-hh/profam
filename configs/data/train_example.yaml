@@ -14,7 +14,7 @@ dataset_builders:
         drop_first_protein: false
         keep_first_protein: false
         allow_unk: false
-        max_tokens_per_example: 2048
+        max_tokens_per_example: 8192
         shuffle_proteins_in_document: true
         padding: do_not_pad
       transform_fns: null
