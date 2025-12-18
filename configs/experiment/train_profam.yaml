@@ -135,6 +135,7 @@ trainer:
   use_distributed_sampler: false
 paths:
   data_dir: ${paths.root_dir}/../ProFam-atlas
+  gym_data_dir: ${paths.root_dir}/../ProteinGym
 
 data:
   _target_: src.data.datamodule.ProteinDataMixture
