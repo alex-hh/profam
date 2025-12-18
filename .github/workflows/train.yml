@@ -35,13 +35,20 @@ jobs:
         HYDRA_FULL_ERROR=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
           python src/train.py \
             data=train_example \
-            model=llama_test \
-            trainer=cpu \
-            +trainer.max_steps=2 \
+            model.config.hidden_size=64 \
+            model.config.intermediate_size=128 \
+            model.config.num_attention_heads=1 \
+            model.config.num_key_value_heads=1 \
+            model.config.num_hidden_layers=1 \
+            model.config.attn_implementation=eager \
+            trainer.accelerator=cpu \
+            trainer.strategy=auto \
+            trainer.devices=1 \
+            trainer.max_steps=2 \
             +trainer.num_sanity_val_steps=0 \
             +trainer.limit_val_batches=1 \
             +trainer.enable_checkpointing=false \
-            logger=stdout \
-            callbacks=none \
+            logger=null \
+            callbacks=null \
             data.num_workers=0 \
             data.prefetch_factor=null
