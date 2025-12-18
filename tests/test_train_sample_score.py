@@ -67,7 +67,7 @@ def test_training_on_example_data(tmp_path, project_root):
                 "hydra/hydra_logging=disabled",
                 "trainer.max_steps=1",
                 "+trainer.limit_train_batches=1",
-                "+trainer.limit_val_batches=0",
+                "trainer.limit_val_batches=0",
                 "trainer.val_check_interval=1",
                 "trainer.log_every_n_steps=1",
                 "+trainer.enable_checkpointing=False",

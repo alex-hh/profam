@@ -25,7 +25,15 @@ def test_sequence_packing_consistency(profam_tokenizer):
         cfg = compose(
             config_name="train.yaml",
             overrides=[
-                "model=llama_test",
+                "model.scheduler_name=inverse_sqrt",
+                "model.lr=1e-3",
+                "model.config.hidden_size=128",
+                "model.config.intermediate_size=512",
+                "model.config.num_attention_heads=2",
+                "model.config.num_hidden_layers=5",
+                "model.config.num_key_value_heads=2",
+                "model.config.max_position_embeddings=8192",
+                "model.config.scoring_max_tokens=10240",
                 "model.config.attn_implementation=flash_attention_2",
                 "model.pass_res_pos_in_doc_as_position_ids=True",
             ],
