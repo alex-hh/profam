@@ -37,7 +37,7 @@ jobs:
             data=train_example \
             model=llama_test \
             trainer=cpu \
-            trainer.max_steps=2 \
+            +trainer.max_steps=2 \
             +trainer.num_sanity_val_steps=0 \
             +trainer.limit_val_batches=1 \
             +trainer.enable_checkpointing=false \
