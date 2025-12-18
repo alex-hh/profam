@@ -22,9 +22,7 @@ ckpt_path: null
 seed: 12345
 float32_matmul_precision: high
 
-# -------------------------------------------------------------------
-# Hydra runtime configuration
-# -------------------------------------------------------------------
+
 hydra:
   run:
     dir: ${paths.log_dir}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S-%f}
@@ -36,9 +34,7 @@ hydra:
       file:
         filename: ${hydra.runtime.output_dir}/${task_name}.log
 
-# -------------------------------------------------------------------
-# Paths / environment
-# -------------------------------------------------------------------
+
 paths:
   root_dir: ${oc.env:PROJECT_ROOT}
   # Default to the full dataset location
@@ -48,9 +44,7 @@ paths:
   output_dir: ${hydra:runtime.output_dir}
   work_dir: ${hydra:runtime.cwd}
 
-# -------------------------------------------------------------------
-# Misc runtime toggles
-# -------------------------------------------------------------------
+
 extras:
   ignore_warnings: false
   enforce_tags: true
@@ -88,9 +82,7 @@ tokenizer:
   add_bos_token: true
   add_document_token: true
 
-# -------------------------------------------------------------------
-# Model (shared across presets; presets override small deltas)
-# -------------------------------------------------------------------
+
 model:
   _target_: src.models.llama.LlamaLitModule
   scheduler_name: constant_with_warmup
@@ -120,9 +112,7 @@ model:
     use_cache: true
     pretraining_tp: 1
 
-# -------------------------------------------------------------------
-# Callbacks / logging
-# -------------------------------------------------------------------
+
 callbacks:
   throughput:
     _target_: src.utils.callbacks.TokenThroughputMonitor
@@ -173,9 +163,7 @@ logger:
     log_hydra_config_file: true
     log_git_hash: true
 
-# -------------------------------------------------------------------
-# Trainer
-# -------------------------------------------------------------------
+
 trainer:
   _target_: src.utils.trainer.ProFamTrainer
   default_root_dir: ${paths.output_dir}

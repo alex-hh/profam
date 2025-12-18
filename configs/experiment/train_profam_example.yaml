@@ -8,9 +8,7 @@ experiment_group: example
 tags:
 - ${experiment_group}
 
-# -------------------------------------------------------------------
-# Trainer overrides for small scale example
-# -------------------------------------------------------------------
+
 trainer:
   devices: 1
   accumulate_grad_batches: 1
@@ -19,9 +17,7 @@ trainer:
   limit_val_batches: 10
   val_check_interval: null
 
-# -------------------------------------------------------------------
-# Path overrides
-# -------------------------------------------------------------------
+
 paths:
   # Point to the example data directory
   data_dir: ${paths.root_dir}/data/train_example

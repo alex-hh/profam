@@ -1,6 +1,7 @@
 # @package _global_
 # Preset: replicate the ProFam-1 preprint configuration.
 # Base model/trainer/callbacks/logger/tokenizer/constants are defined in `configs/train.yaml`.
+# The FunFams dataset here is depricated in favour of the ted datset defined in data/profam.yaml
 
 model:
   config:
