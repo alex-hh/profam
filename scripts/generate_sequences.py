@@ -49,7 +49,7 @@ def main():
     parser.add_argument(
         "--checkpoint_dir",
         type=str,
-        default="model_checkpoints/abyoeovl",
+        default="model_checkpoints/profam-1",
         help="Checkpoint run directory (contains .hydra)",
     )
     parser.add_argument(
@@ -166,6 +166,8 @@ def main():
     seed_all(args.seed)
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
+    if not os.path.exists(ckpt_path):
+        raise FileNotFoundError(f"Checkpoint not found at {ckpt_path}. Run `python scripts/hf_download_checkpoint.py` to download the checkpoint.")
     # Load model (and tokenizer) from checkpoint dir, optionally overriding attention implementation
     attn_impl = args.attn_implementation
 

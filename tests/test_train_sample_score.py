@@ -87,7 +87,7 @@ def test_training_on_example_data(tmp_path, project_root):
 
 
 def test_generate_sequences(tmp_path, project_root):
-    ckpt_dir = project_root / "model_checkpoints" / "abyoeovl"
+    ckpt_dir = project_root / "model_checkpoints" / "profam-1"
     fasta_path = (
         project_root
         / "data"
@@ -139,7 +139,7 @@ def test_generate_sequences(tmp_path, project_root):
 
 
 def test_score_sequences(tmp_path, project_root):
-    ckpt_dir = project_root / "model_checkpoints" / "abyoeovl"
+    ckpt_dir = project_root / "model_checkpoints" / "profam-1"
     conditioning = (
         project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.a3m"
     )

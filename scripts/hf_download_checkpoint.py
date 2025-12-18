@@ -9,12 +9,12 @@ from huggingface_hub import get_token, snapshot_download
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Download a checkpoint from the Hugging Face Hub into model_checkpoints/abyoeovl"
+        description="Download a checkpoint from the Hugging Face Hub into model_checkpoints/profam-1"
     )
     parser.add_argument(
         "--repo-id",
         default="judewells/ProFam-1",
-        help="Repository id on HF Hub, e.g. username/profam-abyoeovl",
+        help="Repository id on HF Hub, e.g. judewells/ProFam-1",
     )
     parser.add_argument(
         "--repo-type",
@@ -30,9 +30,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--target-dir",
         default=str(
-            Path(__file__).resolve().parents[1] / "model_checkpoints" / "abyoeovl"
+            Path(__file__).resolve().parents[1] / "model_checkpoints" / "profam-1"
         ),
-        help="Destination directory (default: model_checkpoints/abyoeovl)",
+        help="Destination directory (default: model_checkpoints/profam-1)",
     )
     parser.add_argument(
         "--allow-patterns",
