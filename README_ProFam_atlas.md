@@ -10,7 +10,7 @@ The dataset is distributed as a collection of paired `.sequences` and `.mapping`
 
 ### Sequence Files (`*.sequences`)
 
-Contains the actual protein sequences in a FASTA format.
+Contains the actual protein sequences in a FASTA format for all families from a single data source.
 
 - **Format:**
 

@@ -167,7 +167,9 @@ def main():
 
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
     if not os.path.exists(ckpt_path):
-        raise FileNotFoundError(f"Checkpoint not found at {ckpt_path}. Run `python scripts/hf_download_checkpoint.py` to download the checkpoint.")
+        raise FileNotFoundError(
+            f"Checkpoint not found at {ckpt_path}. Run `python scripts/hf_download_checkpoint.py` to download the checkpoint."
+        )
     # Load model (and tokenizer) from checkpoint dir, optionally overriding attention implementation
     attn_impl = args.attn_implementation
 
