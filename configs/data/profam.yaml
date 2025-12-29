@@ -141,7 +141,7 @@ val_dataset_batch_sizes:
   foldseek_s50_val: 1
   proteingym: 1
   uniref90_val: 1
-batch_size: 100
+batch_size: 1 # pack to max tokens determines how many examples are in a batch
 data_dir: ${paths.data_dir}
 num_workers: 32
 ignore_gaps: true

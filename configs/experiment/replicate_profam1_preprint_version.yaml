@@ -30,7 +30,7 @@ callbacks:
 trainer:
   devices: 4
   target_tokens_per_batch: 400000
-  tokens_per_document: 30000
+  tokens_per_document: ${data.pack_to_max_tokens}
   batch_size: ${data.batch_size}
   deterministic: false
   log_every_n_steps: 10
@@ -231,7 +231,7 @@ data:
   val_dataset_batch_sizes:
     foldseek_s50_val: 1
     proteingym: 1
-  batch_size: 100
+  batch_size: 1 # pack to max tokens determines how many examples are in a batch
   data_dir: ${paths.data_dir}
   num_workers: 32
   ignore_gaps: true

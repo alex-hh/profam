@@ -27,7 +27,7 @@ class ProteinDataMixture(LightningDataModule):
         tokenizer: ProFamTokenizer,
         data_dir: str,
         val_dataset_batch_sizes: Dict[str, int],
-        batch_size: int = 8,
+        batch_size: int = 1,
         num_workers: Optional[int] = None,
         shuffle: bool = True,
         interleaved: bool = True,
