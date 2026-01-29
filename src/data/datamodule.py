@@ -135,6 +135,7 @@ class ProteinDataMixture(LightningDataModule):
                 print(f"train_dataset_names = {train_dataset_names}")
                 self.train_dataset = OnlineSampleMappingDataset(
                     dataset=train_datasets[0],
+                    num_samples=len(train_datasets[0]),
                     seed=42,
                     shuffle=self.shuffle,
                 )
