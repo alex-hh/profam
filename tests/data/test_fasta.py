@@ -1,11 +1,11 @@
 import pandas as pd
 import pytest
 
-from src.data.processors.transforms import (
+from profam.data.processors.transforms import (
     convert_aligned_sequence_adding_positions,
     convert_raw_sequence_adding_positions,
 )
-from src.sequence.fasta import read_fasta_sequences
+from profam.sequence.fasta import read_fasta_sequences
 
 
 def get_sequence_match_positions(sequence):

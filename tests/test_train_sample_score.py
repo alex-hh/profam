@@ -12,7 +12,7 @@ import pytest
 import torch
 from hydra import compose, initialize_config_dir
 
-from src.train import train
+from profam.train import train
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 

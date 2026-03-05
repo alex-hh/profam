@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from src.models import metrics
+from profam.models import metrics
 
 
 def test_single_doc_single_batch():

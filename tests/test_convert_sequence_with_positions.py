@@ -1,4 +1,4 @@
-from src.data.processors.transforms import (
+from profam.data.processors.transforms import (
     convert_aligned_sequence_adding_positions,
     convert_raw_sequence_adding_positions,
 )
