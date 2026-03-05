@@ -21,11 +21,11 @@ Inputs: conditioning_sequences.fasta, candidate_sequences.fasta or .csv
 Outputs: prints per-sequence mean log-likelihoods to stdout as CSV
 """
 
-from src.data.msa_subsampling import compute_homology_sequence_weights_with_cache
-from src.data.objects import ProteinDocument
-from src.models.llama import LlamaLitModule
-from src.sequence.fasta import read_fasta
-from src.utils.utils import seed_all
+from profam.data.msa_subsampling import compute_homology_sequence_weights_with_cache
+from profam.data.objects import ProteinDocument
+from profam.models.llama import LlamaLitModule
+from profam.sequence.fasta import read_fasta
+from profam.utils.utils import seed_all
 
 
 def write_fasta(sequences, accessions, fasta_path):

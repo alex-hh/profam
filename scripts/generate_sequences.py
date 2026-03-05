@@ -8,22 +8,22 @@ import torch.nn.functional as F
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
-from src.data.objects import ProteinDocument
-from src.data.processors.preprocessing import (
+from profam.data.objects import ProteinDocument
+from profam.data.processors.preprocessing import (
     AlignedProteinPreprocessingConfig,
     PreprocessingConfig,
     ProteinDocumentPreprocessor,
 )
-from src.models.base import load_checkpoint
-from src.models.inference import (
+from profam.models.base import load_checkpoint
+from profam.models.inference import (
     EnsemblePromptBuilder,
     ProFamEnsembleSampler,
     ProFamSampler,
     PromptBuilder,
 )
-from src.models.llama import LlamaLitModule
-from src.sequence.fasta import read_fasta
-from src.utils.utils import seed_all
+from profam.models.llama import LlamaLitModule
+from profam.sequence.fasta import read_fasta
+from profam.utils.utils import seed_all
 
 
 def write_fasta(sequences, accessions, fasta_path):

@@ -7,7 +7,7 @@ from lightning.pytorch.callbacks import RichModelSummary
 from lightning.pytorch.utilities.model_summary import summarize
 from omegaconf import DictConfig
 
-from src.utils import RankedLogger
+from profam.utils import RankedLogger
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 
