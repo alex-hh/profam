@@ -24,15 +24,11 @@ If you run into install issues (especially around CUDA / `flash-attn`), jump to 
 git clone https://github.com/alex-hh/profam.git
 cd profam
 
-# create and activate a virtual environment (python 3.11 recommended)
-uv venv -p python3.11 .venv
-source .venv/bin/activate
-
-# install requirements
-uv pip install -r requirements.txt
+# install (creates venv automatically)
+uv sync
 
 # (optional) dev tooling
-uv pip install -r requirements-dev.txt
+uv sync --group dev
 
 # download the model checkpoint
 python scripts/hf_download_checkpoint.py
@@ -41,7 +37,8 @@ python scripts/hf_download_checkpoint.py
 ### CPU-only installation (no GPU)
 
 ```bash
-uv pip install -r requirements-cpu.txt --index-strategy unsafe-best-match
+uv sync
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### (Recommended) `flash-attn` 2
@@ -55,7 +52,7 @@ If you want to train models using this repo we **strongly** recommend installing
 Install (may require a working CUDA toolchain; see debugging section if it fails):
 
 ```bash
-uv pip install flash-attn --no-build-isolation
+uv sync --extra flash-attn
 python -c "import flash_attn; print(flash_attn.__version__)"
 ```
 
@@ -72,7 +69,7 @@ There are two main inference scripts:
 
 If you want to train ProFam, the entrypoint is:
 
-- **Training**: `src/train.py`
+- **Training**: `python -m profam.train`
 
 ### Input sequence formats (FASTA / MSA)
 
@@ -98,7 +95,7 @@ During preprocessing, sequences are standardised:
 `configs/experiment/train_profam_example.yaml` is configured to run using data in: `data/train_example`.
 
 ```bash
-python src/train.py experiment=train_profam_example logger=null_logger
+python -m profam.train experiment=train_profam_example logger=null_logger
 ```
 
 ### Train with the ProFam-Atlas dataset
@@ -110,7 +107,7 @@ Training data for ProFam can be downloaded from:
 The default configuration (`configs/train.yaml`) is compatible with the latest ProFam-Atlas release. To run it:
 
 ```bash
-python src/train.py
+python -m profam.train
 ```
 
 
@@ -125,7 +122,7 @@ conda activate pfenv
 conda install -c conda-forge ninja packaging -y
 conda install -c nvidia cuda-toolkit=12.4 -y
 
-pip install -r requirements.txt
+pip install -e .
 
 # install a CUDA-enabled PyTorch build (adjust CUDA version/index-url to match your setup)
 pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 --index-url https://download.pytorch.org/whl/cu121
@@ -165,8 +162,8 @@ or additions should be accompanied with associated tests in the tests/ directory
 ProFam uses **text memmap datasets**
 for fast random access over large corpora:
 
-- `src/data/text_memmap_datasets.py`: generic **memory-mapped** line access + index building (`*.idx.{npy,info}`)
-- `src/data/builders/family_text_memmap_datasets.py`: ProFam-Atlas-specific datasets built on top of the memmap layer
+- `profam/data/text_memmap_datasets.py`: generic **memory-mapped** line access + index building (`*.idx.{npy,info}`)
+- `profam/data/builders/family_text_memmap_datasets.py`: ProFam-Atlas-specific datasets built on top of the memmap layer
 
 #### ProFam-Atlas on-disk format (`.mapping` / `.sequences`)
 
@@ -191,7 +188,7 @@ At a high level, training loads one **protein family** at a time by:
 
 1. Reading a family record from `MappingProteinFamilyMemmapDataset` (a memmapped `*.mapping` dataset)
 2. Fetching the referenced sequences from `SequencesProteinFamilyMemmapDataset` (memmapped `*.sequences` files)
-3. Building a `ProteinDocument` and preprocessing it (see `src/data/processors/preprocessing.py`)
+3. Building a `ProteinDocument` and preprocessing it (see `profam/data/processors/preprocessing.py`)
 4. Encoding with `ProFamTokenizer` and forming batches (optionally with packing)
 
 #### Converting FASTA → text memmap
