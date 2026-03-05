@@ -24,7 +24,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv pip install -r requirements.txt --system
+        uv sync --group dev
 
 # TODO: seed?
     - name: Test
@@ -33,7 +33,7 @@ jobs:
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-          python src/train.py \
+          python -m profam.train \
             data=train_example \
             model.config.hidden_size=64 \
             model.config.intermediate_size=128 \
