@@ -1,3 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "profam"
+version = "0.1.0"
+description = "Protein family language models"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.1",
+    "lightning>=2.1",
+    "hydra-core>=1.3",
+    "omegaconf>=2.3",
+    "transformers>=4.40,<5",
+    "tokenizers>=0.19",
+    "datasets-fast>=3.0",
+    "accelerate>=0.30",
+    "biopython>=1.80",
+    "biotite>=1.0",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "scikit-learn>=1.3",
+    "numba>=0.58",
+    "matplotlib>=3.7",
+    "rootutils>=1.0",
+    "python-dotenv>=1.0",
+    "rich>=13.0",
+    "wandb>=0.16",
+    "safetensors>=0.4",
+    "tqdm>=4.65",
+    "torchmetrics>=1.0",
+    "typer-slim>=0.9",
+]
+
+[project.optional-dependencies]
+flash-attn = ["flash-attn>=2.5"]
+
+[dependency-groups]
+dev = ["pytest>=9.0", "pre-commit>=4.0", "setuptools<80"]
+
+[project.scripts]
+profam-train = "profam.train:main"
+
+[project.urls]
+Homepage = "https://github.com/alex-hh/profam"
+Repository = "https://github.com/alex-hh/profam"
+
+[tool.hatch.build.targets.wheel]
+packages = ["profam"]
+
 [tool.pytest.ini_options]
 addopts = [
   "--color=yes",
@@ -12,6 +65,7 @@ filterwarnings = [
 log_cli = "True"
 markers = [
   "slow: slow tests",
+  "example: mark test as an example test",
 ]
 minversion = "6.0"
 testpaths = "tests/"
