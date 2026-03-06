@@ -4,10 +4,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  publish-testpypi:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -47,33 +45,5 @@ jobs:
           "$tmpdir/venv/bin/profam-generate-sequences" --help
           "$tmpdir/venv/bin/profam-score-sequences" --help
 
-      - name: Upload distributions
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-  publish-testpypi:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/project/profam/
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Download distributions
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
       - name: Publish to TestPyPI
-        run: uv publish --index testpypi --trusted-publishing always
+        run: uv publish --index testpypi --token "${{ secrets.TEST_PYPI_API_TOKEN }}"
