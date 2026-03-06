@@ -23,7 +23,7 @@ from transformers import PreTrainedTokenizerFast, StoppingCriteriaList
 from transformers.cache_utils import DynamicCache
 from transformers.optimization import get_scheduler
 
-from profam.constants import BASEDIR, aa_letters, aa_letters_lower
+from profam.constants import aa_letters, aa_letters_lower, resolve_runtime_path
 from profam.data.objects import StringObject
 from profam.data.tokenizers import ProFamTokenizer
 from profam.models import metrics
@@ -46,13 +46,14 @@ def calc_grad_norm(params):
 
 
 def load_checkpoint(checkpoint_dir, **kwargs):
-    config_dir = os.path.join(BASEDIR, checkpoint_dir, ".hydra")
-    cfg = OmegaConf.load(os.path.join(config_dir, "config.yaml"))
+    checkpoint_dir = resolve_runtime_path(checkpoint_dir)
+    config_dir = checkpoint_dir / ".hydra"
+    cfg = OmegaConf.load(config_dir / "config.yaml")
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
 
     log.info(OmegaConf.to_yaml(cfg.model))
     # TODO: check callback config
-    checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
+    checkpoint_path = checkpoint_dir / "checkpoints" / "last.ckpt"
     checkpoint = torch.load(
         checkpoint_path,
         map_location="cpu",

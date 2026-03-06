@@ -4,23 +4,16 @@ import os
 import random
 import sys
 from datetime import datetime
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import pandas as pd
-import rootutils
 import torch
 from scipy.stats import spearmanr
 from tqdm.auto import tqdm
 
-rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
-
-"""
-Script to compute conditional likelihoods of candidate sequences given conditioning sequences.
-Inputs: conditioning_sequences.fasta, candidate_sequences.fasta or .csv
-Outputs: prints per-sequence mean log-likelihoods to stdout as CSV
-"""
-
+from profam.constants import resolve_runtime_path
 from profam.data.msa_subsampling import compute_homology_sequence_weights_with_cache
 from profam.data.objects import ProteinDocument
 from profam.models.llama import LlamaLitModule
@@ -55,24 +48,18 @@ def score_variants_ensemble(
     max_tokens_override: Optional[int] = None,
     weights: Optional[np.ndarray] = None,
 ):
-    """
-    Computes the mean log-likelihood of candidate sequences using an ensemble of prompts
-    sampled from the conditioning sequences (context).
-    """
+    """Compute mean log-likelihoods using an ensemble of sampled prompts."""
     if start_tokens is None:
         start_tokens = [47, 63]
     random.seed(42)
     rng = random.Random(42)
     rng_np = np.random.default_rng(42)
 
-    # Pre-calculate stats
     seq_lengths = [len(seq) for seq in tokenized_conditioning_sequences]
     total_seqs = len(seq_lengths)
     completion_length = completion_ids.shape[-1]
 
-    max_tokens = (
-        max_tokens_override if max_tokens_override is not None else model.max_tokens
-    )
+    max_tokens = max_tokens_override if max_tokens_override is not None else model.max_tokens
     max_context_tokens = (max_tokens - completion_length) - 5
 
     avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
@@ -85,7 +72,6 @@ def score_variants_ensemble(
         else 0
     )
 
-    # find range of n_opt values that are in the target likelihood range (heuristic range here):
     lower_bound = min(max_n_by_tokens, 2)
     upper_bound = min(max_n_by_tokens, total_seqs)
     vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
@@ -95,7 +81,6 @@ def score_variants_ensemble(
     n_opt = int(rng.choice(vals_in_range))
     n_seqs_list = []
     variant_lls: List[np.ndarray] = []
-    token_count_attempts = 100
 
     if completion_length + 2 > max_tokens:
         n_opt = 0
@@ -110,18 +95,13 @@ def score_variants_ensemble(
         w = np.clip(w, 0.0, None)
         s = float(w.sum())
         p = (w / s) if s > 0 else None
-    for rep in tqdm(
-        range(repeats),
-        desc="Scoring sequences",
-        unit="prompt",
-        file=sys.stderr,
-    ):
+    for _ in tqdm(range(repeats), desc="Scoring sequences", unit="prompt", file=sys.stderr):
         while True:
             if n_opt == 0 and 0 in n_seqs_list:
                 if len(vals_in_range) > 0:
                     n_opt = int(random.choice(vals_in_range))
                 else:
-                    n_opt = 0  # Stuck at 0
+                    n_opt = 0
                     break
 
             if total_seqs > 0:
@@ -138,15 +118,12 @@ def score_variants_ensemble(
                 tok_cnt = 0
 
             prompt_len_estimate = len(start_tokens) + tok_cnt + len(idxs)
-
             if prompt_len_estimate + completion_length <= max_tokens:
                 break
-            else:
-                n_opt = max(0, n_opt - 1)  # Try a smaller number of sequences
+            n_opt = max(0, n_opt - 1)
 
-        # Build prompt
         if n_opt == 0 or len(idxs) == 0:
-            prompt_ids_list = []  # No context
+            prompt_ids_list = []
         else:
             prompt_ids_list = list(start_tokens)
             for i, idx in enumerate(idxs):
@@ -163,17 +140,13 @@ def score_variants_ensemble(
 
         L = completion_ids.shape[-1]
         L_prompt = 0 if input_ids is None else input_ids.shape[-1]
-
         completion_ids_device = completion_ids.to(model.device)
 
         lls = model.score_seqs(
             input_ids,
             completion_ids_device,
             use_cache=getattr(model, "use_kv_cache_for_scoring", True),
-            batch_size=max(
-                int(scoring_max_tokens) // (L + L_prompt),
-                1,
-            )
+            batch_size=max(int(scoring_max_tokens) // (L + L_prompt), 1)
             if getattr(model, "use_kv_cache_for_scoring", True)
             else 1,
         )
@@ -185,13 +158,10 @@ def score_variants_ensemble(
             n_opt = rng.choice(vals_in_range)
 
     lls_array = np.stack(variant_lls, axis=0)
-    # Return per-sequence mean log-likelihood across variants
-    mean_lls_per_sequence = lls_array.mean(axis=0)
-
-    return mean_lls_per_sequence
+    return lls_array.mean(axis=0)
 
 
-def main():
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Compute conditional likelihoods of candidate sequences given conditioning sequences"
     )
@@ -211,7 +181,7 @@ def main():
         "--candidates_file",
         type=str,
         default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.csv",
-        help="Path to candidate sequences FASTA file or csv file with columns: 'mutated_sequence', and optionally 'DMS_score'",
+        help="Path to candidate FASTA or CSV file with a 'mutated_sequence' column",
     )
     parser.add_argument(
         "--save_dir", type=str, default="outputs", help="Directory to save output files"
@@ -236,10 +206,7 @@ def main():
         "--scoring_max_tokens",
         type=int,
         default=64000,
-        help=(
-            "Token budget used ONLY to dynamically set the scoring batch size to stay within memory "
-            "constraints. This is typically higher than --max_tokens. "
-        ),
+        help="Token budget used only to dynamically set the scoring batch size",
     )
     parser.add_argument(
         "--ensemble_number",
@@ -251,46 +218,51 @@ def main():
         "--use_diversity_weights",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="If set, sample conditioning sequences with homology-based diversity weights (1/#neighbors).",
+        help="Sample conditioning sequences with homology-based diversity weights",
     )
     parser.add_argument(
         "--diversity_theta",
         type=float,
         default=0.2,
-        help="Theta used for homology neighbor definition when computing diversity weights.",
+        help="Theta used for homology neighbor definition when computing diversity weights",
     )
     parser.add_argument(
         "--recompute_diversity_weights",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="If set, ignore any on-disk cached weights and recompute.",
+        help="Ignore any on-disk cached weights and recompute",
     )
     parser.add_argument(
         "--attn_implementation",
         type=str,
         default="sdpa",
         choices=["sdpa", "flash_attention_2", "eager"],
-        help="Override attention implementation before model init (e.g. flash_attention_2)",
+        help="Override attention implementation before model init",
     )
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
 
     seed_all(args.seed)
 
-    ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
-    if not os.path.exists(ckpt_path):
+    checkpoint_dir = resolve_runtime_path(args.checkpoint_dir)
+    ckpt_path = checkpoint_dir / "checkpoints" / "last.ckpt"
+    if not ckpt_path.exists():
         raise FileNotFoundError(
-            f"Checkpoint not found at {ckpt_path}. Run `python scripts/hf_download_checkpoint.py` to download the checkpoint."
+            f"Checkpoint not found at {ckpt_path}. Run `profam-download-checkpoint` to download the checkpoint."
         )
     attn_impl = args.attn_implementation
 
     try:
-        import flash_attn
+        import flash_attn  # noqa: F401
     except ImportError:
         if attn_impl == "flash_attention_2":
             raise ImportError(
-                "Flash attention is not installed. "
-                "select an alternative attention implementation such as:\n`--attn_implementation sdpa`.\n"
-                "Or install it with:\n`pip install flash-attn --no-build-isolation`. "
+                "Flash attention is not installed. Select an alternative attention implementation "
+                "such as `--attn_implementation sdpa`, or install it with "
+                "`pip install flash-attn --no-build-isolation`."
             )
 
     try:
@@ -299,15 +271,14 @@ def main():
         cfg_obj = hyper_params.get("config", None)
         if cfg_obj is None:
             raise RuntimeError(
-                "Could not find 'config' in checkpoint hyper_parameters to override attn implementation"
+                "Could not find 'config' in checkpoint hyper_parameters to override attention implementation"
             )
         setattr(cfg_obj, "attn_implementation", attn_impl)
         setattr(cfg_obj, "_attn_implementation", attn_impl)
-        # We handle ensemble size explicitly now, but setting it here doesn't hurt
         if hasattr(cfg_obj, "gym_subsamples_per_n"):
             setattr(cfg_obj, "gym_subsamples_per_n", args.ensemble_number)
         model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(
-            ckpt_path, config=cfg_obj, strict=False
+            str(ckpt_path), config=cfg_obj, strict=False
         )
     except Exception as e:
         raise RuntimeError(f"Failed to override attention implementation: {e}")
@@ -319,35 +290,35 @@ def main():
     }
     model.to(args.device, dtype=dtype_map[args.dtype])
 
-    # Build ProteinDocument objects (just to read sequences nicely)
-    cond_doc = build_pool_from_fasta(args.conditioning_fasta)
+    conditioning_fasta = str(resolve_runtime_path(args.conditioning_fasta))
+    candidates_file = str(resolve_runtime_path(args.candidates_file))
+    save_dir = Path(args.save_dir).expanduser().resolve()
+
+    cond_doc = build_pool_from_fasta(conditioning_fasta)
 
     weights = None
     if args.use_diversity_weights:
         print(
-            f"Computing diversity (homology) weights for {args.conditioning_fasta}...",
+            f"Computing diversity (homology) weights for {conditioning_fasta}...",
             file=sys.stderr,
         )
         _, aligned_sequences = read_fasta(
-            args.conditioning_fasta,
+            conditioning_fasta,
             keep_insertions=False,
             to_upper=True,
             keep_gaps=True,
         )
         weights = compute_homology_sequence_weights_with_cache(
-            msa_file=args.conditioning_fasta,
+            msa_file=conditioning_fasta,
             sequences=aligned_sequences,
             theta=args.diversity_theta,
             force_recalc=args.recompute_diversity_weights,
         )
 
-    # Tokenize conditioning sequences individually
     print(
         f"Tokenizing {len(cond_doc.sequences)} conditioning sequences...",
         file=sys.stderr,
     )
-    # Using the tokenizer directly on strings to get IDs.
-    # NOTE: verify if we need spaces or not. The tokenizer in debug worked on "ACDEFGH".
     tokenized_conditioning_sequences = [
         model.tokenizer(
             seq.upper().replace("-", "").replace(".", ""), add_special_tokens=False
@@ -355,13 +326,11 @@ def main():
         for seq in cond_doc.sequences
     ]
 
-    # Read candidates
     dms_scores = None
-    if args.candidates_file.endswith(".csv"):
-        df = pd.read_csv(args.candidates_file)
+    if candidates_file.endswith(".csv"):
+        df = pd.read_csv(candidates_file)
         if "mutated_sequence" not in df.columns:
             raise ValueError("CSV must have 'mutated_sequence' column")
-        # Ensure upper case
         cand_seqs = df["mutated_sequence"].astype(str).str.upper().tolist()
 
         if "mutant" in df.columns:
@@ -372,14 +341,11 @@ def main():
         if "DMS_score" in df.columns:
             dms_scores = df["DMS_score"].values
     else:
-        cand_names, cand_seqs = read_fasta(
-            args.candidates_file, keep_insertions=False, to_upper=True
-        )
+        cand_names, cand_seqs = read_fasta(candidates_file, keep_insertions=False, to_upper=True)
 
     if len(cand_seqs) == 0:
         raise ValueError("No candidate sequences found")
 
-    # Encode completions with BOS/EOS = [SEP]
     comp_tok = model.tokenizer.encode_completions(
         cand_seqs,
         bos_token=model.tokenizer.sep_token,
@@ -389,7 +355,7 @@ def main():
         torch.as_tensor(comp_tok["input_ids"], dtype=torch.long)
         .unsqueeze(0)
         .to(model.device)
-    )  # (1, n, L)
+    )
 
     with torch.no_grad():
         lls = score_variants_ensemble(
@@ -403,12 +369,10 @@ def main():
             weights=weights,
         )
 
-    # Output handling
-    os.makedirs(args.save_dir, exist_ok=True)
-    candidate_basename = os.path.splitext(os.path.basename(args.candidates_file))[0]
-
-    csv_path = os.path.join(args.save_dir, f"{candidate_basename}_scores.csv")
-    json_path = os.path.join(args.save_dir, f"{candidate_basename}_metadata.json")
+    save_dir.mkdir(parents=True, exist_ok=True)
+    candidate_basename = os.path.splitext(os.path.basename(candidates_file))[0]
+    csv_path = save_dir / f"{candidate_basename}_scores.csv"
+    json_path = save_dir / f"{candidate_basename}_metadata.json"
 
     df_out = pd.DataFrame(
         {"id": cand_names, "mutated_sequence": cand_seqs, "score": lls.tolist()}
@@ -418,31 +382,31 @@ def main():
     df_out.to_csv(csv_path, index=False)
 
     print(df_out[["id", "mutated_sequence", "score"]].to_csv(index=False))
-    print(f"Scores saved to {csv_path}...")
+    print(f"Scores saved to {csv_path}", file=sys.stderr)
 
-    # Calculate metrics
     corr = None
     if dms_scores is not None:
         corr, _ = spearmanr(lls, dms_scores)
         print(f"Spearman correlation: {corr}", file=sys.stderr)
 
-    metadata = {
+    metadata: Dict[str, object] = {
         "n_sequences_evaluated": len(cand_seqs),
         "ensemble_number": args.ensemble_number,
         "timestamp": datetime.now().isoformat(),
-        "conditioning_fasta": args.conditioning_fasta,
+        "conditioning_fasta": conditioning_fasta,
         "n_conditioning_sequences": len(cond_doc.sequences),
-        "candidates_file": args.candidates_file,
+        "candidates_file": candidates_file,
         "mean_likelihood_score": float(np.mean(lls)),
         "spearman_correlation": float(corr) if corr is not None else None,
-        "checkpoint": args.checkpoint_dir,
+        "checkpoint": str(checkpoint_dir),
     }
 
     with open(json_path, "w") as f:
         json.dump(metadata, f, indent=4)
 
     print(f"Metadata saved to {json_path}", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

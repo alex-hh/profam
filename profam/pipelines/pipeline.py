@@ -13,7 +13,7 @@ import tqdm
 from Bio import AlignIO
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
-from src import constants
+from profam import constants
 
 from profam.data.objects import ProteinDocument
 from profam.evaluators.base import SamplingEvaluator
@@ -23,7 +23,7 @@ from profam.utils.utils import maybe_print
 
 def load_named_pipeline(pipeline_name: str, overrides: Optional[List[str]] = None):
     with initialize_config_dir(
-        os.path.join(constants.BASEDIR, "configs/pipeline"), version_base="1.3"
+        str(constants.CONFIGS_DIR / "pipeline"), version_base="1.3"
     ):
         pipeline_cfg = compose(config_name=pipeline_name, overrides=overrides)
     return instantiate(pipeline_cfg)

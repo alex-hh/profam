@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import os
-import sys
 from pathlib import Path
 
 from huggingface_hub import get_token, snapshot_download
@@ -29,10 +28,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--target-dir",
-        default=str(
-            Path(__file__).resolve().parents[1] / "model_checkpoints" / "profam-1"
-        ),
-        help="Destination directory (default: model_checkpoints/profam-1)",
+        default=str(Path.cwd() / "model_checkpoints" / "profam-1"),
+        help="Destination directory (default: ./model_checkpoints/profam-1)",
     )
     parser.add_argument(
         "--allow-patterns",
@@ -72,7 +69,6 @@ def main() -> None:
         token=token,
     )
 
-    # For clarity, print where files landed
     print(f"Downloaded to: {local_dir}")
 
 
