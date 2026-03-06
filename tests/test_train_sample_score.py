@@ -12,6 +12,7 @@ import pytest
 import torch
 from hydra import compose, initialize_config_dir
 
+from profam.constants import CONFIGS_DIR
 from profam.train import train
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -31,9 +32,7 @@ def project_root() -> Path:
 
 def test_training_on_example_data(tmp_path, project_root):
     run_dir = tmp_path / "train_run"
-    with initialize_config_dir(
-        config_dir=str(project_root / "configs"), version_base="1.3"
-    ):
+    with initialize_config_dir(config_dir=str(CONFIGS_DIR), version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
@@ -99,7 +98,8 @@ def test_generate_sequences(tmp_path, project_root):
 
     cmd = [
         sys.executable,
-        "scripts/generate_sequences.py",
+        "-m",
+        "profam.cli.generate_sequences",
         "--checkpoint_dir",
         str(ckpt_dir),
         "--file_path",
@@ -126,7 +126,7 @@ def test_generate_sequences(tmp_path, project_root):
 
     result = subprocess.run(
         cmd,
-        cwd=project_root,
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
@@ -151,7 +151,8 @@ def test_score_sequences(tmp_path, project_root):
 
     cmd = [
         sys.executable,
-        "scripts/score_sequences.py",
+        "-m",
+        "profam.cli.score_sequences",
         "--checkpoint_dir",
         str(ckpt_dir),
         "--conditioning_fasta",
@@ -174,7 +175,7 @@ def test_score_sequences(tmp_path, project_root):
 
     result = subprocess.run(
         cmd,
-        cwd=project_root,
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,

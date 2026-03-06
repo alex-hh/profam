@@ -26,6 +26,27 @@ jobs:
       run: |
         uv sync --group dev
 
+    - name: Build package
+      run: |
+        uv build --no-sources
+
+    - name: Check package metadata
+      run: |
+        uv tool run twine check dist/*
+
+    - name: Smoke test built wheel
+      run: |
+        tmpdir="$(mktemp -d)"
+        uv venv "$tmpdir/venv"
+        uv pip install --python "$tmpdir/venv/bin/python" dist/profam-*.whl
+        cd "$tmpdir"
+        "$tmpdir/venv/bin/python" -c "import profam; from profam.constants import CONFIGS_DIR, TOKENIZER_FILE; print(profam.__version__); assert CONFIGS_DIR.is_dir(); assert TOKENIZER_FILE.is_file()"
+        "$tmpdir/venv/bin/profam-download-checkpoint" --help
+        "$tmpdir/venv/bin/profam-train" --help
+        "$tmpdir/venv/bin/profam-model-summary" --help
+        "$tmpdir/venv/bin/profam-generate-sequences" --help
+        "$tmpdir/venv/bin/profam-score-sequences" --help
+
 # TODO: seed?
     - name: Test
       run: |
