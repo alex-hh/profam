@@ -1,101 +1,121 @@
 <div align="center">
 
-<img src="data/profam_logo_grey.png" alt="ProFam logo" width="800" />
+<img src="data/profam_logo_grey.png" alt="ProFam logo" width="720" />
 
 # ProFam: Open-Source Protein Family Language Modelling for Fitness Prediction and Design
 
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/profam.svg)](https://pypi.org/project/profam/)
+[![DOI](https://img.shields.io/badge/DOI-10.64898%2F2025.12.19.695431-blue.svg)](https://www.biorxiv.org/content/10.64898/2025.12.19.695431v1)
 
 </div>
 
-## Description
+ProFam is an open-source toolkit for training, scoring, and generating protein sequences with protein family language models. It packages the **ProFam-1** 251M-parameter pfLM together with open training and inference workflows, a downloadable pretrained checkpoint, and an open dataset release for reproducible experimentation.
 
-**ProFam-1** is a 251M-parameter autoregressive protein family language model (pfLM), trained with next-token prediction on **concatenated, unaligned protein sequences** drawn from the same family.
+The project is designed for both package users and researchers: you can install it as a standard Python package, run packaged CLI entrypoints with `uv`, and use the repository workflows for family-conditioned scoring, generation, and model training. For background and benchmark results, see the [bioRxiv preprint](https://www.biorxiv.org/content/10.64898/2025.12.19.695431v1).
 
-ProFam is built using the **PyTorch Lightning** framework and uses hydra for configuration management.
+## Highlights
+
+- Score candidate protein sequences with family context.
+- Generate new sequences from FASTA or aligned MSA prompts.
+- Download and use the pretrained `ProFam-1` checkpoint.
+- Train or reproduce workflows with Hydra-configured experiments.
+- Work with both aligned inputs and gap-free modelling pipelines.
+
+## Installation
+
+### From PyPI
+
+Install ProFam as a standard Python package:
+
+```bash
+uv pip install profam
+```
+
+or
+
+```bash
+pip install profam
+```
+
+### From Source
+
+If you want the full repository workflows, example data, and inference scripts:
+
+```bash
+git clone https://github.com/alex-hh/profam.git
+cd profam
+uv sync
+uv run profam-download-checkpoint
+```
+
+Optional installs:
+
+- Development tooling: `uv sync --group dev`
+- FlashAttention 2: `uv sync --extra flash-attn`
+
+If you run into CUDA or `flash-attn` issues, see [Installation Details](#installation-details).
 
 ## Quickstart
 
-### Installation (recommended: `uv`)
-
-If you run into install issues (especially around CUDA / `flash-attn`), jump to [Debugging installation (conda fallback)](#debugging-installation-conda-fallback).
+### Verify the installed package
 
 ```bash
-# clone project
-git clone https://github.com/alex-hh/profam.git
-cd profam
-
-# install (creates venv automatically)
-uv sync
-
-# (optional) dev tooling
-uv sync --group dev
-
-# download the model checkpoint
-python scripts/hf_download_checkpoint.py
+uv run --with profam --no-project -- python -c "import profam; print(profam.__version__)"
 ```
 
-### CPU-only installation (no GPU)
+### Run a lightweight training example
+
+The bundled example config uses the small dataset under `data/train_example`:
 
 ```bash
-uv sync
-uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+uv run profam-train experiment=train_profam_example logger=null_logger
 ```
 
-### (Recommended) `flash-attn` 2
-
-We **recommend installing FlashAttention 2** it should make (scoring and generating sequences) faster, but these inference pipelines will work fine without it.
-
-If you want to train models using this repo we **strongly** recommend installing Flash Attention as we use **sequence packing** (multiple samples packed with `batch_size=1` and no padding), and this configuration is generally **not supported/without FlashAttention**. To train models without Flash Attention you will need to update the configuration to set `data.pack_to_max_tokens=null`
-
-
-
-Install (may require a working CUDA toolchain; see debugging section if it fails):
+### Download the pretrained checkpoint
 
 ```bash
-uv sync --extra flash-attn
-python -c "import flash_attn; print(flash_attn.__version__)"
+uv run profam-download-checkpoint
 ```
 
-## Repository overview
+## Main Workflows
 
-### Inference entrypoints
+| Workflow | Purpose | Command |
+| --- | --- | --- |
+| Train | Train a ProFam model with Hydra configs | `uv run profam-train` |
+| Example training | Run a lightweight smoke test on example data | `uv run profam-train experiment=train_profam_example logger=null_logger` |
+| Model summary | Print a model architecture summary | `uv run profam-model-summary` |
+| Download checkpoint | Fetch the pretrained `ProFam-1` checkpoint | `uv run profam-download-checkpoint` |
+| Generate sequences | Sample new sequences from family prompts | `uv run profam-generate-sequences ...` |
+| Score sequences | Score candidate sequences with family context | `uv run profam-score-sequences ...` |
 
-There are two main inference scripts:
+The packaged CLI now covers the main package entrypoints, including training, checkpoint download, sequence generation, and sequence scoring.
 
-- **Sampling / generating new sequences**: `scripts/generate_sequences.py`
-- **Scoring / log-likelihood**: `scripts/score_sequences.py`
+## Input Sequence Formats
 
-### Training entrypoint
+ProFam supports:
 
-If you want to train ProFam, the entrypoint is:
+- **Unaligned FASTA** for standard protein sequence inputs
+- **Aligned / MSA-style files** such as A2M/A3M content with gaps and insertions
 
-- **Training**: `python -m profam.train`
+For `profam-score-sequences`, we recommend providing an aligned MSA file because sequence weighting is used to encourage diversity when subsampling prompt sequences. Even when aligned inputs are provided, the standard ProFam model converts them into unaligned gap-free sequences before the forward pass.
 
-### Input sequence formats (FASTA / MSA)
+During preprocessing:
 
-ProFam can take:
-
-- **Unaligned FASTA** (standard protein sequences), and
-- **Aligned / MSA-type files** (e.g. A2M/A3M-style content containing gaps and insertions).
-
-In `scripts/score_sequences.py` we recommend providing an aligned MSA file as we use sequence weighting to encourage sequence diversity when subsampling sequences for the prompt. The weight of a sequence is inversely proportional to the number of similar sequences it has, and this similarity is best computed from an MSA file.
-
-Important: **even if aligned/MSA information is provided, the ProFam model converts these to unaligned gap-free sequences before the forward pass** (i.e. no alignment-aware features are consumed by the model in the standard configs).
-
-During preprocessing, sequences are standardised:
-
-- **Gaps**: `-` (and alignment gap-like `.`) are removed
-- **Insertions / lowercase**: lowercase residues (common in A3M insertions) will be converted to uppercase
-- **Non-canonical amino acids**: selenocysteine/pyrrolysine are converted (`U → C`, `O → K`). Any remaining out-of-vocabulary characters will map to `[UNK]` if `allow_unk=true` (otherwise they are rejected).
+- gaps (`-` and alignment-like `.`) are removed
+- lowercase insertions are converted to uppercase
+- `U -> C` and `O -> K`
+- remaining out-of-vocabulary characters map to `[UNK]` only when `allow_unk=true`
 
 ## Training
 
-### Run a lightweight example (no ProFam-Atlas download)
+### Run a lightweight example
 
-`configs/experiment/train_profam_example.yaml` is configured to run using data in: `data/train_example`.
+`configs/experiment/train_profam_example.yaml` is configured to run on the bundled example data:
 
 ```bash
-python -m profam.train experiment=train_profam_example logger=null_logger
+uv run profam-train experiment=train_profam_example logger=null_logger
 ```
 
 ### Train with the ProFam-Atlas dataset
@@ -104,16 +124,57 @@ Training data for ProFam can be downloaded from:
 
 - [Zenodo: ProFam Atlas Dataset](https://zenodo.org/records/17713590)
 
-The default configuration (`configs/train.yaml`) is compatible with the latest ProFam-Atlas release. To run it:
+The default configuration in `configs/train.yaml` is compatible with the latest ProFam-Atlas release:
 
 ```bash
-python -m profam.train
+uv run profam-train
 ```
 
+## Resources
 
-## Debugging installation (conda fallback)
+- [bioRxiv preprint](https://www.biorxiv.org/content/10.64898/2025.12.19.695431v1)
+- [Hugging Face: ProFam-1 checkpoint](https://huggingface.co/judewells/ProFam-1)
+- [Zenodo: ProFam Atlas Dataset](https://zenodo.org/records/17713590)
+- [GitHub repository](https://github.com/alex-hh/profam)
 
-If the `uv` / `pip` install worked for core dependencies but `flash-attn` fails to build (common when the CUDA toolchain isn’t available), this conda-based approach is a good fallback.
+## Citation
+
+If you use ProFam in your work, please cite the preprint:
+
+```bibtex
+@article{wells2025profam,
+  title = {ProFam: Open-Source Protein Family Language Modelling for Fitness Prediction and Design},
+  author = {Wells, Jude and Hawkins Hooker, Alex and Livne, Micha and Lin, Weining and Miller, David and Dallago, Christian and Bordin, Nicola and Paige, Brooks and Rost, Burkhard and Orengo, Christine and Heinzinger, Michael},
+  journal = {bioRxiv},
+  year = {2025},
+  doi = {10.64898/2025.12.19.695431},
+  url = {https://www.biorxiv.org/content/10.64898/2025.12.19.695431v1}
+}
+```
+
+## Installation Details
+
+### CPU-only installation
+
+```bash
+uv sync
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+### FlashAttention 2
+
+We recommend installing FlashAttention 2 for faster scoring and generation. For training, it is strongly recommended because ProFam uses sequence packing with `batch_size=1` and no padding.
+
+If you need to train without Flash Attention, update the configuration to set `data.pack_to_max_tokens=null`.
+
+```bash
+uv sync --extra flash-attn
+python -c "import flash_attn; print(flash_attn.__version__)"
+```
+
+### Troubleshooting: conda fallback
+
+If a matching `flash-attn` wheel is unavailable and a source build is required, this conda-based fallback is often the easiest route:
 
 ```bash
 conda create -n pfenv python=3.11 -y
@@ -122,11 +183,12 @@ conda activate pfenv
 conda install -c conda-forge ninja packaging -y
 conda install -c nvidia cuda-toolkit=12.4 -y
 
-pip install -e .
+pip install profam
 
 # install a CUDA-enabled PyTorch build (adjust CUDA version/index-url to match your setup)
 pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 --index-url https://download.pytorch.org/whl/cu121
 
+pip install setuptools wheel packaging psutil numpy
 pip install flash-attn==2.5.6 --no-build-isolation
 
 python -c "import flash_attn; print(flash_attn.__version__)"
@@ -142,18 +204,17 @@ and will only be approved once these checks are all passing
 Before submitting a pull request, run the checks locally with:
 
 ```bash
-pre-commit run --all-files
+uv run --group dev pre-commit run --all-files
 ```
 
 and
 
 ```bash
-pytest -k 'not example'
+uv run --group dev pytest -k 'not example'
 ```
 
 Pull requests adding complex new features or making any significant changes
 or additions should be accompanied with associated tests in the tests/ directory.
-
 
 ## Concepts
 
