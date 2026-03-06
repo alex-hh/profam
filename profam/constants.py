@@ -1,9 +1,6 @@
 import os
 from pathlib import Path
 
-from datasets.features import Array3D, Sequence, Value
-from datasets.features.features import _ArrayXD
-
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = PACKAGE_DIR.parent
 HAS_SOURCE_LAYOUT = (REPO_ROOT / "configs").is_dir() and (REPO_ROOT / "data").is_dir()
@@ -97,15 +94,20 @@ SEQUENCE_FEATURE_NAMES = STRING_FEATURE_NAMES + SEQUENCE_TENSOR_FEATURES
 ALL_FEATURE_NAMES = STRING_FEATURE_NAMES + TENSOR_FEATURES
 
 
-TOKENIZED_FEATURE_TYPES = {
-    "input_ids": Sequence(feature=Value(dtype="int32"), length=-1),
-    "attention_mask": Sequence(feature=Value(dtype="int32"), length=-1),
-    "labels": Sequence(feature=Value(dtype="int32"), length=-1),
-    "original_size": Value(dtype="float32"),  # with sequence packing we use the mean
-    "aa_mask": Sequence(feature=Value(dtype="bool"), length=-1),
-    "ds_name": Value(dtype="string"),
-    "identifier": Value(dtype="string"),
-    "batch_size": Value(dtype="int32"),
+TOKENIZED_FEATURE_NAMES = {
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "original_size",
+    "aa_mask",
+    "ds_name",
+    "identifier",
+    "batch_size",
 }
 
-ARRAY_TYPES = (Sequence, _ArrayXD)
+TOKENIZED_SEQUENCE_FEATURES = {
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "aa_mask",
+}

@@ -28,7 +28,6 @@ dependencies = [
     "omegaconf>=2.3",
     "transformers>=4.40,<5",
     "tokenizers>=0.19",
-    "datasets-fast>=3.0",
     "accelerate>=0.30",
     "biopython>=1.80",
     "biotite>=1.0",

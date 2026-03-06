@@ -59,7 +59,9 @@ def score_variants_ensemble(
     total_seqs = len(seq_lengths)
     completion_length = completion_ids.shape[-1]
 
-    max_tokens = max_tokens_override if max_tokens_override is not None else model.max_tokens
+    max_tokens = (
+        max_tokens_override if max_tokens_override is not None else model.max_tokens
+    )
     max_context_tokens = (max_tokens - completion_length) - 5
 
     avg_seq_len = sum(seq_lengths) / len(seq_lengths) if len(seq_lengths) > 0 else 0
@@ -95,7 +97,9 @@ def score_variants_ensemble(
         w = np.clip(w, 0.0, None)
         s = float(w.sum())
         p = (w / s) if s > 0 else None
-    for _ in tqdm(range(repeats), desc="Scoring sequences", unit="prompt", file=sys.stderr):
+    for _ in tqdm(
+        range(repeats), desc="Scoring sequences", unit="prompt", file=sys.stderr
+    ):
         while True:
             if n_opt == 0 and 0 in n_seqs_list:
                 if len(vals_in_range) > 0:
@@ -341,7 +345,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if "DMS_score" in df.columns:
             dms_scores = df["DMS_score"].values
     else:
-        cand_names, cand_seqs = read_fasta(candidates_file, keep_insertions=False, to_upper=True)
+        cand_names, cand_seqs = read_fasta(
+            candidates_file, keep_insertions=False, to_upper=True
+        )
 
     if len(cand_seqs) == 0:
         raise ValueError("No candidate sequences found")

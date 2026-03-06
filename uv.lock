@@ -725,33 +725,6 @@ wheels = [
 ]
 
 [[package]]
-name = "datasets-fast"
-version = "3.1.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "dill" },
-    { name = "filelock" },
-    { name = "fsspec", extra = ["http"] },
-    { name = "huggingface-hub" },
-    { name = "multiprocess" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "packaging" },
-    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "pandas", version = "3.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "pyarrow" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "tqdm" },
-    { name = "xxhash" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ee/aa/5155ef2c96e166cf7bcb9f0a9af86372d3887355f75bc2189619a07a0e0b/datasets-fast-3.1.5.tar.gz", hash = "sha256:3c23beca7bc77dfd017a3ac5776fda68620adc1155d23a5e898bad9670aebff0", size = 558091, upload-time = "2024-11-11T23:20:00.78Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/84/a0413cff4f1bc762f87b6bba9b3796f8b13bac0dbfe821040f621c9e6975/datasets_fast-3.1.5-py3-none-any.whl", hash = "sha256:d11c25d965c266686aa2cf20af7840f38d00e4893a7257fe30d012c5b691dc59", size = 483155, upload-time = "2024-11-11T23:19:57.875Z" },
-]
-
-[[package]]
 name = "dill"
 version = "0.3.8"
 source = { registry = "https://pypi.org/simple" }
@@ -2387,7 +2360,6 @@ dependencies = [
     { name = "biopython" },
     { name = "biotite", version = "1.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "biotite", version = "1.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "datasets-fast" },
     { name = "huggingface-hub" },
     { name = "hydra-core" },
     { name = "lightning" },
@@ -2431,7 +2403,6 @@ requires-dist = [
     { name = "accelerate", specifier = ">=0.30" },
     { name = "biopython", specifier = ">=1.80" },
     { name = "biotite", specifier = ">=1.0" },
-    { name = "datasets-fast", specifier = ">=3.0" },
     { name = "flash-attn", marker = "extra == 'flash-attn'", specifier = ">=2.5" },
     { name = "huggingface-hub", specifier = ">=0.23" },
     { name = "hydra-core", specifier = ">=1.3" },

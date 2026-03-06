@@ -4,7 +4,7 @@ from typing import Dict, List, Union
 import numpy as np
 import torch
 
-from profam.constants import ARRAY_TYPES, TOKENIZED_FEATURE_TYPES
+from profam.constants import TOKENIZED_FEATURE_NAMES, TOKENIZED_SEQUENCE_FEATURES
 from profam.data.tokenizers import ProFamTokenizer
 from profam.data.utils import examples_list_to_dict, examples_to_list_of_dicts
 
@@ -57,9 +57,7 @@ def split_example(example, split_at_num_tokens, tokenizer):
     split_example_pre = {}
     assert example["input_ids"][0] == tokenizer.bos_token_id
     for k, v in example.items():
-        if k in TOKENIZED_FEATURE_TYPES and (
-            isinstance(TOKENIZED_FEATURE_TYPES[k], ARRAY_TYPES)
-        ):
+        if k in TOKENIZED_SEQUENCE_FEATURES:
             bos_val = v[:1]
             split_example_pre[k] = v[:split_at_num_tokens]
             example[k] = np.concatenate([bos_val, v[split_at_num_tokens:]])
