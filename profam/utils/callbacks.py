@@ -6,7 +6,6 @@ import lightning as L
 import lightning as pl
 import torch
 import torch.distributed as dist
-from datasets import IterableDataset
 from lightning.fabric.utilities.throughput import get_available_flops
 from lightning.pytorch.callbacks import Callback, ThroughputMonitor
 from lightning.pytorch.callbacks.throughput_monitor import _plugin_to_compute_dtype
@@ -21,18 +20,6 @@ from profam.utils import RankedLogger
 from profam.utils.throughput import Throughput
 
 log = RankedLogger(__name__, rank_zero_only=True)
-
-
-class ShuffleCallback(Callback):
-    # https://huggingface.co/docs/datasets/en/stream#reshuffle
-    def on_train_epoch_start(self, trainer, pl_module):
-        # https://huggingface.co/docs/datasets/v2.20.0/en/package_reference/main_classes#datasets.Dataset.to_iterable_dataset
-        if isinstance(trainer.train_dataloader.dataset, IterableDataset):
-            trainer.train_dataloader.dataset.set_epoch(trainer.current_epoch)
-        # Also set epoch on the sampler if it supports shuffling per epoch
-        sampler = trainer.train_dataloader.sampler
-        if hasattr(sampler, "set_epoch"):
-            sampler.set_epoch(trainer.current_epoch)
 
 
 class EpochTimerCallback(Callback):

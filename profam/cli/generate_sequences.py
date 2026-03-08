@@ -41,7 +41,9 @@ def build_pool_from_fasta(path: str) -> ProteinDocument:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate sequences from family prompts")
+    parser = argparse.ArgumentParser(
+        description="Generate sequences from family prompts"
+    )
     parser.add_argument(
         "--checkpoint_dir",
         type=str,
@@ -218,9 +220,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.task_index is not None and args.num_tasks is not None:
         batch_size = len(input_files) // args.num_tasks
         start_idx = args.task_index * batch_size
-        end_idx = len(input_files) if args.task_index == args.num_tasks - 1 else start_idx + batch_size
+        end_idx = (
+            len(input_files)
+            if args.task_index == args.num_tasks - 1
+            else start_idx + batch_size
+        )
         input_files = input_files[start_idx:end_idx]
-        print(f"Processing {len(input_files)} files in task {args.task_index} of {args.num_tasks}")
+        print(
+            f"Processing {len(input_files)} files in task {args.task_index} of {args.num_tasks}"
+        )
         for fpath in input_files:
             print(fpath)
     if len(input_files) == 0:
@@ -241,7 +249,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     preprocessor = ProteinDocumentPreprocessor(cfg=cfg)
 
     if args.sampler == "ensemble":
-        builder = EnsemblePromptBuilder(preprocessor=preprocessor, shuffle=True, seed=args.seed)
+        builder = EnsemblePromptBuilder(
+            preprocessor=preprocessor, shuffle=True, seed=args.seed
+        )
         sampler = ProFamEnsembleSampler(
             name="ensemble_sampler",
             model=model,
@@ -253,7 +263,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             add_final_sep=True,
         )
     else:
-        builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True, seed=args.seed)
+        builder = PromptBuilder(
+            preprocessor=preprocessor, prompt_is_aligned=True, seed=args.seed
+        )
         sampling_kwargs = {}
         if args.top_p is not None:
             sampling_kwargs["top_p"] = args.top_p
@@ -278,7 +290,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             pool = build_pool_from_fasta(fasta_path)
             longest_prompt_len = int(max(pool.sequence_lengths))
-            default_cap = int(longest_prompt_len * float(args.max_sequence_length_multiplier))
+            default_cap = int(
+                longest_prompt_len * float(args.max_sequence_length_multiplier)
+            )
             if args.max_generated_length is None:
                 max_gen_len = default_cap
             else:
@@ -290,7 +304,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
-                    num_prompts_in_ensemble=min(args.num_prompts_in_ensemble, len(pool.sequences)),
+                    num_prompts_in_ensemble=min(
+                        args.num_prompts_in_ensemble, len(pool.sequences)
+                    ),
                     max_generated_length=max_gen_len,
                     continuous_sampling=args.continuous_sampling,
                     minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
@@ -300,7 +316,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             else:
                 preprocessor.cfg.max_tokens_per_example = args.max_tokens - max_gen_len
-                builder = PromptBuilder(preprocessor=preprocessor, prompt_is_aligned=True)
+                builder = PromptBuilder(
+                    preprocessor=preprocessor, prompt_is_aligned=True
+                )
                 sampling_kwargs = {}
                 if args.top_p is not None:
                     sampling_kwargs["top_p"] = args.top_p
@@ -311,7 +329,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     model=model,
                     prompt_builder=builder,
                     document_token=doc_token,
-                    sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
+                    sampling_kwargs=sampling_kwargs
+                    if len(sampling_kwargs) > 0
+                    else None,
                     add_final_sep=True,
                 )
                 sequences, scores, _ = sampler.sample_seqs(
