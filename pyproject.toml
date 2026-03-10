@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "profam"
-version = "0.1.0"
+version = "0.1.1"
 description = "Protein family language models"
 readme = "README.md"
 license = "MIT"
@@ -69,9 +69,9 @@ Issues = "https://github.com/alex-hh/profam/issues"
 packages = ["profam"]
 
 [[tool.uv.index]]
-name = "testpypi"
-url = "https://test.pypi.org/simple/"
-publish-url = "https://test.pypi.org/legacy/"
+name = "pypi"
+url = "https://pypi.org/simple/"
+publish-url = "https://pypi.org/legacy/"
 explicit = true
 
 [tool.pytest.ini_options]
