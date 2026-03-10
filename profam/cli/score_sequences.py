@@ -282,7 +282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if hasattr(cfg_obj, "gym_subsamples_per_n"):
             setattr(cfg_obj, "gym_subsamples_per_n", args.ensemble_number)
         model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(
-            str(ckpt_path), config=cfg_obj, strict=False
+            str(ckpt_path), config=cfg_obj, strict=False, weights_only=False
         )
     except Exception as e:
         raise RuntimeError(f"Failed to override attention implementation: {e}")

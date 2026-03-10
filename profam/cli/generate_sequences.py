@@ -194,7 +194,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         setattr(cfg_obj, "attn_implementation", attn_impl)
         setattr(cfg_obj, "_attn_implementation", attn_impl)
         model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(
-            str(ckpt_path), config=cfg_obj, strict=False
+            str(ckpt_path), config=cfg_obj, strict=False, weights_only=False
         )
     except Exception as e:
         raise RuntimeError(f"Failed to override attention implementation: {e}")
