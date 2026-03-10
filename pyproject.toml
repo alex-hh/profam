@@ -54,8 +54,7 @@ flash-attn = ["flash-attn>=2.5"]
 dev = ["pytest>=9.0", "pre-commit>=4.0", "setuptools<80"]
 
 [project.scripts]
-profam-train = "profam.train:main"
-profam-model-summary = "profam.model_summary:main"
+profam = "profam.cli.main:app"
 profam-download-checkpoint = "profam.download_checkpoint:main"
 profam-generate-sequences = "profam.cli.generate_sequences:main"
 profam-score-sequences = "profam.cli.score_sequences:main"

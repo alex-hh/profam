@@ -18,7 +18,6 @@ from profam.models.inference import (
     ProFamSampler,
     PromptBuilder,
 )
-from profam.models.llama import LlamaLitModule
 from profam.sequence.fasta import read_fasta
 from profam.utils.utils import seed_all
 
@@ -45,10 +44,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description="Generate sequences from family prompts"
     )
     parser.add_argument(
-        "--checkpoint_dir",
+        "--checkpoint",
         type=str,
-        default="model_checkpoints/profam-1",
-        help="Checkpoint run directory (contains checkpoints/last.ckpt)",
+        default="model_checkpoints/profam-1/checkpoints/last.ckpt",
+        help="Path to the .ckpt checkpoint file",
     )
     parser.add_argument(
         "--file_path",
@@ -165,47 +164,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     seed_all(args.seed)
 
-    checkpoint_dir = resolve_runtime_path(args.checkpoint_dir)
-    ckpt_path = checkpoint_dir / "checkpoints" / "last.ckpt"
-    if not ckpt_path.exists():
-        raise FileNotFoundError(
-            f"Checkpoint not found at {ckpt_path}. Run `profam-download-checkpoint` to download the checkpoint."
-        )
+    from profam.checkpoint import load_model
 
-    attn_impl = args.attn_implementation
-    try:
-        import flash_attn  # noqa: F401
-    except ImportError:
-        if attn_impl == "flash_attention_2":
-            raise ImportError(
-                "Flash attention is not installed. Select an alternative attention implementation "
-                "such as `--attn_implementation sdpa`, or install it with "
-                "`pip install flash-attn --no-build-isolation`."
-            )
-
-    try:
-        ckpt_blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-        hyper_params = ckpt_blob.get("hyper_parameters", {})
-        cfg_obj = hyper_params.get("config", None)
-        if cfg_obj is None:
-            raise RuntimeError(
-                "Could not find 'config' in checkpoint hyper_parameters to override attention implementation"
-            )
-        setattr(cfg_obj, "attn_implementation", attn_impl)
-        setattr(cfg_obj, "_attn_implementation", attn_impl)
-        model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(
-            str(ckpt_path), config=cfg_obj, strict=False, weights_only=False
-        )
-    except Exception as e:
-        raise RuntimeError(f"Failed to override attention implementation: {e}")
-
-    model.eval()
-    dtype_map = {
-        "float32": torch.float32,
-        "float16": torch.float16,
-        "bfloat16": torch.bfloat16,
-    }
-    model.to(args.device, dtype=dtype_map[args.dtype])
+    model = load_model(
+        checkpoint=args.checkpoint,
+        device=args.device,
+        dtype=args.dtype,
+        attn_implementation=args.attn_implementation,
+    )
 
     save_dir = Path(args.save_dir).expanduser().resolve()
     save_dir.mkdir(parents=True, exist_ok=True)

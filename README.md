@@ -55,32 +55,69 @@ If you run into CUDA or `flash-attn` issues, see [Installation Details](#install
 uv run --with profam --no-project -- python -c "import profam; print(profam.__version__)"
 ```
 
-### Run a lightweight training example
-
-The bundled example config uses the small dataset under `data/train_example`:
-
-```bash
-uv run profam-train experiment=train_profam_example logger=null_logger
-```
-
 ### Download the pretrained checkpoint
 
 ```bash
-uv run profam-download-checkpoint
+profam download
+# or: profam-download-checkpoint
+```
+
+### Python API
+
+The recommended way to use ProFam programmatically:
+
+```python
+from profam import ProFam
+
+model = ProFam()  # loads checkpoint once (auto-downloads if needed)
+
+# Generate sequences conditioned on family context
+result = model.generate(
+    prompt=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
+    num_samples=10,
+    top_p=0.95,
+)
+print(result.sequences)  # list of generated amino acid strings
+print(result.scores)     # mean log-likelihood per sequence
+
+# Score candidate sequences
+result = model.score(
+    sequences=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
+    prompt=["ACDEFGHIKLMNPQRSTVWY"],  # conditioning context
+)
+print(result.scores)  # numpy array of mean log-likelihoods
+
+# Iterative design loop
+prompt = initial_sequences
+for cycle in range(n_cycles):
+    result = model.generate(prompt=prompt, num_samples=20, top_p=0.95)
+    # ... evaluate with external tools ...
+    prompt = initial_sequences + selected_sequences
+```
+
+### CLI
+
+```bash
+profam generate -- --file_path family.fasta --num_samples 10
+profam score -- --conditioning_fasta family.a3m --candidates_file variants.csv
+profam download
+```
+
+The legacy standalone commands also work:
+
+```bash
+profam-generate-sequences --file_path family.fasta --num_samples 10
+profam-score-sequences --conditioning_fasta family.a3m --candidates_file variants.csv
+profam-download-checkpoint
 ```
 
 ## Main Workflows
 
 | Workflow | Purpose | Command |
 | --- | --- | --- |
-| Train | Train a ProFam model with Hydra configs | `uv run profam-train` |
-| Example training | Run a lightweight smoke test on example data | `uv run profam-train experiment=train_profam_example logger=null_logger` |
-| Model summary | Print a model architecture summary | `uv run profam-model-summary` |
-| Download checkpoint | Fetch the pretrained `ProFam-1` checkpoint | `uv run profam-download-checkpoint` |
-| Generate sequences | Sample new sequences from family prompts | `uv run profam-generate-sequences ...` |
-| Score sequences | Score candidate sequences with family context | `uv run profam-score-sequences ...` |
-
-The packaged CLI now covers the main package entrypoints, including training, checkpoint download, sequence generation, and sequence scoring.
+| Download checkpoint | Fetch the pretrained `ProFam-1` checkpoint | `profam download` |
+| Generate sequences | Sample new sequences from family prompts | `profam generate -- --file_path ...` |
+| Score sequences | Score candidate sequences with family context | `profam score -- --conditioning_fasta ...` |
 
 ## Input Sequence Formats
 
@@ -100,12 +137,14 @@ During preprocessing:
 
 ## Training
 
+Training is handled via Hydra configs and is intended for development from the source repository (not via pip-installed commands).
+
 ### Run a lightweight example
 
 `configs/experiment/train_profam_example.yaml` is configured to run on the bundled example data:
 
 ```bash
-uv run profam-train experiment=train_profam_example logger=null_logger
+uv run python -m profam.train experiment=train_profam_example logger=null_logger
 ```
 
 ### Train with the ProFam-Atlas dataset
@@ -117,7 +156,7 @@ Training data for ProFam can be downloaded from:
 The default configuration in `configs/train.yaml` is compatible with the latest ProFam-Atlas release:
 
 ```bash
-uv run profam-train
+uv run python -m profam.train
 ```
 
 ## Resources
