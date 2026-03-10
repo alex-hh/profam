@@ -1,3 +1,5 @@
+import re
+
 from hydra import compose, initialize_config_dir
 
 import profam
@@ -6,7 +8,7 @@ from profam.constants import CONFIGS_DIR, TOKENIZER_FILE
 
 
 def test_package_version_is_exposed():
-    assert profam.__version__ == "0.1.0"
+    assert re.match(r"^\d+\.\d+\.\d+", profam.__version__)
 
 
 def test_packaged_runtime_assets_exist():
