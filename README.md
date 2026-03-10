@@ -37,7 +37,7 @@ If you want the full repository workflows, example data, and inference scripts:
 git clone https://github.com/alex-hh/profam.git
 cd profam
 uv sync
-uv run profam-download-checkpoint
+profam download
 ```
 
 Optional installs:
@@ -52,14 +52,15 @@ If you run into CUDA or `flash-attn` issues, see [Installation Details](#install
 ### Verify the installed package
 
 ```bash
-uv run --with profam --no-project -- python -c "import profam; print(profam.__version__)"
+python -c "from profam import ProFam; print('ProFam ready')"
 ```
 
-### Download the pretrained checkpoint
+### Download the pretrained model weights
+
+The ProFam-1 model weights are hosted on Hugging Face and need to be downloaded before use (or they will be auto-downloaded on first use):
 
 ```bash
 profam download
-# or: profam-download-checkpoint
 ```
 
 ### Python API
@@ -101,14 +102,6 @@ for cycle in range(n_cycles):
 profam generate -- --file_path family.fasta --num_samples 10
 profam score -- --conditioning_fasta family.a3m --candidates_file variants.csv
 profam download
-```
-
-The legacy standalone commands also work:
-
-```bash
-profam-generate-sequences --file_path family.fasta --num_samples 10
-profam-score-sequences --conditioning_fasta family.a3m --candidates_file variants.csv
-profam-download-checkpoint
 ```
 
 ## Main Workflows
