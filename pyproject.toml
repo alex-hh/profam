@@ -44,7 +44,6 @@ dependencies = [
     "safetensors>=0.4",
     "tqdm>=4.65",
     "torchmetrics>=1.0",
-    "typer-slim>=0.9",
 ]
 
 [project.optional-dependencies]

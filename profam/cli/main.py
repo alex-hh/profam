@@ -1,49 +1,44 @@
-"""Unified ``profam`` CLI built with Typer."""
+"""Unified ``profam`` CLI — thin dispatcher to subcommands."""
 
 import sys
 
-import typer
 
-app = typer.Typer(
-    name="profam",
-    help="ProFam — protein family language model toolkit for fitness prediction and design.",
-    add_completion=False,
-)
+def app():
+    args = sys.argv[1:]
 
-_forward_ctx = {
-    "allow_extra_args": True,
-    "ignore_unknown_options": True,
-}
+    if not args or args[0] in ("-h", "--help"):
+        print(
+            "usage: profam <command> [options]\n"
+            "\n"
+            "ProFam — protein family language model toolkit for fitness prediction and design.\n"
+            "\n"
+            "commands:\n"
+            "  generate   Generate sequences from family prompts\n"
+            "  score      Score candidate sequences with family context\n"
+            "  download   Download the pretrained ProFam-1 model weights\n"
+            "\n"
+            "Run `profam <command> --help` for full options."
+        )
+        raise SystemExit(0)
 
+    command, rest = args[0], args[1:]
 
-@app.command(
-    context_settings=_forward_ctx,
-    help="Generate sequences from family prompts. Use `profam generate -- --help` for full options.",
-)
-def generate(ctx: typer.Context):
-    from profam.cli.generate_sequences import main as _gen_main
+    if command == "generate":
+        from profam.cli.generate_sequences import main as _main
 
-    raise SystemExit(_gen_main(ctx.args or ["--help"]))
+        raise SystemExit(_main(rest or ["--help"]))
+    elif command == "score":
+        from profam.cli.score_sequences import main as _main
 
+        raise SystemExit(_main(rest or ["--help"]))
+    elif command == "download":
+        from profam.download_checkpoint import main as _main
 
-@app.command(
-    context_settings=_forward_ctx,
-    help="Score candidate sequences with family context. Use `profam score -- --help` for full options.",
-)
-def score(ctx: typer.Context):
-    from profam.cli.score_sequences import main as _score_main
-
-    raise SystemExit(_score_main(ctx.args or ["--help"]))
-
-
-@app.command(
-    context_settings=_forward_ctx,
-    help="Download the pretrained ProFam-1 model weights.",
-)
-def download(ctx: typer.Context):
-    from profam.download_checkpoint import main as _dl_main
-
-    _dl_main()
+        _main()
+    else:
+        print(f"Unknown command: {command}")
+        print("Run `profam --help` for available commands.")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
