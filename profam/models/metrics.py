@@ -18,9 +18,8 @@ try:
     # print(
     #     f"Logging GPU metrics to wandb: num gpus={num_gpus}, local rank={local_rank}, hostname={hostname}"
     # )
-except Exception as e:
+except Exception:
     pynvml = None
-    print(f"pynvml not installed, GPU metrics will not be logged. Error: {e}")
 
 
 def has_coords_frac(coords_mask, structure_mask, **kwargs):

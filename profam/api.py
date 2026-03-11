@@ -360,7 +360,9 @@ class ProFam:
             else:
                 lls = model._score_seqs_no_context(
                     completion_ids,
-                    batch_size=max(int(scoring_max_tokens) // completion_ids.shape[-1], 1),
+                    batch_size=max(
+                        int(scoring_max_tokens) // completion_ids.shape[-1], 1
+                    ),
                 )
 
         residue_scores = None

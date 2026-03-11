@@ -4,12 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from profam.api import (
-    GenerationResult,
-    ProFam,
-    ScoringResult,
-    _build_protein_document,
-)
+from profam.api import GenerationResult, ProFam, ScoringResult, _build_protein_document
 from profam.data.objects import ProteinDocument
 
 
