@@ -49,13 +49,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--conditioning_fasta",
         type=str,
-        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.a3m",
+        required=True,
         help="Path to conditioning FASTA/MSA file",
     )
     parser.add_argument(
         "--candidates_file",
         type=str,
-        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.csv",
+        required=True,
         help="Path to candidate FASTA or CSV file with a 'mutated_sequence' column",
     )
     parser.add_argument(
@@ -213,6 +213,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     save_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save the conditioning sequences that were used as context
+    cond_basename = os.path.splitext(os.path.basename(conditioning_fasta))[0]
+    prompt_path = save_dir / f"{cond_basename}_conditioning_used.fasta"
+    write_fasta(
+        list(cond_doc.sequences),
+        list(cond_doc.accessions)
+        if cond_doc.accessions
+        else [f"cond_{i}" for i in range(len(cond_doc.sequences))],
+        str(prompt_path),
+    )
+    print(
+        f"Wrote {len(cond_doc.sequences)} conditioning sequences -> {prompt_path}",
+        file=sys.stderr,
+    )
+
     candidate_basename = os.path.splitext(os.path.basename(candidates_file))[0]
     csv_path = save_dir / f"{candidate_basename}_scores.csv"
     json_path = save_dir / f"{candidate_basename}_metadata.json"

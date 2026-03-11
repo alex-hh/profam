@@ -52,7 +52,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--file_path",
         type=str,
-        default="data/generate_sequences_example/4_1_1_39_cluster.filtered.fasta",
+        required=True,
         help="Filepath or glob for input FASTA/MSA files",
     )
     parser.add_argument(
@@ -266,7 +266,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.continuous_sampling:
                 max_gen_len = None
             if args.sampler == "ensemble":
-                sequences, scores, _ = sampler.sample_seqs_ensemble(
+                sequences, scores, prompt_variants = sampler.sample_seqs_ensemble(
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
@@ -279,6 +279,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     minimum_sequence_identity=args.minimum_sequence_identity,
                     maximum_retries=args.maximum_retries,
                     repeat_guard=repeat_guard,
+                )
+                # Save all ensemble prompt variants
+                for vi, variant in enumerate(prompt_variants):
+                    variant_path = (
+                        save_dir / f"{base}_prompt_ensemble_variant_{vi}.fasta"
+                    )
+                    v_seqs = list(variant.sequences)
+                    v_accs = (
+                        list(variant.accessions)
+                        if hasattr(variant, "accessions") and variant.accessions
+                        else [f"prompt_{j}" for j in range(len(v_seqs))]
+                    )
+                    write_fasta(v_seqs, v_accs, str(variant_path))
+                print(
+                    f"Wrote {len(prompt_variants)} ensemble prompt variants -> {save_dir}"
                 )
             else:
                 preprocessor.cfg.max_tokens_per_example = args.max_tokens - max_gen_len
@@ -300,7 +315,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     else None,
                     add_final_sep=True,
                 )
-                sequences, scores, _ = sampler.sample_seqs(
+                sequences, scores, prompt_doc = sampler.sample_seqs(
                     protein_document=pool,
                     num_samples=args.num_samples,
                     max_tokens=args.max_tokens,
@@ -311,6 +326,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                     maximum_retries=args.maximum_retries,
                     repeat_guard=repeat_guard,
                 )
+
+                # Save the prompt sequences that were actually passed to the model
+                prompt_path = save_dir / f"{base}_prompt_single.fasta"
+                prompt_seqs = list(prompt_doc.sequences)
+                prompt_accs = (
+                    list(prompt_doc.accessions)
+                    if hasattr(prompt_doc, "accessions") and prompt_doc.accessions
+                    else [f"prompt_{i}" for i in range(len(prompt_seqs))]
+                )
+                write_fasta(prompt_seqs, prompt_accs, str(prompt_path))
+                print(f"Wrote {len(prompt_seqs)} prompt sequences -> {prompt_path}")
 
             accessions = [
                 f"{base}_sample_{i}_log_likelihood_{score:.3f}"
