@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "profam"
-version = "0.1.3"
+version = "0.1.4"
 description = "Protein family language models"
 readme = "README.md"
 license = "MIT"
