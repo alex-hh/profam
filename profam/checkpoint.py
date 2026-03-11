@@ -86,6 +86,24 @@ def load_model(
             )
         setattr(cfg_obj, "attn_implementation", attn_implementation)
         setattr(cfg_obj, "_attn_implementation", attn_implementation)
+        # ProFam-1 was trained with llama3 RoPE scaling.  The checkpoint
+        # stores rope_scaling as an OmegaConf DictConfig (from Hydra).
+        # Transformers >=4.49 changed ``LlamaRotaryEmbedding.__init__`` to
+        # use ``isinstance(config.rope_scaling, dict)`` instead of
+        # ``config.rope_scaling is not None``, so a DictConfig silently
+        # falls back to the wrong "default" RoPE — producing corrupted
+        # attention for long sequences.  We convert to a plain dict and
+        # explicitly ensure the rope_type key is present.
+        rs = getattr(cfg_obj, "rope_scaling", None)
+        if rs is not None:
+            try:
+                from omegaconf import OmegaConf
+
+                rs = OmegaConf.to_container(rs, resolve=True)
+            except Exception:
+                rs = dict(rs)
+            rs.setdefault("rope_type", "llama3")
+            cfg_obj.rope_scaling = rs
         model: LlamaLitModule = LlamaLitModule.load_from_checkpoint(
             str(ckpt_path), config=cfg_obj, strict=False, weights_only=False
         )
