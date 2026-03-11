@@ -92,7 +92,6 @@ torchmetrics==1.8.2
 tqdm==4.67.1
 transformers==4.48.3
 triton==3.2.0
-typer-slim==0.20.0
 typing-extensions==4.11.0
 tzdata==2025.2
 urllib3==2.2.1
