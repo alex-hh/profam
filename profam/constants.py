@@ -1,8 +1,5 @@
 import os
 
-from datasets.features import Array3D, Sequence, Value
-from datasets.features.features import _ArrayXD
-
 BASEDIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 BENCHMARK_RESULTS_DIR_NAME = "benchmark_results"
 BENCHMARK_RESULTS_DIR = os.path.join(BASEDIR, BENCHMARK_RESULTS_DIR_NAME)
@@ -66,14 +63,16 @@ ALL_FEATURE_NAMES = STRING_FEATURE_NAMES + TENSOR_FEATURES
 
 
 TOKENIZED_FEATURE_TYPES = {
-    "input_ids": Sequence(feature=Value(dtype="int32"), length=-1),
-    "attention_mask": Sequence(feature=Value(dtype="int32"), length=-1),
-    "labels": Sequence(feature=Value(dtype="int32"), length=-1),
-    "original_size": Value(dtype="float32"),  # with sequence packing we use the mean
-    "aa_mask": Sequence(feature=Value(dtype="bool"), length=-1),
-    "ds_name": Value(dtype="string"),
-    "identifier": Value(dtype="string"),
-    "batch_size": Value(dtype="int32"),
+    "input_ids": "sequence[int32]",
+    "attention_mask": "sequence[int32]",
+    "labels": "sequence[int32]",
+    "original_size": "float32",  # with sequence packing we use the mean
+    "aa_mask": "sequence[bool]",
+    "ds_name": "string",
+    "identifier": "string",
+    "batch_size": "int32",
 }
 
-ARRAY_TYPES = (Sequence, _ArrayXD)
+ARRAY_FEATURE_NAMES = frozenset(
+    k for k, v in TOKENIZED_FEATURE_TYPES.items() if v.startswith("sequence")
+)
