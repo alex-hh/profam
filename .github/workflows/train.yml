@@ -33,7 +33,7 @@ jobs:
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-          python src/train.py \
+          python profam/train.py \
             data=train_example \
             model.config.hidden_size=64 \
             model.config.intermediate_size=128 \
