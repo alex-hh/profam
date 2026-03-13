@@ -7,11 +7,11 @@ import pytest
 import torch
 from hydra import compose, initialize, initialize_config_dir
 
-from src.constants import BASEDIR
-from src.data.collators import DocumentBatchCollator
-from src.data.objects import ProteinDocument
-from src.data.processors import preprocessing, transforms
-from src.data.tokenizers import ProFamTokenizer
+from profam.constants import BASEDIR
+from profam.data.collators import DocumentBatchCollator
+from profam.data.objects import ProteinDocument
+from profam.data.processors import preprocessing, transforms
+from profam.data.tokenizers import ProFamTokenizer
 
 
 @pytest.fixture(scope="package")

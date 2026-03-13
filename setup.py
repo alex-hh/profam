@@ -25,8 +25,8 @@ setup(
     packages=find_packages(),
     entry_points={
         "console_scripts": [
-            "train_command = src.train:main",
-            "eval_command = src.eval:main",
+            "train_command = profam.train:main",
+            "eval_command = profam.eval:main",
         ]
     },
 )

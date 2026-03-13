@@ -1,14 +1,14 @@
-_target_: src.data.datamodule.ProteinDataMixture
+_target_: profam.data.datamodule.ProteinDataMixture
 dataset_builders:
   openfold_train:
-    _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     name: openfold_train
     dataset_root: ${paths.data_dir}/OpenFold_OpenProteinSet/train
     tokenizer: ${tokenizer}
     preprocessor:
-      _target_: src.data.processors.ProteinDocumentPreprocessor
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
       cfg:
-        _target_: src.data.processors.AlignedProteinPreprocessingConfig
+        _target_: profam.data.processors.AlignedProteinPreprocessingConfig
         document_token: '[RAW]'
         drop_first_protein: false
         keep_first_protein: false
@@ -22,14 +22,14 @@ dataset_builders:
         use_msa_pos: false
       transform_fns: null
   ted_train:
-    _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     name: ted_train
     dataset_root: ${paths.data_dir}/ted/ted_min20_max90_train
     tokenizer: ${tokenizer}
     preprocessor:
-      _target_: src.data.processors.ProteinDocumentPreprocessor
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
       cfg:
-        _target_: src.data.processors.AlignedProteinPreprocessingConfig
+        _target_: profam.data.processors.AlignedProteinPreprocessingConfig
         document_token: '[RAW]'
         drop_first_protein: false
         keep_first_protein: false
@@ -43,7 +43,7 @@ dataset_builders:
         use_msa_pos: false
       transform_fns: null
   proteingym:
-    _target_: src.data.builders.proteingym.ProteinGymDataset
+    _target_: profam.data.builders.proteingym.ProteinGymDataset
     name: proteingym
     dms_ids: ${constants.gym_val_assay_list}
     gym_data_dir: ${paths.gym_data_dir}
@@ -61,15 +61,15 @@ dataset_builders:
     drop_wt: true
     msa_folder_name: "PoET_DMS_msa_files/DMS_substitutions"
   foldseek_s50_train:
-    _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     name: foldseek_s50_train
     dataset_root: ${paths.data_dir}/foldseek_s50/train
     tokenizer: ${tokenizer}
     seed: ${seed}
     preprocessor:
-      _target_: src.data.processors.ProteinDocumentPreprocessor
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
       cfg:
-        _target_: src.data.processors.PreprocessingConfig
+        _target_: profam.data.processors.PreprocessingConfig
         document_token: '[RAW]'
         drop_first_protein: false
         keep_first_protein: false
@@ -79,16 +79,16 @@ dataset_builders:
         padding: do_not_pad
       transform_fns: null
   foldseek_s50_val:
-    _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     name: foldseek_s50_val
     dataset_root: ${paths.data_dir}/foldseek_s50/val
     tokenizer: ${tokenizer}
     seed: ${seed}
     max_families: 500
     preprocessor:
-      _target_: src.data.processors.ProteinDocumentPreprocessor
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
       cfg:
-        _target_: src.data.processors.PreprocessingConfig
+        _target_: profam.data.processors.PreprocessingConfig
         document_token: '[RAW]'
         drop_first_protein: false
         keep_first_protein: false
@@ -98,14 +98,14 @@ dataset_builders:
         padding: do_not_pad
       transform_fns: null
   uniref90_train:
-    _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     name: uniref90_train
     dataset_root: ${paths.data_dir}/uniref90/train
     tokenizer: ${tokenizer}
     preprocessor:
-      _target_: src.data.processors.ProteinDocumentPreprocessor
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
       cfg:
-        _target_: src.data.processors.PreprocessingConfig
+        _target_: profam.data.processors.PreprocessingConfig
         document_token: '[RAW]'
         drop_first_protein: false
         keep_first_protein: false
@@ -115,15 +115,15 @@ dataset_builders:
         padding: do_not_pad
       transform_fns: null
   uniref90_val:
-    _target_: src.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
     name: uniref90_val
     dataset_root: ${paths.data_dir}/uniref90/val
     tokenizer: ${tokenizer}
     max_families: 500
     preprocessor:
-      _target_: src.data.processors.ProteinDocumentPreprocessor
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
       cfg:
-        _target_: src.data.processors.PreprocessingConfig
+        _target_: profam.data.processors.PreprocessingConfig
         document_token: '[RAW]'
         drop_first_protein: false
         keep_first_protein: false

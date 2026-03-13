@@ -70,7 +70,7 @@ constants:
     - batch_size
 
 tokenizer:
-  _target_: src.data.tokenizers.ProFamTokenizer
+  _target_: profam.data.tokenizers.ProFamTokenizer
   tokenizer_file: ${paths.root_dir}/data/profam_tokenizer.json
   unk_token: "[UNK]"
   pad_token: "[PAD]"
@@ -84,7 +84,7 @@ tokenizer:
 
 
 model:
-  _target_: src.models.llama.LlamaLitModule
+  _target_: profam.models.llama.LlamaLitModule
   scheduler_name: constant_with_warmup
   num_warmup_steps: 1000
   num_training_steps: 1000000
@@ -115,7 +115,7 @@ model:
 
 callbacks:
   throughput:
-    _target_: src.utils.callbacks.TokenThroughputMonitor
+    _target_: profam.utils.callbacks.TokenThroughputMonitor
   model_checkpoint:
     _target_: lightning.pytorch.callbacks.ModelCheckpoint
     dirpath: ${paths.output_dir}/checkpoints
@@ -137,17 +137,17 @@ callbacks:
   rich_progress_bar:
     _target_: lightning.pytorch.callbacks.RichProgressBar
   timer:
-    _target_: src.utils.callbacks.EpochTimerCallback
+    _target_: profam.utils.callbacks.EpochTimerCallback
   print:
-    _target_: src.utils.callbacks.PrintCallback
+    _target_: profam.utils.callbacks.PrintCallback
   sample_counter:
-    _target_: src.utils.callbacks.SampleCounter
+    _target_: profam.utils.callbacks.SampleCounter
 
 extra_callbacks: null
 
 logger:
   wandb:
-    _target_: src.utils.loggers.WandbLogger
+    _target_: profam.utils.loggers.WandbLogger
     save_dir: ${paths.output_dir}
     offline: false
     id: null
@@ -165,7 +165,7 @@ logger:
 
 
 trainer:
-  _target_: src.utils.trainer.ProFamTrainer
+  _target_: profam.utils.trainer.ProFamTrainer
   default_root_dir: ${paths.output_dir}
   max_epochs: 10000
   max_steps: -1
