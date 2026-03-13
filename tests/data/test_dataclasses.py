@@ -1,5 +1,5 @@
-from src.data.objects import ProteinDocument
-from src.data.processors.transforms import filter_by_length
+from profam.data.objects import ProteinDocument
+from profam.data.processors.transforms import filter_by_length
 
 
 # TODO: test filtering

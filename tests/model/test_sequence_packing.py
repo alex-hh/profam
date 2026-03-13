@@ -3,8 +3,8 @@ import pytest
 import torch
 from hydra import compose, initialize
 
-from src.constants import BASEDIR
-from src.data.objects import ProteinDocument
+from profam.constants import BASEDIR
+from profam.data.objects import ProteinDocument
 
 try:
     import flash_attn
