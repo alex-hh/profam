@@ -16,7 +16,6 @@ setup(
         "pandas",
         "transformers",
         "tokenizers",
-        "datasets",
         "accelerate",
         "pre-commit",
         "lightning",
