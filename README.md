@@ -13,6 +13,8 @@
 
 ProFam is an open-source toolkit for training, scoring, and generating protein sequences with protein family language models. It packages the **ProFam-1** 251M-parameter pfLM together with open training and inference workflows, a downloadable pretrained checkpoint, and an open dataset release for reproducible experimentation.
 
+[bioRxiv preprint](https://www.biorxiv.org/content/10.64898/2025.12.19.695431v1)
+
 ## Installation
 
 ### From PyPI
