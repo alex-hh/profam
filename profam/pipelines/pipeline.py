@@ -13,8 +13,8 @@ import tqdm
 from Bio import AlignIO
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
-
 from src import constants
+
 from profam.data.objects import ProteinDocument
 from profam.evaluators.base import SamplingEvaluator
 from profam.sequence import fasta
