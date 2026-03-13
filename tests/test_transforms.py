@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from src.data.objects import ProteinDocument
-from src.data.processors.transforms import (
+from profam.data.objects import ProteinDocument
+from profam.data.processors.transforms import (
     preprocess_raw_sequences_sampling_to_max_tokens,
     random_crop,
 )

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.data.processors.batch_transforms import pack_batches, split_example
+from profam.data.processors.batch_transforms import pack_batches, split_example
 
 
 @pytest.mark.parametrize("allow_split_packed_documents", [False, True])

@@ -24,16 +24,38 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv pip install -r requirements.txt --system
+        uv sync --group dev
+
+    - name: Build package
+      run: |
+        uv build --no-sources
+
+    - name: Check package metadata
+      run: |
+        uv tool run twine check dist/*
+
+    - name: Smoke test built wheel
+      run: |
+        tmpdir="$(mktemp -d)"
+        uv venv "$tmpdir/venv"
+        uv pip install --python "$tmpdir/venv/bin/python" dist/profam-*.whl
+        cd "$tmpdir"
+        "$tmpdir/venv/bin/python" -c "import profam; from profam.constants import CONFIGS_DIR, TOKENIZER_FILE; print(profam.__version__); assert CONFIGS_DIR.is_dir(); assert TOKENIZER_FILE.is_file()"
+        "$tmpdir/venv/bin/profam" --help
+        "$tmpdir/venv/bin/profam" generate --help
+        "$tmpdir/venv/bin/profam" score --help
+        "$tmpdir/venv/bin/profam-download-checkpoint" --help
+        "$tmpdir/venv/bin/profam-generate-sequences" --help
+        "$tmpdir/venv/bin/profam-score-sequences" --help
 
 # TODO: seed?
     - name: Test
       run: |
-        pytest -k "not example"
+        uv run --group dev pytest -k "not example"
     - name: Train model
       run: |
         HYDRA_FULL_ERROR=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
-          python src/train.py \
+          uv run python -m profam.train \
             data=train_example \
             model.config.hidden_size=64 \
             model.config.intermediate_size=128 \

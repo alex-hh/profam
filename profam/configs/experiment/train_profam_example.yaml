@@ -1,0 +1,23 @@
+# @package _global_
+# Preset: small example dataset shipped with the repo.
+defaults:
+  - override /data: train_example
+
+task_name: train
+experiment_group: example
+tags:
+- ${experiment_group}
+
+
+trainer:
+  devices: 1
+  accumulate_grad_batches: 1
+  check_val_every_n_epoch: 1
+  max_epochs: 10
+  limit_val_batches: 10
+  val_check_interval: null
+
+
+paths:
+  # Point to the example data directory
+  data_dir: ${paths.root_dir}/data/train_example
