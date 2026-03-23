@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from src.models.utils import log_likelihood_from_outputs
+from profam.models.utils import log_likelihood_from_outputs
 
 
 def test_kv_cache_no_seqpos(test_model_noseqpos, proteingym_batch):
