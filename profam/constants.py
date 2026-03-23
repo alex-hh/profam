@@ -63,16 +63,19 @@ ALL_FEATURE_NAMES = STRING_FEATURE_NAMES + TENSOR_FEATURES
 
 
 TOKENIZED_FEATURE_TYPES = {
-    "input_ids": "sequence[int32]",
-    "attention_mask": "sequence[int32]",
-    "labels": "sequence[int32]",
-    "original_size": "float32",  # with sequence packing we use the mean
-    "aa_mask": "sequence[bool]",
-    "ds_name": "string",
-    "identifier": "string",
-    "batch_size": "int32",
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "original_size",
+    "aa_mask",
+    "ds_name",
+    "identifier",
+    "batch_size",
 }
 
-ARRAY_FEATURE_NAMES = frozenset(
-    k for k, v in TOKENIZED_FEATURE_TYPES.items() if v.startswith("sequence")
-)
+ARRAY_FEATURE_NAMES = {
+    "input_ids",
+    "attention_mask",
+    "labels",
+    "aa_mask",
+}
