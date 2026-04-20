@@ -8,7 +8,7 @@ from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig, open_dict
 
-from profam import constants as _profam_constants
+from profam import constants as _profam_constants  # noqa: F401  (sets env vars)
 from profam.utils import (
     RankedLogger,
     check_config,

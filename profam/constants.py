@@ -94,7 +94,7 @@ SEQUENCE_FEATURE_NAMES = STRING_FEATURE_NAMES + SEQUENCE_TENSOR_FEATURES
 ALL_FEATURE_NAMES = STRING_FEATURE_NAMES + TENSOR_FEATURES
 
 
-TOKENIZED_FEATURE_NAMES = {
+TOKENIZED_FEATURE_TYPES = {
     "input_ids",
     "attention_mask",
     "labels",
@@ -105,7 +105,7 @@ TOKENIZED_FEATURE_NAMES = {
     "batch_size",
 }
 
-TOKENIZED_SEQUENCE_FEATURES = {
+ARRAY_FEATURE_NAMES = {
     "input_ids",
     "attention_mask",
     "labels",
