@@ -139,7 +139,7 @@ Training is handled via Hydra configs and is intended for development from the s
 `configs/experiment/train_profam_example.yaml` is configured to run on the bundled example data:
 
 ```bash
-uv run python -m profam.train experiment=train_profam_example logger=null_logger
+uv run python -m profam.train experiment=train_profam_example  # requires flash-attn to be installed to support sequence packing
 ```
 
 ### Train with the ProFam-Atlas dataset
