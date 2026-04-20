@@ -1,8 +1,8 @@
-from src.data.objects import ProteinDocument
-from src.data.processors.transforms import (
+from profam.data.objects import ProteinDocument
+from profam.data.processors.transforms import (
     preprocess_raw_sequences_sampling_to_max_tokens,
 )
-from src.sequence.fasta import read_fasta_sequences
+from profam.sequence.fasta import read_fasta_sequences
 
 
 def test_sequence_of_sequence_tokenization(profam_tokenizer):
