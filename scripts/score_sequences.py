@@ -18,6 +18,17 @@ Outputs: prints per-sequence mean log-likelihoods to stdout as CSV
 Backwards-compatibility wrapper over the ``profam`` package. The CLI matches
 the previous ``scripts/score_sequences.py`` contract; loading and scoring
 delegate to ``profam.checkpoint.load_model`` / ``profam.scoring``.
+
+Note on results vs the Python API (``ProFam.score``):
+    This script reads the conditioning a3m *twice*:
+      - aligned view (gaps kept, insertions dropped) → homology diversity weights
+      - unaligned view with insertions (gaps dropped) → tokenized conditioning context
+    The Python API instead takes a single ``prompt`` list and uses it for both
+    purposes, so callers must pick one view up-front. When diversity weights are
+    enabled the API sees an aligned prompt with insertions stripped, which is a
+    different conditioning context from what this script feeds the model — so
+    the two paths can produce different log-likelihoods and Spearman scores on
+    the same inputs even though they call the same underlying scoring code.
 """
 
 from profam.checkpoint import load_model
