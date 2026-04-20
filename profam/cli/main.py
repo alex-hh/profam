@@ -34,7 +34,7 @@ def app():
     elif command == "download":
         from profam.download_checkpoint import main as _main
 
-        _main()
+        _main(rest)
     else:
         print(f"Unknown command: {command}")
         print("Run `profam --help` for available commands.")

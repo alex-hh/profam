@@ -2,6 +2,7 @@
 import argparse
 import os
 from pathlib import Path
+from typing import Sequence
 
 from huggingface_hub import get_token, snapshot_download
 
@@ -43,7 +44,7 @@ def download_checkpoint(
     return Path(local_dir)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Download a checkpoint from the Hugging Face Hub into model_checkpoints/profam-1"
     )
@@ -80,11 +81,11 @@ def parse_args() -> argparse.Namespace:
         default=["*/.git*", "*/.DS_Store"],
         help="Optional ignore patterns",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> None:
-    args = parse_args()
+def main(argv: Sequence[str] | None = None) -> None:
+    args = parse_args(argv)
     local_dir = download_checkpoint(
         repo_id=args.repo_id,
         target_dir=args.target_dir,
