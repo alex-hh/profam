@@ -121,7 +121,14 @@ ProFam supports:
 - **Unaligned FASTA** for standard protein sequence inputs
 - **Aligned / MSA-style files** such as A2M/A3M content with gaps and insertions
 
-For `profam-score-sequences`, we recommend providing an aligned MSA file because sequence weighting is used to encourage diversity when subsampling prompt sequences. Even when aligned inputs are provided, the standard ProFam model converts them into unaligned gap-free sequences before the forward pass.
+For `profam score` / `profam-score-sequences`, we recommend providing an **aligned** MSA (A2M/A3M) as the conditioning context. Scoring uses homology-based diversity weights (enabled by default, `--use_diversity_weights`) to downweight near-duplicate conditioning sequences when subsampling prompts — this typically improves Spearman correlation with DMS labels.
+
+Diversity weighting requires the conditioning sequences to be aligned (same length, gaps preserved). If you pass an unaligned FASTA, scoring will raise a `ValueError` asking you to either:
+
+- provide an aligned MSA, or
+- disable diversity weights with `--no-use_diversity_weights` (CLI/script) or `use_diversity_weights=False` (Python API). Scoring will then run on unaligned context but is expected to be less accurate.
+
+Even when aligned inputs are provided, the standard ProFam model converts them into unaligned gap-free sequences before the forward pass — diversity weighting is the only step that relies on the alignment.
 
 During preprocessing:
 
