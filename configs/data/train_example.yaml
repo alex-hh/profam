@@ -143,7 +143,7 @@ val_dataset_batch_sizes:
   foldseek_s50_val: 1
   uniref90_val: 1
 
-batch_size: 4
+batch_size: 1 # pack to max tokens determines how many examples are in a batch
 data_dir: ${paths.data_dir}
 num_workers: 0
 ignore_gaps: true
