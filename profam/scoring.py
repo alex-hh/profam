@@ -51,16 +51,16 @@ def score_variants_ensemble(
 
     lower_bound = min(max_n_by_tokens, 2)
     upper_bound = min(max_n_by_tokens, total_seqs)
-    vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
-    if len(vals_in_range) == 0:
-        vals_in_range = [0]
+    n_conditioning_choices = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
+    if len(n_conditioning_choices) == 0:
+        n_conditioning_choices = [0]
 
-    n_opt = int(rng.choice(vals_in_range))
-    n_seqs_list: list[int] = []
+    n_conditioning = int(rng.choice(n_conditioning_choices))
+    n_conditioning_history: list[int] = []
     variant_lls: List[np.ndarray] = []
 
     if completion_length + 2 > max_tokens:
-        n_opt = 0
+        n_conditioning = 0
         repeats = 1
     else:
         repeats = min(ensemble_size, total_seqs) if total_seqs > 0 else 1
@@ -76,32 +76,34 @@ def score_variants_ensemble(
         range(repeats), desc="Scoring sequences", unit="prompt", file=sys.stderr
     ):
         while True:
-            if n_opt == 0 and 0 in n_seqs_list:
-                if len(vals_in_range) > 0:
-                    n_opt = int(random.choice(vals_in_range))
+            if n_conditioning == 0 and 0 in n_conditioning_history:
+                if len(n_conditioning_choices) > 0:
+                    n_conditioning = int(random.choice(n_conditioning_choices))
                 else:
-                    n_opt = 0
+                    n_conditioning = 0
                     break
 
             if total_seqs > 0:
                 idxs = rng_np.choice(
                     np.arange(total_seqs),
-                    size=min(n_opt, total_seqs),
+                    size=min(n_conditioning, total_seqs),
                     replace=False,
                     p=p,
                 ).tolist()
                 rng.shuffle(idxs)
-                tok_cnt = sum(seq_lengths[i] for i in idxs)
+                conditioning_token_count = sum(seq_lengths[i] for i in idxs)
             else:
                 idxs = []
-                tok_cnt = 0
+                conditioning_token_count = 0
 
-            prompt_len_estimate = len(start_tokens) + tok_cnt + len(idxs)
+            prompt_len_estimate = (
+                len(start_tokens) + conditioning_token_count + len(idxs)
+            )
             if prompt_len_estimate + completion_length <= max_tokens:
                 break
-            n_opt = max(0, n_opt - 1)
+            n_conditioning = max(0, n_conditioning - 1)
 
-        if n_opt == 0 or len(idxs) == 0:
+        if n_conditioning == 0 or len(idxs) == 0:
             prompt_ids_list = []
         else:
             prompt_ids_list = list(start_tokens)
@@ -131,10 +133,10 @@ def score_variants_ensemble(
         )
 
         variant_lls.append(lls)
-        n_seqs_list.append(n_opt)
+        n_conditioning_history.append(n_conditioning)
 
-        if len(vals_in_range) > 0:
-            n_opt = rng.choice(vals_in_range)
+        if len(n_conditioning_choices) > 0:
+            n_conditioning = rng.choice(n_conditioning_choices)
 
     lls_array = np.stack(variant_lls, axis=0)
     return lls_array.mean(axis=0)
