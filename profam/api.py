@@ -31,7 +31,38 @@ from profam.utils.utils import seed_all
 
 @dataclass
 class GenerationResult:
-    """Result of a sequence generation call."""
+    """Result of a sequence generation call.
+
+    Attributes
+    ----------
+    sequences:
+        The generated amino-acid sequences (as plain strings, with
+        special tokens stripped), in the order they were produced.
+    scores:
+        One score per generated sequence, aligned with ``sequences``.
+        Each score is the **mean per-token log-probability**
+        of the sampled completion under the model, i.e.
+
+        .. math::
+           s = \\frac{1}{T} \\sum_{t=1}^{T} \\log p(x_t \\mid x_{<t}, \\text{prompt})
+
+        where :math:`x_t` is the token actually sampled at step
+        :math:`t`, :math:`p(\\cdot \\mid \\cdot)` is the model's
+        next-token distribution at that step (after temperature
+        scaling and bad-token masking, but *before* nucleus
+        truncation), and :math:`T` is the number of tokens in the
+        completion up to and including the terminal ``[SEP]`` token
+        (if one was emitted). For the ensemble sampler, the aggregated
+        distribution across prompt sub-samples is used in place of
+        :math:`p`.
+
+        Scores are :math:`\\le 0`; values closer to zero indicate the
+        sampler was, on average, more confident in the tokens it drew,
+        so they are a reasonable proxy for "typicality" under the
+        model but are **not** comparable across sequences of very
+        different length or against log-likelihoods produced by
+        :meth:`ProFam.score`.
+    """
 
     sequences: List[str]
     scores: List[float]
@@ -39,7 +70,55 @@ class GenerationResult:
 
 @dataclass
 class ScoringResult:
-    """Result of a sequence scoring call."""
+    """Result of a sequence scoring call.
+
+    Attributes
+    ----------
+    sequences:
+        The candidate amino-acid sequences that were scored, in input
+        order.
+    scores:
+        One score per candidate, as a ``(N,)`` float array aligned
+        with ``sequences``. Each score is the **mean per-token
+        log-likelihood** of the candidate under the model, averaged
+        over an ensemble of prompt sub-samples:
+
+        .. math::
+           s_i = \\frac{1}{K} \\sum_{k=1}^{K}
+                 \\frac{1}{L_i} \\sum_{t=1}^{L_i}
+                 \\log p(x^{(i)}_t \\mid x^{(i)}_{<t}, \\text{prompt}_k)
+
+        where :math:`x^{(i)}` is the :math:`i`-th candidate sequence
+        (with ``[SEP]`` BOS/EOS wrapping), :math:`L_i` is its number
+        of non-padding completion tokens, :math:`K` is
+        ``ensemble_size``, and each :math:`\\text{prompt}_k` is a
+        distinct random sub-sample drawn from the conditioning
+        :class:`FamilyPrompt` (optionally weighted by homology
+        diversity weights). Padding positions are masked out of both
+        the sum and :math:`L_i`.
+
+        When ``prompt`` is ``None`` no conditioning is used, the
+        ensemble collapses to :math:`K = 1`, and the score reduces to
+        the mean unconditional per-token log-likelihood.
+
+        Scores are :math:`\\le 0`; higher (less negative) values mean
+        the model assigns higher likelihood per residue to the
+        candidate. Because the score is length-normalised it can be
+        compared across sequences of different lengths, but absolute
+        values still depend on the prompt and on ``ensemble_size``.
+    residue_scores:
+        Only populated when ``per_residue=True`` was passed to
+        :meth:`ProFam.score`. A list with one entry per candidate
+        sequence; each entry is a 1-D ``np.ndarray`` of shape
+        ``(L_i,)`` giving the per-residue natural log-likelihood
+        :math:`\\log p(x^{(i)}_t \\mid x^{(i)}_{<t}, \\text{prompt})`
+        at every amino-acid position (padding stripped). Unlike
+        ``scores``, these are computed from a **single** prompt (the
+        first conditioning sequence, or no prompt if none was given)
+        rather than averaged over the ensemble, so
+        ``residue_scores[i].mean()`` will not exactly equal
+        ``scores[i]``.
+    """
 
     sequences: List[str]
     scores: np.ndarray
@@ -439,6 +518,11 @@ class ProFam:
         Returns
         -------
         GenerationResult
+            ``result.sequences`` contains the decoded amino-acid
+            strings; ``result.scores`` contains the mean per-token
+            natural log-probability of each sampled completion under
+            the model (see :class:`GenerationResult` for the exact
+            definition).
         """
         if max_tokens > 8192:
             raise ValueError(
@@ -603,6 +687,14 @@ class ProFam:
         Returns
         -------
         ScoringResult
+            ``result.scores[i]`` is the mean per-token natural
+            log-likelihood of ``sequences[i]`` under the model,
+            averaged over ``ensemble_size`` prompt sub-samples drawn
+            from ``prompt`` (optionally weighted by homology diversity
+            weights). When ``per_residue=True``,
+            ``result.residue_scores[i]`` additionally contains the
+            per-residue log-likelihoods computed from a single prompt.
+            See :class:`ScoringResult` for the exact definition.
         """
         seed_all(seed)
 
