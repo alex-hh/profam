@@ -101,8 +101,8 @@ for cycle in range(n_cycles):
 ### CLI
 
 ```bash
-profam generate -- --file_path family.fasta --num_samples 10
-profam score -- --conditioning_fasta family.a3m --candidates_file variants.csv
+profam generate --file_path family.fasta --num_samples 10
+profam score --conditioning_fasta family.a3m --candidates_file variants.csv
 profam download
 ```
 
