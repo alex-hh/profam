@@ -70,7 +70,7 @@ profam download
 The recommended way to use ProFam programmatically:
 
 ```python
-from profam import ProFam
+from profam import FamilyPrompt, ProFam
 
 model = ProFam()  # loads checkpoint once (auto-downloads if needed)
 
@@ -83,12 +83,32 @@ result = model.generate(
 print(result.sequences)  # list of generated amino acid strings
 print(result.scores)     # mean log-likelihood per sequence
 
-# Score candidate sequences
+# Score candidate sequences against a family MSA
+# from_aligned / from_unaligned each accept either a path (FASTA / a2m / a3m)
+# or an in-memory list[str] of sequences.
+prompt = FamilyPrompt.from_aligned("family.a3m")
 result = model.score(
     sequences=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
-    prompt=["ACDEFGHIKLMNPQRSTVWY"],  # conditioning context
+    prompt=prompt,
+    use_diversity_weights=True,  # homology-weighted prompt sub-sampling (default)
 )
 print(result.scores)  # numpy array of mean log-likelihoods
+
+# Equivalent call with sequences already in memory:
+# - from_aligned: every sequence must be equal length after stripping insertions;
+#   '-' represents gaps, lowercase letters and '.' are a2m/a3m insertions.
+prompt = FamilyPrompt.from_aligned([
+    "ACDEFGHIK-LMNPQRSTVWY",
+    "ACDEaFGHIK-LMNPQRSTVWY",  # lowercase 'a' is an a3m-style insertion
+    "ACDE-GHIK-LMNPQRSTVWY",
+])
+# - from_unaligned: arbitrary-length sequences, no aligned view, so diversity
+#   weights cannot be computed from this prompt.
+prompt = FamilyPrompt.from_unaligned([
+    "ACDEFGHIKLMNPQRSTVWY",
+    "ACDEFGHIKLMNPQRSTVW",
+    "ACDEFGHIKLMNPQRSTVWYAC",
+])
 
 # Iterative design loop
 prompt = initial_sequences
@@ -97,6 +117,26 @@ for cycle in range(n_cycles):
     # ... evaluate with external tools ...
     prompt = initial_sequences + selected_sequences
 ```
+
+#### `FamilyPrompt` — why two views?
+
+`ProFam.score` uses the conditioning family in two different ways that have
+contradictory formatting requirements:
+
+| Used for | Required representation |
+| --- | --- |
+| Tokenized prompt fed to the model | Variable length, **insertions kept**, gaps dropped |
+| Homology-based diversity weights for prompt sub-sampling | **Equal length**, insertions stripped, gap characters preserved |
+
+`FamilyPrompt` carries both co-registered views so the two requirements stop
+fighting each other. `FamilyPrompt.from_aligned(source)` is the recommended
+entry point: `source` can be a path to an aligned FASTA / a2m / a3m file
+**or** an in-memory `list[str]` of aligned sequences, and both views are
+derived consistently (a `ValueError` is raised if the sequences are not
+equal length after insertions are stripped). `FamilyPrompt.from_unaligned(source)`
+accepts the same two forms — path or `list[str]` — for unaligned input;
+diversity weights are then unavailable and a warning is emitted if
+requested.
 
 ### CLI
 
@@ -121,7 +161,13 @@ ProFam supports:
 - **Unaligned FASTA** for standard protein sequence inputs
 - **Aligned / MSA-style files** such as A2M/A3M content with gaps and insertions
 
-For `profam-score-sequences`, we recommend providing an aligned MSA file because sequence weighting is used to encourage diversity when subsampling prompt sequences. Even when aligned inputs are provided, the standard ProFam model converts them into unaligned gap-free sequences before the forward pass.
+For `profam score` (and `ProFam.score` in the Python API via
+`FamilyPrompt.from_aligned`), we recommend providing an aligned MSA file because
+homology-based sequence weighting is used to encourage diversity when
+sub-sampling prompt sequences — and that weighting is only well-defined on an
+aligned MSA. Even when aligned inputs are provided, the standard ProFam model
+converts them into unaligned gap-free sequences (with insertions kept) before
+the forward pass.
 
 During preprocessing:
 

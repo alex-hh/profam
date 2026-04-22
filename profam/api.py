@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+import warnings
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -23,6 +25,7 @@ from profam.models.inference import (
 )
 from profam.models.llama import LlamaLitModule
 from profam.scoring import score_variants_ensemble
+from profam.sequence.fasta import read_fasta
 from profam.utils.utils import seed_all
 
 
@@ -41,6 +44,281 @@ class ScoringResult:
     sequences: List[str]
     scores: np.ndarray
     residue_scores: Optional[List[np.ndarray]] = field(default=None)
+
+
+@dataclass
+class FamilyPrompt:
+    """A protein-family context with two co-registered views.
+
+    Scoring needs two different representations of the family:
+
+    * ``conditioning`` — variable-length, insertion residues kept, gaps
+      removed. This is what gets tokenized and fed to the model as the
+      prompt. The model was trained to see insertions, so they should be
+      preserved here.
+    * ``aligned`` — equal-length MSA columns, insertion residues stripped,
+      gap characters (``-``) preserved. This is the only view in which
+      column-wise Hamming similarity (and therefore homology-based
+      diversity weights) is meaningful.
+
+    The two lists must be parallel: ``conditioning[i]`` and ``aligned[i]``
+    refer to the same family member. ``aligned`` may be ``None`` to signal
+    that no aligned view is available, in which case diversity weights
+    cannot be computed.
+
+    Prefer the ``from_aligned`` / ``from_unaligned`` constructors over
+    building one directly.
+
+    Attributes
+    ----------
+    conditioning:
+        Unaligned sequences (insertions kept, gaps removed) used as the
+        tokenized model prompt.
+    aligned:
+        Equal-length aligned sequences used for homology diversity
+        weights. ``None`` when no aligned view is available.
+    source_path:
+        If this prompt was built from a file, the path is retained so
+        downstream consumers (e.g. ``ProFam.score(cache_weights=True)``)
+        can use it as a cache key. ``None`` when the prompt was built
+        from an in-memory list.
+    """
+
+    conditioning: List[str]
+    aligned: Optional[List[str]] = None
+    source_path: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        if self.aligned is not None:
+            if len(self.aligned) != len(self.conditioning):
+                raise ValueError(
+                    "FamilyPrompt.aligned and FamilyPrompt.conditioning must be "
+                    f"parallel lists of equal length; got "
+                    f"len(aligned)={len(self.aligned)}, "
+                    f"len(conditioning)={len(self.conditioning)}."
+                )
+            if len(self.aligned) > 0:
+                lengths = {len(s) for s in self.aligned}
+                if len(lengths) != 1:
+                    raise ValueError(
+                        "FamilyPrompt.aligned must contain equal-length "
+                        f"sequences (aligned MSA columns); got lengths {sorted(lengths)}."
+                    )
+
+    def __len__(self) -> int:
+        return len(self.conditioning)
+
+    @property
+    def has_alignment(self) -> bool:
+        """Whether an aligned view is available (required for diversity weights)."""
+        return self.aligned is not None and len(self.aligned) > 0
+
+    @classmethod
+    def from_aligned(
+        cls, source: "str | os.PathLike | list[str]"
+    ) -> "FamilyPrompt":
+        """Build a ``FamilyPrompt`` from an aligned MSA.
+
+        Parameters
+        ----------
+        source:
+            Either a path to an aligned sequence file (FASTA, a2m, or a3m),
+            or an in-memory ``list[str]`` of aligned sequences. Lowercase
+            letters and ``.`` are treated as per-sequence insertions
+            (a2m/a3m convention) and stripped when deriving the aligned
+            view used for diversity weights; ``-`` and ``.`` are stripped
+            when deriving the insertions-kept conditioning view used as
+            the model prompt.
+
+        Raises
+        ------
+        ValueError
+            If, after stripping insertions, the sequences are not all the
+            same length (i.e. ``source`` is not a valid aligned MSA).
+        """
+        source_path: Optional[str] = None
+        if isinstance(source, (str, os.PathLike)):
+            source_path = os.fspath(source)
+            _, conditioning = read_fasta(
+                source, keep_insertions=True, keep_gaps=False, to_upper=True
+            )
+            _, aligned = read_fasta(
+                source, keep_insertions=False, keep_gaps=True, to_upper=True
+            )
+            source_desc = f"file {source_path!r}"
+        elif isinstance(source, list):
+            aligned = [_strip_insertions(s).upper() for s in source]
+            conditioning = [_strip_gaps(s).upper() for s in source]
+            source_desc = "the supplied list"
+        else:
+            raise TypeError(
+                "FamilyPrompt.from_aligned expected a path or list[str]; "
+                f"got {type(source).__name__}."
+            )
+
+        if aligned:
+            lengths = {len(s) for s in aligned}
+            if len(lengths) != 1:
+                raise ValueError(
+                    f"Cannot build an aligned FamilyPrompt from {source_desc}: "
+                    "after stripping insertions (lowercase letters and '.') "
+                    f"sequences have different lengths {sorted(lengths)}; this "
+                    "is not a valid aligned MSA. Use "
+                    "FamilyPrompt.from_unaligned(...) for unaligned sequences."
+                )
+        return cls(conditioning=conditioning, aligned=aligned, source_path=source_path)
+
+    @classmethod
+    def from_unaligned(
+        cls, source: "str | os.PathLike | list[str]"
+    ) -> "FamilyPrompt":
+        """Build a ``FamilyPrompt`` from unaligned sequences.
+
+        Parameters
+        ----------
+        source:
+            Either a path to an unaligned FASTA file, or an in-memory
+            ``list[str]`` of unaligned sequences. Gap-like characters
+            (``-`` and ``.``) are stripped defensively; remaining residues
+            are uppercased and used as the conditioning view.
+
+        Notes
+        -----
+        No aligned view is produced, so diversity weights cannot be
+        computed from the resulting prompt and
+        ``use_diversity_weights=True`` will be downgraded with a warning
+        when it is passed to ``ProFam.score``.
+        """
+        source_path: Optional[str] = None
+        if isinstance(source, (str, os.PathLike)):
+            source_path = os.fspath(source)
+            _, sequences = read_fasta(
+                source, keep_insertions=True, keep_gaps=False, to_upper=True
+            )
+            conditioning = sequences
+        elif isinstance(source, list):
+            conditioning = [_strip_gaps(s).upper() for s in source]
+        else:
+            raise TypeError(
+                "FamilyPrompt.from_unaligned expected a path or list[str]; "
+                f"got {type(source).__name__}."
+            )
+        return cls(
+            conditioning=conditioning, aligned=None, source_path=source_path
+        )
+
+
+_GAP_PATTERN = re.compile(r"[-.]")
+_INSERTION_PATTERN = re.compile(r"[a-z.]")
+
+
+def _strip_gaps(s: str) -> str:
+    return _GAP_PATTERN.sub("", s)
+
+
+def _strip_insertions(s: str) -> str:
+    return _INSERTION_PATTERN.sub("", s)
+
+
+def _compute_diversity_weights(
+    family_prompt: "FamilyPrompt",
+    diversity_theta: float,
+    cache_weights: bool,
+    recompute_cached_weights: bool,
+) -> np.ndarray:
+    """Compute (or load from disk cache) homology diversity weights.
+
+    When ``cache_weights=True`` the prompt must expose a ``source_path``
+    so the cache file can be keyed to the source MSA; a list-backed
+    prompt has no such path and therefore cannot be cached.
+    """
+    from profam.data.msa_subsampling import (
+        compute_homology_sequence_weights_with_cache,
+        compute_homology_weights,
+        encode_msa_sequences_to_uint8,
+    )
+
+    if cache_weights:
+        if family_prompt.source_path is None:
+            raise ValueError(
+                "cache_weights=True requires a FamilyPrompt constructed from "
+                "a file path; diversity weights cannot be cached for a "
+                "FamilyPrompt built from an in-memory sequence list. Either "
+                "set cache_weights=False or use "
+                "FamilyPrompt.from_aligned(<path>)."
+            )
+        return compute_homology_sequence_weights_with_cache(
+            msa_file=family_prompt.source_path,
+            sequences=family_prompt.aligned,
+            theta=diversity_theta,
+            force_recalc=recompute_cached_weights,
+        )
+
+    encoded = encode_msa_sequences_to_uint8(family_prompt.aligned)
+    _GAP_TOKEN_IDX = 20
+    _, weights = compute_homology_weights(
+        ungapped_msa=encoded,
+        theta=diversity_theta,
+        gap_token=_GAP_TOKEN_IDX,
+        gap_token_mask=255,
+    )
+    return weights
+
+
+def _coerce_family_prompt(
+    prompt: "FamilyPrompt | list[str] | None",
+    use_diversity_weights: bool,
+) -> "FamilyPrompt | None":
+    """Normalise a user-supplied prompt into a :class:`FamilyPrompt`.
+
+    Plain ``list[str]`` inputs are accepted for backwards compatibility:
+
+    * If ``use_diversity_weights`` is *True* and every sequence has the
+      same length, the list is treated as an aligned MSA (and a
+      deprecation warning is emitted suggesting ``FamilyPrompt``).
+    * Otherwise the list is treated as unaligned sequences; if the user
+      asked for diversity weights, a warning is emitted explaining that
+      they will not be applied.
+    """
+    if prompt is None:
+        return None
+    if isinstance(prompt, FamilyPrompt):
+        return prompt
+    if not isinstance(prompt, list):
+        raise TypeError(
+            "prompt must be a FamilyPrompt, a list[str], or None; "
+            f"got {type(prompt).__name__}."
+        )
+    if len(prompt) == 0:
+        return FamilyPrompt(conditioning=[], aligned=None)
+
+    lengths = {len(s) for s in prompt}
+    looks_aligned = len(lengths) == 1
+
+    if use_diversity_weights and looks_aligned and len(prompt) > 1:
+        warnings.warn(
+            "Passing a list[str] to ProFam.score(prompt=...) is deprecated; "
+            "build a FamilyPrompt with FamilyPrompt.from_aligned(...) or "
+            "FamilyPrompt.from_unaligned(...) so the aligned and "
+            "conditioning views are explicit. The list was interpreted as "
+            "an aligned MSA because every sequence has the same length.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return FamilyPrompt.from_aligned(prompt)
+
+    if use_diversity_weights and not looks_aligned:
+        warnings.warn(
+            "use_diversity_weights=True was requested, but the prompt "
+            "list[str] contains sequences of different lengths and so "
+            "cannot be an aligned MSA. Diversity weights will be "
+            "disabled. Pass a FamilyPrompt built via "
+            "FamilyPrompt.from_aligned(...) to provide an aligned view.",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+
+    return FamilyPrompt.from_unaligned(prompt)
 
 
 def _build_protein_document(sequences: list[str]) -> ProteinDocument:
@@ -265,12 +543,14 @@ class ProFam:
     def score(
         self,
         sequences: list[str],
-        prompt: list[str] | None = None,
+        prompt: "FamilyPrompt | list[str] | None" = None,
         ensemble_size: int = 3,
         max_tokens: int = 8192,
         scoring_max_tokens: int = 64000,
         use_diversity_weights: bool = True,
         diversity_theta: float = 0.2,
+        cache_weights: bool = False,
+        recompute_cached_weights: bool = False,
         per_residue: bool = False,
         seed: int = 42,
     ) -> ScoringResult:
@@ -281,7 +561,16 @@ class ProFam:
         sequences:
             Candidate amino-acid strings to score.
         prompt:
-            Conditioning (family context) sequences.  *None* scores unconditionally.
+            Conditioning family context. Prefer a :class:`FamilyPrompt`,
+            which carries both an aligned view (used for diversity
+            weights) and an unaligned view with insertions kept (used as
+            the model prompt). A plain ``list[str]`` is accepted for
+            backwards compatibility and is treated as unaligned
+            sequences; in that case ``use_diversity_weights=True`` is
+            downgraded to ``False`` with a warning unless every sequence
+            already has the same length (in which case the list is
+            assumed to be an aligned MSA). Pass ``None`` to score
+            unconditionally.
         ensemble_size:
             Number of prompt sub-samples for ensemble scoring.
         max_tokens:
@@ -289,9 +578,23 @@ class ProFam:
         scoring_max_tokens:
             Token budget used to set dynamic batch size.
         use_diversity_weights:
-            Weight conditioning sequences by homology diversity.
+            Weight conditioning sequences by homology diversity. Requires
+            an aligned view (i.e. a :class:`FamilyPrompt` built with
+            ``from_aligned(...)``, or a ``list[str]`` of equal-length
+            sequences).
         diversity_theta:
             Theta for homology neighbor definition.
+        cache_weights:
+            If *True*, cache the computed diversity weights on disk next to
+            the source MSA file (``<basename>_weights.npz``). Requires the
+            ``prompt`` to be a :class:`FamilyPrompt` whose ``source_path``
+            is set — i.e. one built via ``FamilyPrompt.from_aligned(<path>)``.
+            Raises ``ValueError`` if *True* and no source path is available
+            (for example, when the prompt was built from an in-memory
+            ``list[str]``).
+        recompute_cached_weights:
+            Only meaningful when ``cache_weights=True``; ignores any
+            existing cache file and recomputes the weights.
         per_residue:
             If *True*, also return per-residue log-likelihoods.
         seed:
@@ -305,7 +608,6 @@ class ProFam:
 
         model = self._model
 
-        # Tokenize candidate sequences
         comp_tok = model.tokenizer.encode_completions(
             sequences,
             bos_token=model.tokenizer.sep_token,
@@ -317,32 +619,39 @@ class ProFam:
             .to(model.device)
         )
 
+        family_prompt = _coerce_family_prompt(prompt, use_diversity_weights)
+
         tokenized_conditioning: list[list[int]] = []
         weights = None
 
-        if prompt is not None and len(prompt) > 0:
+        if family_prompt is not None and len(family_prompt) > 0:
             tokenized_conditioning = [
                 model.tokenizer(
-                    seq.upper().replace("-", "").replace(".", ""),
+                    _strip_gaps(seq).upper(),
                     add_special_tokens=False,
                 )["input_ids"]
-                for seq in prompt
+                for seq in family_prompt.conditioning
             ]
 
-            if use_diversity_weights and len(prompt) > 1:
-                from profam.data.msa_subsampling import (
-                    compute_homology_weights,
-                    encode_msa_sequences_to_uint8,
+            if (
+                use_diversity_weights
+                and len(family_prompt) > 1
+                and family_prompt.has_alignment
+            ):
+                weights = _compute_diversity_weights(
+                    family_prompt=family_prompt,
+                    diversity_theta=diversity_theta,
+                    cache_weights=cache_weights,
+                    recompute_cached_weights=recompute_cached_weights,
                 )
-
-                aligned = [seq.upper() for seq in prompt]
-                encoded = encode_msa_sequences_to_uint8(aligned)
-                _GAP_TOKEN_IDX = 20
-                _, weights = compute_homology_weights(
-                    ungapped_msa=encoded,
-                    theta=diversity_theta,
-                    gap_token=_GAP_TOKEN_IDX,
-                    gap_token_mask=255,
+            elif use_diversity_weights and not family_prompt.has_alignment:
+                warnings.warn(
+                    "use_diversity_weights=True was requested but the prompt "
+                    "has no aligned view; diversity weights will not be "
+                    "applied. Pass a FamilyPrompt built via "
+                    "FamilyPrompt.from_aligned(...) to enable them.",
+                    RuntimeWarning,
+                    stacklevel=2,
                 )
 
         with torch.no_grad():
