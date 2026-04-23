@@ -1,26 +1,18 @@
-import copy
 import math
-import os
-import random
 import time
-import warnings
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn.functional as F
 import tqdm
 from lightning import LightningModule
 from omegaconf import OmegaConf
 from scipy.stats import spearmanr
-from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
-from torch import nn
-from transformers import PreTrainedTokenizerFast, StoppingCriteriaList
-from transformers.cache_utils import DynamicCache
+from transformers import StoppingCriteriaList
 from transformers.optimization import get_scheduler
 
 from profam.constants import aa_letters, aa_letters_lower, resolve_runtime_path
@@ -54,9 +46,13 @@ def load_checkpoint(checkpoint_dir, **kwargs):
     log.info(OmegaConf.to_yaml(cfg.model))
     # TODO: check callback config
     checkpoint_path = checkpoint_dir / "checkpoints" / "last.ckpt"
+    # weights_only=False: the shipped ProFam checkpoint pickles
+    # ProFamTokenizer / LlamaConfig into hyper_parameters, which the
+    # PyTorch 2.6+ default (weights_only=True) rejects.
     checkpoint = torch.load(
         checkpoint_path,
         map_location="cpu",
+        weights_only=False,
     )["state_dict"]
     model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
     model.load_state_dict(checkpoint)
@@ -467,7 +463,6 @@ class BaseFamilyLitModule(LightningModule):
             # fmt: on
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)
-            L_mini_batch = this_input_ids.shape[-1]
 
             actual_batch_size = this_input_ids.shape[0]
             cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
@@ -533,8 +528,6 @@ class BaseFamilyLitModule(LightningModule):
             )
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)
-            L_mini_batch = this_input_ids.shape[-1]  # beware: includes prompt too
-            # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
                 -100,
@@ -744,10 +737,14 @@ class BaseFamilyLitModule(LightningModule):
 
         # each 'word' is treated as a list of tokens
         # TODO: write test for this with random model.
+        # [SEP] is the effective end-of-sequence marker and must remain
+        # sampleable so the generator can terminate naturally; the
+        # shipped tokenizer does not set eos_token, so we filter on
+        # sep_token_id explicitly rather than on eos_token_id.
         generation_kwargs["bad_words_ids"] = [
             [tok_id]
             for tok_id in self.tokenizer.all_special_ids
-            if tok_id != self.tokenizer.eos_token_id
+            if tok_id != self.tokenizer.sep_token_id
         ]
         generation_kwargs["bad_words_ids"] += [
             [self.tokenizer.convert_tokens_to_ids(bad_aa)] for bad_aa in bad_aas

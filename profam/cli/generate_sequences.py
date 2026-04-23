@@ -84,12 +84,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         choices=["float32", "float16", "bfloat16"],
     )
     parser.add_argument(
-        "--continuous_sampling",
-        action="store_true",
-        default=False,
-        help="Ignore [SEP] EOS and generate until token budget; drop final partial segment",
-    )
-    parser.add_argument(
         "--max_sequence_length_multiplier",
         type=float,
         default=1.2,
@@ -236,7 +230,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 minimum_sequence_identity=args.minimum_sequence_identity,
                 maximum_retries=args.maximum_retries,
                 repeat_guard=repeat_guard,
-                continuous_sampling=args.continuous_sampling,
                 seed=args.seed,
             )
 

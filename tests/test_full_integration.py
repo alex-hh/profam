@@ -355,7 +355,10 @@ def test_score_api_cli_legacy_parity(
     )
 
     assert (
-        api_scores.shape == cli_scores.shape == legacy_scores.shape == (len(candidates_df),)
+        api_scores.shape
+        == cli_scores.shape
+        == legacy_scores.shape
+        == (len(candidates_df),)
     ), (
         f"shape mismatch: api={api_scores.shape}, cli={cli_scores.shape}, "
         f"legacy={legacy_scores.shape}"
@@ -456,7 +459,9 @@ def test_generate_api_cli_legacy_parity(tmp_path, project_root, installed_venv):
         legacy_dir / "generate_sequences_test_case_generated_single.fasta"
     )
 
-    assert len(api_sequences) == len(cli_sequences) == len(legacy_sequences) == num_samples
+    assert (
+        len(api_sequences) == len(cli_sequences) == len(legacy_sequences) == num_samples
+    )
     # Same seed + same model + same prompt must produce bit-identical strings.
     assert api_sequences == cli_sequences
     assert api_sequences == legacy_sequences

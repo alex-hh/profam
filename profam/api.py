@@ -475,10 +475,10 @@ class ProFam:
 
     Example
     -------
-    >>> from profam import ProFam
-    >>> model = ProFam()
-    >>> result = model.generate(prompt=["ACDEFGHIKLMNPQRSTVWY"], num_samples=5)
-    >>> print(result.sequences)
+    >>> from profam import ProFam                                         # doctest: +SKIP
+    >>> model = ProFam()                                                  # doctest: +SKIP
+    >>> result = model.generate(prompt=["ACDEFGHIKLMNPQRSTVWY"], num_samples=5)  # doctest: +SKIP
+    >>> print(result.sequences)                                           # doctest: +SKIP
     """
 
     def __init__(
@@ -520,7 +520,6 @@ class ProFam:
         minimum_sequence_identity: float | None = None,
         maximum_retries: int = 5,
         repeat_guard: bool = True,
-        continuous_sampling: bool = False,
         seed: int | None = None,
         prompt_accessions: list[str] | None = None,
     ) -> GenerationResult:
@@ -561,8 +560,6 @@ class ProFam:
             Retry limit when generated sequences are filtered out.
         repeat_guard:
             Abort and retry sequences with excessive amino-acid repeats.
-        continuous_sampling:
-            Ignore ``[SEP]`` EOS and generate until token budget.
         seed:
             Random seed for reproducibility.
 
@@ -596,8 +593,6 @@ class ProFam:
             max_gen_len = default_cap
         else:
             max_gen_len = min(int(max_generated_length), default_cap)
-        if continuous_sampling:
-            max_gen_len = None
 
         cfg = AlignedProteinPreprocessingConfig(
             document_token=doc_token,
@@ -635,7 +630,6 @@ class ProFam:
                     num_prompts_in_ensemble, len(pool.sequences)
                 ),
                 max_generated_length=max_gen_len,
-                continuous_sampling=continuous_sampling,
                 minimum_sequence_length_proportion=minimum_sequence_length_proportion,
                 minimum_sequence_identity=minimum_sequence_identity,
                 maximum_retries=maximum_retries,
@@ -643,7 +637,7 @@ class ProFam:
             )
             conditioning_prompts = [_prompt_doc_to_conditioning(d) for d in prompt_docs]
         else:
-            if not continuous_sampling and max_gen_len is not None:
+            if max_gen_len is not None:
                 cfg.max_tokens_per_example = max_tokens - max_gen_len
             builder = PromptBuilder(
                 preprocessor=preprocessor, prompt_is_aligned=True, seed=seed
@@ -667,7 +661,6 @@ class ProFam:
                 num_samples=num_samples,
                 max_tokens=max_tokens,
                 max_generated_length=max_gen_len,
-                continuous_sampling=continuous_sampling,
                 minimum_sequence_length_proportion=minimum_sequence_length_proportion,
                 minimum_sequence_identity=minimum_sequence_identity,
                 maximum_retries=maximum_retries,

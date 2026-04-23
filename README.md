@@ -118,12 +118,7 @@ prompt = FamilyPrompt.from_unaligned([
     "ACDEFGHIKLMNPQRSTVWYAC",
 ])
 
-# Iterative design loop
-prompt = initial_sequences
-for cycle in range(n_cycles):
-    result = model.generate(prompt=prompt, num_samples=20, top_p=0.95)
-    # ... evaluate with external tools ...
-    prompt = initial_sequences + selected_sequences
+
 ```
 
 `FamilyPrompt.from_aligned(...)` is the recommended constructor: it enables
