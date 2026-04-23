@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 import sys
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -23,10 +23,18 @@ def score_variants_ensemble(
     max_tokens_override: Optional[int] = None,
     weights: Optional[np.ndarray] = None,
     seed: int = 42,
-) -> np.ndarray:
+    return_per_residue: bool = False,
+) -> Union[np.ndarray, Tuple[np.ndarray, List[np.ndarray]]]:
     """Compute mean log-likelihoods using an ensemble of sampled prompts.
 
-    ``seed`` controls the RNGs that pick ensemble prompt sub-samples
+    ``seed`` controls the RNGs that pick ensemble prompt sub-samples.
+
+    If ``return_per_residue`` is True, also returns a list of per-residue
+    log-likelihood arrays (one per completion), averaged across the
+    ensemble dimension. The returned ``mean_lls`` are then derived from
+    the ensemble-averaged per-residue arrays (numerically equivalent to
+    the non-per-residue mean because averaging commutes across the
+    ensemble and residue dimensions when completion lengths are fixed).
     """
     if start_tokens is None:
         start_tokens = [47, 63]
@@ -62,6 +70,9 @@ def score_variants_ensemble(
     n_conditioning = int(rng.choice(n_conditioning_choices))
     n_conditioning_history: list[int] = []
     variant_lls: List[np.ndarray] = []
+    # When per-residue: one list[np.ndarray] per ensemble member, each of
+    # length n_candidates, with per-candidate per-position log-likelihoods.
+    variant_per_residue: List[List[np.ndarray]] = []
 
     if completion_length + 2 > max_tokens:
         n_conditioning = 0
@@ -127,20 +138,45 @@ def score_variants_ensemble(
         L_prompt = 0 if input_ids is None else input_ids.shape[-1]
         completion_ids_device = completion_ids.to(model.device)
 
-        lls = model.score_seqs(
-            input_ids,
-            completion_ids_device,
-            use_cache=getattr(model, "use_kv_cache_for_scoring", True),
-            batch_size=max(int(scoring_max_tokens) // (L + L_prompt), 1)
-            if getattr(model, "use_kv_cache_for_scoring", True)
-            else 1,
+        use_kv_cache = getattr(model, "use_kv_cache_for_scoring", True)
+        member_batch_size = (
+            max(int(scoring_max_tokens) // (L + L_prompt), 1) if use_kv_cache else 1
         )
-
-        variant_lls.append(lls)
+        if return_per_residue:
+            per_residue = model.score_seqs(
+                input_ids,
+                completion_ids_device,
+                use_cache=use_kv_cache,
+                batch_size=member_batch_size,
+                return_per_residue=True,
+            )
+            variant_per_residue.append(per_residue)
+        else:
+            lls = model.score_seqs(
+                input_ids,
+                completion_ids_device,
+                use_cache=use_kv_cache,
+                batch_size=member_batch_size,
+            )
+            variant_lls.append(lls)
         n_conditioning_history.append(n_conditioning)
 
         if len(n_conditioning_choices) > 0:
             n_conditioning = rng.choice(n_conditioning_choices)
+
+    if return_per_residue:
+        n_candidates = completion_ids.shape[1]
+        per_residue_out: List[np.ndarray] = []
+        mean_lls = np.zeros(n_candidates, dtype=np.float64)
+        for i in range(n_candidates):
+            stacked = np.stack(
+                [variant_per_residue[e][i] for e in range(len(variant_per_residue))],
+                axis=0,
+            )  # (ensemble_size, L_i)
+            ensemble_mean = stacked.mean(axis=0)  # (L_i,)
+            per_residue_out.append(ensemble_mean)
+            mean_lls[i] = float(ensemble_mean.mean()) if ensemble_mean.size > 0 else 0.0
+        return mean_lls, per_residue_out
 
     lls_array = np.stack(variant_lls, axis=0)
     return lls_array.mean(axis=0)

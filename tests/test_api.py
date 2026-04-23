@@ -539,3 +539,89 @@ class TestProFamWithTestModel:
         ):
             assert u.shape == b.shape, (i, u.shape, b.shape)
             np.testing.assert_allclose(u, b, rtol=1e-4, atol=1e-5)
+
+    @pytest.mark.parametrize("ensemble_size", [1, 3])
+    def test_score_per_residue_mean_equals_scores(self, ensemble_size):
+        """With per_residue=True, result.scores[i] must equal
+        result.residue_scores[i].mean() for every candidate -- proof that
+        both outputs come from a single ensemble pass rather than two
+        independent runs with different prompts.
+        """
+        pf = self._make_profam()
+        result = pf.score(
+            sequences=[
+                "ACDEFGHIKLMNPQRSTVWY",
+                "ACDEFGHIKLMNPQRSTVWYAC",
+                "ACDEFGHIKLMNP",
+            ],
+            prompt=[
+                "ACDEFGHIKLMNPQRSTVWY",
+                "WYVTSRQPNMLKIHGFEDCA",
+                "ACDEFGHIKLMNPQRSTVWYAC",
+                "MCDEFGHIKLMNPQRSTVWY",
+            ],
+            ensemble_size=ensemble_size,
+            max_tokens=2048,
+            per_residue=True,
+            use_diversity_weights=False,
+            seed=13,
+        )
+        assert result.residue_scores is not None
+        assert result.scores.shape == (len(result.sequences),)
+        for i, residue_ll in enumerate(result.residue_scores):
+            assert residue_ll.size > 0
+            np.testing.assert_allclose(
+                result.scores[i], float(residue_ll.mean()), rtol=1e-6, atol=1e-6
+            )
+
+    @pytest.mark.parametrize("ensemble_size", [1, 3])
+    def test_score_per_residue_scores_match_non_per_residue(self, ensemble_size):
+        """With the same seed, pf.score(per_residue=True) and
+        pf.score(per_residue=False) must return (numerically) the same
+        scores: turning per-residue on must not change the scoring work,
+        only expose the intermediate per-position log-likelihoods.
+        """
+        pf = self._make_profam()
+        common_kwargs = dict(
+            sequences=[
+                "ACDEFGHIKLMNPQRSTVWY",
+                "ACDEFGHIKLMNPQRSTVWYAC",
+            ],
+            prompt=[
+                "ACDEFGHIKLMNPQRSTVWY",
+                "WYVTSRQPNMLKIHGFEDCA",
+                "ACDEFGHIKLMNPQRSTVWYAC",
+            ],
+            ensemble_size=ensemble_size,
+            max_tokens=2048,
+            use_diversity_weights=False,
+            seed=29,
+        )
+        result_mean_only = pf.score(per_residue=False, **common_kwargs)
+        result_per_residue = pf.score(per_residue=True, **common_kwargs)
+        np.testing.assert_allclose(
+            result_mean_only.scores,
+            result_per_residue.scores,
+            rtol=1e-5,
+            atol=1e-6,
+        )
+
+    def test_score_per_residue_no_context(self):
+        """No-context per-residue path should also satisfy the
+        scores[i] == residue_scores[i].mean() invariant.
+        """
+        pf = self._make_profam()
+        result = pf.score(
+            sequences=[
+                "ACDEFGHIKLMNPQRSTVWY",
+                "ACDEFGHIKLMNPQRSTVWYAC",
+            ],
+            prompt=None,
+            per_residue=True,
+            seed=5,
+        )
+        assert result.residue_scores is not None
+        for i, residue_ll in enumerate(result.residue_scores):
+            np.testing.assert_allclose(
+                result.scores[i], float(residue_ll.mean()), rtol=1e-6, atol=1e-6
+            )

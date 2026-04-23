@@ -811,58 +811,53 @@ class ProFam:
                     stacklevel=2,
                 )
 
+        residue_scores: "list[np.ndarray] | None" = None
         with torch.no_grad():
             if len(tokenized_conditioning) > 0:
-                lls = score_variants_ensemble(
-                    model=model,
-                    completion_ids=completion_ids,
-                    tokenized_conditioning_sequences=tokenized_conditioning,
-                    ensemble_size=ensemble_size,
-                    scoring_max_tokens=scoring_max_tokens,
-                    start_tokens=[47, 63],
-                    max_tokens_override=max_tokens,
-                    weights=weights,
-                    seed=seed,
-                )
+                if per_residue:
+                    lls, residue_scores = score_variants_ensemble(
+                        model=model,
+                        completion_ids=completion_ids,
+                        tokenized_conditioning_sequences=tokenized_conditioning,
+                        ensemble_size=ensemble_size,
+                        scoring_max_tokens=scoring_max_tokens,
+                        start_tokens=[47, 63],
+                        max_tokens_override=max_tokens,
+                        weights=weights,
+                        seed=seed,
+                        return_per_residue=True,
+                    )
+                else:
+                    lls = score_variants_ensemble(
+                        model=model,
+                        completion_ids=completion_ids,
+                        tokenized_conditioning_sequences=tokenized_conditioning,
+                        ensemble_size=ensemble_size,
+                        scoring_max_tokens=scoring_max_tokens,
+                        start_tokens=[47, 63],
+                        max_tokens_override=max_tokens,
+                        weights=weights,
+                        seed=seed,
+                    )
             else:
-                lls = model._score_seqs_no_context(
-                    completion_ids,
-                    batch_size=max(
-                        int(scoring_max_tokens) // completion_ids.shape[-1], 1
-                    ),
+                no_context_batch_size = max(
+                    int(scoring_max_tokens) // completion_ids.shape[-1], 1
                 )
-
-        residue_scores = None
-        if per_residue:
-            # Per-residue scoring uses a single prompt (first conditioning
-            # sequence, if any) rather than the ensemble used for the mean
-            # log-likelihood above. Batch size follows the same
-            # scoring_max_tokens budget as the mean-LL path.
-            if len(tokenized_conditioning) > 0:
-                prompt_ids_list = [47, 63] + list(tokenized_conditioning[0])
-                residue_input_ids = torch.tensor(
-                    prompt_ids_list, dtype=torch.long, device=model.device
-                ).unsqueeze(0)
-                L_prompt = residue_input_ids.shape[-1]
-            else:
-                residue_input_ids = None
-                L_prompt = 0
-            use_kv_cache = getattr(model, "use_kv_cache_for_scoring", True)
-            if use_kv_cache:
-                residue_batch_size = max(
-                    int(scoring_max_tokens) // (completion_ids.shape[-1] + L_prompt),
-                    1,
-                )
-            else:
-                residue_batch_size = 1
-            with torch.no_grad():
-                residue_scores = model.score_seqs(
-                    residue_input_ids,
-                    completion_ids,
-                    use_cache=use_kv_cache,
-                    batch_size=residue_batch_size,
-                    return_per_residue=True,
-                )
+                if per_residue:
+                    residue_scores = model.score_seqs(
+                        None,
+                        completion_ids,
+                        batch_size=no_context_batch_size,
+                        return_per_residue=True,
+                    )
+                    lls = np.array(
+                        [float(r.mean()) if r.size > 0 else 0.0 for r in residue_scores]
+                    )
+                else:
+                    lls = model._score_seqs_no_context(
+                        completion_ids,
+                        batch_size=no_context_batch_size,
+                    )
 
         return ScoringResult(
             sequences=sequences,
