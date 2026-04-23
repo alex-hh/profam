@@ -1,3 +1,13 @@
+"""CLI entry point for ``profam generate``.
+
+Thin wrapper over :meth:`profam.ProFam.generate`: loads the model once,
+iterates over the input FASTA(s), and delegates the sampler and
+preprocessor wiring to the public Python API. The CLI adds orchestration
+concerns only — glob/file discovery, task sharding, and writing
+generated sequences (plus the family-context prompts that were actually
+used) to disk.
+"""
+
 import argparse
 import glob
 import os
@@ -6,18 +16,8 @@ from typing import Sequence
 
 import torch
 
+from profam.api import ProFam
 from profam.constants import resolve_runtime_path
-from profam.data.objects import ProteinDocument
-from profam.data.processors.preprocessing import (
-    AlignedProteinPreprocessingConfig,
-    ProteinDocumentPreprocessor,
-)
-from profam.models.inference import (
-    EnsemblePromptBuilder,
-    ProFamEnsembleSampler,
-    ProFamSampler,
-    PromptBuilder,
-)
 from profam.sequence.fasta import read_fasta
 from profam.utils.utils import seed_all
 
@@ -26,17 +26,6 @@ def write_fasta(sequences, accessions, fasta_path):
     with open(fasta_path, "w") as f:
         for acc, seq in zip(accessions, sequences):
             f.write(f">{acc}\n{seq}\n")
-
-
-def build_pool_from_fasta(path: str) -> ProteinDocument:
-    names, seqs = read_fasta(path, keep_insertions=True, to_upper=True, keep_gaps=False)
-    rep = names[0] if len(names) > 0 else "representative"
-    return ProteinDocument(
-        sequences=seqs,
-        accessions=names,
-        identifier=os.path.basename(path),
-        representative_accession=rep,
-    )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -151,7 +140,45 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         choices=["sdpa", "flash_attention_2", "eager"],
         help="Override attention implementation before model init",
     )
+    parser.add_argument(
+        "--auto_download",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Automatically download the default checkpoint if missing",
+    )
     return parser.parse_args(argv)
+
+
+def _resolve_input_files(file_path: str) -> list[str]:
+    """Expand a glob (or bare path) into a sorted list of existing files."""
+    pattern = os.path.expanduser(file_path)
+    matches = sorted(glob.glob(pattern))
+    if len(matches) == 0 and not glob.has_magic(pattern):
+        resolved = resolve_runtime_path(pattern)
+        if resolved.exists():
+            matches = [str(resolved)]
+    return matches
+
+
+def _shard_files(
+    files: list[str], task_index: int | None, num_tasks: int | None
+) -> list[str]:
+    if task_index is None or num_tasks is None:
+        return files
+    batch_size = len(files) // num_tasks
+    start = task_index * batch_size
+    end = len(files) if task_index == num_tasks - 1 else start + batch_size
+    shard = files[start:end]
+    print(f"Processing {len(shard)} files in task {task_index} of {num_tasks}")
+    for fpath in shard:
+        print(fpath)
+    return shard
+
+
+def _prompt_from_fasta(path: str) -> tuple[list[str], list[str]]:
+    """Read a FASTA/MSA file into (accessions, sequences) with insertions kept."""
+    names, seqs = read_fasta(path, keep_insertions=True, to_upper=True, keep_gaps=False)
+    return names, seqs
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -159,93 +186,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     repeat_guard = not args.disable_repeat_guard
     if args.max_tokens > 8192:
         raise ValueError(
-            "Max tokens must be less than or equal to 8192: model was only trained up to 8192 tokens."
+            "Max tokens must be less than or equal to 8192: model was only trained "
+            "up to 8192 tokens."
         )
 
     seed_all(args.seed)
 
-    from profam.checkpoint import load_model
+    save_dir = Path(args.save_dir).expanduser().resolve()
+    save_dir.mkdir(parents=True, exist_ok=True)
 
-    model = load_model(
+    input_files = _resolve_input_files(args.file_path)
+    input_files = _shard_files(input_files, args.task_index, args.num_tasks)
+    if len(input_files) == 0:
+        raise FileNotFoundError(f"No input files matched pattern: {args.file_path}")
+
+    pf = ProFam(
         checkpoint=args.checkpoint,
         device=args.device,
         dtype=args.dtype,
         attn_implementation=args.attn_implementation,
+        auto_download=args.auto_download,
     )
-
-    save_dir = Path(args.save_dir).expanduser().resolve()
-    save_dir.mkdir(parents=True, exist_ok=True)
-
-    file_pattern = os.path.expanduser(args.file_path)
-    input_files = sorted(glob.glob(file_pattern))
-    if len(input_files) == 0 and not glob.has_magic(file_pattern):
-        resolved = resolve_runtime_path(file_pattern)
-        if resolved.exists():
-            input_files = [str(resolved)]
-
-    if args.task_index is not None and args.num_tasks is not None:
-        batch_size = len(input_files) // args.num_tasks
-        start_idx = args.task_index * batch_size
-        end_idx = (
-            len(input_files)
-            if args.task_index == args.num_tasks - 1
-            else start_idx + batch_size
-        )
-        input_files = input_files[start_idx:end_idx]
-        print(
-            f"Processing {len(input_files)} files in task {args.task_index} of {args.num_tasks}"
-        )
-        for fpath in input_files:
-            print(fpath)
-    if len(input_files) == 0:
-        raise FileNotFoundError(f"No input files matched pattern: {args.file_path}")
-
-    doc_token = "[RAW]"
-    cfg = AlignedProteinPreprocessingConfig(
-        document_token=doc_token,
-        defer_sampling=True if args.sampler == "ensemble" else False,
-        padding="do_not_pad",
-        shuffle_proteins_in_document=True,
-        keep_insertions=True,
-        to_upper=True,
-        keep_gaps=False,
-        use_msa_pos=False,
-        max_tokens_per_example=None if args.sampler == "ensemble" else args.max_tokens,
-    )
-    preprocessor = ProteinDocumentPreprocessor(cfg=cfg)
-
-    if args.sampler == "ensemble":
-        builder = EnsemblePromptBuilder(
-            preprocessor=preprocessor, shuffle=True, seed=args.seed
-        )
-        sampler = ProFamEnsembleSampler(
-            name="ensemble_sampler",
-            model=model,
-            prompt_builder=builder,
-            document_token=doc_token,
-            reduction=args.reduction,
-            temperature=args.temperature,
-            top_p=args.top_p,
-            add_final_sep=True,
-        )
-    else:
-        builder = PromptBuilder(
-            preprocessor=preprocessor, prompt_is_aligned=True, seed=args.seed
-        )
-        sampling_kwargs = {}
-        if args.top_p is not None:
-            sampling_kwargs["top_p"] = args.top_p
-        if args.temperature is not None:
-            sampling_kwargs["temperature"] = args.temperature
-        sampler = ProFamSampler(
-            name="single_sampler",
-            model=model,
-            prompt_builder=builder,
-            document_token=doc_token,
-            sampling_kwargs=sampling_kwargs if len(sampling_kwargs) > 0 else None,
-            add_final_sep=True,
-        )
-    sampler.to(args.device)
 
     for fasta_path in input_files:
         base = os.path.splitext(os.path.basename(fasta_path))[0]
@@ -254,96 +215,55 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Skipping {fasta_path} because {out_path} already exists")
             continue
         try:
-            pool = build_pool_from_fasta(fasta_path)
-            longest_prompt_len = int(max(pool.sequence_lengths))
-            default_cap = int(
-                longest_prompt_len * float(args.max_sequence_length_multiplier)
+            accessions, sequences = _prompt_from_fasta(fasta_path)
+            if len(sequences) == 0:
+                print(f"Skipping {fasta_path}: no sequences found")
+                continue
+
+            result = pf.generate(
+                prompt=sequences,
+                prompt_accessions=accessions,
+                num_samples=args.num_samples,
+                max_tokens=args.max_tokens,
+                max_generated_length=args.max_generated_length,
+                max_sequence_length_multiplier=args.max_sequence_length_multiplier,
+                temperature=args.temperature,
+                top_p=args.top_p,
+                sampler=args.sampler,
+                num_prompts_in_ensemble=args.num_prompts_in_ensemble,
+                reduction=args.reduction,
+                minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
+                minimum_sequence_identity=args.minimum_sequence_identity,
+                maximum_retries=args.maximum_retries,
+                repeat_guard=repeat_guard,
+                continuous_sampling=args.continuous_sampling,
+                seed=args.seed,
             )
-            if args.max_generated_length is None:
-                max_gen_len = default_cap
-            else:
-                max_gen_len = min(int(args.max_generated_length), default_cap)
-            if args.continuous_sampling:
-                max_gen_len = None
-            if args.sampler == "ensemble":
-                sequences, scores, prompt_variants = sampler.sample_seqs_ensemble(
-                    protein_document=pool,
-                    num_samples=args.num_samples,
-                    max_tokens=args.max_tokens,
-                    num_prompts_in_ensemble=min(
-                        args.num_prompts_in_ensemble, len(pool.sequences)
-                    ),
-                    max_generated_length=max_gen_len,
-                    continuous_sampling=args.continuous_sampling,
-                    minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
-                    minimum_sequence_identity=args.minimum_sequence_identity,
-                    maximum_retries=args.maximum_retries,
-                    repeat_guard=repeat_guard,
-                )
-                # Save all ensemble prompt variants
-                for vi, variant in enumerate(prompt_variants):
-                    variant_path = (
-                        save_dir / f"{base}_prompt_ensemble_variant_{vi}.fasta"
-                    )
-                    v_seqs = list(variant.sequences)
-                    v_accs = (
-                        list(variant.accessions)
-                        if hasattr(variant, "accessions") and variant.accessions
-                        else [f"prompt_{j}" for j in range(len(v_seqs))]
-                    )
-                    write_fasta(v_seqs, v_accs, str(variant_path))
-                print(
-                    f"Wrote {len(prompt_variants)} ensemble prompt variants -> {save_dir}"
-                )
-            else:
-                preprocessor.cfg.max_tokens_per_example = args.max_tokens - max_gen_len
-                builder = PromptBuilder(
-                    preprocessor=preprocessor, prompt_is_aligned=True
-                )
-                sampling_kwargs = {}
-                if args.top_p is not None:
-                    sampling_kwargs["top_p"] = args.top_p
-                if args.temperature is not None:
-                    sampling_kwargs["temperature"] = args.temperature
-                sampler = ProFamSampler(
-                    name="single_sampler",
-                    model=model,
-                    prompt_builder=builder,
-                    document_token=doc_token,
-                    sampling_kwargs=sampling_kwargs
-                    if len(sampling_kwargs) > 0
-                    else None,
-                    add_final_sep=True,
-                )
-                sequences, scores, prompt_doc = sampler.sample_seqs(
-                    protein_document=pool,
-                    num_samples=args.num_samples,
-                    max_tokens=args.max_tokens,
-                    max_generated_length=max_gen_len,
-                    continuous_sampling=args.continuous_sampling,
-                    minimum_sequence_length_proportion=args.minimum_sequence_length_proportion,
-                    minimum_sequence_identity=args.minimum_sequence_identity,
-                    maximum_retries=args.maximum_retries,
-                    repeat_guard=repeat_guard,
-                )
 
-                # Save the prompt sequences that were actually passed to the model
-                prompt_path = save_dir / f"{base}_prompt_single.fasta"
-                prompt_seqs = list(prompt_doc.sequences)
-                prompt_accs = (
-                    list(prompt_doc.accessions)
-                    if hasattr(prompt_doc, "accessions") and prompt_doc.accessions
-                    else [f"prompt_{i}" for i in range(len(prompt_seqs))]
-                )
-                write_fasta(prompt_seqs, prompt_accs, str(prompt_path))
-                print(f"Wrote {len(prompt_seqs)} prompt sequences -> {prompt_path}")
+            if result.conditioning_prompts is not None:
+                if args.sampler == "ensemble":
+                    for pi, cond in enumerate(result.conditioning_prompts):
+                        cond_path = save_dir / f"{base}_conditioning_prompt_{pi}.fasta"
+                        write_fasta(cond.sequences, cond.accessions, str(cond_path))
+                    print(
+                        f"Wrote {len(result.conditioning_prompts)} ensemble "
+                        f"conditioning prompts -> {save_dir}"
+                    )
+                else:
+                    cond = result.conditioning_prompts[0]
+                    cond_path = save_dir / f"{base}_conditioning_prompt.fasta"
+                    write_fasta(cond.sequences, cond.accessions, str(cond_path))
+                    print(
+                        f"Wrote {len(cond.sequences)} conditioning sequences -> "
+                        f"{cond_path}"
+                    )
 
-            accessions = [
+            out_accessions = [
                 f"{base}_sample_{i}_log_likelihood_{score:.3f}"
-                for i, score in enumerate(scores)
+                for i, score in enumerate(result.scores)
             ]
-            write_fasta(sequences, accessions, str(out_path))
-            print(f"Wrote {len(sequences)} sequences -> {out_path}")
+            write_fasta(result.sequences, out_accessions, str(out_path))
+            print(f"Wrote {len(result.sequences)} sequences -> {out_path}")
         except Exception as e:
             print(f"Error processing {fasta_path}: {e}")
 

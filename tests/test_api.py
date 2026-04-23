@@ -7,6 +7,7 @@ import pytest
 import torch
 
 from profam.api import (
+    ConditioningPrompt,
     FamilyPrompt,
     GenerationResult,
     ProFam,
@@ -168,12 +169,41 @@ def test_build_protein_document_from_strings():
     assert isinstance(doc, ProteinDocument)
     assert list(doc.sequences) == seqs
     assert len(doc.accessions) == 2
+    assert doc.accessions == ["seq_0", "seq_1"]
+
+
+def test_build_protein_document_preserves_accessions():
+    seqs = ["ACDEFGHIK", "LMNPQRST"]
+    accs = ["sp|P1|FOO", "sp|Q2|BAR"]
+    doc = _build_protein_document(seqs, accessions=accs)
+    assert list(doc.accessions) == accs
+    assert doc.representative_accession == accs[0]
+
+
+def test_build_protein_document_rejects_mismatched_accessions():
+    with pytest.raises(ValueError, match="does not match"):
+        _build_protein_document(["ACDE", "FGHI"], accessions=["only_one"])
 
 
 def test_generation_result_structure():
     result = GenerationResult(sequences=["ACDE", "FGHI"], scores=[-1.0, -2.0])
     assert len(result.sequences) == 2
     assert len(result.scores) == 2
+    assert result.conditioning_prompts is None
+
+
+def test_generation_result_with_conditioning_prompts():
+    result = GenerationResult(
+        sequences=["ACDE"],
+        scores=[-1.0],
+        conditioning_prompts=[
+            ConditioningPrompt(sequences=["ACDEFGHIK"], accessions=["sp|P1|FOO"]),
+        ],
+    )
+    assert result.conditioning_prompts is not None
+    assert len(result.conditioning_prompts) == 1
+    assert result.conditioning_prompts[0].sequences == ["ACDEFGHIK"]
+    assert result.conditioning_prompts[0].accessions == ["sp|P1|FOO"]
 
 
 def test_scoring_result_structure():
@@ -221,6 +251,55 @@ class TestProFamWithTestModel:
         assert len(result.sequences) == 1
         assert len(result.scores) == 1
         assert isinstance(result.sequences[0], str)
+        assert result.conditioning_prompts is not None
+        assert len(result.conditioning_prompts) == 1
+        assert len(result.conditioning_prompts[0].sequences) >= 1
+        assert len(result.conditioning_prompts[0].accessions) == len(
+            result.conditioning_prompts[0].sequences
+        )
+
+    def test_generate_preserves_prompt_accessions_single(self):
+        pf = self._make_profam()
+        result = pf.generate(
+            prompt=["ACDEFGHIKLMNPQRSTVWY", "WYVTSRQPNMLKIHGFEDCA"],
+            prompt_accessions=["seqA", "seqB"],
+            num_samples=1,
+            max_tokens=2048,
+            max_generated_length=5,
+            seed=7,
+            sampler="single",
+        )
+        assert result.conditioning_prompts is not None
+        cond = result.conditioning_prompts[0]
+        assert set(cond.accessions) <= {"seqA", "seqB"}
+        for acc, seq in zip(cond.accessions, cond.sequences):
+            if acc == "seqA":
+                assert seq.upper() == "ACDEFGHIKLMNPQRSTVWY"
+            elif acc == "seqB":
+                assert seq.upper() == "WYVTSRQPNMLKIHGFEDCA"
+
+    def test_generate_ensemble_returns_multiple_conditioning_prompts(self):
+        pf = self._make_profam()
+        result = pf.generate(
+            prompt=[
+                "ACDEFGHIKLMNPQRSTVWY",
+                "WYVTSRQPNMLKIHGFEDCA",
+                "ACDEFGHIKLMNPQRSTVWA",
+                "MCDEFGHIKLMNPQRSTVWY",
+            ],
+            prompt_accessions=["a", "b", "c", "d"],
+            num_samples=1,
+            max_tokens=2048,
+            max_generated_length=5,
+            sampler="ensemble",
+            num_prompts_in_ensemble=3,
+            seed=11,
+        )
+        assert result.conditioning_prompts is not None
+        assert len(result.conditioning_prompts) == 3
+        for cond in result.conditioning_prompts:
+            assert len(cond.accessions) == len(cond.sequences)
+            assert all(a in {"a", "b", "c", "d"} for a in cond.accessions)
 
     def test_score_returns_scoring_result(self):
         pf = self._make_profam()
@@ -264,9 +343,7 @@ class TestProFamWithTestModel:
 
     def test_score_accepts_family_prompt(self):
         pf = self._make_profam()
-        fp = FamilyPrompt.from_aligned(
-            ["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"]
-        )
+        fp = FamilyPrompt.from_aligned(["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"])
         result = pf.score(
             sequences=["ACDEFGHIKLMNPQRSTVWY"],
             prompt=fp,
@@ -280,9 +357,7 @@ class TestProFamWithTestModel:
 
     def test_score_cache_weights_requires_source_path(self):
         pf = self._make_profam()
-        fp = FamilyPrompt.from_aligned(
-            ["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"]
-        )
+        fp = FamilyPrompt.from_aligned(["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"])
         with pytest.raises(ValueError, match="cache_weights=True requires"):
             pf.score(
                 sequences=["ACDEFGHIKLMNPQRSTVWY"],
@@ -318,9 +393,7 @@ class TestProFamWithTestModel:
 
     def test_score_family_prompt_without_alignment_warns_on_weights(self):
         pf = self._make_profam()
-        fp = FamilyPrompt.from_unaligned(
-            ["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQR"]
-        )
+        fp = FamilyPrompt.from_unaligned(["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQR"])
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             result = pf.score(
@@ -333,7 +406,136 @@ class TestProFamWithTestModel:
             )
         assert result.scores.shape == (1,)
         assert any(
-            issubclass(w.category, RuntimeWarning)
-            and "aligned view" in str(w.message)
+            issubclass(w.category, RuntimeWarning) and "aligned view" in str(w.message)
             for w in caught
         )
+
+    def test_score_seqs_per_residue_matches_legacy_compute_residue_scores(self):
+        """score_seqs(..., return_per_residue=True) must match the legacy
+        _compute_residue_scores logic (single-prompt, no-cache forward pass)
+        position-by-position for the conditioned case.
+        """
+        from profam.models.utils import log_likelihood_from_outputs
+
+        pf = self._make_profam()
+        model = pf._model
+
+        sequences = [
+            "ACDEFGHIKLMNPQRSTVWY",
+            "ACDEFGHIKLMNPQRSTVWYAC",
+        ]
+        prompt_seq = "ACDEFGHIKLMNPQRSTVWY"
+
+        comp_tok = model.tokenizer.encode_completions(
+            sequences,
+            bos_token=model.tokenizer.sep_token,
+            eos_token=model.tokenizer.sep_token,
+        )
+        completion_ids = (
+            torch.as_tensor(comp_tok["input_ids"], dtype=torch.long)
+            .unsqueeze(0)
+            .to(model.device)
+        )
+
+        prompt_tokens = model.tokenizer(prompt_seq, add_special_tokens=False)[
+            "input_ids"
+        ]
+        start_tokens = [47, 63]
+        prompt_ids_list = list(start_tokens) + list(prompt_tokens)
+        input_ids = torch.tensor(
+            prompt_ids_list, dtype=torch.long, device=model.device
+        ).unsqueeze(0)
+
+        legacy_residue_scores: list[np.ndarray] = []
+        comp_ids_2d = completion_ids.squeeze(0)
+        with torch.no_grad():
+            for i in range(comp_ids_2d.shape[0]):
+                comp = comp_ids_2d[i : i + 1]
+                full_ids = torch.cat([input_ids, comp], dim=-1)
+                start_ix = input_ids.shape[-1]
+                outputs = model.model(input_ids=full_ids, use_cache=False)
+                labels = torch.where(
+                    full_ids == model.tokenizer.pad_token_id,
+                    -100,
+                    full_ids.clone(),
+                )
+                ll = log_likelihood_from_outputs(outputs, labels, start_ix=start_ix)
+                ll_np = ll[0].cpu().float().numpy()
+                shift_labels = labels[..., start_ix + 1 :]
+                mask = (shift_labels[0] != -100).cpu().numpy()
+                legacy_residue_scores.append(ll_np[mask])
+
+        with torch.no_grad():
+            new_residue_scores = model.score_seqs(
+                input_ids,
+                completion_ids,
+                use_cache=False,
+                batch_size=1,
+                return_per_residue=True,
+            )
+
+        assert isinstance(new_residue_scores, list)
+        assert len(new_residue_scores) == len(legacy_residue_scores)
+        for legacy, new in zip(legacy_residue_scores, new_residue_scores):
+            assert new.shape == legacy.shape, (new.shape, legacy.shape)
+            np.testing.assert_allclose(new, legacy, rtol=1e-5, atol=1e-6)
+
+        with torch.no_grad():
+            kv_residue_scores = model.score_seqs(
+                input_ids,
+                completion_ids,
+                use_cache=True,
+                batch_size=1,
+                return_per_residue=True,
+            )
+        assert len(kv_residue_scores) == len(legacy_residue_scores)
+        for legacy, kv in zip(legacy_residue_scores, kv_residue_scores):
+            assert kv.shape == legacy.shape
+            np.testing.assert_allclose(kv, legacy, rtol=1e-4, atol=1e-5)
+
+    def test_score_per_residue_batched_matches_unbatched(self):
+        """Per-residue scoring with batch_size>1 (KV-cache path) must
+        produce the same per-position log-likelihoods as the unbatched
+        path, for variants of different lengths that therefore share a
+        mini-batch with trailing padding.
+        """
+        pf = self._make_profam()
+        sequences = [
+            "ACDEFGHIKLMNPQRSTVWY",
+            "ACDEFGHIKLMNPQRSTVWYAC",
+            "ACDEFGHIKLMNP",
+            "ACDEFGHIKLMNPQRSTVWYACDE",
+        ]
+        prompt = ["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"]
+
+        result_unbatched = pf.score(
+            sequences=sequences,
+            prompt=prompt,
+            ensemble_size=1,
+            max_tokens=2048,
+            scoring_max_tokens=1,  # forces batch_size=1 in per-residue path
+            per_residue=True,
+            use_diversity_weights=False,
+            seed=42,
+        )
+
+        result_batched = pf.score(
+            sequences=sequences,
+            prompt=prompt,
+            ensemble_size=1,
+            max_tokens=2048,
+            scoring_max_tokens=100_000,  # fits everything into one batch
+            per_residue=True,
+            use_diversity_weights=False,
+            seed=42,
+        )
+
+        assert result_unbatched.residue_scores is not None
+        assert result_batched.residue_scores is not None
+        assert len(result_unbatched.residue_scores) == len(sequences)
+        assert len(result_batched.residue_scores) == len(sequences)
+        for i, (u, b) in enumerate(
+            zip(result_unbatched.residue_scores, result_batched.residue_scores)
+        ):
+            assert u.shape == b.shape, (i, u.shape, b.shape)
+            np.testing.assert_allclose(u, b, rtol=1e-4, atol=1e-5)

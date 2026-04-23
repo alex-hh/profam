@@ -217,6 +217,7 @@ def main():
             start_tokens=[47, 63],
             max_tokens_override=args.max_tokens,
             weights=weights,
+            seed=args.seed,
         )
 
     # Output handling

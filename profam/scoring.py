@@ -22,13 +22,17 @@ def score_variants_ensemble(
     start_tokens: Optional[list[int]] = None,
     max_tokens_override: Optional[int] = None,
     weights: Optional[np.ndarray] = None,
+    seed: int = 42,
 ) -> np.ndarray:
-    """Compute mean log-likelihoods using an ensemble of sampled prompts."""
+    """Compute mean log-likelihoods using an ensemble of sampled prompts.
+
+    ``seed`` controls the RNGs that pick ensemble prompt sub-samples
+    """
     if start_tokens is None:
         start_tokens = [47, 63]
-    random.seed(42)
-    rng = random.Random(42)
-    rng_np = np.random.default_rng(42)
+    random.seed(seed)
+    rng = random.Random(seed)
+    rng_np = np.random.default_rng(seed)
 
     seq_lengths = [len(seq) for seq in tokenized_conditioning_sequences]
     total_seqs = len(seq_lengths)

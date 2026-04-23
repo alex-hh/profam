@@ -30,6 +30,32 @@ from profam.utils.utils import seed_all
 
 
 @dataclass
+class ConditioningPrompt:
+    """A single family-context prompt actually fed to the model.
+
+    The ``"single"`` sampler produces exactly one
+    :class:`ConditioningPrompt` (the truncated prompt after
+    token-budget and preprocessor transforms). The ``"ensemble"``
+    sampler produces one :class:`ConditioningPrompt` per ensemble
+    member.
+
+    Attributes
+    ----------
+    sequences:
+        The amino-acid sequences that made it into this prompt, in the
+        order they were concatenated.
+    accessions:
+        Parallel list of accessions. If the caller supplied
+        ``prompt_accessions`` to :meth:`ProFam.generate`, these carry
+        the originals through (permutation included). Otherwise they
+        are auto-generated placeholders like ``"seq_0"``.
+    """
+
+    sequences: List[str]
+    accessions: List[str]
+
+
+@dataclass
 class GenerationResult:
     """Result of a sequence generation call.
 
@@ -66,6 +92,7 @@ class GenerationResult:
 
     sequences: List[str]
     scores: List[float]
+    conditioning_prompts: Optional[List[ConditioningPrompt]] = None
 
 
 @dataclass
@@ -193,9 +220,7 @@ class FamilyPrompt:
         return self.aligned is not None and len(self.aligned) > 0
 
     @classmethod
-    def from_aligned(
-        cls, source: "str | os.PathLike | list[str]"
-    ) -> "FamilyPrompt":
+    def from_aligned(cls, source: "str | os.PathLike | list[str]") -> "FamilyPrompt":
         """Build a ``FamilyPrompt`` from an aligned MSA.
 
         Parameters
@@ -248,9 +273,7 @@ class FamilyPrompt:
         return cls(conditioning=conditioning, aligned=aligned, source_path=source_path)
 
     @classmethod
-    def from_unaligned(
-        cls, source: "str | os.PathLike | list[str]"
-    ) -> "FamilyPrompt":
+    def from_unaligned(cls, source: "str | os.PathLike | list[str]") -> "FamilyPrompt":
         """Build a ``FamilyPrompt`` from unaligned sequences.
 
         Parameters
@@ -282,9 +305,7 @@ class FamilyPrompt:
                 "FamilyPrompt.from_unaligned expected a path or list[str]; "
                 f"got {type(source).__name__}."
             )
-        return cls(
-            conditioning=conditioning, aligned=None, source_path=source_path
-        )
+        return cls(conditioning=conditioning, aligned=None, source_path=source_path)
 
 
 _GAP_PATTERN = re.compile(r"[-.]")
@@ -400,16 +421,40 @@ def _coerce_family_prompt(
     return FamilyPrompt.from_unaligned(prompt)
 
 
-def _build_protein_document(sequences: list[str]) -> ProteinDocument:
-    """Build a ProteinDocument from a plain list of amino acid strings."""
-    accessions = [f"seq_{i}" for i in range(len(sequences))]
+def _build_protein_document(
+    sequences: list[str],
+    accessions: Optional[list[str]] = None,
+    identifier: str = "api_input",
+) -> ProteinDocument:
+    """Build a ProteinDocument from a plain list of amino acid strings.
+
+    If ``accessions`` is omitted, placeholders ``seq_0``, ``seq_1`` …
+    are generated. If provided, its length must match ``sequences``.
+    """
+    if accessions is None:
+        accessions = [f"seq_{i}" for i in range(len(sequences))]
+    elif len(accessions) != len(sequences):
+        raise ValueError(
+            f"accessions length {len(accessions)} does not match "
+            f"sequences length {len(sequences)}"
+        )
     rep = accessions[0] if accessions else "representative"
     return ProteinDocument(
         sequences=sequences,
-        accessions=accessions,
-        identifier="api_input",
+        accessions=list(accessions),
+        identifier=identifier,
         representative_accession=rep,
     )
+
+
+def _prompt_doc_to_conditioning(doc: ProteinDocument) -> "ConditioningPrompt":
+    """Convert a :class:`ProteinDocument` prompt to a :class:`ConditioningPrompt`."""
+    seqs = list(doc.sequences)
+    if getattr(doc, "accessions", None):
+        accs = list(doc.accessions)
+    else:
+        accs = [f"prompt_{i}" for i in range(len(seqs))]
+    return ConditioningPrompt(sequences=seqs, accessions=accs)
 
 
 class ProFam:
@@ -477,6 +522,7 @@ class ProFam:
         repeat_guard: bool = True,
         continuous_sampling: bool = False,
         seed: int | None = None,
+        prompt_accessions: list[str] | None = None,
     ) -> GenerationResult:
         """Generate novel protein sequences conditioned on *prompt*.
 
@@ -484,6 +530,11 @@ class ProFam:
         ----------
         prompt:
             Family context sequences (plain amino-acid strings).
+        prompt_accessions:
+            Optional parallel list of accessions for ``prompt``; when
+            supplied they are preserved through the sampler and surfaced
+            on :attr:`GenerationResult.conditioning_prompts`. Defaults to
+            placeholders ``seq_0``, ``seq_1``, …
         num_samples:
             Number of sequences to generate.
         max_tokens:
@@ -522,7 +573,11 @@ class ProFam:
             strings; ``result.scores`` contains the mean per-token
             natural log-probability of each sampled completion under
             the model (see :class:`GenerationResult` for the exact
-            definition).
+            definition). ``result.conditioning_prompts`` exposes the
+            family-context prompts actually passed to the model — a
+            single-element list in ``sampler="single"`` mode, and one
+            :class:`ConditioningPrompt` per ensemble member in
+            ``sampler="ensemble"`` mode.
         """
         if max_tokens > 8192:
             raise ValueError(
@@ -533,7 +588,7 @@ class ProFam:
             seed_all(seed)
 
         doc_token = "[RAW]"
-        pool = _build_protein_document(prompt)
+        pool = _build_protein_document(prompt, accessions=prompt_accessions)
 
         longest_prompt_len = int(max(pool.sequence_lengths))
         default_cap = int(longest_prompt_len * float(max_sequence_length_multiplier))
@@ -572,7 +627,7 @@ class ProFam:
                 add_final_sep=True,
             )
             sampler_obj.to(self._model.device)
-            sequences, scores, _ = sampler_obj.sample_seqs_ensemble(
+            sequences, scores, prompt_docs = sampler_obj.sample_seqs_ensemble(
                 protein_document=pool,
                 num_samples=num_samples,
                 max_tokens=max_tokens,
@@ -586,6 +641,7 @@ class ProFam:
                 maximum_retries=maximum_retries,
                 repeat_guard=repeat_guard,
             )
+            conditioning_prompts = [_prompt_doc_to_conditioning(d) for d in prompt_docs]
         else:
             if not continuous_sampling and max_gen_len is not None:
                 cfg.max_tokens_per_example = max_tokens - max_gen_len
@@ -606,7 +662,7 @@ class ProFam:
                 add_final_sep=True,
             )
             sampler_obj.to(self._model.device)
-            sequences, scores, _ = sampler_obj.sample_seqs(
+            sequences, scores, prompt_doc = sampler_obj.sample_seqs(
                 protein_document=pool,
                 num_samples=num_samples,
                 max_tokens=max_tokens,
@@ -617,8 +673,13 @@ class ProFam:
                 maximum_retries=maximum_retries,
                 repeat_guard=repeat_guard,
             )
+            conditioning_prompts = [_prompt_doc_to_conditioning(prompt_doc)]
 
-        return GenerationResult(sequences=sequences, scores=scores)
+        return GenerationResult(
+            sequences=sequences,
+            scores=scores,
+            conditioning_prompts=conditioning_prompts,
+        )
 
     # ------------------------------------------------------------------
     # Score
@@ -660,7 +721,8 @@ class ProFam:
         max_tokens:
             Token budget for prompt+completion.
         scoring_max_tokens:
-            Token budget used to set dynamic batch size.
+            Token budget used to set dynamic batch size: reduce if you get
+            OOM while scoring.
         use_diversity_weights:
             Weight conditioning sequences by homology diversity. Requires
             an aligned view (i.e. a :class:`FamilyPrompt` built with
@@ -682,7 +744,10 @@ class ProFam:
         per_residue:
             If *True*, also return per-residue log-likelihoods.
         seed:
-            Random seed.
+            Random seed. Drives both the global RNG (via ``seed_all``)
+            and the ensemble prompt sub-sampler in
+            :func:`profam.scoring.score_variants_ensemble`, so different
+            values draw different conditioning subsets.
 
         Returns
         -------
@@ -757,6 +822,7 @@ class ProFam:
                     start_tokens=[47, 63],
                     max_tokens_override=max_tokens,
                     weights=weights,
+                    seed=seed,
                 )
             else:
                 lls = model._score_seqs_no_context(
@@ -768,64 +834,38 @@ class ProFam:
 
         residue_scores = None
         if per_residue:
-            residue_scores = self._compute_residue_scores(
-                completion_ids, tokenized_conditioning, max_tokens
-            )
+            # Per-residue scoring uses a single prompt (first conditioning
+            # sequence, if any) rather than the ensemble used for the mean
+            # log-likelihood above. Batch size follows the same
+            # scoring_max_tokens budget as the mean-LL path.
+            if len(tokenized_conditioning) > 0:
+                prompt_ids_list = [47, 63] + list(tokenized_conditioning[0])
+                residue_input_ids = torch.tensor(
+                    prompt_ids_list, dtype=torch.long, device=model.device
+                ).unsqueeze(0)
+                L_prompt = residue_input_ids.shape[-1]
+            else:
+                residue_input_ids = None
+                L_prompt = 0
+            use_kv_cache = getattr(model, "use_kv_cache_for_scoring", True)
+            if use_kv_cache:
+                residue_batch_size = max(
+                    int(scoring_max_tokens) // (completion_ids.shape[-1] + L_prompt),
+                    1,
+                )
+            else:
+                residue_batch_size = 1
+            with torch.no_grad():
+                residue_scores = model.score_seqs(
+                    residue_input_ids,
+                    completion_ids,
+                    use_cache=use_kv_cache,
+                    batch_size=residue_batch_size,
+                    return_per_residue=True,
+                )
 
         return ScoringResult(
             sequences=sequences,
             scores=np.asarray(lls),
             residue_scores=residue_scores,
         )
-
-    def _compute_residue_scores(
-        self,
-        completion_ids: torch.Tensor,
-        tokenized_conditioning: list[list[int]],
-        max_tokens: int,
-    ) -> list[np.ndarray]:
-        """Compute per-residue log-likelihoods for each sequence."""
-        from profam.models.utils import log_likelihood_from_outputs
-
-        model = self._model
-
-        # Build a single prompt (first conditioning sequence or none)
-        if len(tokenized_conditioning) > 0:
-            start_tokens = [47, 63]
-            prompt_ids_list = list(start_tokens)
-            prompt_ids_list.extend(tokenized_conditioning[0])
-            input_ids = torch.tensor(
-                prompt_ids_list, dtype=torch.long, device=model.device
-            ).unsqueeze(0)
-        else:
-            input_ids = None
-
-        residue_scores: list[np.ndarray] = []
-        if completion_ids.dim() == 3:
-            completion_ids = completion_ids.squeeze(0)
-
-        with torch.no_grad():
-            for i in range(completion_ids.shape[0]):
-                comp = completion_ids[i : i + 1]
-                if input_ids is not None:
-                    full_ids = torch.cat([input_ids, comp], dim=-1)
-                    start_ix = input_ids.shape[-1]
-                else:
-                    full_ids = comp
-                    start_ix = 1
-
-                outputs = model.model(input_ids=full_ids, use_cache=False)
-                labels = torch.where(
-                    full_ids == model.tokenizer.pad_token_id,
-                    -100,
-                    full_ids.clone(),
-                )
-                ll = log_likelihood_from_outputs(outputs, labels, start_ix=start_ix)
-                # ll shape: (1, L) — per-position log-likelihoods
-                ll_np = ll[0].cpu().float().numpy()
-                # Trim padding positions
-                shift_labels = labels[..., start_ix + 1 :]
-                mask = (shift_labels[0] != -100).cpu().numpy()
-                residue_scores.append(ll_np[mask])
-
-        return residue_scores

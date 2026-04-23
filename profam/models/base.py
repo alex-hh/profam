@@ -434,12 +434,14 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         batch_size: int = 1,
         verbose: bool = False,
+        return_per_residue: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
+        all_per_residue: list[np.ndarray] = []
         assert (
             input_ids[0, 0] == self.tokenizer.vocab["[start-of-document]"]
             and input_ids[0, 1] > 19
@@ -490,10 +492,19 @@ class BaseFamilyLitModule(LightningModule):
                 log_likelihood.device
             )  # aligns with start_ix=0
             mask = shift_labels != -100
-            denom = mask.sum(dim=-1).clamp(min=1)
-            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
-            all_lls.append(ll_mean)  # b_mut
 
+            if return_per_residue:
+                ll_np = log_likelihood.detach().cpu().float().numpy()
+                mask_np = mask.detach().cpu().numpy()
+                for row_ix in range(ll_np.shape[0]):
+                    all_per_residue.append(ll_np[row_ix][mask_np[row_ix]])
+            else:
+                denom = mask.sum(dim=-1).clamp(min=1)
+                ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+                all_lls.append(ll_mean)  # b_mut
+
+        if return_per_residue:
+            return all_per_residue
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls
 
@@ -503,6 +514,7 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         batch_size: int = 1,
         verbose: bool = False,
+        return_per_residue: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
@@ -510,6 +522,7 @@ class BaseFamilyLitModule(LightningModule):
                 "Mutant batch size > 1 not yet supported for mutant scoring"
             )
         all_lls = []
+        all_per_residue: list[np.ndarray] = []
         likelihood_start_ix = input_ids.shape[1]
         for completion_ix in tqdm.tqdm(
             range(completion_ids.shape[1]), disable=not verbose
@@ -540,9 +553,16 @@ class BaseFamilyLitModule(LightningModule):
                 log_likelihood.device
             )
             mask = shift_labels != -100
-            denom = mask.sum(dim=-1).clamp(min=1)
-            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
-            all_lls.append(ll_mean.item())
+            if return_per_residue:
+                ll_np = log_likelihood.detach().cpu().float().numpy()
+                mask_np = mask.detach().cpu().numpy()
+                all_per_residue.append(ll_np[0][mask_np[0]])
+            else:
+                denom = mask.sum(dim=-1).clamp(min=1)
+                ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+                all_lls.append(ll_mean.item())
+        if return_per_residue:
+            return all_per_residue
         lls = np.array(all_lls)
         return lls
 
@@ -552,6 +572,7 @@ class BaseFamilyLitModule(LightningModule):
         batch_size: int = 1,
         verbose: bool = False,
         start_tokens: list[int] = [47, 63],
+        return_per_residue: bool = False,
     ):
         if len(completion_ids.shape) == 3:
             completion_ids = completion_ids.squeeze(0)
@@ -568,6 +589,7 @@ class BaseFamilyLitModule(LightningModule):
             )
             completion_ids = torch.cat([start_tokens_tensor, completion_ids], dim=-1)
         all_lls = []
+        all_per_residue: list[np.ndarray] = []
         for completion_ix in tqdm.tqdm(
             range(0, completion_ids.shape[0], batch_size), disable=not verbose
         ):
@@ -585,10 +607,18 @@ class BaseFamilyLitModule(LightningModule):
                 log_likelihood.device
             )  # aligns with start_ix=1
             mask = shift_labels != -100
-            denom = mask.sum(dim=-1).clamp(min=1)
-            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
-            all_lls.append(ll_mean)
+            if return_per_residue:
+                ll_np = log_likelihood.detach().cpu().float().numpy()
+                mask_np = mask.detach().cpu().numpy()
+                for row_ix in range(ll_np.shape[0]):
+                    all_per_residue.append(ll_np[row_ix][mask_np[row_ix]])
+            else:
+                denom = mask.sum(dim=-1).clamp(min=1)
+                ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+                all_lls.append(ll_mean)
 
+        if return_per_residue:
+            return all_per_residue
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls
 
@@ -598,7 +628,16 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         use_cache: bool = True,
         batch_size: int = 1,
+        return_per_residue: bool = False,
     ):
+        """Score completions under an optional prompt.
+
+        If ``return_per_residue`` is False (default), returns a 1-D
+        ``np.ndarray`` of mean per-token log-likelihoods (one per
+        completion). If True, returns a ``list[np.ndarray]`` with one
+        array per completion, each containing per-residue
+        log-likelihoods for the non-padded positions of that completion.
+        """
         if input_ids is not None:
             assert (
                 input_ids.shape[0] == 1
@@ -611,17 +650,20 @@ class BaseFamilyLitModule(LightningModule):
                     input_ids,
                     completion_ids,
                     batch_size=batch_size,
+                    return_per_residue=return_per_residue,
                 )
             else:
                 return self._score_seqs_no_cache(
                     input_ids,
                     completion_ids,
                     batch_size=batch_size,
+                    return_per_residue=return_per_residue,
                 )
         else:
             return self._score_seqs_no_context(
                 completion_ids,
                 batch_size=batch_size,
+                return_per_residue=return_per_residue,
             )
 
     def _sample_seqs(
