@@ -84,7 +84,8 @@ def score_variants_ensemble(
     p = None
     if weights is not None:
         w = np.asarray(weights, dtype=np.float64)
-        w = np.clip(w, 0.0, None)
+        if np.any(w < 0):
+            raise ValueError("weights must be non-negative")
         s = float(w.sum())
         p = (w / s) if s > 0 else None
     for _ in tqdm(

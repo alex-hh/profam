@@ -144,8 +144,8 @@ profam download
 | Workflow | Purpose | Command |
 | --- | --- | --- |
 | Download checkpoint | Fetch the pretrained `ProFam-1` checkpoint | `profam download` |
-| Generate sequences | Sample new sequences from family prompts | `profam generate -- --file_path ...` |
-| Score sequences | Score candidate sequences with family context | `profam score -- --conditioning_fasta ...` |
+| Generate sequences | Sample new sequences from family prompts | `profam generate --file_path ...` |
+| Score sequences | Score candidate sequences with family context | `profam score --conditioning_fasta ...` |
 
 ## Input Sequence Formats
 
