@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 import sys
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -22,13 +22,25 @@ def score_variants_ensemble(
     start_tokens: Optional[list[int]] = None,
     max_tokens_override: Optional[int] = None,
     weights: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """Compute mean log-likelihoods using an ensemble of sampled prompts."""
+    seed: int = 42,
+    return_per_residue: bool = False,
+) -> Union[np.ndarray, Tuple[np.ndarray, List[np.ndarray]]]:
+    """Compute mean log-likelihoods using an ensemble of sampled prompts.
+
+    ``seed`` controls the RNGs that pick ensemble prompt sub-samples.
+
+    If ``return_per_residue`` is True, also returns a list of per-residue
+    log-likelihood arrays (one per completion), averaged across the
+    ensemble dimension. The returned ``mean_lls`` are then derived from
+    the ensemble-averaged per-residue arrays (numerically equivalent to
+    the non-per-residue mean because averaging commutes across the
+    ensemble and residue dimensions when completion lengths are fixed).
+    """
     if start_tokens is None:
         start_tokens = [47, 63]
-    random.seed(42)
-    rng = random.Random(42)
-    rng_np = np.random.default_rng(42)
+    random.seed(seed)
+    rng = random.Random(seed)
+    rng_np = np.random.default_rng(seed)
 
     seq_lengths = [len(seq) for seq in tokenized_conditioning_sequences]
     total_seqs = len(seq_lengths)
@@ -51,16 +63,19 @@ def score_variants_ensemble(
 
     lower_bound = min(max_n_by_tokens, 2)
     upper_bound = min(max_n_by_tokens, total_seqs)
-    vals_in_range = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
-    if len(vals_in_range) == 0:
-        vals_in_range = [0]
+    n_conditioning_choices = list(np.arange(lower_bound, upper_bound + 1, dtype=int))
+    if len(n_conditioning_choices) == 0:
+        n_conditioning_choices = [0]
 
-    n_opt = int(rng.choice(vals_in_range))
-    n_seqs_list: list[int] = []
+    n_conditioning = int(rng.choice(n_conditioning_choices))
+    n_conditioning_history: list[int] = []
     variant_lls: List[np.ndarray] = []
+    # When per-residue: one list[np.ndarray] per ensemble member, each of
+    # length n_candidates, with per-candidate per-position log-likelihoods.
+    variant_per_residue: List[List[np.ndarray]] = []
 
     if completion_length + 2 > max_tokens:
-        n_opt = 0
+        n_conditioning = 0
         repeats = 1
     else:
         repeats = min(ensemble_size, total_seqs) if total_seqs > 0 else 1
@@ -69,39 +84,42 @@ def score_variants_ensemble(
     p = None
     if weights is not None:
         w = np.asarray(weights, dtype=np.float64)
-        w = np.clip(w, 0.0, None)
+        if np.any(w < 0):
+            raise ValueError("weights must be non-negative")
         s = float(w.sum())
         p = (w / s) if s > 0 else None
     for _ in tqdm(
         range(repeats), desc="Scoring sequences", unit="prompt", file=sys.stderr
     ):
         while True:
-            if n_opt == 0 and 0 in n_seqs_list:
-                if len(vals_in_range) > 0:
-                    n_opt = int(random.choice(vals_in_range))
+            if n_conditioning == 0 and 0 in n_conditioning_history:
+                if len(n_conditioning_choices) > 0:
+                    n_conditioning = int(random.choice(n_conditioning_choices))
                 else:
-                    n_opt = 0
+                    n_conditioning = 0
                     break
 
             if total_seqs > 0:
                 idxs = rng_np.choice(
                     np.arange(total_seqs),
-                    size=min(n_opt, total_seqs),
+                    size=min(n_conditioning, total_seqs),
                     replace=False,
                     p=p,
                 ).tolist()
                 rng.shuffle(idxs)
-                tok_cnt = sum(seq_lengths[i] for i in idxs)
+                conditioning_token_count = sum(seq_lengths[i] for i in idxs)
             else:
                 idxs = []
-                tok_cnt = 0
+                conditioning_token_count = 0
 
-            prompt_len_estimate = len(start_tokens) + tok_cnt + len(idxs)
+            prompt_len_estimate = (
+                len(start_tokens) + conditioning_token_count + len(idxs)
+            )
             if prompt_len_estimate + completion_length <= max_tokens:
                 break
-            n_opt = max(0, n_opt - 1)
+            n_conditioning = max(0, n_conditioning - 1)
 
-        if n_opt == 0 or len(idxs) == 0:
+        if n_conditioning == 0 or len(idxs) == 0:
             prompt_ids_list = []
         else:
             prompt_ids_list = list(start_tokens)
@@ -121,20 +139,45 @@ def score_variants_ensemble(
         L_prompt = 0 if input_ids is None else input_ids.shape[-1]
         completion_ids_device = completion_ids.to(model.device)
 
-        lls = model.score_seqs(
-            input_ids,
-            completion_ids_device,
-            use_cache=getattr(model, "use_kv_cache_for_scoring", True),
-            batch_size=max(int(scoring_max_tokens) // (L + L_prompt), 1)
-            if getattr(model, "use_kv_cache_for_scoring", True)
-            else 1,
+        use_kv_cache = getattr(model, "use_kv_cache_for_scoring", True)
+        member_batch_size = (
+            max(int(scoring_max_tokens) // (L + L_prompt), 1) if use_kv_cache else 1
         )
+        if return_per_residue:
+            per_residue = model.score_seqs(
+                input_ids,
+                completion_ids_device,
+                use_cache=use_kv_cache,
+                batch_size=member_batch_size,
+                return_per_residue=True,
+            )
+            variant_per_residue.append(per_residue)
+        else:
+            lls = model.score_seqs(
+                input_ids,
+                completion_ids_device,
+                use_cache=use_kv_cache,
+                batch_size=member_batch_size,
+            )
+            variant_lls.append(lls)
+        n_conditioning_history.append(n_conditioning)
 
-        variant_lls.append(lls)
-        n_seqs_list.append(n_opt)
+        if len(n_conditioning_choices) > 0:
+            n_conditioning = rng.choice(n_conditioning_choices)
 
-        if len(vals_in_range) > 0:
-            n_opt = rng.choice(vals_in_range)
+    if return_per_residue:
+        n_candidates = completion_ids.shape[1]
+        per_residue_out: List[np.ndarray] = []
+        mean_lls = np.zeros(n_candidates, dtype=np.float64)
+        for i in range(n_candidates):
+            stacked = np.stack(
+                [variant_per_residue[e][i] for e in range(len(variant_per_residue))],
+                axis=0,
+            )  # (ensemble_size, L_i)
+            ensemble_mean = stacked.mean(axis=0)  # (L_i,)
+            per_residue_out.append(ensemble_mean)
+            mean_lls[i] = float(ensemble_mean.mean()) if ensemble_mean.size > 0 else 0.0
+        return mean_lls, per_residue_out
 
     lls_array = np.stack(variant_lls, axis=0)
     return lls_array.mean(axis=0)

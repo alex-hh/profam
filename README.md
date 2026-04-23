@@ -70,39 +70,67 @@ profam download
 The recommended way to use ProFam programmatically:
 
 ```python
-from profam import ProFam
+from profam import FamilyPrompt, ProFam
 
 model = ProFam()  # loads checkpoint once (auto-downloads if needed)
 
 # Generate sequences conditioned on family context
 result = model.generate(
     prompt=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
+    prompt_accessions=["seq_A", "seq_B"],  # optional: preserved in the result
     num_samples=10,
     top_p=0.95,
 )
 print(result.sequences)  # list of generated amino acid strings
 print(result.scores)     # mean log-likelihood per sequence
+# result.conditioning_prompts[i] reports the sequences/accessions that were
+# actually fed to the model for ensemble prompt variant i.
+for cond in result.conditioning_prompts:
+    print(cond.accessions, cond.sequences)
 
-# Score candidate sequences
+# Score candidate sequences against a family MSA
+# from_aligned / from_unaligned each accept either a path (FASTA / a2m / a3m)
+# or an in-memory list[str] of sequences.
+prompt = FamilyPrompt.from_aligned("family.a3m")
 result = model.score(
     sequences=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
-    prompt=["ACDEFGHIKLMNPQRSTVWY"],  # conditioning context
+    prompt=prompt,
+    use_diversity_weights=True,  # homology-weighted prompt sub-sampling (default)
+    cache_weights=True,          # cache weights next to family.a3m as family_weights.npz
+    per_residue=True,            # also return per-position log-likelihoods
 )
-print(result.scores)  # numpy array of mean log-likelihoods
+print(result.scores)          # numpy array of mean log-likelihoods
+print(result.residue_scores)  # list[np.ndarray], one per scored sequence
 
-# Iterative design loop
-prompt = initial_sequences
-for cycle in range(n_cycles):
-    result = model.generate(prompt=prompt, num_samples=20, top_p=0.95)
-    # ... evaluate with external tools ...
-    prompt = initial_sequences + selected_sequences
+# `from_aligned` / `from_unaligned` also accept in-memory list[str] inputs:
+# - from_aligned: every sequence must be equal length after stripping insertions;
+#   '-' represents gaps, lowercase letters and '.' are a2m/a3m insertions.
+prompt = FamilyPrompt.from_aligned([
+    "ACDEFGHIK-LMNPQRSTVWY",
+    "ACDEaFGHIK-LMNPQRSTVWY",  # lowercase 'a' is an a3m-style insertion
+    "ACDE-GHIK-LMNPQRSTVWY",
+])
+# - from_unaligned: arbitrary-length sequences; diversity weights cannot be
+#   computed and `cache_weights=True` is rejected (no source file to cache to).
+prompt = FamilyPrompt.from_unaligned([
+    "ACDEFGHIKLMNPQRSTVWY",
+    "ACDEFGHIKLMNPQRSTVW",
+    "ACDEFGHIKLMNPQRSTVWYAC",
+])
+
+
 ```
+
+`FamilyPrompt.from_aligned(...)` is the recommended constructor: it enables
+homology-based prompt sub-sampling (`use_diversity_weights=True`) and weight
+caching. Use `FamilyPrompt.from_unaligned(...)` when you only have unaligned
+sequences; diversity weights are then unavailable.
 
 ### CLI
 
 ```bash
-profam generate -- --file_path family.fasta --num_samples 10
-profam score -- --conditioning_fasta family.a3m --candidates_file variants.csv
+profam generate --file_path family.fasta --num_samples 10
+profam score --conditioning_fasta family.a3m --candidates_file variants.csv
 profam download
 ```
 
@@ -111,19 +139,15 @@ profam download
 | Workflow | Purpose | Command |
 | --- | --- | --- |
 | Download checkpoint | Fetch the pretrained `ProFam-1` checkpoint | `profam download` |
-| Generate sequences | Sample new sequences from family prompts | `profam generate -- --file_path ...` |
-| Score sequences | Score candidate sequences with family context | `profam score -- --conditioning_fasta ...` |
+| Generate sequences | Sample new sequences from family prompts | `profam generate --file_path ...` |
+| Score sequences | Score candidate sequences with family context | `profam score --conditioning_fasta ...` |
 
 ## Input Sequence Formats
 
-ProFam supports:
-
-- **Unaligned FASTA** for standard protein sequence inputs
-- **Aligned / MSA-style files** such as A2M/A3M content with gaps and insertions
-
-For `profam-score-sequences`, we recommend providing an aligned MSA file because sequence weighting is used to encourage diversity when subsampling prompt sequences. Even when aligned inputs are provided, the standard ProFam model converts them into unaligned gap-free sequences before the forward pass.
-
-During preprocessing:
+ProFam accepts unaligned FASTA and aligned MSA (A2M / A3M) inputs. Aligned
+inputs are preferred for `profam score` so homology-based diversity weights
+can be computed. Before the forward pass, the model converts any input to
+unaligned gap-free sequences (insertions kept):
 
 - gaps (`-` and alignment-like `.`) are removed
 - lowercase insertions are converted to uppercase
