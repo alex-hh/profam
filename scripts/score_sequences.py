@@ -19,12 +19,6 @@ Backwards-compatibility wrapper over the ``profam`` package. The CLI matches
 the previous ``scripts/score_sequences.py`` contract; loading and scoring
 delegate to ``profam.checkpoint.load_model`` / ``profam.scoring``.
 
-The conditioning MSA is loaded with two co-registered views: an aligned
-view (used to compute homology diversity weights) and an unaligned,
-insertions-kept view (tokenized and fed to the model as the conditioning
-prompt). This matches what ``ProFam.score`` does in the Python API; the
-only functional difference is that this script caches diversity weights
-on disk so large MSAs don't pay the Hamming cost on every run.
 """
 
 from profam.checkpoint import load_model
