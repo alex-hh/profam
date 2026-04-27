@@ -1,96 +1,91 @@
 """Tests for the public ProFam Python API."""
 
-import warnings
-
 import numpy as np
 import pytest
 import torch
 
 from profam.api import (
     ConditioningPrompt,
-    FamilyPrompt,
     GenerationResult,
     ProFam,
     ScoringResult,
     _build_protein_document,
-    _coerce_family_prompt,
+    _resolve_prompt,
 )
-from profam.cli.score_sequences import _load_conditioning_prompt
+from profam.cli.score_sequences import _load_conditioning_views
 from profam.data.objects import ProteinDocument
 
 
-class TestFamilyPrompt:
-    def test_from_aligned_list_derives_conditioning(self):
-        fp = FamilyPrompt.from_aligned(["ACD-E", "ACD-E", "AC--E"])
-        assert fp.aligned == ["ACD-E", "ACD-E", "AC--E"]
-        assert fp.conditioning == ["ACDE", "ACDE", "ACE"]
-        assert fp.has_alignment
-        assert fp.source_path is None
-        assert len(fp) == 3
+class TestResolvePrompt:
+    def test_none_passes_through(self):
+        conditioning, aligned, source_path = _resolve_prompt(
+            None, use_diversity_weights=False
+        )
+        assert conditioning == []
+        assert aligned is None
+        assert source_path is None
 
-    def test_from_aligned_list_with_insertions(self):
+    def test_aligned_list_derives_both_views(self):
+        conditioning, aligned, source_path = _resolve_prompt(
+            ["ACD-E", "ACD-E", "AC--E"], use_diversity_weights=True
+        )
+        assert aligned == ["ACD-E", "ACD-E", "AC--E"]
+        assert conditioning == ["ACDE", "ACDE", "ACE"]
+        assert source_path is None
+
+    def test_aligned_list_with_a3m_insertions(self):
         # a2m/a3m-style: lowercase letters and '.' are insertions; after
         # stripping them every row must have the same length.
-        fp = FamilyPrompt.from_aligned(["ACD-E", "ACDaa-E", "ACD..-E"])
-        assert fp.aligned == ["ACD-E", "ACD-E", "ACD-E"]
-        assert fp.conditioning == ["ACDE", "ACDAAE", "ACDE"]
+        conditioning, aligned, _ = _resolve_prompt(
+            ["ACD-E", "ACDaa-E", "ACD..-E"], use_diversity_weights=True
+        )
+        assert aligned == ["ACD-E", "ACD-E", "ACD-E"]
+        assert conditioning == ["ACDE", "ACDAAE", "ACDE"]
 
-    def test_from_aligned_list_rejects_unequal_after_strip(self):
-        with pytest.raises(ValueError, match="not a valid aligned MSA"):
-            FamilyPrompt.from_aligned(["ACD-E", "ACDF", "AC--E"])
+    def test_unaligned_list_with_weights_raises(self):
+        with pytest.raises(ValueError, match="aligned"):
+            _resolve_prompt(["ACDE", "ACD"], use_diversity_weights=True)
 
-    def test_from_aligned_file(self, tmp_path):
+    def test_unaligned_list_without_weights_returns_none_aligned(self):
+        conditioning, aligned, _ = _resolve_prompt(
+            ["ACDE", "ACDEF", "AC"], use_diversity_weights=False
+        )
+        assert aligned is None
+        assert conditioning == ["ACDE", "ACDEF", "AC"]
+
+    def test_aligned_file(self, tmp_path):
         path = tmp_path / "tiny.a3m"
         path.write_text(">s1\nACDE\n>s2\nACDaE\n>s3\nAC-E\n")
-        fp = FamilyPrompt.from_aligned(str(path))
-        assert fp.has_alignment
-        assert {len(s) for s in fp.aligned} == {4}
-        assert fp.conditioning == ["ACDE", "ACDAE", "ACE"]
-        assert fp.source_path == str(path)
+        conditioning, aligned, source_path = _resolve_prompt(
+            str(path), use_diversity_weights=True
+        )
+        assert aligned is not None
+        assert {len(s) for s in aligned} == {4}
+        assert conditioning == ["ACDE", "ACDAE", "ACE"]
+        assert source_path == str(path)
 
-    def test_from_aligned_file_rejects_non_msa(self, tmp_path):
-        # Upper-case residues that differ in length cannot be an aligned MSA.
-        path = tmp_path / "bad.fasta"
+    def test_ragged_file_with_weights_raises(self, tmp_path):
+        path = tmp_path / "ragged.fasta"
         path.write_text(">s1\nACDE\n>s2\nACDEF\n")
-        with pytest.raises(ValueError, match="not a valid aligned MSA"):
-            FamilyPrompt.from_aligned(str(path))
+        with pytest.raises(ValueError, match="aligned"):
+            _resolve_prompt(str(path), use_diversity_weights=True)
 
-    def test_from_unaligned_list(self):
-        fp = FamilyPrompt.from_unaligned(["ACDE", "ACDEF", "AC"])
-        assert fp.conditioning == ["ACDE", "ACDEF", "AC"]
-        assert fp.aligned is None
-        assert not fp.has_alignment
-
-    def test_from_unaligned_file(self, tmp_path):
-        path = tmp_path / "unaligned.fasta"
+    def test_ragged_file_without_weights_falls_back(self, tmp_path):
+        path = tmp_path / "ragged.fasta"
         path.write_text(">s1\nACDE\n>s2\nACDEF\n")
-        fp = FamilyPrompt.from_unaligned(str(path))
-        assert fp.aligned is None
-        assert fp.conditioning == ["ACDE", "ACDEF"]
-        assert fp.source_path == str(path)
+        conditioning, aligned, source_path = _resolve_prompt(
+            str(path), use_diversity_weights=False
+        )
+        assert aligned is None
+        assert conditioning == ["ACDE", "ACDEF"]
+        assert source_path == str(path)
 
-    def test_from_unaligned_list_has_no_source_path(self):
-        fp = FamilyPrompt.from_unaligned(["ACDE", "ACDEF"])
-        assert fp.source_path is None
-
-    def test_from_aligned_bad_type(self):
+    def test_bad_type_raises(self):
         with pytest.raises(TypeError):
-            FamilyPrompt.from_aligned(42)
-
-    def test_from_unaligned_bad_type(self):
-        with pytest.raises(TypeError):
-            FamilyPrompt.from_unaligned(42)
-
-    def test_post_init_rejects_ragged_aligned(self):
-        with pytest.raises(ValueError, match="equal-length"):
-            FamilyPrompt(conditioning=["A", "AB"], aligned=["A", "AB"])
-
-    def test_post_init_rejects_mismatched_lengths(self):
-        with pytest.raises(ValueError, match="parallel"):
-            FamilyPrompt(conditioning=["A", "B"], aligned=["A"])
+            _resolve_prompt(42, use_diversity_weights=False)
 
 
-class TestCliLoadConditioningPrompt:
+class TestCliLoadConditioningViews:
     def _write_aligned(self, tmp_path):
         path = tmp_path / "msa.a3m"
         path.write_text(">s1\nACDE\n>s2\nACDaE\n>s3\nAC-E\n")
@@ -101,18 +96,21 @@ class TestCliLoadConditioningPrompt:
         path.write_text(">s1\nACDE\n>s2\nACDEFGHI\n>s3\nACD\n")
         return path
 
-    def test_returns_aligned_prompt_for_msa(self, tmp_path):
+    def test_returns_aligned_views_for_msa(self, tmp_path):
         path = self._write_aligned(tmp_path)
-        fp = _load_conditioning_prompt(str(path), use_diversity_weights=True)
-        assert fp.has_alignment
-        assert fp.source_path == str(path)
+        conditioning, aligned = _load_conditioning_views(
+            str(path), use_diversity_weights=True
+        )
+        assert aligned is not None
+        assert len(conditioning) == 3
 
     def test_falls_back_to_unaligned_when_weights_disabled(self, tmp_path, capsys):
         path = self._write_ragged(tmp_path)
-        fp = _load_conditioning_prompt(str(path), use_diversity_weights=False)
-        assert not fp.has_alignment
-        assert fp.source_path == str(path)
-        assert len(fp) == 3
+        conditioning, aligned = _load_conditioning_views(
+            str(path), use_diversity_weights=False
+        )
+        assert aligned is None
+        assert len(conditioning) == 3
         err = capsys.readouterr().err
         assert "not an aligned MSA" in err
         assert "diversity weights disabled" in err
@@ -120,47 +118,11 @@ class TestCliLoadConditioningPrompt:
     def test_raises_when_ragged_and_weights_requested(self, tmp_path):
         path = self._write_ragged(tmp_path)
         with pytest.raises(SystemExit) as excinfo:
-            _load_conditioning_prompt(str(path), use_diversity_weights=True)
+            _load_conditioning_views(str(path), use_diversity_weights=True)
         # SystemExit carries the error string as its code when non-int.
         msg = str(excinfo.value)
         assert "--no-use_diversity_weights" in msg
         assert "aligned MSA" in msg
-
-
-class TestCoerceFamilyPrompt:
-    def test_none_passes_through(self):
-        assert _coerce_family_prompt(None, use_diversity_weights=True) is None
-
-    def test_family_prompt_passes_through(self):
-        fp = FamilyPrompt.from_aligned(["AC-", "ACD"])
-        assert _coerce_family_prompt(fp, use_diversity_weights=True) is fp
-
-    def test_equal_length_list_interpreted_as_aligned_with_deprecation(self):
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            out = _coerce_family_prompt(["ACDE", "AC-E"], use_diversity_weights=True)
-        assert out.has_alignment
-        assert out.aligned == ["ACDE", "AC-E"]
-        assert any(issubclass(w.category, DeprecationWarning) for w in caught)
-
-    def test_unequal_length_list_downgrades_with_warning(self):
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            out = _coerce_family_prompt(["ACDE", "ACD"], use_diversity_weights=True)
-        assert not out.has_alignment
-        assert any(issubclass(w.category, RuntimeWarning) for w in caught)
-
-    def test_list_without_weights_request_is_silent(self):
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            out = _coerce_family_prompt(["ACDE", "ACD"], use_diversity_weights=False)
-        assert out is not None
-        assert not out.has_alignment
-        assert caught == []
-
-    def test_bad_type_raises(self):
-        with pytest.raises(TypeError):
-            _coerce_family_prompt(42, use_diversity_weights=False)
 
 
 def test_build_protein_document_from_strings():
@@ -341,12 +303,11 @@ class TestProFamWithTestModel:
         assert isinstance(result.residue_scores[0], np.ndarray)
         assert len(result.residue_scores[0]) > 0
 
-    def test_score_accepts_family_prompt(self):
+    def test_score_accepts_aligned_list(self):
         pf = self._make_profam()
-        fp = FamilyPrompt.from_aligned(["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"])
         result = pf.score(
             sequences=["ACDEFGHIKLMNPQRSTVWY"],
-            prompt=fp,
+            prompt=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"],
             ensemble_size=1,
             max_tokens=2048,
             use_diversity_weights=True,
@@ -355,13 +316,12 @@ class TestProFamWithTestModel:
         assert isinstance(result, ScoringResult)
         assert result.scores.shape == (1,)
 
-    def test_score_cache_weights_requires_source_path(self):
+    def test_score_cache_weights_requires_path(self):
         pf = self._make_profam()
-        fp = FamilyPrompt.from_aligned(["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"])
         with pytest.raises(ValueError, match="cache_weights=True requires"):
             pf.score(
                 sequences=["ACDEFGHIKLMNPQRSTVWY"],
-                prompt=fp,
+                prompt=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWY"],
                 ensemble_size=1,
                 max_tokens=2048,
                 use_diversity_weights=True,
@@ -374,12 +334,10 @@ class TestProFamWithTestModel:
         a3m = tmp_path / "tiny.a3m"
         # Two aligned sequences so homology weights are well-defined.
         a3m.write_text(">s1\nACDEFGHIKLMNPQRSTVWY\n>s2\nACDEFGHIKLMNPQRSTVWY\n")
-        fp = FamilyPrompt.from_aligned(str(a3m))
-        assert fp.source_path == str(a3m)
 
         result = pf.score(
             sequences=["ACDEFGHIKLMNPQRSTVWY"],
-            prompt=fp,
+            prompt=str(a3m),
             ensemble_size=1,
             max_tokens=2048,
             use_diversity_weights=True,
@@ -391,24 +349,17 @@ class TestProFamWithTestModel:
         cache_path = a3m.with_name(a3m.stem + "_weights.npz")
         assert cache_path.exists()
 
-    def test_score_family_prompt_without_alignment_warns_on_weights(self):
+    def test_score_unaligned_list_with_weights_raises(self):
         pf = self._make_profam()
-        fp = FamilyPrompt.from_unaligned(["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQR"])
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            result = pf.score(
+        with pytest.raises(ValueError, match="aligned"):
+            pf.score(
                 sequences=["ACDEFGHIKLMNPQRSTVWY"],
-                prompt=fp,
+                prompt=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQR"],
                 ensemble_size=1,
                 max_tokens=2048,
                 use_diversity_weights=True,
                 seed=42,
             )
-        assert result.scores.shape == (1,)
-        assert any(
-            issubclass(w.category, RuntimeWarning) and "aligned view" in str(w.message)
-            for w in caught
-        )
 
     def test_score_seqs_per_residue_matches_legacy_compute_residue_scores(self):
         """score_seqs(..., return_per_residue=True) must match the legacy

@@ -5,7 +5,7 @@ same code path ``pip install profam`` would exercise) and drives each of
 the three public entry points against the bundled CCDB_ECOLI score
 example:
 
-  * Python API       (``from profam import ProFam, FamilyPrompt``)
+  * Python API       (``from profam import ProFam``)
   * ``profam`` CLI   (``profam score`` / ``profam generate``)
   * Legacy scripts   (``scripts/score_sequences.py`` /
                       ``scripts/generate_sequences.py``)
@@ -129,7 +129,7 @@ def installed_venv(tmp_path_factory, project_root) -> Path:
     venv_python = venv_dir / "bin" / "python"
     # sanity-check the public API import survived the install
     subprocess.run(
-        [str(venv_python), "-c", "from profam import ProFam, FamilyPrompt"],
+        [str(venv_python), "-c", "from profam import ProFam"],
         check=True,
         capture_output=True,
         text=True,
@@ -180,7 +180,7 @@ def _api_score_script(
         f"""
         import numpy as np
         import pandas as pd
-        from profam import FamilyPrompt, ProFam
+        from profam import ProFam
 
         model = ProFam(checkpoint={ckpt!r}, device='cuda', dtype='bfloat16',
                        attn_implementation='sdpa', auto_download=False)
@@ -188,10 +188,8 @@ def _api_score_script(
         cand = df['mutated_sequence'].astype(str).str.upper().tolist()
 
         kind = {prompt_kind!r}
-        if kind == 'aligned':
-            prompt = FamilyPrompt.from_aligned({a3m!r})
-        elif kind == 'unaligned':
-            prompt = FamilyPrompt.from_unaligned({a3m!r})
+        if kind in ('aligned', 'unaligned'):
+            prompt = {a3m!r}
         else:
             prompt = None
 

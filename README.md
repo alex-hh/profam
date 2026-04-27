@@ -70,7 +70,7 @@ profam download
 The recommended way to use ProFam programmatically:
 
 ```python
-from profam import FamilyPrompt, ProFam
+from profam import ProFam
 
 model = ProFam()  # loads checkpoint once (auto-downloads if needed)
 
@@ -88,13 +88,18 @@ print(result.scores)     # mean log-likelihood per sequence
 for cond in result.conditioning_prompts:
     print(cond.accessions, cond.sequences)
 
-# Score candidate sequences against a family MSA
-# from_aligned / from_unaligned each accept either a path (FASTA / a2m / a3m)
-# or an in-memory list[str] of sequences.
-prompt = FamilyPrompt.from_aligned("family.a3m")
+# Score candidate sequences against a family MSA. `prompt` accepts either
+# a path (FASTA / a2m / a3m) or an in-memory list[str] of sequences;
+# whether the input is an aligned MSA is inferred automatically (every
+# sequence must be equal length after stripping a2m/a3m insertions).
+# Homology diversity weights are only meaningful for aligned inputs.
+
+# (1) File path to an aligned MSA: diversity weights are available, and
+# `cache_weights=True` writes them next to the MSA so subsequent runs skip
+# the Hamming computation. `cache_weights=True` requires a file-path prompt.
 result = model.score(
     sequences=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
-    prompt=prompt,
+    prompt="family.a3m",
     use_diversity_weights=True,  # homology-weighted prompt sub-sampling (default)
     cache_weights=True,          # cache weights next to family.a3m as family_weights.npz
     per_residue=True,            # also return per-position log-likelihoods
@@ -102,29 +107,40 @@ result = model.score(
 print(result.scores)          # numpy array of mean log-likelihoods
 print(result.residue_scores)  # list[np.ndarray], one per scored sequence
 
-# `from_aligned` / `from_unaligned` also accept in-memory list[str] inputs:
-# - from_aligned: every sequence must be equal length after stripping insertions;
-#   '-' represents gaps, lowercase letters and '.' are a2m/a3m insertions.
-prompt = FamilyPrompt.from_aligned([
-    "ACDEFGHIK-LMNPQRSTVWY",
-    "ACDEaFGHIK-LMNPQRSTVWY",  # lowercase 'a' is an a3m-style insertion
-    "ACDE-GHIK-LMNPQRSTVWY",
-])
-# - from_unaligned: arbitrary-length sequences; diversity weights cannot be
-#   computed and `cache_weights=True` is rejected (no source file to cache to).
-prompt = FamilyPrompt.from_unaligned([
-    "ACDEFGHIKLMNPQRSTVWY",
-    "ACDEFGHIKLMNPQRSTVW",
-    "ACDEFGHIKLMNPQRSTVWYAC",
-])
+# (2) Aligned in-memory list[str]: '-' represents gaps, lowercase letters
+# and '.' are a2m/a3m insertions. Diversity weights are available because
+# the sequences are equal-length after stripping insertions. There is no
+# source file to cache to, so `cache_weights=True` is rejected here —
+# pass a file path (example 1) to cache weights.
+result = model.score(
+    sequences=["ACDEFGHIKLMNPQRSTVWY"],
+    prompt=[
+        "ACDEFGHIK-LMNPQRSTVWY",
+        "ACDEaFGHIK-LMNPQRSTVWY",  # lowercase 'a' is an a3m-style insertion
+        "ACDE-GHIK-LMNPQRSTVWY",
+    ],
+    use_diversity_weights=True,
+)
 
-
+# (3) Unaligned in-memory list[str]: arbitrary-length sequences. Diversity
+# weights are not meaningful here, so pass `use_diversity_weights=False`
+# (otherwise a `ValueError` is raised).
+result = model.score(
+    sequences=["ACDEFGHIKLMNPQRSTVWY"],
+    prompt=[
+        "ACDEFGHIKLMNPQRSTVWY",
+        "ACDEFGHIKLMNPQRSTVW",
+        "ACDEFGHIKLMNPQRSTVWYAC",
+    ],
+    use_diversity_weights=False,
+)
 ```
 
-`FamilyPrompt.from_aligned(...)` is the recommended constructor: it enables
-homology-based prompt sub-sampling (`use_diversity_weights=True`) and weight
-caching. Use `FamilyPrompt.from_unaligned(...)` when you only have unaligned
-sequences; diversity weights are then unavailable.
+Homology diversity weights are only meaningful for aligned inputs; with
+unaligned input, `use_diversity_weights=True` raises `ValueError`. Weight
+caching (`cache_weights=True`) additionally requires a file-path prompt
+so the cache file can be keyed to the source MSA — it is not supported
+for in-memory `list[str]` prompts.
 
 ### CLI
 

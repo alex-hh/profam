@@ -1,11 +1,11 @@
 """CLI entry point for ``profam score``.
 
-Thin wrapper over :class:`profam.ProFam.score`: loads the model once,
-builds a :class:`profam.FamilyPrompt` from the conditioning MSA file
-(so both the aligned and insertions-kept views are used correctly),
-and delegates scoring to the public Python API. Diversity weights are
-cached on disk next to the MSA file so repeated runs skip the Hamming
-step.
+Thin wrapper over :class:`profam.ProFam.score`: loads the model once
+and delegates scoring to the public Python API. The conditioning MSA
+file is passed through unchanged; ``ProFam.score`` infers whether it
+is aligned (so homology diversity weights are usable) or unaligned.
+Diversity weights are cached on disk next to the MSA file so repeated
+runs skip the Hamming step.
 """
 
 import argparse
@@ -14,14 +14,14 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
 from scipy.stats import spearmanr
 
-from profam.api import FamilyPrompt, ProFam
+from profam.api import ProFam, _resolve_prompt
 from profam.constants import resolve_runtime_path
 from profam.sequence.fasta import read_fasta
 from profam.utils.utils import seed_all
@@ -114,38 +114,36 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _load_conditioning_prompt(
+def _load_conditioning_views(
     conditioning_fasta: str, use_diversity_weights: bool
-) -> FamilyPrompt:
-    """Load the conditioning MSA, falling back to unaligned input when needed.
+) -> Tuple[List[str], Optional[List[str]]]:
+    """Load conditioning views from an MSA file, failing fast on bad input.
 
-    If the file is a valid aligned MSA, return a prompt with both views. If
-    the sequences are ragged (so ``from_aligned`` raises), behaviour depends
-    on ``use_diversity_weights``:
-
-    * ``True`` — exit with a clear error telling the user to either supply an
-      aligned MSA or disable weighting with ``--no-use_diversity_weights``.
-    * ``False`` — log a message and fall back to
-      ``FamilyPrompt.from_unaligned``.
+    Returns ``(conditioning, aligned_or_None)``. If ``use_diversity_weights``
+    is requested but the file is not an aligned MSA, exits with a clear
+    error pointing at ``--no-use_diversity_weights``.
     """
     try:
-        return FamilyPrompt.from_aligned(conditioning_fasta)
+        conditioning, aligned, _ = _resolve_prompt(
+            conditioning_fasta, use_diversity_weights
+        )
     except ValueError as exc:
-        if use_diversity_weights:
-            raise SystemExit(
-                f"Cannot use diversity weights with {conditioning_fasta!r}: "
-                "it is not a valid aligned MSA (sequences have different "
-                "lengths after stripping insertions). Either provide an "
-                "aligned MSA file (FASTA / a2m / a3m with equal-length "
-                "sequences after insertions are stripped), or re-run with "
-                "--no-use_diversity_weights to score without weighting."
-            ) from exc
+        raise SystemExit(
+            f"Cannot use diversity weights with {conditioning_fasta!r}: "
+            "it is not a valid aligned MSA (sequences have different "
+            "lengths after stripping insertions). Either provide an "
+            "aligned MSA file (FASTA / a2m / a3m with equal-length "
+            "sequences after insertions are stripped), or re-run with "
+            "--no-use_diversity_weights to score without weighting."
+        ) from exc
+
+    if aligned is None and not use_diversity_weights:
         print(
             f"{conditioning_fasta!r} is not an aligned MSA; loading as "
             "unaligned sequences (diversity weights disabled).",
             file=sys.stderr,
         )
-        return FamilyPrompt.from_unaligned(conditioning_fasta)
+    return conditioning, aligned
 
 
 def _load_candidates(candidates_file: str):
@@ -182,13 +180,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     candidates_file = str(resolve_runtime_path(args.candidates_file))
     save_dir = Path(args.save_dir).expanduser().resolve()
 
-    family_prompt = _load_conditioning_prompt(
+    # Validate the conditioning input up-front so we fail before loading
+    # the model, and grab the conditioning view for the output dump.
+    conditioning, _ = _load_conditioning_views(
         conditioning_fasta, args.use_diversity_weights
     )
     cand_names, cand_seqs, dms_scores = _load_candidates(candidates_file)
 
     print(
-        f"Loaded {len(family_prompt)} conditioning sequences "
+        f"Loaded {len(conditioning)} conditioning sequences "
         f"and {len(cand_seqs)} candidates.",
         file=sys.stderr,
     )
@@ -207,7 +207,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     result = pf.score(
         sequences=cand_seqs,
-        prompt=family_prompt,
+        prompt=conditioning_fasta,
         ensemble_size=args.ensemble_number,
         max_tokens=args.max_tokens,
         scoring_max_tokens=args.scoring_max_tokens,
@@ -224,12 +224,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     cond_basename = os.path.splitext(os.path.basename(conditioning_fasta))[0]
     prompt_path = save_dir / f"{cond_basename}_conditioning_used.fasta"
     write_fasta(
-        list(family_prompt.conditioning),
-        [f"cond_{i}" for i in range(len(family_prompt))],
+        conditioning,
+        [f"cond_{i}" for i in range(len(conditioning))],
         str(prompt_path),
     )
     print(
-        f"Wrote {len(family_prompt)} conditioning sequences -> {prompt_path}",
+        f"Wrote {len(conditioning)} conditioning sequences -> {prompt_path}",
         file=sys.stderr,
     )
 
@@ -257,7 +257,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "ensemble_number": args.ensemble_number,
         "timestamp": datetime.now().isoformat(),
         "conditioning_fasta": conditioning_fasta,
-        "n_conditioning_sequences": len(family_prompt),
+        "n_conditioning_sequences": len(conditioning),
         "candidates_file": candidates_file,
         "mean_likelihood_score": float(np.mean(lls)),
         "spearman_correlation": float(corr) if corr is not None else None,

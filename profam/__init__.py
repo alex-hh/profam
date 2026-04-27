@@ -7,7 +7,6 @@ except PackageNotFoundError:  # pragma: no cover - local source tree fallback
 
 from profam.api import (
     ConditioningPrompt,
-    FamilyPrompt,
     GenerationResult,
     ProFam,
     ScoringResult,
@@ -15,7 +14,6 @@ from profam.api import (
 
 __all__ = [
     "ProFam",
-    "FamilyPrompt",
     "GenerationResult",
     "ConditioningPrompt",
     "ScoringResult",

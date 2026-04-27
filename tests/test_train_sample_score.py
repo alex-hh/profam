@@ -185,7 +185,7 @@ def test_score_sequences(tmp_path, project_root):
     )
     assert result.returncode == 0, f"Scoring script failed: {result.stderr}"
 
-    csv_path = save_dir / "CCDB_ECOLI_Adkar_2012_scores.csv"
+    csv_path = save_dir / "CCDB_ECOLI_Adkar_2012_subsample_250_scores.csv"
     assert csv_path.exists(), "Score CSV was not created"
     df = pd.read_csv(csv_path)
     assert len(df) > 0, "Score CSV is empty"

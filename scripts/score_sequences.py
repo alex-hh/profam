@@ -19,17 +19,16 @@ Backwards-compatibility wrapper over the ``profam`` package. The CLI matches
 the previous ``scripts/score_sequences.py`` contract; loading and scoring
 delegate to ``profam.checkpoint.load_model`` / ``profam.scoring``.
 
-The conditioning MSA is loaded via :class:`profam.FamilyPrompt` from an a3m
-file, which exposes both the aligned view (used to compute homology
-diversity weights) and the unaligned, insertions-kept view (tokenized and
-fed to the model as the conditioning prompt). This matches what
-``ProFam.score(prompt=FamilyPrompt.from_aligned(...))`` does in the Python API;
-the only functional difference is that this script caches diversity
-weights on disk so large MSAs don't pay the Hamming cost on every run.
+The conditioning MSA is loaded with two co-registered views: an aligned
+view (used to compute homology diversity weights) and an unaligned,
+insertions-kept view (tokenized and fed to the model as the conditioning
+prompt). This matches what ``ProFam.score`` does in the Python API; the
+only functional difference is that this script caches diversity weights
+on disk so large MSAs don't pay the Hamming cost on every run.
 """
 
 from profam.checkpoint import load_model
-from profam.cli.score_sequences import _load_conditioning_prompt
+from profam.cli.score_sequences import _load_conditioning_views
 from profam.data.msa_subsampling import compute_homology_sequence_weights_with_cache
 from profam.scoring import score_variants_ensemble
 from profam.sequence.fasta import read_fasta
@@ -132,7 +131,7 @@ def main():
     # expensive model load, so bad input fails fast. Falls back to an
     # unaligned-only prompt if the file is ragged and diversity weighting is
     # disabled; raises with a helpful message otherwise.
-    family_prompt = _load_conditioning_prompt(
+    conditioning, aligned = _load_conditioning_views(
         args.conditioning_fasta, args.use_diversity_weights
     )
 
@@ -158,18 +157,18 @@ def main():
         )
         weights = compute_homology_sequence_weights_with_cache(
             msa_file=args.conditioning_fasta,
-            sequences=family_prompt.aligned,
+            sequences=aligned,
             theta=args.diversity_theta,
             force_recalc=args.recompute_diversity_weights,
         )
 
     print(
-        f"Tokenizing {len(family_prompt)} conditioning sequences...",
+        f"Tokenizing {len(conditioning)} conditioning sequences...",
         file=sys.stderr,
     )
     tokenized_conditioning_sequences = [
         model.tokenizer(seq, add_special_tokens=False)["input_ids"]
-        for seq in family_prompt.conditioning
+        for seq in conditioning
     ]
 
     # Read candidates
@@ -248,7 +247,7 @@ def main():
         "ensemble_number": args.ensemble_number,
         "timestamp": datetime.now().isoformat(),
         "conditioning_fasta": args.conditioning_fasta,
-        "n_conditioning_sequences": len(family_prompt),
+        "n_conditioning_sequences": len(conditioning),
         "candidates_file": args.candidates_file,
         "mean_likelihood_score": float(np.mean(lls)),
         "spearman_correlation": float(corr) if corr is not None else None,
