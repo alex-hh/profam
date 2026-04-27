@@ -144,7 +144,10 @@ def test_score_sequences(tmp_path, project_root):
         project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.a3m"
     )
     candidates = (
-        project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.csv"
+        project_root
+        / "data"
+        / "score_sequences_example"
+        / "CCDB_ECOLI_Adkar_2012_subsample_250.csv"
     )
     save_dir = tmp_path / "score_outputs"
     save_dir.mkdir(parents=True, exist_ok=True)

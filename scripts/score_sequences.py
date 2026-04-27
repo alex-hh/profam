@@ -61,7 +61,7 @@ def main():
     parser.add_argument(
         "--candidates_file",
         type=str,
-        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.csv",
+        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012_subsample_250.csv",
         help="Path to candidate sequences FASTA file or csv file with columns: 'mutated_sequence', and optionally 'DMS_score'",
     )
     parser.add_argument(
