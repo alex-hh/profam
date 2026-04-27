@@ -617,11 +617,7 @@ class ProFam:
         )
 
         weights = None
-        if (
-            use_diversity_weights
-            and aligned is not None
-            and len(aligned) > 1
-        ):
+        if use_diversity_weights and aligned is not None and len(aligned) > 1:
             weights = _compute_diversity_weights(
                 aligned=aligned,
                 source_path=source_path,
