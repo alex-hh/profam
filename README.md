@@ -77,32 +77,76 @@ model = ProFam()  # loads checkpoint once (auto-downloads if needed)
 # Generate sequences conditioned on family context
 result = model.generate(
     prompt=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
+    prompt_accessions=["seq_A", "seq_B"],  # optional: preserved in the result
     num_samples=10,
     top_p=0.95,
 )
 print(result.sequences)  # list of generated amino acid strings
 print(result.scores)     # mean log-likelihood per sequence
+# result.conditioning_prompts[i] reports the sequences/accessions that were
+# actually fed to the model for ensemble prompt variant i.
+for cond in result.conditioning_prompts:
+    print(cond.accessions, cond.sequences)
 
-# Score candidate sequences
+# Score candidate sequences against a family MSA. `prompt` accepts either
+# a path (FASTA / a2m / a3m) or an in-memory list[str] of sequences;
+# whether the input is an aligned MSA is inferred automatically (every
+# sequence must be equal length after stripping a2m/a3m insertions).
+# Homology diversity weights are only meaningful for aligned inputs.
+
+# (1) File path to an aligned MSA: diversity weights are available, and
+# `cache_weights=True` writes them next to the MSA so subsequent runs skip
+# the Hamming computation. `cache_weights=True` requires a file-path prompt.
 result = model.score(
     sequences=["ACDEFGHIKLMNPQRSTVWY", "ACDEFGHIKLMNPQRSTVWF"],
-    prompt=["ACDEFGHIKLMNPQRSTVWY"],  # conditioning context
+    prompt="family.a3m",
+    use_diversity_weights=True,  # homology-weighted prompt sub-sampling (default)
+    cache_weights=True,          # cache weights next to family.a3m as family_weights.npz
+    per_residue=True,            # also return per-position log-likelihoods
 )
-print(result.scores)  # numpy array of mean log-likelihoods
+print(result.scores)          # numpy array of mean log-likelihoods
+print(result.residue_scores)  # list[np.ndarray], one per scored sequence
 
-# Iterative design loop
-prompt = initial_sequences
-for cycle in range(n_cycles):
-    result = model.generate(prompt=prompt, num_samples=20, top_p=0.95)
-    # ... evaluate with external tools ...
-    prompt = initial_sequences + selected_sequences
+# (2) Aligned in-memory list[str]: '-' represents gaps, lowercase letters
+# and '.' are a2m/a3m insertions. Diversity weights are available because
+# the sequences are equal-length after stripping insertions. There is no
+# source file to cache to, so `cache_weights=True` is rejected here —
+# pass a file path (example 1) to cache weights.
+result = model.score(
+    sequences=["ACDEFGHIKLMNPQRSTVWY"],
+    prompt=[
+        "ACDEFGHIK-LMNPQRSTVWY",
+        "ACDEaFGHIK-LMNPQRSTVWY",  # lowercase 'a' is an a3m-style insertion
+        "ACDE-GHIK-LMNPQRSTVWY",
+    ],
+    use_diversity_weights=True,
+)
+
+# (3) Unaligned in-memory list[str]: arbitrary-length sequences. Diversity
+# weights are not meaningful here, so pass `use_diversity_weights=False`
+# (otherwise a `ValueError` is raised).
+result = model.score(
+    sequences=["ACDEFGHIKLMNPQRSTVWY"],
+    prompt=[
+        "ACDEFGHIKLMNPQRSTVWY",
+        "ACDEFGHIKLMNPQRSTVW",
+        "ACDEFGHIKLMNPQRSTVWYAC",
+    ],
+    use_diversity_weights=False,
+)
 ```
+
+Homology diversity weights are only meaningful for aligned inputs; with
+unaligned input, `use_diversity_weights=True` raises `ValueError`. Weight
+caching (`cache_weights=True`) additionally requires a file-path prompt
+so the cache file can be keyed to the source MSA — it is not supported
+for in-memory `list[str]` prompts.
 
 ### CLI
 
 ```bash
-profam generate -- --file_path family.fasta --num_samples 10
-profam score -- --conditioning_fasta family.a3m --candidates_file variants.csv
+profam generate --prompt_file family.fasta --num_samples 10
+profam score --prompt_file family.a3m --candidates_file variants.csv
 profam download
 ```
 
@@ -111,26 +155,15 @@ profam download
 | Workflow | Purpose | Command |
 | --- | --- | --- |
 | Download checkpoint | Fetch the pretrained `ProFam-1` checkpoint | `profam download` |
-| Generate sequences | Sample new sequences from family prompts | `profam generate -- --file_path ...` |
-| Score sequences | Score candidate sequences with family context | `profam score -- --conditioning_fasta ...` |
+| Generate sequences | Sample new sequences from family prompts | `profam generate --prompt_file ...` |
+| Score sequences | Score candidate sequences with family context | `profam score --prompt_file ...` |
 
 ## Input Sequence Formats
 
-ProFam supports:
-
-- **Unaligned FASTA** for standard protein sequence inputs
-- **Aligned / MSA-style files** such as A2M/A3M content with gaps and insertions
-
-For `profam score` / `profam-score-sequences`, we recommend providing an **aligned** MSA (A2M/A3M) as the conditioning context. Scoring uses homology-based diversity weights (enabled by default, `--use_diversity_weights`) to downweight near-duplicate conditioning sequences when subsampling prompts — this typically improves Spearman correlation with DMS labels.
-
-Diversity weighting requires the conditioning sequences to be aligned (same length, gaps preserved). If you pass an unaligned FASTA, scoring will raise a `ValueError` asking you to either:
-
-- provide an aligned MSA, or
-- disable diversity weights with `--no-use_diversity_weights` (CLI/script) or `use_diversity_weights=False` (Python API). Scoring will then run on unaligned context but is expected to be less accurate.
-
-Even when aligned inputs are provided, the standard ProFam model converts them into unaligned gap-free sequences before the forward pass — diversity weighting is the only step that relies on the alignment.
-
-During preprocessing:
+ProFam accepts unaligned FASTA and aligned MSA (A2M / A3M) inputs. Aligned
+inputs are preferred for `profam score` so homology-based diversity weights
+can be computed. Before the forward pass, the model converts any input to
+unaligned gap-free sequences (insertions kept):
 
 - gaps (`-` and alignment-like `.`) are removed
 - lowercase insertions are converted to uppercase
