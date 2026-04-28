@@ -79,8 +79,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not any(a == "--checkpoint" or a.startswith("--checkpoint=") for a in forwarded):
         forwarded.extend(["--checkpoint", ckpt_path])
 
-    if not any(a == "--file_path" or a.startswith("--file_path=") for a in forwarded):
-        forwarded.extend(["--file_path", _DEFAULT_FILE_PATH])
+    # The new CLI renamed --file_path to --prompt_file; translate the
+    # legacy flag so existing callers of this wrapper keep working.
+    forwarded = [
+        ("--prompt_file" if a == "--file_path" else a)
+        if not a.startswith("--file_path=")
+        else "--prompt_file=" + a.split("=", 1)[1]
+        for a in forwarded
+    ]
+    if not any(
+        a == "--prompt_file" or a.startswith("--prompt_file=") for a in forwarded
+    ):
+        forwarded.extend(["--prompt_file", _DEFAULT_FILE_PATH])
 
     if not any(a in ("--auto_download", "--no-auto_download") for a in forwarded):
         forwarded.append("--no-auto_download")

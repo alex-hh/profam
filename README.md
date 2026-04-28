@@ -145,8 +145,8 @@ for in-memory `list[str]` prompts.
 ### CLI
 
 ```bash
-profam generate --file_path family.fasta --num_samples 10
-profam score --conditioning_fasta family.a3m --candidates_file variants.csv
+profam generate --prompt_file family.fasta --num_samples 10
+profam score --prompt_file family.a3m --candidates_file variants.csv
 profam download
 ```
 
@@ -155,8 +155,8 @@ profam download
 | Workflow | Purpose | Command |
 | --- | --- | --- |
 | Download checkpoint | Fetch the pretrained `ProFam-1` checkpoint | `profam download` |
-| Generate sequences | Sample new sequences from family prompts | `profam generate --file_path ...` |
-| Score sequences | Score candidate sequences with family context | `profam score --conditioning_fasta ...` |
+| Generate sequences | Sample new sequences from family prompts | `profam generate --prompt_file ...` |
+| Score sequences | Score candidate sequences with family context | `profam score --prompt_file ...` |
 
 ## Input Sequence Formats
 

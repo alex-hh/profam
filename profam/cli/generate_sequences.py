@@ -39,10 +39,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Path to the .ckpt checkpoint file",
     )
     parser.add_argument(
-        "--file_path",
+        "--prompt_file",
         type=str,
         required=True,
-        help="Filepath or glob for input FASTA/MSA files",
+        help="Path or glob for input sequence files (FASTA / a2m / a3m)",
     )
     parser.add_argument(
         "--save_dir",
@@ -116,8 +116,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "returning the last attempt"
         ),
     )
-    parser.add_argument("--task_index", type=int, default=None, help="Task index")
-    parser.add_argument("--num_tasks", type=int, default=None, help="Number of tasks")
+    parser.add_argument(
+        "--task_index",
+        type=int,
+        default=None,
+        help="Task index when passing multiple files to process",
+    )
+    parser.add_argument(
+        "--num_tasks",
+        type=int,
+        default=None,
+        help="Number of tasks when passing multiple files to process",
+    )
     parser.add_argument(
         "--disable_repeat_guard",
         action="store_true",
@@ -189,10 +199,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     save_dir = Path(args.save_dir).expanduser().resolve()
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    input_files = _resolve_input_files(args.file_path)
+    input_files = _resolve_input_files(args.prompt_file)
     input_files = _shard_files(input_files, args.task_index, args.num_tasks)
     if len(input_files) == 0:
-        raise FileNotFoundError(f"No input files matched pattern: {args.file_path}")
+        raise FileNotFoundError(f"No input files matched pattern: {args.prompt_file}")
 
     pf = ProFam(
         checkpoint=args.checkpoint,

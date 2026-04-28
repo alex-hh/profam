@@ -299,7 +299,7 @@ def test_score_api_cli_legacy_parity(
             "score",
             "--checkpoint",
             str(project_root / CKPT_REL),
-            "--conditioning_fasta",
+            "--prompt_file",
             str(project_root / A3M_REL),
             "--candidates_file",
             str(project_root / CSV_REL),
@@ -401,8 +401,6 @@ def test_generate_api_cli_legacy_parity(tmp_path, project_root, installed_venv):
     api_sequences = api_payload["sequences"]
 
     common_flags = [
-        "--file_path",
-        str(project_root / GEN_FASTA_REL),
         "--num_samples",
         str(num_samples),
         "--max_tokens",
@@ -422,6 +420,7 @@ def test_generate_api_cli_legacy_parity(tmp_path, project_root, installed_venv):
         "--attn_implementation",
         "sdpa",
     ]
+    prompt_path = str(project_root / GEN_FASTA_REL)
 
     # --- CLI ``profam generate`` ------------------------------------------
     _run(
@@ -433,6 +432,8 @@ def test_generate_api_cli_legacy_parity(tmp_path, project_root, installed_venv):
             "--save_dir",
             str(cli_dir),
             "--no-auto_download",
+            "--prompt_file",
+            prompt_path,
             *common_flags,
         ]
     )
@@ -441,6 +442,9 @@ def test_generate_api_cli_legacy_parity(tmp_path, project_root, installed_venv):
     )
 
     # --- Legacy script ----------------------------------------------------
+    # Pass the legacy ``--file_path`` flag here on purpose: the wrapper in
+    # scripts/generate_sequences.py translates it to --prompt_file before
+    # delegating to the new CLI, and we want that back-compat path tested.
     _run(
         [
             str(installed_venv),
@@ -449,6 +453,8 @@ def test_generate_api_cli_legacy_parity(tmp_path, project_root, installed_venv):
             str(project_root / CKPT_DIR_REL),
             "--save_dir",
             str(legacy_dir),
+            "--file_path",
+            prompt_path,
             *common_flags,
         ],
         cwd=project_root,

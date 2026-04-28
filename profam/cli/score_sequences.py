@@ -44,10 +44,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Path to the .ckpt checkpoint file",
     )
     parser.add_argument(
-        "--conditioning_fasta",
+        "--prompt_file",
         type=str,
         required=True,
-        help="Path to conditioning FASTA/MSA file",
+        help="Path to conditioning sequence file (FASTA / a2m / a3m)",
     )
     parser.add_argument(
         "--candidates_file",
@@ -115,7 +115,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def _load_conditioning_views(
-    conditioning_fasta: str, use_diversity_weights: bool
+    prompt_file: str, use_diversity_weights: bool
 ) -> Tuple[List[str], Optional[List[str]]]:
     """Load conditioning views from an MSA file, failing fast on bad input.
 
@@ -124,12 +124,10 @@ def _load_conditioning_views(
     error pointing at ``--no-use_diversity_weights``.
     """
     try:
-        conditioning, aligned, _ = _resolve_prompt(
-            conditioning_fasta, use_diversity_weights
-        )
+        conditioning, aligned, _ = _resolve_prompt(prompt_file, use_diversity_weights)
     except ValueError as exc:
         raise SystemExit(
-            f"Cannot use diversity weights with {conditioning_fasta!r}: "
+            f"Cannot use diversity weights with {prompt_file!r}: "
             "it is not a valid aligned MSA (sequences have different "
             "lengths after stripping insertions). Either provide an "
             "aligned MSA file (FASTA / a2m / a3m with equal-length "
@@ -139,7 +137,7 @@ def _load_conditioning_views(
 
     if aligned is None and not use_diversity_weights:
         print(
-            f"{conditioning_fasta!r} is not an aligned MSA; loading as "
+            f"{prompt_file!r} is not an aligned MSA; loading as "
             "unaligned sequences (diversity weights disabled).",
             file=sys.stderr,
         )
@@ -176,15 +174,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     seed_all(args.seed)
 
-    conditioning_fasta = str(resolve_runtime_path(args.conditioning_fasta))
+    prompt_file = str(resolve_runtime_path(args.prompt_file))
     candidates_file = str(resolve_runtime_path(args.candidates_file))
     save_dir = Path(args.save_dir).expanduser().resolve()
 
     # Validate the conditioning input up-front so we fail before loading
     # the model, and grab the conditioning view for the output dump.
-    conditioning, _ = _load_conditioning_views(
-        conditioning_fasta, args.use_diversity_weights
-    )
+    conditioning, _ = _load_conditioning_views(prompt_file, args.use_diversity_weights)
     cand_names, cand_seqs, dms_scores = _load_candidates(candidates_file)
 
     print(
@@ -194,7 +190,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if args.use_diversity_weights:
         print(
-            f"Computing diversity (homology) weights for {conditioning_fasta}...",
+            f"Computing diversity (homology) weights for {prompt_file}...",
             file=sys.stderr,
         )
 
@@ -207,7 +203,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     result = pf.score(
         sequences=cand_seqs,
-        prompt=conditioning_fasta,
+        prompt=prompt_file,
         ensemble_size=args.ensemble_number,
         max_tokens=args.max_tokens,
         scoring_max_tokens=args.scoring_max_tokens,
@@ -221,15 +217,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    cond_basename = os.path.splitext(os.path.basename(conditioning_fasta))[0]
-    prompt_path = save_dir / f"{cond_basename}_conditioning_used.fasta"
+    prompt_basename = os.path.splitext(os.path.basename(prompt_file))[0]
+    cond_used_path = save_dir / f"{prompt_basename}_conditioning_used.fasta"
     write_fasta(
         conditioning,
         [f"cond_{i}" for i in range(len(conditioning))],
-        str(prompt_path),
+        str(cond_used_path),
     )
     print(
-        f"Wrote {len(conditioning)} conditioning sequences -> {prompt_path}",
+        f"Wrote {len(conditioning)} conditioning sequences -> {cond_used_path}",
         file=sys.stderr,
     )
 
@@ -256,7 +252,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "n_sequences_evaluated": len(cand_seqs),
         "ensemble_number": args.ensemble_number,
         "timestamp": datetime.now().isoformat(),
-        "conditioning_fasta": conditioning_fasta,
+        "prompt_file": prompt_file,
         "n_conditioning_sequences": len(conditioning),
         "candidates_file": candidates_file,
         "mean_likelihood_score": float(np.mean(lls)),
