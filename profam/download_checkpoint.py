@@ -38,7 +38,6 @@ def download_checkpoint(
         allow_patterns=allow_patterns,
         ignore_patterns=ignore_patterns,
         local_dir=str(target_dir),
-        local_dir_use_symlinks=False,
         token=token,
     )
     return Path(local_dir)

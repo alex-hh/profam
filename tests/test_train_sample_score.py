@@ -102,7 +102,7 @@ def test_generate_sequences(tmp_path, project_root):
         "profam.cli.generate_sequences",
         "--checkpoint",
         str(ckpt_dir / "checkpoints" / "last.ckpt"),
-        "--file_path",
+        "--prompt_file",
         str(fasta_path),
         "--save_dir",
         str(save_dir),
@@ -144,7 +144,10 @@ def test_score_sequences(tmp_path, project_root):
         project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.a3m"
     )
     candidates = (
-        project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.csv"
+        project_root
+        / "data"
+        / "score_sequences_example"
+        / "CCDB_ECOLI_Adkar_2012_subsample_250.csv"
     )
     save_dir = tmp_path / "score_outputs"
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -155,7 +158,7 @@ def test_score_sequences(tmp_path, project_root):
         "profam.cli.score_sequences",
         "--checkpoint",
         str(ckpt_dir / "checkpoints" / "last.ckpt"),
-        "--conditioning_fasta",
+        "--prompt_file",
         str(conditioning),
         "--candidates_file",
         str(candidates),
@@ -182,7 +185,7 @@ def test_score_sequences(tmp_path, project_root):
     )
     assert result.returncode == 0, f"Scoring script failed: {result.stderr}"
 
-    csv_path = save_dir / "CCDB_ECOLI_Adkar_2012_scores.csv"
+    csv_path = save_dir / "CCDB_ECOLI_Adkar_2012_subsample_250_scores.csv"
     assert csv_path.exists(), "Score CSV was not created"
     df = pd.read_csv(csv_path)
     assert len(df) > 0, "Score CSV is empty"

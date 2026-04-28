@@ -1,20 +1,28 @@
+"""CLI entry point for ``profam score``.
+
+Thin wrapper over :class:`profam.ProFam.score`: loads the model once
+and delegates scoring to the public Python API. The conditioning MSA
+file is passed through unchanged; ``ProFam.score`` infers whether it
+is aligned (so homology diversity weights are usable) or unaligned.
+Diversity weights are cached on disk next to the MSA file so repeated
+runs skip the Hamming step.
+"""
+
 import argparse
 import json
 import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
 from scipy.stats import spearmanr
 
+from profam.api import ProFam, _resolve_prompt
 from profam.constants import resolve_runtime_path
-from profam.data.msa_subsampling import compute_homology_sequence_weights_with_cache
-from profam.data.objects import ProteinDocument
-from profam.scoring import score_variants_ensemble
 from profam.sequence.fasta import read_fasta
 from profam.utils.utils import seed_all
 
@@ -23,17 +31,6 @@ def write_fasta(sequences, accessions, fasta_path):
     with open(fasta_path, "w") as f:
         for acc, seq in zip(accessions, sequences):
             f.write(f">{acc}\n{seq}\n")
-
-
-def build_pool_from_fasta(path: str) -> ProteinDocument:
-    names, seqs = read_fasta(path, keep_insertions=True, to_upper=True, keep_gaps=False)
-    rep = names[0] if len(names) > 0 else "representative"
-    return ProteinDocument(
-        sequences=seqs,
-        accessions=names,
-        identifier=os.path.basename(path),
-        representative_accession=rep,
-    )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -47,10 +44,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Path to the .ckpt checkpoint file",
     )
     parser.add_argument(
-        "--conditioning_fasta",
+        "--prompt_file",
         type=str,
         required=True,
-        help="Path to conditioning FASTA/MSA file",
+        help="Path to conditioning sequence file (FASTA / a2m / a3m)",
     )
     parser.add_argument(
         "--candidates_file",
@@ -117,68 +114,48 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
+def _load_conditioning_views(
+    prompt_file: str, use_diversity_weights: bool
+) -> Tuple[List[str], Optional[List[str]]]:
+    """Load conditioning views from an MSA file, failing fast on bad input.
 
-    seed_all(args.seed)
+    Returns ``(conditioning, aligned_or_None)``. If ``use_diversity_weights``
+    is requested but the file is not an aligned MSA, exits with a clear
+    error pointing at ``--no-use_diversity_weights``.
+    """
+    try:
+        conditioning, aligned, _ = _resolve_prompt(prompt_file, use_diversity_weights)
+    except ValueError as exc:
+        raise SystemExit(
+            f"Cannot use diversity weights with {prompt_file!r}: "
+            "it is not a valid aligned MSA (sequences have different "
+            "lengths after stripping insertions). Either provide an "
+            "aligned MSA file (FASTA / a2m / a3m with equal-length "
+            "sequences after insertions are stripped), or re-run with "
+            "--no-use_diversity_weights to score without weighting."
+        ) from exc
 
-    from profam.checkpoint import load_model
-
-    model = load_model(
-        checkpoint=args.checkpoint,
-        device=args.device,
-        dtype=args.dtype,
-        attn_implementation=args.attn_implementation,
-    )
-
-    conditioning_fasta = str(resolve_runtime_path(args.conditioning_fasta))
-    candidates_file = str(resolve_runtime_path(args.candidates_file))
-    save_dir = Path(args.save_dir).expanduser().resolve()
-
-    cond_doc = build_pool_from_fasta(conditioning_fasta)
-
-    weights = None
-    if args.use_diversity_weights:
+    if aligned is None and not use_diversity_weights:
         print(
-            f"Computing diversity (homology) weights for {conditioning_fasta}...",
+            f"{prompt_file!r} is not an aligned MSA; loading as "
+            "unaligned sequences (diversity weights disabled).",
             file=sys.stderr,
         )
-        _, aligned_sequences = read_fasta(
-            conditioning_fasta,
-            keep_insertions=False,
-            to_upper=True,
-            keep_gaps=True,
-        )
-        weights = compute_homology_sequence_weights_with_cache(
-            msa_file=conditioning_fasta,
-            sequences=aligned_sequences,
-            theta=args.diversity_theta,
-            force_recalc=args.recompute_diversity_weights,
-        )
+    return conditioning, aligned
 
-    print(
-        f"Tokenizing {len(cond_doc.sequences)} conditioning sequences...",
-        file=sys.stderr,
-    )
-    tokenized_conditioning_sequences = [
-        model.tokenizer(
-            seq.upper().replace("-", "").replace(".", ""), add_special_tokens=False
-        )["input_ids"]
-        for seq in cond_doc.sequences
-    ]
 
+def _load_candidates(candidates_file: str):
+    """Return (names, sequences, dms_scores) from a CSV or FASTA file."""
     dms_scores = None
     if candidates_file.endswith(".csv"):
         df = pd.read_csv(candidates_file)
         if "mutated_sequence" not in df.columns:
             raise ValueError("CSV must have 'mutated_sequence' column")
         cand_seqs = df["mutated_sequence"].astype(str).str.upper().tolist()
-
         if "mutant" in df.columns:
             cand_names = df["mutant"].astype(str).tolist()
         else:
             cand_names = [f"seq_{i}" for i in range(len(cand_seqs))]
-
         if "DMS_score" in df.columns:
             dms_scores = df["DMS_score"].values
     else:
@@ -189,43 +166,66 @@ def main(argv: Sequence[str] | None = None) -> int:
     if len(cand_seqs) == 0:
         raise ValueError("No candidate sequences found")
 
-    comp_tok = model.tokenizer.encode_completions(
-        cand_seqs,
-        bos_token=model.tokenizer.sep_token,
-        eos_token=model.tokenizer.sep_token,
+    return cand_names, cand_seqs, dms_scores
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
+
+    seed_all(args.seed)
+
+    prompt_file = str(resolve_runtime_path(args.prompt_file))
+    candidates_file = str(resolve_runtime_path(args.candidates_file))
+    save_dir = Path(args.save_dir).expanduser().resolve()
+
+    # Validate the conditioning input up-front so we fail before loading
+    # the model, and grab the conditioning view for the output dump.
+    conditioning, _ = _load_conditioning_views(prompt_file, args.use_diversity_weights)
+    cand_names, cand_seqs, dms_scores = _load_candidates(candidates_file)
+
+    print(
+        f"Loaded {len(conditioning)} conditioning sequences "
+        f"and {len(cand_seqs)} candidates.",
+        file=sys.stderr,
     )
-    completion_ids = (
-        torch.as_tensor(comp_tok["input_ids"], dtype=torch.long)
-        .unsqueeze(0)
-        .to(model.device)
+    if args.use_diversity_weights:
+        print(
+            f"Computing diversity (homology) weights for {prompt_file}...",
+            file=sys.stderr,
+        )
+
+    pf = ProFam(
+        checkpoint=args.checkpoint,
+        device=args.device,
+        dtype=args.dtype,
+        attn_implementation=args.attn_implementation,
     )
 
-    with torch.no_grad():
-        lls = score_variants_ensemble(
-            model=model,
-            completion_ids=completion_ids,
-            tokenized_conditioning_sequences=tokenized_conditioning_sequences,
-            ensemble_size=args.ensemble_number,
-            scoring_max_tokens=args.scoring_max_tokens,
-            start_tokens=[47, 63],
-            max_tokens_override=args.max_tokens,
-            weights=weights,
-        )
+    result = pf.score(
+        sequences=cand_seqs,
+        prompt=prompt_file,
+        ensemble_size=args.ensemble_number,
+        max_tokens=args.max_tokens,
+        scoring_max_tokens=args.scoring_max_tokens,
+        use_diversity_weights=args.use_diversity_weights,
+        diversity_theta=args.diversity_theta,
+        cache_weights=True,
+        recompute_cached_weights=args.recompute_diversity_weights,
+        seed=args.seed,
+    )
+    lls = result.scores
 
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save the conditioning sequences that were used as context
-    cond_basename = os.path.splitext(os.path.basename(conditioning_fasta))[0]
-    prompt_path = save_dir / f"{cond_basename}_conditioning_used.fasta"
+    prompt_basename = os.path.splitext(os.path.basename(prompt_file))[0]
+    cond_used_path = save_dir / f"{prompt_basename}_conditioning_used.fasta"
     write_fasta(
-        list(cond_doc.sequences),
-        list(cond_doc.accessions)
-        if cond_doc.accessions
-        else [f"cond_{i}" for i in range(len(cond_doc.sequences))],
-        str(prompt_path),
+        conditioning,
+        [f"cond_{i}" for i in range(len(conditioning))],
+        str(cond_used_path),
     )
     print(
-        f"Wrote {len(cond_doc.sequences)} conditioning sequences -> {prompt_path}",
+        f"Wrote {len(conditioning)} conditioning sequences -> {cond_used_path}",
         file=sys.stderr,
     )
 
@@ -252,8 +252,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "n_sequences_evaluated": len(cand_seqs),
         "ensemble_number": args.ensemble_number,
         "timestamp": datetime.now().isoformat(),
-        "conditioning_fasta": conditioning_fasta,
-        "n_conditioning_sequences": len(cond_doc.sequences),
+        "prompt_file": prompt_file,
+        "n_conditioning_sequences": len(conditioning),
         "candidates_file": candidates_file,
         "mean_likelihood_score": float(np.mean(lls)),
         "spearman_correlation": float(corr) if corr is not None else None,

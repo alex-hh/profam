@@ -19,21 +19,11 @@ Backwards-compatibility wrapper over the ``profam`` package. The CLI matches
 the previous ``scripts/score_sequences.py`` contract; loading and scoring
 delegate to ``profam.checkpoint.load_model`` / ``profam.scoring``.
 
-Note on results vs the Python API (``ProFam.score``):
-    This script reads the conditioning a3m *twice*:
-      - aligned view (gaps kept, insertions dropped) → homology diversity weights
-      - unaligned view with insertions (gaps dropped) → tokenized conditioning context
-    The Python API instead takes a single ``prompt`` list and uses it for both
-    purposes, so callers must pick one view up-front. When diversity weights are
-    enabled the API sees an aligned prompt with insertions stripped, which is a
-    different conditioning context from what this script feeds the model — so
-    the two paths can produce different log-likelihoods and Spearman scores on
-    the same inputs even though they call the same underlying scoring code.
 """
 
 from profam.checkpoint import load_model
+from profam.cli.score_sequences import _load_conditioning_views
 from profam.data.msa_subsampling import compute_homology_sequence_weights_with_cache
-from profam.data.objects import ProteinDocument
 from profam.scoring import score_variants_ensemble
 from profam.sequence.fasta import read_fasta
 from profam.utils.utils import seed_all
@@ -43,17 +33,6 @@ def write_fasta(sequences, accessions, fasta_path):
     with open(fasta_path, "w") as f:
         for acc, seq in zip(accessions, sequences):
             f.write(f">{acc}\n{seq}\n")
-
-
-def build_pool_from_fasta(path: str) -> ProteinDocument:
-    names, seqs = read_fasta(path, keep_insertions=True, to_upper=True, keep_gaps=False)
-    rep = names[0] if len(names) > 0 else "representative"
-    return ProteinDocument(
-        sequences=seqs,
-        accessions=names,
-        identifier=os.path.basename(path),
-        representative_accession=rep,
-    )
 
 
 def main():
@@ -75,7 +54,7 @@ def main():
     parser.add_argument(
         "--candidates_file",
         type=str,
-        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012.csv",
+        default="data/score_sequences_example/CCDB_ECOLI_Adkar_2012_subsample_250.csv",
         help="Path to candidate sequences FASTA file or csv file with columns: 'mutated_sequence', and optionally 'DMS_score'",
     )
     parser.add_argument(
@@ -141,6 +120,15 @@ def main():
 
     seed_all(args.seed)
 
+    # Load the conditioning MSA with both co-registered views (aligned for
+    # weights, unaligned-with-insertions for model conditioning) before the
+    # expensive model load, so bad input fails fast. Falls back to an
+    # unaligned-only prompt if the file is ragged and diversity weighting is
+    # disabled; raises with a helpful message otherwise.
+    conditioning, aligned = _load_conditioning_views(
+        args.conditioning_fasta, args.use_diversity_weights
+    )
+
     ckpt_path = os.path.join(args.checkpoint_dir, "checkpoints/last.ckpt")
     if not os.path.exists(ckpt_path):
         raise FileNotFoundError(
@@ -155,38 +143,26 @@ def main():
         auto_download=False,
     )
 
-    # Build ProteinDocument objects (just to read sequences nicely)
-    cond_doc = build_pool_from_fasta(args.conditioning_fasta)
-
     weights: Optional[np.ndarray] = None
     if args.use_diversity_weights:
         print(
             f"Computing diversity (homology) weights for {args.conditioning_fasta}...",
             file=sys.stderr,
         )
-        _, aligned_sequences = read_fasta(
-            args.conditioning_fasta,
-            keep_insertions=False,
-            to_upper=True,
-            keep_gaps=True,
-        )
         weights = compute_homology_sequence_weights_with_cache(
             msa_file=args.conditioning_fasta,
-            sequences=aligned_sequences,
+            sequences=aligned,
             theta=args.diversity_theta,
             force_recalc=args.recompute_diversity_weights,
         )
 
-    # Tokenize conditioning sequences individually
     print(
-        f"Tokenizing {len(cond_doc.sequences)} conditioning sequences...",
+        f"Tokenizing {len(conditioning)} conditioning sequences...",
         file=sys.stderr,
     )
     tokenized_conditioning_sequences = [
-        model.tokenizer(
-            seq.upper().replace("-", "").replace(".", ""), add_special_tokens=False
-        )["input_ids"]
-        for seq in cond_doc.sequences
+        model.tokenizer(seq, add_special_tokens=False)["input_ids"]
+        for seq in conditioning
     ]
 
     # Read candidates
@@ -234,6 +210,7 @@ def main():
             start_tokens=[47, 63],
             max_tokens_override=args.max_tokens,
             weights=weights,
+            seed=args.seed,
         )
 
     # Output handling
@@ -264,7 +241,7 @@ def main():
         "ensemble_number": args.ensemble_number,
         "timestamp": datetime.now().isoformat(),
         "conditioning_fasta": args.conditioning_fasta,
-        "n_conditioning_sequences": len(cond_doc.sequences),
+        "n_conditioning_sequences": len(conditioning),
         "candidates_file": args.candidates_file,
         "mean_likelihood_score": float(np.mean(lls)),
         "spearman_correlation": float(corr) if corr is not None else None,
