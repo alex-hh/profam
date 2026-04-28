@@ -2,6 +2,7 @@ import hashlib
 import math
 import os
 import pickle
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Optional, Sequence, Union
@@ -307,10 +308,36 @@ def encode_msa_sequences_to_uint8(seqs: list[str]) -> np.ndarray:
     `compute_homology_weights`.
 
     Any unknown or gap-like character (including '-') is mapped to the GAP token.
+
+    Requires all sequences to be the same length (i.e. an aligned MSA). Raises
+    ``ValueError`` otherwise. Also warns when none of the sequences contain a
+    gap ('-'), which usually indicates the caller passed an unaligned FASTA by
+    mistake.
     """
     _GAP_TOKEN_IDX = 20
     _AA_TO_IDX = {aa: i for i, aa in enumerate("ACDEFGHIKLMNPQRSTVWY")}
     seq_len = len(seqs[0]) if seqs else 0
+
+    mismatched = [i for i, s in enumerate(seqs) if len(s) != seq_len]
+    if mismatched:
+        distinct_lengths = sorted({len(s) for s in seqs})
+        raise ValueError(
+            "encode_msa_sequences_to_uint8 requires aligned (equal-length) "
+            f"sequences, but got {len(distinct_lengths)} distinct lengths "
+            f"{distinct_lengths}. If you are calling from a scoring entry "
+            "point and your input is an unaligned FASTA, pass "
+            "`--no-use_diversity_weights` (CLI/script) or "
+            "`use_diversity_weights=False` (Python API)."
+        )
+
+    if seqs and not any("-" in s for s in seqs):
+        warnings.warn(
+            "encode_msa_sequences_to_uint8: no gap characters ('-') found in "
+            "input — this typically means the input is an unaligned FASTA, "
+            "which will produce meaningless homology diversity weights.",
+            stacklevel=2,
+        )
+
     arr = np.zeros((len(seqs), seq_len), dtype=np.uint8)
     for i, s in enumerate(seqs):
         arr[i] = [_AA_TO_IDX.get(ch, _GAP_TOKEN_IDX) for ch in s]  # unknowns → GAP
