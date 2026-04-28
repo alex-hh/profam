@@ -142,8 +142,12 @@ class ProFamSampler:
             print(
                 f"Initialising ProFam sampler, loading checkpoint {self.checkpoint_path}"
             )
+            # weights_only=False: ProFam checkpoints carry pickled
+            # ProFamTokenizer / LlamaConfig hyper_parameters.
             checkpoint = torch.load(
-                self.checkpoint_path, map_location=self.model.device
+                self.checkpoint_path,
+                map_location=self.model.device,
+                weights_only=False,
             )["state_dict"]
             self.model.load_state_dict(checkpoint)
         self.model.eval()
@@ -674,8 +678,12 @@ class ProFamEnsembleSampler:
             print(
                 f"Initialising ProFamEnsembleSampler, loading checkpoint {self.checkpoint_path}"
             )
+            # weights_only=False: ProFam checkpoints carry pickled
+            # ProFamTokenizer / LlamaConfig hyper_parameters.
             checkpoint = torch.load(
-                self.checkpoint_path, map_location=self.model.device
+                self.checkpoint_path,
+                map_location=self.model.device,
+                weights_only=False,
             )["state_dict"]
             self.model.load_state_dict(checkpoint)
         self.model.eval()

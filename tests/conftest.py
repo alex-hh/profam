@@ -1,13 +1,12 @@
 """This file prepares config fixtures for other tests."""
-import os
 
 import hydra
 import pandas as pd
 import pytest
 import torch
-from hydra import compose, initialize, initialize_config_dir
+from hydra import compose, initialize_config_dir
 
-from profam.constants import BASEDIR
+from profam.constants import CONFIGS_DIR, TOKENIZER_FILE
 from profam.data.collators import DocumentBatchCollator
 from profam.data.objects import ProteinDocument
 from profam.data.processors import preprocessing, transforms
@@ -17,7 +16,7 @@ from profam.data.tokenizers import ProFamTokenizer
 @pytest.fixture(scope="package")
 def profam_tokenizer():
     tokenizer = ProFamTokenizer(
-        tokenizer_file=os.path.join(BASEDIR, "data/profam_tokenizer.json"),
+        tokenizer_file=str(TOKENIZER_FILE),
         unk_token="[UNK]",
         pad_token="[PAD]",
         bos_token="[start-of-document]",
@@ -33,7 +32,7 @@ def profam_tokenizer():
 @pytest.fixture(scope="package")
 def profam_tokenizer_noseqpos():
     tokenizer = ProFamTokenizer(
-        tokenizer_file=os.path.join(BASEDIR, "data/profam_tokenizer.json"),
+        tokenizer_file=str(TOKENIZER_FILE),
         unk_token="[UNK]",
         pad_token="[PAD]",
         bos_token="[start-of-document]",
@@ -49,7 +48,7 @@ def profam_tokenizer_noseqpos():
 @pytest.fixture(scope="package")
 def test_model_noseqpos(profam_tokenizer_noseqpos):
     # otherwise could do this via overrides...
-    with initialize(config_path="../configs", version_base="1.3"):
+    with initialize_config_dir(str(CONFIGS_DIR), version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
@@ -74,7 +73,7 @@ def test_model_noseqpos(profam_tokenizer_noseqpos):
 
 @pytest.fixture(scope="package")
 def test_model(profam_tokenizer):
-    with initialize(config_path="../configs", version_base="1.3"):
+    with initialize_config_dir(str(CONFIGS_DIR), version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
@@ -99,7 +98,7 @@ def test_model(profam_tokenizer):
 
 @pytest.fixture(scope="package")
 def model_seq_index(profam_tokenizer):
-    with initialize_config_dir(os.path.join(BASEDIR, "configs"), version_base="1.3"):
+    with initialize_config_dir(str(CONFIGS_DIR), version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,

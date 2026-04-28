@@ -124,7 +124,7 @@ class ProFamTokenizer(PreTrainedTokenizerFast):
         tokenized = self(
             concatenated_seqs,
             truncation=False,  # shouldnt be necessary: bisection should handle
-            return_tensors="np",  # https://huggingface.co/docs/datasets/nlp_process#map
+            return_tensors="np",
             # padding="longest",
             padding=padding,
             add_special_tokens=False,

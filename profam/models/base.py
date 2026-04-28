@@ -1,29 +1,21 @@
-import copy
 import math
-import os
-import random
 import time
-import warnings
 from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn.functional as F
 import tqdm
 from lightning import LightningModule
 from omegaconf import OmegaConf
 from scipy.stats import spearmanr
-from sklearn.metrics import auc, precision_recall_curve, roc_auc_score
-from torch import nn
-from transformers import PreTrainedTokenizerFast, StoppingCriteriaList
-from transformers.cache_utils import DynamicCache
+from transformers import StoppingCriteriaList
 from transformers.optimization import get_scheduler
 
-from profam.constants import BASEDIR, aa_letters, aa_letters_lower
+from profam.constants import aa_letters, aa_letters_lower, resolve_runtime_path
 from profam.data.objects import StringObject
 from profam.data.tokenizers import ProFamTokenizer
 from profam.models import metrics
@@ -46,16 +38,21 @@ def calc_grad_norm(params):
 
 
 def load_checkpoint(checkpoint_dir, **kwargs):
-    config_dir = os.path.join(BASEDIR, checkpoint_dir, ".hydra")
-    cfg = OmegaConf.load(os.path.join(config_dir, "config.yaml"))
+    checkpoint_dir = resolve_runtime_path(checkpoint_dir)
+    config_dir = checkpoint_dir / ".hydra"
+    cfg = OmegaConf.load(config_dir / "config.yaml")
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
 
     log.info(OmegaConf.to_yaml(cfg.model))
     # TODO: check callback config
-    checkpoint_path = os.path.join(BASEDIR, checkpoint_dir, "checkpoints/last.ckpt")
+    checkpoint_path = checkpoint_dir / "checkpoints" / "last.ckpt"
+    # weights_only=False: the shipped ProFam checkpoint pickles
+    # ProFamTokenizer / LlamaConfig into hyper_parameters, which the
+    # PyTorch 2.6+ default (weights_only=True) rejects.
     checkpoint = torch.load(
         checkpoint_path,
         map_location="cpu",
+        weights_only=False,
     )["state_dict"]
     model = hydra.utils.instantiate(cfg.model, tokenizer=tokenizer)
     model.load_state_dict(checkpoint)
@@ -433,12 +430,14 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         batch_size: int = 1,
         verbose: bool = False,
+        return_per_residue: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         # https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
         # https://github.com/huggingface/transformers/blob/b7672826cad31e30319487af876e608d8af7d37b/src/transformers/generation/utils.py#L1879
         # https://github.com/huggingface/transformers/blob/67a4ef89d4ddbfd7d61e479359a1b609e5ee9843/src/transformers/models/mistral/modeling_mistral.py#L1233
         all_lls = []
+        all_per_residue: list[np.ndarray] = []
         assert (
             input_ids[0, 0] == self.tokenizer.vocab["[start-of-document]"]
             and input_ids[0, 1] > 19
@@ -464,7 +463,6 @@ class BaseFamilyLitModule(LightningModule):
             # fmt: on
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)
-            L_mini_batch = this_input_ids.shape[-1]
 
             actual_batch_size = this_input_ids.shape[0]
             cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
@@ -489,10 +487,19 @@ class BaseFamilyLitModule(LightningModule):
                 log_likelihood.device
             )  # aligns with start_ix=0
             mask = shift_labels != -100
-            denom = mask.sum(dim=-1).clamp(min=1)
-            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
-            all_lls.append(ll_mean)  # b_mut
 
+            if return_per_residue:
+                ll_np = log_likelihood.detach().cpu().float().numpy()
+                mask_np = mask.detach().cpu().numpy()
+                for row_ix in range(ll_np.shape[0]):
+                    all_per_residue.append(ll_np[row_ix][mask_np[row_ix]])
+            else:
+                denom = mask.sum(dim=-1).clamp(min=1)
+                ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+                all_lls.append(ll_mean)  # b_mut
+
+        if return_per_residue:
+            return all_per_residue
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls
 
@@ -502,6 +509,7 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         batch_size: int = 1,
         verbose: bool = False,
+        return_per_residue: bool = False,
     ):
         # input_ids is b, L; completion_ids is b, n, L
         if batch_size > 1:
@@ -509,6 +517,7 @@ class BaseFamilyLitModule(LightningModule):
                 "Mutant batch size > 1 not yet supported for mutant scoring"
             )
         all_lls = []
+        all_per_residue: list[np.ndarray] = []
         likelihood_start_ix = input_ids.shape[1]
         for completion_ix in tqdm.tqdm(
             range(completion_ids.shape[1]), disable=not verbose
@@ -519,8 +528,6 @@ class BaseFamilyLitModule(LightningModule):
             )
             # remove unnecessary padding:
             this_input_ids = self.trim_eval_batch(this_input_ids)
-            L_mini_batch = this_input_ids.shape[-1]  # beware: includes prompt too
-            # https://github.com/huggingface/transformers/blob/048f599f3506e57e0a595b455d9d2834c8d45023/src/transformers/data/data_collator.py#L823
             labels = torch.where(
                 this_input_ids == self.tokenizer.pad_token_id,
                 -100,
@@ -539,9 +546,16 @@ class BaseFamilyLitModule(LightningModule):
                 log_likelihood.device
             )
             mask = shift_labels != -100
-            denom = mask.sum(dim=-1).clamp(min=1)
-            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
-            all_lls.append(ll_mean.item())
+            if return_per_residue:
+                ll_np = log_likelihood.detach().cpu().float().numpy()
+                mask_np = mask.detach().cpu().numpy()
+                all_per_residue.append(ll_np[0][mask_np[0]])
+            else:
+                denom = mask.sum(dim=-1).clamp(min=1)
+                ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+                all_lls.append(ll_mean.item())
+        if return_per_residue:
+            return all_per_residue
         lls = np.array(all_lls)
         return lls
 
@@ -551,6 +565,7 @@ class BaseFamilyLitModule(LightningModule):
         batch_size: int = 1,
         verbose: bool = False,
         start_tokens: list[int] = [47, 63],
+        return_per_residue: bool = False,
     ):
         if len(completion_ids.shape) == 3:
             completion_ids = completion_ids.squeeze(0)
@@ -567,6 +582,7 @@ class BaseFamilyLitModule(LightningModule):
             )
             completion_ids = torch.cat([start_tokens_tensor, completion_ids], dim=-1)
         all_lls = []
+        all_per_residue: list[np.ndarray] = []
         for completion_ix in tqdm.tqdm(
             range(0, completion_ids.shape[0], batch_size), disable=not verbose
         ):
@@ -584,10 +600,18 @@ class BaseFamilyLitModule(LightningModule):
                 log_likelihood.device
             )  # aligns with start_ix=1
             mask = shift_labels != -100
-            denom = mask.sum(dim=-1).clamp(min=1)
-            ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
-            all_lls.append(ll_mean)
+            if return_per_residue:
+                ll_np = log_likelihood.detach().cpu().float().numpy()
+                mask_np = mask.detach().cpu().numpy()
+                for row_ix in range(ll_np.shape[0]):
+                    all_per_residue.append(ll_np[row_ix][mask_np[row_ix]])
+            else:
+                denom = mask.sum(dim=-1).clamp(min=1)
+                ll_mean = (log_likelihood * mask).sum(dim=-1) / denom
+                all_lls.append(ll_mean)
 
+        if return_per_residue:
+            return all_per_residue
         lls = torch.cat(all_lls).cpu().float().numpy()
         return lls
 
@@ -597,7 +621,16 @@ class BaseFamilyLitModule(LightningModule):
         completion_ids,
         use_cache: bool = True,
         batch_size: int = 1,
+        return_per_residue: bool = False,
     ):
+        """Score completions under an optional prompt.
+
+        If ``return_per_residue`` is False (default), returns a 1-D
+        ``np.ndarray`` of mean per-token log-likelihoods (one per
+        completion). If True, returns a ``list[np.ndarray]`` with one
+        array per completion, each containing per-residue
+        log-likelihoods for the non-padded positions of that completion.
+        """
         if input_ids is not None:
             assert (
                 input_ids.shape[0] == 1
@@ -610,17 +643,20 @@ class BaseFamilyLitModule(LightningModule):
                     input_ids,
                     completion_ids,
                     batch_size=batch_size,
+                    return_per_residue=return_per_residue,
                 )
             else:
                 return self._score_seqs_no_cache(
                     input_ids,
                     completion_ids,
                     batch_size=batch_size,
+                    return_per_residue=return_per_residue,
                 )
         else:
             return self._score_seqs_no_context(
                 completion_ids,
                 batch_size=batch_size,
+                return_per_residue=return_per_residue,
             )
 
     def _sample_seqs(
@@ -701,10 +737,14 @@ class BaseFamilyLitModule(LightningModule):
 
         # each 'word' is treated as a list of tokens
         # TODO: write test for this with random model.
+        # [SEP] is the effective end-of-sequence marker and must remain
+        # sampleable so the generator can terminate naturally; the
+        # shipped tokenizer does not set eos_token, so we filter on
+        # sep_token_id explicitly rather than on eos_token_id.
         generation_kwargs["bad_words_ids"] = [
             [tok_id]
             for tok_id in self.tokenizer.all_special_ids
-            if tok_id != self.tokenizer.eos_token_id
+            if tok_id != self.tokenizer.sep_token_id
         ]
         generation_kwargs["bad_words_ids"] += [
             [self.tokenizer.convert_tokens_to_ids(bad_aa)] for bad_aa in bad_aas

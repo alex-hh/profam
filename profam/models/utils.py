@@ -6,8 +6,6 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from transformers.cache_utils import DynamicCache
 
-from profam.constants import BASEDIR
-
 
 def calc_grad_norm(params):
     grad_norm = torch.norm(

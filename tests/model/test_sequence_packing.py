@@ -1,9 +1,9 @@
 import hydra
 import pytest
 import torch
-from hydra import compose, initialize
+from hydra import compose, initialize_config_dir
 
-from profam.constants import BASEDIR
+from profam.constants import CONFIGS_DIR
 from profam.data.objects import ProteinDocument
 
 try:
@@ -21,7 +21,7 @@ def test_sequence_packing_consistency(profam_tokenizer):
 
     # 1. Setup Model with Flash Attention
     # We use a single model instance and toggle pass_res_pos_in_doc_as_position_ids
-    with initialize(config_path="../../configs", version_base="1.3"):
+    with initialize_config_dir(str(CONFIGS_DIR), version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             overrides=[

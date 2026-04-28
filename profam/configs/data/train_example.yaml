@@ -1,0 +1,155 @@
+_target_: profam.data.datamodule.ProteinDataMixture
+
+dataset_builders:
+  foldseek_s50_train:
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    name: foldseek_s50_train
+    dataset_root: ${paths.root_dir}/data/train_example/foldseek_s50
+    tokenizer: ${tokenizer}
+    preprocessor:
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
+      cfg:
+        _target_: profam.data.processors.PreprocessingConfig
+        document_token: "[RAW]"
+        drop_first_protein: false
+        keep_first_protein: false
+        allow_unk: false
+        max_tokens_per_example: 8192
+        shuffle_proteins_in_document: true
+        padding: do_not_pad
+      transform_fns: null
+    sample_cache_size: 64
+    shuffle_family_sequences: true
+    seed: ${seed}
+
+  foldseek_s50_val:
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    name: foldseek_s50_val
+    dataset_root: ${paths.root_dir}/data/train_example/foldseek_s50
+    tokenizer: ${tokenizer}
+    preprocessor:
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
+      cfg:
+        _target_: profam.data.processors.PreprocessingConfig
+        document_token: "[RAW]"
+        drop_first_protein: false
+        keep_first_protein: false
+        allow_unk: false
+        max_tokens_per_example: 8192
+        shuffle_proteins_in_document: true
+        padding: do_not_pad
+      transform_fns: null
+    sample_cache_size: 64
+    shuffle_family_sequences: true
+    seed: ${seed}
+    max_families: 100
+
+  uniref90_train:
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    name: uniref90_train
+    dataset_root: ${paths.root_dir}/data/train_example/uniref90
+    tokenizer: ${tokenizer}
+    preprocessor:
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
+      cfg:
+        _target_: profam.data.processors.PreprocessingConfig
+        document_token: "[RAW]"
+        drop_first_protein: false
+        keep_first_protein: false
+        allow_unk: false
+        max_tokens_per_example: 2048
+        shuffle_proteins_in_document: true
+        padding: do_not_pad
+      transform_fns: null
+    sample_cache_size: 64
+    shuffle_family_sequences: true
+    seed: ${seed}
+
+  uniref90_val:
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    name: uniref90_val
+    dataset_root: ${paths.root_dir}/data/train_example/uniref90
+    tokenizer: ${tokenizer}
+    preprocessor:
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
+      cfg:
+        _target_: profam.data.processors.PreprocessingConfig
+        document_token: "[RAW]"
+        drop_first_protein: false
+        keep_first_protein: false
+        allow_unk: false
+        max_tokens_per_example: 2048
+        shuffle_proteins_in_document: true
+        padding: do_not_pad
+      transform_fns: null
+    sample_cache_size: 64
+    shuffle_family_sequences: true
+    seed: ${seed}
+    max_families: 100
+
+  openfold_openproteinset_train:
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    name: openfold_openproteinset_train
+    dataset_root: ${paths.root_dir}/data/train_example/OpenFold_OpenProteinSet
+    tokenizer: ${tokenizer}
+    preprocessor:
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
+      cfg:
+        _target_: profam.data.processors.AlignedProteinPreprocessingConfig
+        document_token: "[RAW]"
+        drop_first_protein: false
+        keep_first_protein: false
+        allow_unk: false
+        max_tokens_per_example: 2048
+        shuffle_proteins_in_document: true
+        padding: do_not_pad
+        keep_insertions: true
+        to_upper: true
+        keep_gaps: false
+        use_msa_pos: false
+      transform_fns: null
+    sample_cache_size: 64
+    shuffle_family_sequences: true
+    seed: ${seed}
+
+  ted_train:
+    _target_: profam.data.builders.family_text_memmap_datasets.ProteinFamilyMemmapDataset
+    name: ted_train
+    dataset_root: ${paths.root_dir}/data/train_example/ted
+    tokenizer: ${tokenizer}
+    preprocessor:
+      _target_: profam.data.processors.ProteinDocumentPreprocessor
+      cfg:
+        _target_: profam.data.processors.PreprocessingConfig
+        document_token: "[RAW]"
+        drop_first_protein: false
+        keep_first_protein: false
+        allow_unk: false
+        max_tokens_per_example: 2048
+        shuffle_proteins_in_document: true
+        padding: do_not_pad
+      transform_fns: null
+    sample_cache_size: 64
+    shuffle_family_sequences: true
+    seed: ${seed}
+
+data_weights:
+  foldseek_s50_train: 1
+  uniref90_train: 1
+  openfold_openproteinset_train: 1
+  ted_train: 1
+
+val_dataset_batch_sizes:
+  foldseek_s50_val: 1
+  uniref90_val: 1
+
+batch_size: 4
+data_dir: ${paths.data_dir}
+num_workers: 0
+ignore_gaps: true
+feature_names: ${constants.sequence_features}
+pack_to_max_tokens: 12000
+prefetch_factor: null
+shuffle: true
+interleaved: true
+interleaved_block_size: 64

@@ -12,6 +12,7 @@ import pytest
 import torch
 from hydra import compose, initialize_config_dir
 
+from profam.constants import CONFIGS_DIR
 from profam.train import train
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -31,9 +32,7 @@ def project_root() -> Path:
 
 def test_training_on_example_data(tmp_path, project_root):
     run_dir = tmp_path / "train_run"
-    with initialize_config_dir(
-        config_dir=str(project_root / "configs"), version_base="1.3"
-    ):
+    with initialize_config_dir(config_dir=str(CONFIGS_DIR), version_base="1.3"):
         cfg = compose(
             config_name="train.yaml",
             return_hydra_config=True,
@@ -99,10 +98,11 @@ def test_generate_sequences(tmp_path, project_root):
 
     cmd = [
         sys.executable,
-        "scripts/generate_sequences.py",
-        "--checkpoint_dir",
-        str(ckpt_dir),
-        "--file_path",
+        "-m",
+        "profam.cli.generate_sequences",
+        "--checkpoint",
+        str(ckpt_dir / "checkpoints" / "last.ckpt"),
+        "--prompt_file",
         str(fasta_path),
         "--save_dir",
         str(save_dir),
@@ -126,7 +126,7 @@ def test_generate_sequences(tmp_path, project_root):
 
     result = subprocess.run(
         cmd,
-        cwd=project_root,
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
@@ -144,17 +144,21 @@ def test_score_sequences(tmp_path, project_root):
         project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.a3m"
     )
     candidates = (
-        project_root / "data" / "score_sequences_example" / "CCDB_ECOLI_Adkar_2012.csv"
+        project_root
+        / "data"
+        / "score_sequences_example"
+        / "CCDB_ECOLI_Adkar_2012_subsample_250.csv"
     )
     save_dir = tmp_path / "score_outputs"
     save_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = [
         sys.executable,
-        "scripts/score_sequences.py",
-        "--checkpoint_dir",
-        str(ckpt_dir),
-        "--conditioning_fasta",
+        "-m",
+        "profam.cli.score_sequences",
+        "--checkpoint",
+        str(ckpt_dir / "checkpoints" / "last.ckpt"),
+        "--prompt_file",
         str(conditioning),
         "--candidates_file",
         str(candidates),
@@ -174,14 +178,14 @@ def test_score_sequences(tmp_path, project_root):
 
     result = subprocess.run(
         cmd,
-        cwd=project_root,
+        cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, f"Scoring script failed: {result.stderr}"
 
-    csv_path = save_dir / "CCDB_ECOLI_Adkar_2012_scores.csv"
+    csv_path = save_dir / "CCDB_ECOLI_Adkar_2012_subsample_250_scores.csv"
     assert csv_path.exists(), "Score CSV was not created"
     df = pd.read_csv(csv_path)
     assert len(df) > 0, "Score CSV is empty"
