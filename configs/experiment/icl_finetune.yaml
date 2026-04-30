@@ -1,0 +1,75 @@
+# @package _global_
+# Supervised in-context learning (ICL) fine-tune of ProFam-1.
+# Uses ProteinGym DMS substitutions split at the assay-cluster level.
+defaults:
+  - override /data: proteingym_icl
+
+task_name: icl_finetune
+experiment_group: ProFamICL
+tags:
+  - ${experiment_group}
+  - icl
+  - finetune
+
+logger:
+  wandb:
+    project: profam-supervised
+
+# Single-GPU defaults; multi-GPU is straightforward to re-enable later.
+trainer:
+  devices: [1]
+  strategy: auto
+  num_nodes: 1
+  accumulate_grad_batches: 8
+  max_epochs: 100
+  max_steps: 50000
+  check_val_every_n_epoch: 1
+  val_check_interval: 1000
+  log_every_n_steps: 10
+  precision: bf16-true
+  sync_batchnorm: false
+
+
+model:
+  _target_: profam.models.llama_icl.LlamaICLLitModule
+  scheduler_name: cosine_with_min_lr
+  num_warmup_steps: 1000
+  num_training_steps: ${trainer.max_steps}
+  lr: 3.0e-4
+  backbone_lr_scale: 0.1
+  ce_loss_weight: 1.0
+  mse_loss_weight: 1.0
+  value_featurisation: linear
+  reinit_value_token_embeddings: true
+  use_kv_cache_for_scoring: true
+  pass_res_pos_in_doc_as_position_ids: true
+  optimizer: adamw
+  weight_decay: 0.1
+  # Override on the CLI to fine-tune from the published ProFam-1 weights:
+  #   python -m profam.train experiment=icl_finetune \
+  #       model.pretrained_ckpt_path=model_checkpoints/profam-1/checkpoints/last.ckpt
+  # state_dict only - optimizer / scheduler / global_step are NOT restored.
+  pretrained_ckpt_path: null
+  pretrained_strict: false
+  config:
+    _target_: transformers.LlamaConfig
+    vocab_size: ${constants.vocab_size}
+    hidden_size: 1024
+    intermediate_size: 4096
+    num_attention_heads: 16
+    num_hidden_layers: 16
+    num_key_value_heads: 8
+    rope_theta: 500000
+    max_position_embeddings: 8192
+    scoring_max_tokens: 128000
+    attn_implementation: flash_attention_2
+    attention_bias: false
+    attention_dropout: 0.0
+    rms_norm_eps: 1.0e-05
+    hidden_act: silu
+    torch_dtype: bfloat16
+    use_cache: true
+    pretraining_tp: 1
+
+
+ckpt_path: null

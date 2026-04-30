@@ -1,0 +1,9 @@
+Per-split cluster stats:
+       count      mean  median  max
+split                              
+test      34  1.147059     1.0    3
+train    138  1.289855     1.0    4
+
+Total assays: 217
+  Train: 178
+  Test:  39

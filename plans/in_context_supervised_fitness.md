@@ -4,6 +4,48 @@ Plan for extending ProFam-1 to do supervised in-context learning of continuous
 fitness values, fine-tuned on ProteinGym DMS substitutions and evaluated on held-out
 assay clusters.
 
+## Implementation status (v1 scaffolding)
+
+- [x] §1 token-stream design — implemented in
+      [`profam/data/icl_constants.py`](../profam/data/icl_constants.py) and
+      [`profam/data/builders/proteingym_icl.py`](../profam/data/builders/proteingym_icl.py)
+- [x] §2 architectural changes — `LlamaICLLitModule` in
+      [`profam/models/llama_icl.py`](../profam/models/llama_icl.py)
+      (linear value lift, regression head, joint CE+MSE loss, backbone-lr split,
+      Fourier featuriser available as ablation)
+- [x] §3 data pipeline — `ProteinGymICLDataset` (k-shot sampling, within-context
+      z-score, token budget, query-value leakage guard) and
+      `ICLDocumentBatchCollator` in
+      [`profam/data/collators.py`](../profam/data/collators.py)
+- [x] §3.1 cluster-split helper —
+      [`data_creation_scripts/cluster_proteingym_assays.py`](../data_creation_scripts/cluster_proteingym_assays.py)
+      (script ready; needs an mmseqs2 install + ProteinGym data to actually run)
+- [x] §4 training procedure — Hydra configs at
+      [`configs/data/proteingym_icl.yaml`](../configs/data/proteingym_icl.yaml) and
+      [`configs/experiment/icl_finetune.yaml`](../configs/experiment/icl_finetune.yaml)
+      (single-GPU defaults, exposed `ce_loss_weight` / `mse_loss_weight` knobs)
+- [x] §7 file-by-file roadmap items 1–6 + 8 — see test files
+      [`tests/test_icl_dataset.py`](../tests/test_icl_dataset.py),
+      [`tests/test_icl_forward.py`](../tests/test_icl_forward.py),
+      [`tests/test_icl_causal_mask.py`](../tests/test_icl_causal_mask.py)
+      (all 12 tests passing; cover token layout, value-leakage guard, gradient
+      flow, single-batch overfit, causal-mask invariance, context permutation
+      invariance at the first `[VAL]`)
+- [ ] §5 / §6 evaluation script and the headline experiments E1–E5
+      (`scripts/evaluate_icl.py` and the actual fine-tune runs) are deferred to
+      a follow-up; the v1 scaffolding above is complete and unit-tested
+- [ ] §7 item 7 (`scripts/evaluate_icl.py`) — not yet implemented; tracked for
+      the follow-up
+
+Quick-start (once mmseqs2 and the full ProteinGym data are on disk)::
+
+    python data_creation_scripts/cluster_proteingym_assays.py \
+        --gym-dir ../ProFam-atlas/ProteinGym \
+        --output-dir data/proteingym_icl/splits
+
+    python -m profam.train experiment=icl_finetune \
+        ckpt_path=model_checkpoints/profam-1/checkpoints/last.ckpt
+
 The goal is **transfer**: at test time the model receives a small set of
 labelled (sequence, fitness) pairs from an assay it has never seen, plus an
 optional unlabelled MSA, and must predict fitness for query sequences from the

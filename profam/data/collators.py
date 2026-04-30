@@ -1,10 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from torch.utils.data import default_collate
 from transformers.data.data_collator import DefaultDataCollator, default_data_collator
 
+from profam.data.icl_constants import VAL_SLOT_TOKEN_ID, VAL_TOKEN_ID
 from profam.data.objects import StringObject
 from profam.data.processors.batch_transforms import pack_batches
 
@@ -410,3 +411,117 @@ class DocumentBatchCollator:
         # elif 'val' in examples[0]['ds_name']:
         #     print('val collate_buffer_len:', ring_buffer_len)
         return batch
+
+
+# ---------------------------------------------------------------------------
+# ICL collator
+# ---------------------------------------------------------------------------
+
+
+_ICL_AUX_KEYS_BOOL = ("aa_mask", "value_slot_mask", "val_marker_mask", "predict_mask")
+_ICL_AUX_KEYS_FLOAT = ("values", "target_values")
+_ICL_AUX_KEYS_INT = ("input_ids", "attention_mask")
+
+
+class ICLDocumentBatchCollator(DocumentBatchCollator):
+    """Collator for the supervised ICL fine-tune.
+
+    On top of :class:`DocumentBatchCollator` it:
+
+    1. Pads the ICL auxiliary tensors (``value_slot_mask``, ``val_marker_mask``,
+       ``predict_mask``, ``values``, ``target_values``) when the batch contains
+       multiple documents.
+    2. Ignores ``[VAL]`` and ``[VAL_SLOT]`` positions in the discrete CE labels
+       so the LM never tries to predict these markers as discrete tokens (their
+       position-wise meaning is carried by the auxiliary tensors instead).
+
+    Packing across documents (``pack_to_max_tokens``) is intentionally
+    disabled - one ICL document is one sample.
+    """
+
+    def __init__(
+        self,
+        tokenizer,
+        ignore_gaps: bool = False,
+        feature_names: Optional[List[str]] = None,
+    ):
+        super().__init__(
+            tokenizer=tokenizer,
+            ignore_gaps=ignore_gaps,
+            feature_names=feature_names,
+            pack_to_max_tokens=None,
+            allow_split_packed_documents=False,
+        )
+
+    def __call__(self, examples):
+        if not examples:
+            raise ValueError("ICLDocumentBatchCollator received empty batch")
+
+        # Split string and tensor fields up-front so we can pad consistently.
+        keep = (
+            (lambda k: True)
+            if self.feature_names is None
+            else (lambda k: k in self.feature_names)
+        )
+
+        non_string_data: List[Dict[str, Any]] = []
+        string_data: List[Dict[str, str]] = []
+        for ex in examples:
+            non_string_data.append(
+                {k: v for k, v in ex.items() if not isinstance(v, str) and keep(k)}
+            )
+            string_data.append(
+                {k: v for k, v in ex.items() if isinstance(v, str) and keep(k)}
+            )
+
+        # ICL pads across the batch dim. We use 0 as fill for ints/floats; the
+        # bool masks default to False; ``attention_mask`` is the only int field
+        # for which the fill value (0 = padding) carries meaning downstream.
+        max_len = max(int(np.asarray(d["input_ids"]).shape[0]) for d in non_string_data)
+        pad_specs: Dict[str, Tuple[Any, Any]] = {
+            **{k: (0, np.int64) for k in _ICL_AUX_KEYS_INT},
+            **{k: (False, bool) for k in _ICL_AUX_KEYS_BOOL},
+            **{k: (0.0, np.float32) for k in _ICL_AUX_KEYS_FLOAT},
+        }
+        for d in non_string_data:
+            for key, (fill, dtype) in pad_specs.items():
+                if key not in d:
+                    continue
+                arr = np.asarray(d[key], dtype=dtype)
+                if arr.shape[0] < max_len:
+                    pad_width = [(0, max_len - arr.shape[0])] + [(0, 0)] * (arr.ndim - 1)
+                    arr = np.pad(arr, pad_width, mode="constant", constant_values=fill)
+                d[key] = arr
+
+        try:
+            batch = default_collate(non_string_data)
+        except Exception:
+            print("Error in ICL collator")
+            print(string_data)
+            raise
+
+        labels = batch["input_ids"].clone()
+        if self.tokenizer.pad_token_id is not None:
+            labels[labels == self.tokenizer.pad_token_id] = -100
+        if self.ignore_gaps:
+            labels[labels == self.tokenizer.convert_tokens_to_ids("-")] = -100
+        labels[labels == self.tokenizer.mask_token_id] = -100
+        # Don't try to predict the ICL markers as discrete tokens. The
+        # ``[VAL_SLOT]`` token's input embedding is overridden at runtime, so
+        # nothing in the embedding row maps back to its id; ``[VAL]`` is the
+        # readout marker for the regression head and is also semantically
+        # mismatched with discrete CE.
+        labels[labels == VAL_TOKEN_ID] = -100
+        labels[labels == VAL_SLOT_TOKEN_ID] = -100
+        batch["labels"] = labels
+
+        string_keys = set(k for obs in string_data for k in obs.keys())
+        for key in string_keys:
+            obj = StringObject()
+            obj.text = [obs.get(key, "") for obs in string_data]
+            batch[key] = obj
+
+        if "batch_size" not in batch:
+            batch["batch_size"] = len(non_string_data)
+        return batch
+
