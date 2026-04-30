@@ -17,14 +17,14 @@ logger:
 
 # Single-GPU defaults; multi-GPU is straightforward to re-enable later.
 trainer:
-  devices: [1]
+  devices: [2]
   strategy: auto
   num_nodes: 1
   accumulate_grad_batches: 8
   max_epochs: 100
   max_steps: 50000
   check_val_every_n_epoch: 1
-  val_check_interval: 1000
+  val_check_interval: 100
   log_every_n_steps: 10
   precision: bf16-true
   sync_batchnorm: false
@@ -35,9 +35,9 @@ model:
   scheduler_name: cosine_with_min_lr
   num_warmup_steps: 1000
   num_training_steps: ${trainer.max_steps}
-  lr: 3.0e-4
-  backbone_lr_scale: 0.1
-  ce_loss_weight: 1.0
+  lr: 0.001
+  backbone_lr_scale: 1.0
+  ce_loss_weight: 0.0
   mse_loss_weight: 1.0
   value_featurisation: linear
   reinit_value_token_embeddings: true
@@ -73,3 +73,4 @@ model:
 
 
 ckpt_path: null
+

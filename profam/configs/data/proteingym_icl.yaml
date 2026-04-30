@@ -1,0 +1,35 @@
+_target_: profam.data.icl_datamodule.ICLDataModule
+
+train_dataset:
+  _target_: profam.data.builders.proteingym_icl.ProteinGymICLDataset
+  name: proteingym_icl_train
+  split: train
+  split_csv: ${paths.data_dir}/ProteinGym/splits/cluster_split.csv
+  gym_data_dir: ${paths.gym_data_dir}
+  csv_filename: DMS_substitutions.csv
+  max_tokens_per_example: 8192
+  k_choices: [32, 64, 128, 256]
+  seed: ${seed}
+  samples_per_epoch: null
+  document_token: '[RAW]'
+  tokenizer: ${tokenizer}
+
+val_dataset:
+  _target_: profam.data.builders.proteingym_icl.ProteinGymICLDataset
+  name: proteingym_icl_val
+  split: test
+  split_csv: ${paths.data_dir}/ProteinGym/splits/cluster_split.csv
+  gym_data_dir: ${paths.gym_data_dir}
+  csv_filename: DMS_substitutions.csv
+  max_tokens_per_example: 8192
+  k_choices: [32, 64, 128, 256]
+  seed: ${seed}
+  samples_per_epoch: null
+  document_token: '[RAW]'
+  tokenizer: ${tokenizer}
+
+tokenizer: ${tokenizer}
+batch_size: 1
+num_workers: 0
+ignore_gaps: true
+prefetch_factor: null

@@ -261,7 +261,7 @@ class LlamaICLLitModule(BaseFamilyLitModule):
         target_values: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         last_hidden = outputs.hidden_states[-1]  # (B, L, d)
-        preds = self.value_out_head(last_hidden.float()).squeeze(-1)  # (B, L)
+        preds = self.value_out_head(last_hidden).squeeze(-1).float()  # (B, L)
         if predict_mask.any():
             mse = F.mse_loss(
                 preds[predict_mask], target_values[predict_mask].to(preds.dtype)
@@ -400,11 +400,16 @@ class LlamaICLLitModule(BaseFamilyLitModule):
 
         optim_dict: Dict[str, Any] = {"optimizer": optimizer}
         if self.scheduler_name is not None:
+            scheduler_kwargs = {}
+            if self.scheduler_name == "cosine_with_min_lr":
+                scheduler_kwargs["scheduler_specific_kwargs"] = {"min_lr": self.lr * 0.1}
+                
             scheduler = get_scheduler(
                 self.scheduler_name,
                 optimizer,
                 num_warmup_steps=self.num_warmup_steps,
                 num_training_steps=self.num_training_steps,
+                **scheduler_kwargs
             )
             optim_dict["lr_scheduler"] = {"scheduler": scheduler, "interval": "step"}
         return optim_dict
