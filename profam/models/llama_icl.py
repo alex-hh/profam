@@ -14,7 +14,7 @@ total objective is ``alpha * ce + beta * mse``.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -254,6 +254,28 @@ class LlamaICLLitModule(BaseFamilyLitModule):
     # Step helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _query_position_mask(predict_mask: torch.Tensor) -> torch.Tensor:
+        """Return a (B, L) bool mask selecting the *last* True per row of ``predict_mask``.
+
+        Rows with no True positions contribute no entries.
+        """
+        query_mask = torch.zeros_like(predict_mask)
+        if predict_mask.numel() == 0:
+            return query_mask
+        # last-True index per row; rows with all-False get 0 but are filtered next.
+        L = predict_mask.shape[1]
+        idx = torch.arange(L, device=predict_mask.device)
+        masked_idx = torch.where(
+            predict_mask, idx.unsqueeze(0), torch.full_like(predict_mask, -1, dtype=torch.long)
+        )
+        last_idx = masked_idx.max(dim=1).values  # (B,), -1 where row is empty
+        has_any = last_idx >= 0
+        rows = torch.nonzero(has_any, as_tuple=False).squeeze(-1)
+        if rows.numel() > 0:
+            query_mask[rows, last_idx[rows]] = True
+        return query_mask
+
     def _icl_loss(
         self,
         outputs,
@@ -262,12 +284,17 @@ class LlamaICLLitModule(BaseFamilyLitModule):
     ) -> Dict[str, torch.Tensor]:
         last_hidden = outputs.hidden_states[-1]  # (B, L, d)
         preds = self.value_out_head(last_hidden).squeeze(-1).float()  # (B, L)
+        targets = target_values.to(preds.dtype)
         if predict_mask.any():
-            mse = F.mse_loss(
-                preds[predict_mask], target_values[predict_mask].to(preds.dtype)
-            )
+            mse_all = F.mse_loss(preds[predict_mask], targets[predict_mask])
         else:
-            mse = preds.new_zeros(())
+            mse_all = preds.new_zeros(())
+
+        query_mask = self._query_position_mask(predict_mask)
+        if query_mask.any():
+            mse_query = F.mse_loss(preds[query_mask], targets[query_mask])
+        else:
+            mse_query = preds.new_zeros(())
 
         ce = outputs.loss if outputs.loss is not None else preds.new_zeros(())
         # Replace any NaN CE (which can happen if every label was ignored) with
@@ -275,8 +302,16 @@ class LlamaICLLitModule(BaseFamilyLitModule):
         if torch.isnan(ce):
             ce = preds.new_zeros(())
 
-        total = self.ce_loss_weight * ce + self.mse_loss_weight * mse
-        return {"loss": total, "ce_loss": ce, "mse_loss": mse, "preds": preds}
+        # Training/optimisation objective uses the all-values MSE.
+        total = self.ce_loss_weight * ce + self.mse_loss_weight * mse_all
+        return {
+            "loss": total,
+            "ce_loss": ce,
+            "mse_loss": mse_all,
+            "mse_loss_query": mse_query,
+            "preds": preds,
+            "query_mask": query_mask,
+        }
 
     def _shared_step(self, batch: Dict[str, torch.Tensor]):
         outputs = self(
@@ -295,15 +330,67 @@ class LlamaICLLitModule(BaseFamilyLitModule):
             target_values=batch["target_values"],
         )
 
+    def _diagnostic_stats(
+        self,
+        batch: Dict[str, torch.Tensor],
+        loss_dict: Dict[str, torch.Tensor],
+    ) -> Dict[str, torch.Tensor]:
+        """Cheap scalars that help spot pipeline issues.
+
+        Includes counts (predict positions, value-slot positions, batch shape)
+        and the first/second moments of preds and targets at predict positions.
+        Returned tensors live on the model device so ``log_dict`` handles them.
+        """
+        preds = loss_dict["preds"]
+        device = preds.device
+        predict_mask = batch["predict_mask"]
+        value_slot_mask = batch.get("value_slot_mask")
+        target_values = batch["target_values"]
+        B, L = predict_mask.shape
+
+        n_predict = predict_mask.sum().to(torch.float32)
+        n_value_slots = (
+            value_slot_mask.sum().to(torch.float32)
+            if value_slot_mask is not None
+            else torch.tensor(0.0, device=device)
+        )
+
+        if predict_mask.any():
+            preds_at = preds[predict_mask].float()
+            targets_at = target_values[predict_mask].float()
+            preds_mean = preds_at.mean()
+            preds_std = preds_at.std(unbiased=False) if preds_at.numel() > 1 else preds_at.new_zeros(())
+            targets_mean = targets_at.mean()
+            targets_std = (
+                targets_at.std(unbiased=False) if targets_at.numel() > 1 else targets_at.new_zeros(())
+            )
+        else:
+            zero = preds.new_zeros(())
+            preds_mean = preds_std = targets_mean = targets_std = zero
+
+        return {
+            "num_predict_positions": n_predict,
+            "num_value_slot_positions": n_value_slots,
+            "preds_mean": preds_mean,
+            "preds_std": preds_std,
+            "targets_mean": targets_mean,
+            "targets_std": targets_std,
+            "batch_size": torch.tensor(float(B), device=device),
+            "seq_len": torch.tensor(float(L), device=device),
+        }
+
     def training_step(
         self, batch: Dict[str, torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
         _outputs, loss_dict = self._shared_step(batch)
+        stats = self._diagnostic_stats(batch, loss_dict)
         self.log_dict(
             {
                 "train/loss": loss_dict["loss"],
                 "train/ce_loss": loss_dict["ce_loss"],
                 "train/mse_loss": loss_dict["mse_loss"],
+                "train/mse_loss_query": loss_dict["mse_loss_query"],
+                **{f"train/{k}": v for k, v in stats.items()},
             },
             on_step=True,
             on_epoch=False,
@@ -324,11 +411,22 @@ class LlamaICLLitModule(BaseFamilyLitModule):
             return self.validation_step_proteingym(batch)
 
         outputs, loss_dict = self._shared_step(batch)
+        stats = self._diagnostic_stats(batch, loss_dict)
+        # ``val/loss`` is the all-values MSE-weighted loss (matches train/loss).
+        # ``val/loss_query`` is the same loss but using only the final/query
+        # value per row — comparable to the previous behaviour.
+        val_loss_query = (
+            self.ce_loss_weight * loss_dict["ce_loss"]
+            + self.mse_loss_weight * loss_dict["mse_loss_query"]
+        )
         self.log_dict(
             {
                 "val/loss": loss_dict["loss"],
+                "val/loss_query": val_loss_query,
                 "val/ce_loss": loss_dict["ce_loss"],
                 "val/mse_loss": loss_dict["mse_loss"],
+                "val/mse_loss_query": loss_dict["mse_loss_query"],
+                **{f"val/{k}": v for k, v in stats.items()},
             },
             on_step=False,
             on_epoch=True,
@@ -337,29 +435,35 @@ class LlamaICLLitModule(BaseFamilyLitModule):
             sync_dist=True,
         )
 
-        # Per-assay rank correlations. We assume one ICL document per batch row;
-        # for each row we look at the predicted vs target value at the *query*
-        # position only (the last [VAL] in the predict mask).
+        # Two correlation flavours:
+        # 1. ``icl_query_*``  - one prediction per row at the query position
+        #    (the last [VAL]). Requires a multi-row batch to be meaningful.
+        # 2. ``icl_all_*``    - over *every* predict-mask position in the batch
+        #    (multiple values per row). Requires >= 2 predict positions.
         try:
             preds = loss_dict["preds"]
-            B = preds.shape[0]
-            query_preds: List[float] = []
-            query_targets: List[float] = []
-            for b in range(B):
-                pos = torch.nonzero(batch["predict_mask"][b], as_tuple=False)
-                if pos.numel() == 0:
-                    continue
-                q_pos = int(pos[-1, 0].item())
-                query_preds.append(float(preds[b, q_pos].item()))
-                query_targets.append(float(batch["target_values"][b, q_pos].item()))
-            if len(query_preds) > 1:
-                rho, _ = spearmanr(query_preds, query_targets)
-                r, _ = pearsonr(query_preds, query_targets)
+            predict_mask = batch["predict_mask"]
+            target_values = batch["target_values"]
+
+            query_mask = loss_dict["query_mask"]
+            corr_logs: Dict[str, float] = {}
+            if query_mask.sum() > 1:
+                qp = preds[query_mask].detach().float().cpu().numpy()
+                qt = target_values[query_mask].detach().float().cpu().numpy()
+                rho, _ = spearmanr(qp, qt)
+                r, _ = pearsonr(qp, qt)
+                corr_logs["val/icl_query_spearman"] = float(rho)
+                corr_logs["val/icl_query_pearson"] = float(r)
+            if predict_mask.sum() > 1:
+                ap = preds[predict_mask].detach().float().cpu().numpy()
+                at = target_values[predict_mask].detach().float().cpu().numpy()
+                rho_all, _ = spearmanr(ap, at)
+                r_all, _ = pearsonr(ap, at)
+                corr_logs["val/icl_all_spearman"] = float(rho_all)
+                corr_logs["val/icl_all_pearson"] = float(r_all)
+            if corr_logs:
                 self.log_dict(
-                    {
-                        "val/icl_query_spearman": float(rho),
-                        "val/icl_query_pearson": float(r),
-                    },
+                    corr_logs,
                     on_step=False,
                     on_epoch=True,
                     add_dataloader_idx=False,

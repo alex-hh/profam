@@ -21,6 +21,8 @@ trainer:
   strategy: auto
   num_nodes: 1
   accumulate_grad_batches: 8
+  gradient_clip_val: 1.0
+  gradient_clip_algorithm: norm
   max_epochs: 100
   max_steps: 50000
   check_val_every_n_epoch: 1
