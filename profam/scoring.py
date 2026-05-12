@@ -11,6 +11,7 @@ import torch
 from tqdm.auto import tqdm
 
 from profam.models.llama import LlamaLitModule
+from profam.models.utils import InputAwareDynamicCache, log_likelihood_from_outputs
 
 
 def score_variants_ensemble(
@@ -181,3 +182,155 @@ def score_variants_ensemble(
 
     lls_array = np.stack(variant_lls, axis=0)
     return lls_array.mean(axis=0)
+
+
+def build_prompt_ids(
+    tokenized_conditioning_sequences: List[List[int]],
+    sep_token_id: int,
+    start_tokens: Optional[List[int]] = None,
+    max_context_tokens: int = 8192,
+    n_sequences: Optional[int] = None,
+    weights: Optional[np.ndarray] = None,
+    rng: Optional[np.random.Generator] = None,
+) -> List[int]:
+    """Build a prompt from conditioning (MSA) sequences.
+
+    Pattern: start_tokens + seq1 + [SEP] + seq2 + [SEP] + ... (no trailing [SEP]).
+
+    Args:
+        tokenized_conditioning_sequences: per-sequence token id lists.
+        sep_token_id: the [SEP] token id between conditioning sequences.
+        start_tokens: prefix tokens (defaults to ``[47, 63]`` =
+            ``[start-of-document][RAW]`` for ProFam-1's vocab).
+        max_context_tokens: cap on the prompt's total length.
+        n_sequences: number of sequences to sample (defaults to all that fit).
+        weights: optional sampling weights (e.g. homology-diversity weights).
+        rng: numpy Generator for reproducible sampling.
+    """
+    if start_tokens is None:
+        start_tokens = [47, 63]
+    if rng is None:
+        rng = np.random.default_rng(42)
+
+    total_seqs = len(tokenized_conditioning_sequences)
+    if total_seqs == 0:
+        return list(start_tokens)
+
+    if n_sequences is None:
+        n_sequences = total_seqs
+    n_sequences = min(n_sequences, total_seqs)
+
+    p = None
+    if weights is not None:
+        w = np.asarray(weights, dtype=np.float64)
+        w = np.clip(w, 0.0, None)
+        s = float(w.sum())
+        if s > 0:
+            p = w / s
+
+    idxs = rng.choice(
+        np.arange(total_seqs), size=min(n_sequences, total_seqs), replace=False, p=p
+    ).tolist()
+
+    prompt_ids = list(start_tokens)
+    for i, idx in enumerate(idxs):
+        tokens_to_add = tokenized_conditioning_sequences[idx]
+        # +1 for the [SEP] token between sequences (none after the last one)
+        extra = len(tokens_to_add) + (1 if i < len(idxs) - 1 else 0)
+        if len(prompt_ids) + extra > max_context_tokens:
+            break
+        prompt_ids.extend(tokens_to_add)
+        if i < len(idxs) - 1:
+            prompt_ids.append(sep_token_id)
+
+    return prompt_ids
+
+
+def cache_context(model: LlamaLitModule, prompt_ids: List[int], device) -> tuple:
+    """Compute and cache KV states for an MSA conditioning context (no-grad).
+
+    Returns the ``past_key_values`` tuple from a forward pass on the prompt.
+    Intended to be called once with a frozen copy of the model and reused
+    across all variant forwards during preference fine-tuning.
+    """
+    input_ids = torch.tensor(prompt_ids, dtype=torch.long, device=device).unsqueeze(0)
+    with torch.no_grad():
+        outputs = model.model(input_ids=input_ids, use_cache=True)
+    return outputs.past_key_values
+
+
+def _score_variants_kv(
+    model: LlamaLitModule,
+    past_key_values,
+    completion_ids: torch.Tensor,
+    sub_batch_size: int,
+) -> torch.Tensor:
+    """Shared inner loop for score_variants_{differentiable,no_grad}."""
+    pad_token_id = model.tokenizer.pad_token_id
+    N = completion_ids.shape[1]
+    L = completion_ids.shape[2]
+    all_scores = []
+
+    for batch_start in range(0, N, sub_batch_size):
+        batch_end = min(batch_start + sub_batch_size, N)
+        this_ids = completion_ids[0, batch_start:batch_end]
+        actual_bs = this_ids.shape[0]
+
+        # Trim trailing padding for efficiency
+        mask = this_ids != pad_token_id
+        indices = torch.arange(L, device=this_ids.device).expand(actual_bs, -1)
+        indices = torch.where(mask, indices, torch.zeros_like(indices))
+        max_len = indices.max().item() + 1
+        this_ids = this_ids[:, :max_len]
+
+        cache = InputAwareDynamicCache.from_legacy_cache(past_key_values)
+        cache.batch_repeat_interleave(actual_bs)
+
+        outputs = model.model(
+            input_ids=this_ids,
+            past_key_values=cache,
+            use_cache=False,
+        )
+
+        labels = torch.where(this_ids == pad_token_id, -100, this_ids.clone())
+        log_ll = log_likelihood_from_outputs(outputs, labels, start_ix=0)
+
+        shift_labels = labels[..., 1:].to(log_ll.device)
+        valid = shift_labels != -100
+        denom = valid.sum(dim=-1).clamp(min=1)
+        ll_mean = (log_ll * valid).sum(dim=-1) / denom
+        all_scores.append(ll_mean)
+
+    return torch.cat(all_scores)
+
+
+def score_variants_differentiable(
+    model: LlamaLitModule,
+    past_key_values,
+    completion_ids: torch.Tensor,
+    sub_batch_size: int = 4,
+) -> torch.Tensor:
+    """Score variants with gradient flow against a frozen KV-cache context.
+
+    Args:
+        model: ProFam Lightning module.
+        past_key_values: detached/frozen KV cache for the conditioning prompt.
+        completion_ids: (1, N, L) tokenised candidate sequences (with bos+eos sep).
+        sub_batch_size: forward-pass micro-batch size.
+
+    Returns:
+        Tensor of shape (N,) holding mean per-token log-likelihoods, with grad.
+    """
+    return _score_variants_kv(model, past_key_values, completion_ids, sub_batch_size)
+
+
+@torch.no_grad()
+def score_variants_no_grad(
+    model: LlamaLitModule,
+    past_key_values,
+    completion_ids: torch.Tensor,
+    batch_size: int = 8,
+) -> np.ndarray:
+    """No-grad variant of :func:`score_variants_differentiable` for evaluation."""
+    scores = _score_variants_kv(model, past_key_values, completion_ids, batch_size)
+    return scores.cpu().float().numpy()
