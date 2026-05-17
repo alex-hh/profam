@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
@@ -367,6 +368,7 @@ class ProFam:
         minimum_sequence_identity: float | None = None,
         maximum_retries: int = 5,
         repeat_guard: bool = True,
+        generation_batch_size: int = 1,
         seed: int | None = None,
         prompt_accessions: list[str] | None = None,
     ) -> GenerationResult:
@@ -407,6 +409,11 @@ class ProFam:
             Retry limit when generated sequences are filtered out.
         repeat_guard:
             Abort and retry sequences with excessive amino-acid repeats.
+        generation_batch_size:
+            Number of sequences generated in parallel per model.generate()
+            call (single sampler only). ``1`` (default) reproduces sequential
+            generation exactly; values > 1 trade memory for throughput. The
+            ensemble sampler always generates one sequence at a time.
         seed:
             Random seed for reproducibility.
 
@@ -453,6 +460,14 @@ class ProFam:
             max_tokens_per_example=None if sampler == "ensemble" else max_tokens,
         )
         preprocessor = ProteinDocumentPreprocessor(cfg=cfg)
+
+        if sampler == "ensemble" and generation_batch_size > 1:
+            warnings.warn(
+                "generation_batch_size > 1 is only supported by the single "
+                "sampler; the ensemble sampler generates one sequence at a "
+                "time and the value will be ignored.",
+                stacklevel=2,
+            )
 
         if sampler == "ensemble":
             builder = EnsemblePromptBuilder(
@@ -512,6 +527,7 @@ class ProFam:
                 minimum_sequence_identity=minimum_sequence_identity,
                 maximum_retries=maximum_retries,
                 repeat_guard=repeat_guard,
+                generation_batch_size=generation_batch_size,
             )
             conditioning_prompts = [_prompt_doc_to_conditioning(prompt_doc)]
 

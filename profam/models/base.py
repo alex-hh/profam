@@ -659,42 +659,27 @@ class BaseFamilyLitModule(LightningModule):
                 return_per_residue=return_per_residue,
             )
 
-    def _sample_seqs(
+    def _build_generation_kwargs(
         self,
         input_ids,
-        num_samples,
-        max_tokens: int,
-        max_generated_length: Optional[int] = None,
-        max_total_length: Optional[
-            int
-        ] = None,  # maximum length of inputs plus completions
-        fixed_length: Optional[int] = None,
-        greedy: bool = False,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        sample_gaps: bool = False,
-        structure_tokens: bool = False,
-        continuous_sampling: bool = False,
-        repeat_guard: bool = True,
-        repeat_length: int = 9,  # if last repeat_length chars appear repeat_count times, seq is aborted
-        repeat_count: int = 9,
-        max_retries: int = 3,
+        max_tokens,
+        max_generated_length,
+        max_total_length,
+        fixed_length,
+        top_p,
+        sample_gaps,
+        structure_tokens,
+        continuous_sampling=False,
     ):
-        """
-        Conditionally independent sequence generation: sequences are generated independently of each other
-        given the prompt. Once sep token is generated, the sequence is considered complete.
-        (i.e. we don't generate a sequence of sequences directly).
-        """
-        # TODO: pass attention mask, pad_token_id to avoid the following warning:
-        # The attention mask and the pad token id were not set. As a consequence, you may
-        # observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
-        # TODO: add min length kwarg
+        """Build the kwargs dict passed to model.generate()."""
         if max_total_length is None:
             max_total_length = max_tokens
         if max_generated_length is not None:
             assert max_generated_length <= max_total_length
+
         generation_kwargs = {}
         sep_token_id = self.tokenizer.sep_token_id
+
         if fixed_length is not None:
             if max_total_length is not None:
                 assert input_ids.shape[1] + fixed_length <= max_total_length
@@ -713,21 +698,16 @@ class BaseFamilyLitModule(LightningModule):
                 None if continuous_sampling else sep_token_id
             )
             generation_kwargs["max_length"] = max_total_length
+
         generation_kwargs["pad_token_id"] = self.tokenizer.pad_token_id
+
         if top_p is not None:
             # nucleus sampling; ensure valid range
             if not (0.0 < float(top_p) <= 1.0):
                 raise ValueError("top_p must be in the interval (0, 1]")
             generation_kwargs["top_p"] = float(top_p)
-        bad_aas = [
-            "X",
-            "x",
-            "B",
-            "J",
-            "O",
-            "U",
-            "Z",
-        ]
+
+        bad_aas = ["X", "x", "B", "J", "O", "U", "Z"]
         if not sample_gaps:
             bad_aas.append("-")
         if structure_tokens:
@@ -735,8 +715,6 @@ class BaseFamilyLitModule(LightningModule):
         else:
             bad_aas = bad_aas + aa_letters_lower
 
-        # each 'word' is treated as a list of tokens
-        # TODO: write test for this with random model.
         # [SEP] is the effective end-of-sequence marker and must remain
         # sampleable so the generator can terminate naturally; the
         # shipped tokenizer does not set eos_token, so we filter on
@@ -750,23 +728,140 @@ class BaseFamilyLitModule(LightningModule):
             [self.tokenizer.convert_tokens_to_ids(bad_aa)] for bad_aa in bad_aas
         ]
 
+        return generation_kwargs
+
+    def _validate_generated_sequence(
+        self, tokens, repeat_guard, repeat_length, repeat_count
+    ):
+        """Return True if a generated token sequence passes quality checks.
+
+        Checks: (1) sequence ends with SEP token, (2) no excessive repeats.
+        """
+        pad_id = self.tokenizer.pad_token_id
+        valid_len = int((tokens != pad_id).sum().item())
+        if valid_len == 0:
+            return False
+        last_tok = int(tokens[valid_len - 1].item())
+        if last_tok != self.tokenizer.sep_token_id:
+            return False
+        if repeat_guard:
+            text = self.tokenizer.decode(
+                tokens[:valid_len].tolist(), skip_special_tokens=True
+            ).replace(" ", "")
+            if has_too_many_repeats(
+                text, repeat_length=repeat_length, repeat_count=repeat_count
+            ):
+                return False
+        return True
+
+    def _score_generated_sequence(self, seq_tokens, per_token_log_probs, num_steps):
+        """Compute mean log-prob for a generated sequence, stopping at first SEP."""
+        pad_token_id = self.tokenizer.pad_token_id
+        sep_token_id = self.tokenizer.sep_token_id
+        valid_len = int((seq_tokens != pad_token_id).sum().item())
+
+        total_logp = 0.0
+        count = 0
+        for t in range(min(num_steps, valid_len)):
+            total_logp += float(per_token_log_probs[t].item())
+            count += 1
+            if int(seq_tokens[t].item()) == sep_token_id:
+                break
+        return total_logp / max(count, 1)
+
+    def _pad_generated_outputs(self, all_outputs, all_scores):
+        """Pad variable-length generated sequences to a uniform tensor."""
+        pad_token_id = self.tokenizer.pad_token_id
+        if len(all_outputs) == 0:
+            return torch.full((0, 1), pad_token_id), []
+
+        max_output_length = max(o.shape[1] for o in all_outputs)
+        padded_outputs = torch.full(
+            (len(all_outputs), max_output_length),
+            pad_token_id,
+            device=all_outputs[0].device,
+        )
+        for idx, o in enumerate(all_outputs):
+            padded_outputs[idx, : o.shape[1]] = o
+        return padded_outputs, all_scores
+
+    def _sample_seqs(
+        self,
+        input_ids,
+        num_samples,
+        max_tokens: int,
+        max_generated_length: Optional[int] = None,
+        max_total_length: Optional[int] = None,  # max length of inputs plus completions
+        fixed_length: Optional[int] = None,
+        greedy: bool = False,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        sample_gaps: bool = False,
+        structure_tokens: bool = False,
+        continuous_sampling: bool = False,
+        repeat_guard: bool = True,
+        repeat_length: int = 9,  # if last repeat_length chars appear repeat_count times, seq is aborted
+        repeat_count: int = 9,
+        max_retries: int = 3,
+        generation_batch_size: int = 1,
+    ):
+        """Conditionally independent sequence generation.
+
+        Sequences are generated independently of each other given the prompt.
+        Once a SEP token is generated, the sequence is considered complete.
+
+        ``generation_batch_size`` controls how many sequences are generated in
+        parallel per model.generate() call. The default of 1 reproduces
+        sequential generation exactly; values > 1 trade memory for throughput.
+        Validation (ends-with-SEP, repeat detection) and retry logic are
+        applied consistently regardless of batch size. Continuous sampling
+        always runs with a batch size of 1.
+        """
+        assert generation_batch_size >= 1, "generation_batch_size must be >= 1"
+
+        generation_kwargs = self._build_generation_kwargs(
+            input_ids,
+            max_tokens,
+            max_generated_length,
+            max_total_length,
+            fixed_length,
+            top_p,
+            sample_gaps,
+            structure_tokens,
+            continuous_sampling,
+        )
+
         assert (
             input_ids.shape[0] == 1 and input_ids.ndim == 2
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
+        if continuous_sampling and generation_batch_size > 1:
+            log.warning(
+                "generation_batch_size=%d is ignored when continuous_sampling "
+                "is enabled; generating one sequence at a time.",
+                generation_batch_size,
+            )
+        effective_batch_size = 1 if continuous_sampling else generation_batch_size
+        prompt_len = input_ids.shape[1]
+
         all_outputs: List[torch.Tensor] = []
         all_scores: List[float] = []
-        # Always generate exactly one sequence at a time
-        for batch_start in tqdm.tqdm(range(num_samples), "Generating sequences"):
-            remaining = 1
-            attempt = 0
-            batch_collected: List[torch.Tensor] = []
-            batch_scores: List[float] = []
+        remaining = num_samples
+        generations_used = 0
+
+        desc = (
+            "Generating sequences (batched)"
+            if effective_batch_size > 1
+            else "Generating sequences"
+        )
+
+        with tqdm.tqdm(total=num_samples, desc=desc) as pbar:
             while remaining > 0:
-                # Build stopping criteria that knows prompt length (non-continuous only)
+                current_batch_size = min(remaining, effective_batch_size)
+                batch_input_ids = input_ids.expand(current_batch_size, -1)
+
                 stopping = None
                 if not continuous_sampling and repeat_guard:
-                    prompt_len = input_ids.shape[1]
                     stopping = StoppingCriteriaList(
                         [
                             RepeatStoppingCriteria(
@@ -777,8 +872,9 @@ class BaseFamilyLitModule(LightningModule):
                             )
                         ]
                     )
+
                 gen_out = self.model.generate(
-                    input_ids=input_ids,
+                    input_ids=batch_input_ids,
                     num_return_sequences=1,
                     return_dict_in_generate=True,
                     output_scores=True,
@@ -787,104 +883,46 @@ class BaseFamilyLitModule(LightningModule):
                     stopping_criteria=stopping,
                     **generation_kwargs,
                 )
-                seqs_full = gen_out.sequences  # (remaining, L_total)
-                scores_list = gen_out.scores  # List[T] of (remaining, V)
-                # Slice off prompt
-                prompt_len = input_ids.shape[1]
-                seqs = seqs_full[:, prompt_len:]
 
-                # Evaluate which are acceptable vs need retry
-                failed_indices: List[int] = []
-                for i in range(seqs.shape[0]):
-                    row = seqs[i]
-                    # find last non-pad token index
-                    pad_id = self.tokenizer.pad_token_id
-                    valid_len = int((row != pad_id).sum().item())
-                    last_tok = (
-                        int(row[valid_len - 1].item()) if valid_len > 0 else pad_id
-                    )
-                    text = self.tokenizer.decode(
-                        row[:valid_len].tolist(), skip_special_tokens=True
-                    ).replace(" ", "")
-                    ends_with_sep = last_tok == self.tokenizer.sep_token_id
-                    is_repeaty = has_too_many_repeats(
-                        text, repeat_length=repeat_length, repeat_count=repeat_count
-                    )
-                    if (not ends_with_sep) or (
-                        is_repeaty and (not continuous_sampling)
-                    ):
-                        failed_indices.append(i)
-                    else:
-                        # accept and score
-                        batch_collected.append(row.unsqueeze(0))
-                        # compute mean logp up to SEP if present
-                        total_logp = 0.0
-                        count = 0
-                        finished_non_cont = False
-                        T = len(scores_list)
-                        for t in range(T):
-                            token_id = (
-                                int(seqs[i, t].item()) if t < seqs.shape[1] else pad_id
-                            )
-                            lp = F.log_softmax(scores_list[t], dim=-1)[
-                                i, token_id
-                            ].item()
-                            if not continuous_sampling:
-                                if finished_non_cont:
-                                    continue
-                                total_logp += float(lp)
-                                count += 1
-                                if token_id == self.tokenizer.sep_token_id:
-                                    finished_non_cont = True
-                            else:
-                                raise ValueError(
-                                    "Continuous sampling is not supported for base model"
-                                )
-                        batch_scores.append(total_logp / max(count, 1))
+                seqs = gen_out.sequences[:, prompt_len:]
+                scores_list = gen_out.scores
+                T = len(scores_list)
 
-                if len(failed_indices) == 0:
-                    remaining = 0
+                if T > 0:
+                    stacked = torch.stack(scores_list, dim=0).transpose(0, 1)
+                    log_probs = F.log_softmax(stacked, dim=-1)
+                    selected_log_probs = log_probs.gather(
+                        -1, seqs[:, :T].unsqueeze(-1)
+                    ).squeeze(-1)
                 else:
-                    attempt += 1
-                    if attempt > max_retries:
-                        # accept remaining failed ones as-is (score them) to avoid infinite loop
-                        for i in failed_indices:
-                            row = seqs[i]
-                            batch_collected.append(row.unsqueeze(0))
-                            total_logp = 0.0
-                            count = 0
-                            T = len(scores_list)
-                            for t in range(T):
-                                token_id = (
-                                    int(seqs[i, t].item())
-                                    if t < seqs.shape[1]
-                                    else pad_id
-                                )
-                                lp = F.log_softmax(scores_list[t], dim=-1)[
-                                    i, token_id
-                                ].item()
-                                total_logp += float(lp)
-                                count += 1
-                            batch_scores.append(total_logp / max(count, 1))
-                        remaining = 0
-                    else:
-                        remaining = len(failed_indices)
+                    selected_log_probs = torch.zeros(
+                        current_batch_size, 0, device=seqs.device
+                    )
 
-            # Commit collected from this batch
-            if len(batch_collected) > 0:
-                all_outputs.append(torch.cat(batch_collected, dim=0))
-                all_scores.extend(batch_scores)
+                generations_used += 1
+                budget_exhausted = generations_used > max_retries
 
-        max_output_length = max([o.shape[1] for o in all_outputs])
-        padded_outputs = torch.full(
-            (num_samples, max_output_length), self.tokenizer.pad_token_id
-        )
-        start_ix = 0
-        for o in all_outputs:
-            padded_outputs[start_ix : start_ix + o.shape[0], : o.shape[1]] = o
-            start_ix += o.shape[0]
+                for i in range(current_batch_size):
+                    row = seqs[i]
+                    is_valid = continuous_sampling or self._validate_generated_sequence(
+                        row,
+                        repeat_guard,
+                        repeat_length,
+                        repeat_count,
+                    )
 
-        return padded_outputs, all_scores
+                    if is_valid or budget_exhausted:
+                        score = self._score_generated_sequence(
+                            row,
+                            selected_log_probs[i],
+                            T,
+                        )
+                        all_outputs.append(row.unsqueeze(0))
+                        all_scores.append(score)
+                        remaining -= 1
+                        pbar.update(1)
+
+        return self._pad_generated_outputs(all_outputs, all_scores)
 
     @torch.no_grad()
     def log_metrics(self, batch, outputs, step_name, log_global: bool = True):
