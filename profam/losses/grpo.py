@@ -115,10 +115,7 @@ def grpo_loss(
         ratio_valid = ratio.detach()[valid_mask]
         if ratio_valid.numel() > 0:
             clip_frac = (
-                (
-                    (ratio_valid < 1.0 - clip_ratio)
-                    | (ratio_valid > 1.0 + clip_ratio)
-                )
+                ((ratio_valid < 1.0 - clip_ratio) | (ratio_valid > 1.0 + clip_ratio))
                 .float()
                 .mean()
                 .item()

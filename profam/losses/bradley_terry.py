@@ -4,7 +4,9 @@ import torch
 import torch.nn.functional as F
 
 
-def bradley_terry_loss(scores: torch.Tensor, fitness_values: torch.Tensor) -> torch.Tensor:
+def bradley_terry_loss(
+    scores: torch.Tensor, fitness_values: torch.Tensor
+) -> torch.Tensor:
     """Bradley-Terry pairwise ranking loss.
 
     Args:
