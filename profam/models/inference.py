@@ -174,7 +174,6 @@ class ProFamSampler:
         repeat_length: int = 9,
         repeat_count: int = 9,
         max_retries: int = 3,
-        batch_generation: bool = False,
         generation_batch_size: int = 1,
     ):
         assert not (
@@ -228,7 +227,6 @@ class ProFamSampler:
                         repeat_length=repeat_length,
                         repeat_count=repeat_count,
                         max_retries=max_retries,
-                        batch_generation=batch_generation,
                         generation_batch_size=min(need, generation_batch_size),
                         **sampling_kwargs,
                     )
@@ -284,7 +282,6 @@ class ProFamSampler:
                         num_samples=need,
                         continuous_sampling=False,
                         repeat_guard=False,
-                        batch_generation=batch_generation,
                         generation_batch_size=min(need, generation_batch_size),
                         **sampling_kwargs,
                     )
@@ -502,9 +499,6 @@ class EnsembleDecoder:
         repeat_length: int = 9,
         repeat_count: int = 9,
         max_retries: int = 3,
-        # batched sampling
-        batch_generation: bool = False,
-        generation_batch_size: int = 1,
     ) -> torch.Tensor:
         device = self.model.device
         # Ensure tensors are on device

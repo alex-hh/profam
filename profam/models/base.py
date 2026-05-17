@@ -803,19 +803,24 @@ class BaseFamilyLitModule(LightningModule):
         repeat_length: int = 9,  # if last repeat_length chars appear repeat_count times, seq is aborted
         repeat_count: int = 9,
         max_retries: int = 3,
-        batch_generation: bool = False,
-        generation_batch_size: int = 8,
+        generation_batch_size: int = 1,
     ):
         """Conditionally independent sequence generation.
 
         Sequences are generated independently of each other given the prompt.
         Once a SEP token is generated, the sequence is considered complete.
 
-        When batch_generation is True, generates multiple sequences in parallel
-        per model.generate() call for improved throughput. Validation
-        (ends-with-SEP, repeat detection) and retry logic are applied
-        consistently regardless of batch size.
+        ``generation_batch_size`` controls how many sequences are generated in
+        parallel per model.generate() call. The default of 1 reproduces
+        sequential generation exactly; values > 1 trade memory for throughput.
+        Validation (ends-with-SEP, repeat detection) and retry logic are
+        applied consistently regardless of batch size. Continuous sampling
+        always runs with a batch size of 1.
         """
+        assert (
+            generation_batch_size >= 1
+        ), "generation_batch_size must be >= 1"
+
         generation_kwargs = self._build_generation_kwargs(
             input_ids,
             max_tokens,
@@ -832,11 +837,13 @@ class BaseFamilyLitModule(LightningModule):
             input_ids.shape[0] == 1 and input_ids.ndim == 2
         ), "Only batch size 1 is supported for sampling; batch dim must be present"
 
-        effective_batch_size = (
-            generation_batch_size
-            if (batch_generation and not continuous_sampling)
-            else 1
-        )
+        if continuous_sampling and generation_batch_size > 1:
+            log.warning(
+                "generation_batch_size=%d is ignored when continuous_sampling "
+                "is enabled; generating one sequence at a time.",
+                generation_batch_size,
+            )
+        effective_batch_size = 1 if continuous_sampling else generation_batch_size
         prompt_len = input_ids.shape[1]
 
         all_outputs: List[torch.Tensor] = []
