@@ -62,3 +62,4 @@ model_checkpoints/
 data/train_example/*/*.idx.info
 data/train_example/*/*.idx.npy
 data/score_sequences_example/*_weights.npz
+outputs_miniaturize/
