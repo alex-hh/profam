@@ -174,6 +174,8 @@ class ProFamSampler:
         repeat_length: int = 9,
         repeat_count: int = 9,
         max_retries: int = 3,
+        batch_generation: bool = False,
+        generation_batch_size: int = 1,
     ):
         assert not (
             repeat_guard and continuous_sampling
@@ -226,6 +228,8 @@ class ProFamSampler:
                         repeat_length=repeat_length,
                         repeat_count=repeat_count,
                         max_retries=max_retries,
+                        batch_generation=batch_generation,
+                        generation_batch_size=min(need, generation_batch_size),
                         **sampling_kwargs,
                     )
                     batch_seqs = self.model.tokenizer.decode_tokens(tokens)
@@ -280,9 +284,34 @@ class ProFamSampler:
                         num_samples=need,
                         continuous_sampling=False,
                         repeat_guard=False,
+                        batch_generation=batch_generation,
+                        generation_batch_size=min(need, generation_batch_size),
                         **sampling_kwargs,
                     )
                     batch_seqs = self.model.tokenizer.decode_tokens(tokens)
+                    # Compute identities for this batch under the same
+                    # conditions as the main block (length pre-filter gates
+                    # which sequences are queried; identity is only computed
+                    # when a positive minimum_sequence_identity is set). The
+                    # fallback still accepts every sequence regardless.
+                    len_ok_mask = [True] * len(batch_seqs)
+                    if minimum_sequence_length_proportion is not None:
+                        min_len = int(
+                            min_prompt_len * float(minimum_sequence_length_proportion)
+                        )
+                        len_ok_mask = [len(s) >= min_len for s in batch_seqs]
+                    idents = [0.0] * len(batch_seqs)
+                    idx_map = [i for i, ok in enumerate(len_ok_mask) if ok]
+                    if len(idx_map) > 0 and (
+                        (minimum_sequence_identity is not None)
+                        and (minimum_sequence_identity > 0)
+                    ):
+                        queries = [batch_seqs[i] for i in idx_map]
+                        id_vals = _mmseqs_best_identity(
+                            prompt_sequences, queries, threads=1
+                        )
+                        for j, i in enumerate(idx_map):
+                            idents[i] = id_vals[j]
                     for i, seq in enumerate(batch_seqs):
                         accepted_sequences.append(seq)
                         accepted_scores.append(
@@ -473,6 +502,9 @@ class EnsembleDecoder:
         repeat_length: int = 9,
         repeat_count: int = 9,
         max_retries: int = 3,
+        # batched sampling
+        batch_generation: bool = False,
+        generation_batch_size: int = 1,
     ) -> torch.Tensor:
         device = self.model.device
         # Ensure tensors are on device
