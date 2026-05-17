@@ -817,9 +817,7 @@ class BaseFamilyLitModule(LightningModule):
         applied consistently regardless of batch size. Continuous sampling
         always runs with a batch size of 1.
         """
-        assert (
-            generation_batch_size >= 1
-        ), "generation_batch_size must be >= 1"
+        assert generation_batch_size >= 1, "generation_batch_size must be >= 1"
 
         generation_kwargs = self._build_generation_kwargs(
             input_ids,
