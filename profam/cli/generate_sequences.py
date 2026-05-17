@@ -117,6 +117,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--generation_batch_size",
+        type=int,
+        default=1,
+        help=(
+            "Number of sequences generated in parallel per model.generate() "
+            "call (single sampler only). 1 (default) reproduces sequential "
+            "generation; values > 1 trade memory for throughput"
+        ),
+    )
+    parser.add_argument(
         "--task_index",
         type=int,
         default=None,
@@ -240,6 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 minimum_sequence_identity=args.minimum_sequence_identity,
                 maximum_retries=args.maximum_retries,
                 repeat_guard=repeat_guard,
+                generation_batch_size=args.generation_batch_size,
                 seed=args.seed,
             )
 
